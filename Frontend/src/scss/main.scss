@@ -1,0 +1,98 @@
+@import "@/scss/prepared/_variables.scss";
+
+@font-face {
+  font-family: 'Vazir';
+  src: url('../assets/fonts/vazir/Vazir-Medium-FD.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazir';
+  src: url('../assets/fonts/vazir/Vazir-Bold-FD.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazir';
+  src: url('../assets/fonts/vazir/Vazir-Black-FD.woff') format('woff');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+html,
+body,
+#app,
+*,
+*::before,
+*::after {
+  font-family: "Vazir", Tahoma, Arial, sans-serif !important;
+}
+
+body {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+button,
+input,
+textarea,
+select,
+option,
+optgroup {
+  font-family: "Vazir", Tahoma, Arial, sans-serif !important;
+}
+
+/* Shared action language: components may choose a semantic color, but keep
+   sizing, shape, motion and accessibility consistent across the application. */
+:root {
+  --ui-action-height: 40px;
+  --ui-action-radius: 11px;
+  --ui-action-font-size: 11px;
+  --ui-action-primary: #2563eb;
+  --ui-action-primary-hover: #1d4ed8;
+  --ui-action-primary-soft: #eff6ff;
+  --ui-action-primary-border: #bfdbfe;
+  --ui-action-danger: #dc2626;
+  --ui-action-danger-soft: #fff1f2;
+  --ui-action-danger-border: #fecaca;
+  --ui-action-shadow: 0 7px 16px rgba(37, 99, 235, 0.18);
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.2);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none !important;
+}
+
+a,
+p,
+th,
+td,
+input,
+textarea,
+select {
+  direction: rtl !important;
+  text-align: right !important;
+}
+/* Dialog feedback must remain visible above application modals. */
+.swal2-container {
+  z-index: 110000 !important;
+}

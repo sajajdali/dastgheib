@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#f1f4f9}
+*{box-sizing:border-box;font-family:'Vazirmatn',sans-serif}
+a{color:#2563eb;text-decoration:none}
+a:hover{color:#1d4ed8}
+input,button,select{font-family:'Vazirmatn',sans-serif}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+@media (max-width:880px){
+  main{padding:8px 14px 0 !important}
+  header{padding:12px 14px !important}
+}
+</style>
+</helmet>
+
+<div dir="rtl" style="min-height:100vh;background:#f1f4f9;color:#0f172a;padding-bottom:60px">
+
+  
+
+  <main style="max-width:1100px;margin:0 auto;padding:8px 24px 0">
+
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px" data-screen-label="خوش‌آمد">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <h1 style="margin:0;font-size:24px;font-weight:900;color:#0f172a">سرنخ‌ها</h1>
+        <span style="font-size:13px;color:#64748b">امروز {{ todayStr }} — {{ totalTxt }} مورد در انتظار توجه شماست</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" data-screen-label="خلاصه وضعیت">
+        <button onClick="{{ onFAll }}" style="{{ chAll }}">همه <b style="font-size:13px">{{ cAll }}</b></button>
+        <button onClick="{{ onFRed }}" style="{{ chRed }}"><i style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></i> فوری <b style="font-size:13px">{{ cRed }}</b></button>
+        <button onClick="{{ onFAmber }}" style="{{ chAmber }}"><i style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></i> نیاز به اقدام <b style="font-size:13px">{{ cAmber }}</b></button>
+        <button onClick="{{ onFGreen }}" style="{{ chGreen }}"><i style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></i> اطلاع‌رسانی <b style="font-size:13px">{{ cGreen }}</b></button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:22px" data-screen-label="لیست سرنخ‌ها">
+      <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+        <section style="display:{{ g.dsp }};flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;padding:0 4px">
+            <span style="width:10px;height:10px;border-radius:3px;background:{{ g.c }}"></span>
+            <span style="font-size:14px;font-weight:800;color:#0f172a">{{ g.title }}</span>
+            <span style="background:{{ g.badgeBg }};color:{{ g.badgeC }};border-radius:999px;padding:2px 10px;font-size:11px;font-weight:800">{{ g.cnt }} مورد</span>
+            <span style="flex:1;height:1px;background:#e2e8f0"></span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px">
+            <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+              <div style="background:#ffffff;border:1px solid {{ it.bd }};border-right:4px solid {{ it.c }};border-radius:14px;padding:13px 14px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 1px 3px rgba(15,23,42,0.05);transition:box-shadow .15s" style-hover="box-shadow:0 4px 14px rgba(15,23,42,0.10)">
+                <span style="width:38px;height:38px;border-radius:12px;background:{{ it.iconBg }};color:{{ it.c }};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ it.icon }}"></path></svg>
+                </span>
+                <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0">
+                  <span style="font-size:13px;font-weight:600;color:#1e293b;line-height:1.8">{{ it.t }}</span>
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span style="background:#f8fafc;color:#64748b;border-radius:999px;padding:2px 10px;font-size:10.5px;font-weight:700">{{ it.tag }}</span>
+                    <span style="font-size:10.5px;color:#94a3b8;display:{{ it.dDsp }}">{{ it.d }}</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+                  <button onClick="{{ it.onDone }}" title="انجام شد" style="width:26px;height:26px;border-radius:50%;border:1.5px solid #e2e8f0;background:#ffffff;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s" style-hover="border-color:#16a34a;color:#16a34a;background:#f0fdf4">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg>
+                  </button>
+                  <button onClick="{{ it.onClose }}" title="بستن" style="width:26px;height:26px;border-radius:50%;border:1.5px solid #e2e8f0;background:#ffffff;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s" style-hover="border-color:#dc2626;color:#dc2626;background:#fef2f2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18 M6 6l12 12"></path></svg>
+                  </button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </sc-for>
+
+      <div style="display:{{ emptyDsp }};flex-direction:column;align-items:center;gap:10px;padding:60px 20px;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06)">
+        <span style="width:56px;height:56px;border-radius:50%;background:#f0fdf4;color:#16a34a;display:flex;align-items:center;justify-content:center">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg>
+        </span>
+        <span style="font-size:15px;font-weight:800;color:#0f172a">همه سرنخ‌ها انجام شد!</span>
+        <span style="font-size:12.5px;color:#94a3b8">موردی برای نمایش در این دسته وجود ندارد</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    // icon paths
+    const IC = {
+      sms: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+      user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+      board: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z M9 12h6 M9 16h6',
+      gift: 'M20 12v10H4V12 M2 7h20v5H2z M12 22V7 M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z',
+      help: 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z',
+      send: 'M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z',
+      star: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+      cal: 'M8 2v4 M16 2v4 M3 10h18 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+      cam: 'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+      box: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z M3.3 7l8.7 5 8.7-5 M12 22V12',
+      ticket: 'M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z M13 5v2 M13 17v2 M13 11v2',
+      mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M22 6l-10 7L2 6',
+      check: 'M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3',
+      phone: 'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z',
+      sad: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M16 16s-1.5-2-4-2-4 2-4 2 M9 9h.01 M15 9h.01',
+      users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
+      pen: 'M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z',
+      clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 6v6l4 2',
+      crown: 'M2 18h20 M4 18l-2-9 5.5 3.5L12 5l4.5 7.5L22 9l-2 9z',
+      chart: 'M3 3v18h18 M7 14l4-4 4 4 5-6',
+      list: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01',
+      warn: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01'
+    };
+    this.IC = IC;
+    this.ITEMS = this.buildDynamicItems();
+    this.state = {filter: 'all', done: {}};
+    window.setTimeout(() => this.loadAppointmentItems(), 0);
+  }
+
+  fa(n) {
+    return Number(n || 0).toLocaleString('fa-IR');
+  }
+
+  normalizeDigits(value) {
+    return String(value || '')
+      .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+      .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+      .replace(/\//g, '-')
+      .replace(/\s/g, '')
+      .trim();
+  }
+
+  gregorianToday() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+
+  jalaliToday() {
+    return this.normalizeDigits(new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date()));
+  }
+
+  isTodayDate(value) {
+    const date = this.normalizeDigits(value);
+    return Boolean(date) && (date === this.gregorianToday() || date === this.jalaliToday());
+  }
+
+  readJson(key, fallback) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || '');
+      return value || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  buildFollowupItems() {
+    const campaigns = this.readJson('campaigns_flwup_v1', []);
+    if (!Array.isArray(campaigns)) return [];
+    return campaigns.flatMap(campaign => {
+      const rows = Array.isArray(campaign.rows) ? campaign.rows : [];
+      return rows
+        .filter(row => this.isTodayDate(row.followUpDate))
+        .map(row => ({
+          p: 'r',
+          ic: this.IC.user,
+          tag: 'پیگیری',
+          d: campaign.title || '',
+          t: `${row.fullName || row.phone || 'مشتری'} را پیگیری کنید`
+        }));
+    });
+  }
+
+  buildTicketItems() {
+    const state = this.readJson('tickets_v1', {});
+    const tickets = Array.isArray(state.tickets) ? state.tickets : [];
+    return tickets
+      .filter(ticket => ticket.status !== 'done' && this.isTodayDate(ticket.date))
+      .map(ticket => ({
+        p: 'r',
+        ic: this.IC.ticket,
+        tag: 'تیکت',
+        d: 'امروز',
+        t: `شما امروز تیکت فعال دارید${ticket.subject ? `: ${ticket.subject}` : ''}`
+      }));
+  }
+
+  buildDynamicItems() {
+    return [
+      ...this.buildFollowupItems(),
+      ...this.buildTicketItems()
+    ];
+  }
+
+  async loadAppointmentItems() {
+    try {
+      const res = await fetch('/api/appointments', {headers: {Accept: 'application/json'}});
+      if (!res.ok) return;
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      const items = list
+        .filter(item => this.isTodayDate(`${item.month}-${String(item.day_num || '').padStart(2, '0')}`) || this.isTodayDate(item.date))
+        .slice(0, 20)
+        .map(item => ({
+          p: 'r',
+          ic: this.IC.cal,
+          tag: 'وقت‌دهی',
+          d: item.time || 'امروز',
+          t: `امروز وقت ${item.firstname || ''} ${item.lastname || 'مراجعه‌کننده'} هست`.replace(/\s+/g, ' ').trim()
+        }));
+      if (items.length) {
+        this.ITEMS = [...this.ITEMS, ...items];
+        this.setState(s => ({...s}));
+      }
+    } catch {}
+  }
+
+  renderVals() {
+    const S = this.state;
+    const fa = n => n.toLocaleString('fa-IR');
+    const P = {
+      r: {title:'فوری', c:'#dc2626', bd:'#fecaca', iconBg:'#fef2f2', badgeBg:'#fee2e2', badgeC:'#b91c1c'},
+      a: {title:'نیاز به اقدام', c:'#f59e0b', bd:'#fde68a', iconBg:'#fffbeb', badgeBg:'#fef3c7', badgeC:'#b45309'},
+      g: {title:'اطلاع‌رسانی', c:'#16a34a', bd:'#e2e8f0', iconBg:'#f0fdf4', badgeBg:'#dcfce7', badgeC:'#15803d'}
+    };
+    const alive = this.ITEMS.map((it, i) => ({...it, i})).filter(it => !S.done[it.i]);
+    const counts = {r: 0, a: 0, g: 0};
+    alive.forEach(it => counts[it.p]++);
+
+    const groups = ['r','a','g'].map(p => {
+      const cfg = P[p];
+      const items = alive.filter(it => it.p === p).map(it => ({
+        t: it.t, tag: it.tag, d: it.d, dDsp: it.d ? 'inline' : 'none',
+        icon: it.ic, c: cfg.c, bd: cfg.bd, iconBg: cfg.iconBg,
+        onDone: () => this.setState(s => ({done: {...s.done, [it.i]: true}})),
+        onClose: () => this.setState(s => ({done: {...s.done, [it.i]: true}}))
+      }));
+      const show = (S.filter === 'all' || S.filter === p) && items.length > 0;
+      return {title: cfg.title, c: cfg.c, badgeBg: cfg.badgeBg, badgeC: cfg.badgeC,
+        cnt: fa(items.length), items, dsp: show ? 'flex' : 'none'};
+    });
+
+    const anyShown = groups.some(g => g.dsp === 'flex');
+    const chip = on => 'display:flex;align-items:center;gap:7px;border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:700;cursor:pointer;transition:all .15s;border:1.5px solid ' +
+      (on ? '#2563eb;background:#2563eb;color:#ffffff;box-shadow:0 2px 6px rgba(37,99,235,0.3)' : '#e2e8f0;background:#ffffff;color:#334155');
+
+    return {
+      todayStr: new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date()),
+      totalTxt: fa(alive.length),
+      cAll: fa(alive.length), cRed: fa(counts.r), cAmber: fa(counts.a), cGreen: fa(counts.g),
+      chAll: chip(S.filter === 'all'), chRed: chip(S.filter === 'r'),
+      chAmber: chip(S.filter === 'a'), chGreen: chip(S.filter === 'g'),
+      onFAll: () => this.setState({filter: 'all'}),
+      onFRed: () => this.setState({filter: 'r'}),
+      onFAmber: () => this.setState({filter: 'a'}),
+      onFGreen: () => this.setState({filter: 'g'}),
+      groups,
+      emptyDsp: anyShown ? 'none' : 'flex'
+    };
+  }
+}
+</script>
+</body>
+</html>
