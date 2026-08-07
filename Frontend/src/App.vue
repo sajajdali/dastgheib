@@ -294,6 +294,11 @@ import ServiceTickets from "./components/ServiceTickets.vue";
 import HRtimes from "./components/HRtimes.vue";
 import { startPresence, stopPresence } from "./services/presence";
 
+const centralDomains = (import.meta.env.VITE_CENTRAL_DOMAINS || "localhost,127.0.0.1,admin.s8n.ir")
+  .split(",")
+  .map((domain) => domain.trim().toLowerCase())
+  .filter(Boolean);
+
 export default {
 
   name: "App",
@@ -361,7 +366,7 @@ export default {
       ,pendingStoreModuleKey: ""
       ,attendanceEnabled: false
       ,uiMenuOpen: false
-      ,isCentralApp: ["localhost", "127.0.0.1"].includes(window.location.hostname)
+      ,isCentralApp: centralDomains.includes(window.location.hostname.toLowerCase())
 
     };
 
