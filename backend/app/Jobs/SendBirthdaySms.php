@@ -30,9 +30,11 @@ class SendBirthdaySms implements ShouldQueue
                 foreach ($patients as $patient) {
                     $exists = DB::table('birthday_sms_logs')->where('patient_id', $patient->id)->where('birthday_year', $today->year)->exists();
                     if ($exists) continue;
-                    $message = strtr($template, ['{name}' => trim($patient->first_name.' '.$patient->last_name), '{clinic}' => (string) AppSetting::getByKey('clinic_name', '')]);
                     try {
-                        $sms->send($patient->phone, $message);
+                        $sms->sendTemplate($patient->phone, $template, [
+                            trim($patient->first_name.' '.$patient->last_name),
+                            (string) AppSetting::getByKey('clinic_name', ''),
+                        ]);
                         DB::table('birthday_sms_logs')->insert(['patient_id'=>$patient->id,'birthday_year'=>$today->year,'recipient'=>$patient->phone,'sent_at'=>now(),'created_at'=>now(),'updated_at'=>now()]);
                     } catch (Throwable $e) { report($e); }
                 }

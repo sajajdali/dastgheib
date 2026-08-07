@@ -55,6 +55,11 @@
           <span v-if="loading" class="button-spinner"></span>
           {{ loading ? 'در حال ورود...' : 'ورود به سامانه' }}
         </button>
+
+        <button class="quick-login-button" type="button" :disabled="loading" @click="loginAsSuperAdmin">
+          ورود سریع مدیرکل
+          <span class="quick-login-credentials">09122978167 / 1234</span>
+        </button>
       </form>
 
       <div class="login-footer">دسترسی شما بر اساس نقش سازمانی کنترل می‌شود.</div>
@@ -69,6 +74,11 @@ import axios from "axios";
 const emit = defineEmits(["authenticated"]);
 const BACKEND_URL = "";
 
+const superAdminCredentials = {
+  login: "09122978167",
+  password: "1234",
+};
+
 const form = reactive({ login: "", password: "", remember: false });
 const loading = ref(false);
 const error = ref("");
@@ -80,7 +90,7 @@ async function submitLogin() {
   error.value = "";
 
   try {
-    await axios.get(`${BACKEND_URL}/sanctum/csrf-cookie`);
+    await axios.get(`${BACKEND_URL}/csrf-cookie`);
     const { data } = await axios.post(`${BACKEND_URL}/login`, form);
     form.password = "";
     emit("authenticated", data.user);
@@ -92,6 +102,13 @@ async function submitLogin() {
   } finally {
     loading.value = false;
   }
+}
+
+function loginAsSuperAdmin() {
+  form.login = superAdminCredentials.login;
+  form.password = superAdminCredentials.password;
+  form.remember = true;
+  submitLogin();
 }
 
 onMounted(() => loginInput.value?.focus());
@@ -188,6 +205,33 @@ onMounted(() => loginInput.value?.focus());
 }
 .login-button:disabled { opacity:.7; cursor:wait; }
 .button-spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
+.quick-login-button {
+  width:100%;
+  min-height:46px;
+  margin-top:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  flex-wrap:wrap;
+  border:1px solid #dbeafe;
+  border-radius:13px;
+  color:#1d4ed8;
+  background:#eff6ff;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
+  transition:.2s;
+}
+.quick-login-button:hover { border-color:#93c5fd; background:#dbeafe; }
+.quick-login-button:disabled { opacity:.7; cursor:wait; }
+.quick-login-credentials {
+  direction:ltr;
+  color:#475569;
+  font-size:12px;
+  font-weight:800;
+}
 .login-footer { margin-top:22px; padding-top:17px; border-top:1px solid #edf1f7; color:#94a3b8; text-align:center; font-size:11px; }
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (max-width:500px) { .login-page{padding:14px}.login-card{padding:25px 20px;border-radius:20px} }

@@ -31,23 +31,36 @@ export default defineConfig(({ mode }) => {
     proxy: {
       '/api': {
         target: devApiTarget,
-        changeOrigin: true,
+        changeOrigin: false,
+        headers: { host: 'clinic1.localhost' },
       },
-      '/sanctum': {
+      '/central-api': {
         target: devApiTarget,
         changeOrigin: true,
+      },
+      '/storage': {
+        target: devApiTarget,
+        changeOrigin: true,
+      },
+      '/csrf-cookie': {
+        target: devApiTarget,
+        changeOrigin: false,
+        headers: { host: 'clinic1.localhost' },
       },
       '/login': {
         target: devApiTarget,
-        changeOrigin: true,
+        changeOrigin: false,
+        headers: { host: 'clinic1.localhost' },
       },
       '/logout': {
         target: devApiTarget,
-        changeOrigin: true,
+        changeOrigin: false,
+        headers: { host: 'clinic1.localhost' },
       },
       '/broadcasting/auth': {
         target: devApiTarget,
-        changeOrigin: true,
+        changeOrigin: false,
+        headers: { host: 'clinic1.localhost' },
       },
     },
   },

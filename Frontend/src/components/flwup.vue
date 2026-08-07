@@ -369,16 +369,24 @@
             display-format="jYYYY/jMM/jDD"
            input-class="date-input"
            placeholder="تاریخ را انتخاب کنید"
+           auto-submit
+           @input="setNewCampaignDate"
+           @change="setNewCampaignDate"
           />
           </div>
 
           <div class="field">
-            
-            <input
-              v-model="newCampaign.cost"
-              type="number"
-              placeholder="هزینه "
-            />
+            <label>هزینه</label>
+            <div class="money-input-wrap">
+              <input
+                :value="formatMoneyInput(newCampaign.cost)"
+                type="text"
+                inputmode="numeric"
+                placeholder="هزینه"
+                @input="updateNewCampaignCost"
+              />
+              <span>تومان</span>
+            </div>
           </div>
         </div>
 
@@ -832,31 +840,6 @@
                 @click.stop
               />
 
-              <div v-if="canOpenAppointments" class="timeline-date-field" @click.stop>
-                <date-picker
-                  v-model="appointmentTimelineDate"
-                  format="YYYY-MM-DD"
-                  display-format="jYYYY/jMM/jDD"
-                  input-class="timeline-date-input"
-                  placeholder="تاریخ نوبت"
-                />
-                <span v-if="appointmentTimelineDay">{{ appointmentTimelineDay }}</span>
-              </div>
-
-              <button
-                v-if="canOpenAppointments"
-                type="button"
-                class="open-timeline-btn"
-                :disabled="!appointmentTimelineDate"
-                @click.stop="openAppointmentsTimeline"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="8"></circle>
-                  <path d="M12 8v5l3 2"></path>
-                </svg>
-                تایم‌لاین وقت‌دهی
-              </button>
-
               <button 
                 class="sms-send-btn"
                 @click.stop="openSmsPanel"
@@ -985,6 +968,11 @@
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'landingSms')" @dblclick.stop="autoFitFollowupColumn('landingSms')"></div>
                     </th>
 
+                    <th v-if="canOpenAppointments" class="center resizable" :style="{ width: colWidths.appointment + 'px' }">
+                      <div class="th-content">نوبت‌دهی</div>
+                      <div class="resizer" @mousedown.stop.prevent="initResize($event, 'appointment')" @dblclick.stop="autoFitFollowupColumn('appointment')"></div>
+                    </th>
+
                     <!-- تمایل -->
                     <th
                       class="filterable resizable"
@@ -1103,19 +1091,38 @@
                     </td>
 
                     <td class="landing-multi-cell" @click.stop>
-                      <button type="button" class="landing-multi-trigger" :class="{ active: landingSmsValues(row).length }" @click="toggleLandingMenu(row)">
+                      <button type="button" class="landing-multi-trigger" :class="{ active: landingSmsValues(row).length }" @click="toggleLandingMenu(row, $event)">
                         <span>{{ landingSmsValues(row).length ? `${landingSmsValues(row).length} لندینگ انتخاب شد` : 'انتخاب لندینگ‌ها' }}</span>
                         <b>⌄</b>
                       </button>
-                      <div v-if="activeLandingRowId === row._localId" class="landing-multi-menu">
-                        <div class="landing-multi-title">ارسال هم‌زمان لندینگ‌ها</div>
-                        <label v-for="item in landingSmsOptions" :key="item" :class="{ selected: landingSmsValues(row).includes(item) }">
-                          <input type="checkbox" :checked="landingSmsValues(row).includes(item)" @change="toggleLandingSms(row, item)">
-                          <span>{{ item }}</span>
-                          <i v-if="landingSmsValues(row).includes(item)">✓</i>
-                        </label>
-                        <button v-if="landingSmsValues(row).length" type="button" class="landing-clear-btn" @click="row.landingSms = []">پاک کردن انتخاب‌ها</button>
-                      </div>
+                      <teleport to="body">
+                        <div
+                          v-if="activeLandingRowId === row._localId"
+                          class="landing-multi-menu landing-multi-menu-floating"
+                          :style="landingMenuStyle"
+                          @click.stop
+                        >
+                          <div class="landing-multi-title">ارسال هم‌زمان لندینگ‌ها</div>
+                          <label v-for="item in landingSmsOptions" :key="item" :class="{ selected: landingSmsValues(row).includes(item) }">
+                            <input type="checkbox" :checked="landingSmsValues(row).includes(item)" @change="toggleLandingSms(row, item)">
+                            <span>{{ item }}</span>
+                            <i v-if="landingSmsValues(row).includes(item)">✓</i>
+                          </label>
+                          <button v-if="landingSmsValues(row).length" type="button" class="landing-clear-btn" @click="row.landingSms = []">پاک کردن انتخاب‌ها</button>
+                        </div>
+                      </teleport>
+                    </td>
+
+                    <td v-if="canOpenAppointments" class="appointment-cell">
+                      <button
+                        type="button"
+                        class="row-appointment-btn"
+                        :class="{ registered: row.appointmentRegistered }"
+                        @click.stop="openRowAppointmentTimeline(row)"
+                      >
+                        <span>{{ row.appointmentRegistered ? 'نوبت ثبت شده' : 'ثبت نوبت' }}</span>
+                        <small v-if="row.appointmentRegistered">{{ appointmentSummary(row) }}</small>
+                      </button>
                     </td>
 
                     <td
@@ -1133,7 +1140,7 @@
                   </tr>
 
                   <tr v-if="!activeFilteredRows.length">
-                    <td colspan="11" class="empty-state">
+                    <td :colspan="canOpenAppointments ? 12 : 11" class="empty-state">
                       موردی یافت نشد.
                     </td>
                   </tr>
@@ -1238,7 +1245,8 @@ export default {
   name: "FlwUpCampaigns",
 
   props: {
-    permissions: { type: Array, default: () => [] }
+    permissions: { type: Array, default: () => [] },
+    appointmentResult: { type: Object, default: null },
   },
 
   components: {
@@ -1297,6 +1305,7 @@ export default {
       campaignSearch: "",
       activeFilter: null,
       activeLandingRowId: null,
+      landingMenuStyle: {},
 
       staffOptions: [],
       channelOptions: [],
@@ -1332,6 +1341,7 @@ export default {
         interest: 76,
         reason: 82,
         landingSms: 116,
+        appointment: 112,
       },
 
       debouncedSaveLocal: null,
@@ -1449,7 +1459,7 @@ export default {
         const statusMatch = !this.reportCampaignStatuses.length || this.reportCampaignStatuses.includes(campaign.campaignStatus || 'active');
         const sourceMatch = !this.reportCampaignSources.length || this.reportCampaignSources.includes(campaign.source || campaign.sourceName || '');
         const qualityMatch = !this.reportCampaignQualities.length || this.reportCampaignQualities.includes(this.campaignQualityLabel(campaign));
-        const cost = Number(campaign.cost || 0);
+        const cost = this.moneyToNumber(campaign.cost);
         const costMatch = (this.reportCostMin === '' || cost >= Number(this.reportCostMin)) && (this.reportCostMax === '' || cost <= Number(this.reportCostMax));
         const date = campaign.date || '';
         const dateMatch = (!this.reportDateFrom || date >= this.reportDateFrom) && (!this.reportDateTo || date <= this.reportDateTo);
@@ -1495,11 +1505,16 @@ export default {
     this.loadStaff();
     this.loadChannels();
     this.loadCampaignsFromLocal();
+    this.applyAppointmentResult(this.appointmentResult);
     window.addEventListener("beforeunload", this.handleBeforeUnload);
+    window.addEventListener("scroll", this.closeLandingMenu, true);
+    window.addEventListener("resize", this.closeLandingMenu);
   },
 
   beforeUnmount() {
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
+    window.removeEventListener("scroll", this.closeLandingMenu, true);
+    window.removeEventListener("resize", this.closeLandingMenu);
   },
 
   watch: {
@@ -1530,7 +1545,14 @@ export default {
         this.reportCostMin = "";
         this.reportCostMax = "";
       }
-    }
+    },
+    appointmentResult: {
+      immediate: true,
+      deep: true,
+      handler(result) {
+        this.applyAppointmentResult(result);
+      },
+    },
   },
 
   methods: {
@@ -1540,6 +1562,24 @@ export default {
     consultantInitial(name) { return avatarInitial(this.consultantResource(name) || { name }); },
     patientAvatar(row) { return avatarUrl(row); },
     patientInitial(row) { return avatarInitial(row); },
+
+    applyAppointmentResult(result) {
+      const followup = result?.followup;
+      if (!followup?.campaignId || !followup?.rowId) return;
+      const campaign = this.campaigns.find(item => String(item.id) === String(followup.campaignId));
+      const row = campaign?.rows?.find(item => String(item._localId) === String(followup.rowId));
+      if (!row) return;
+      row.appointmentRegistered = true;
+      row.appointmentDate = result.date || "";
+      row.appointmentTime = result.time || "";
+      row.appointmentPatientName = result.patientName || row.fullName || "";
+      row.interest = "ok";
+      row.status = row.status || "پاسخ داد";
+      this.activeCampaignId = campaign.id;
+      this.campaignSearch = "";
+      this.activeFilter = null;
+      this.saveCampaignsToLocal();
+    },
 
     lookupPatientByPhone(row) {
       const key = row._localId;
@@ -1656,7 +1696,7 @@ export default {
     },
     campaignCpl(campaign) {
       const appointments = this.getAppointmentCount(campaign);
-      return appointments ? Math.round((Number(campaign.cost) || 0) / appointments) : "";
+      return appointments ? Math.round(this.moneyToNumber(campaign.cost) / appointments) : "";
     },
 
     async openCreateCampaignModal() {
@@ -1715,7 +1755,12 @@ export default {
     closeAllFilters() {
       this.activeFilter = null;
       this.activeReportFilter = null;
+      this.closeLandingMenu();
+    },
+
+    closeLandingMenu() {
       this.activeLandingRowId = null;
+      this.landingMenuStyle = {};
     },
 
     toggleFilterMenu(key) {
@@ -1750,7 +1795,7 @@ export default {
     },
 
     autoFitFollowupColumn(key) {
-      const fixed = { contactDate:108, followUpDate:108, gender:72, interest:88, landingSms:145 };
+      const fixed = { contactDate:108, followUpDate:108, gender:72, interest:88, landingSms:145, appointment:122 };
       if (fixed[key]) {
         this.colWidths[key] = fixed[key];
         return;
@@ -1808,7 +1853,7 @@ export default {
         source: this.newCampaign.source,
         sourceName: this.newCampaign.sourceName,
         date: campaignDate,
-        cost: this.newCampaign.cost || "",
+        cost: this.moneyToNumber(this.newCampaign.cost) || "",
         attachmentName: this.newCampaign.attachmentName,
         attachmentData: this.newCampaign.attachmentData,
         banners: [...this.newCampaign.banners],
@@ -1871,6 +1916,46 @@ export default {
       this.closeCampaignModal();
       this.$emit("open-appointments-timeline", { date: requestedDate });
     },
+
+    openRowAppointmentTimeline(row) {
+      if (!row || !this.activeCampaign) return;
+      const today = this.getTodayString();
+      const requestedDate = today;
+      const campaignSource = this.activeCampaign.source || this.activeCampaign.sourceName || "";
+      const payload = {
+        date: requestedDate,
+        followup: {
+          campaignId: this.activeCampaign.id,
+          campaignTitle: this.activeCampaign.title || "",
+          campaignDate: this.activeCampaign.date || "",
+          campaignStatus: this.activeCampaign.campaignStatus || "",
+          campaignCost: this.activeCampaign.cost || "",
+          rowId: row._localId,
+          fullName: row.fullName || "",
+          phone: row.phone || "",
+          contactDate: row.contactDate || "",
+          followUpDate: row.followUpDate || "",
+          gender: row.gender || "",
+          source: row.source || campaignSource,
+          campaignSource,
+          sourceName: this.activeCampaign.sourceName || "",
+          consultant: row.consultant || "",
+          status: row.status || "",
+          interest: row.interest || "",
+          reason: row.reason || "",
+          description: row.description || "",
+          landingSms: Array.isArray(row.landingSms) ? [...row.landingSms] : [],
+          avatarUrl: row.avatarUrl || "",
+        },
+      };
+      this.$emit("open-appointments-timeline", payload);
+      window.dispatchEvent(new CustomEvent("app:open-appointments-timeline", { detail: payload }));
+      this.closeCampaignModal();
+    },
+
+    appointmentSummary(row) {
+      return [this.formatDateFa(row.appointmentDate), row.appointmentTime].filter(Boolean).join(" - ");
+    },
     
     setTodayContactDate(row) {
   if (!row.fullName) return;
@@ -1893,6 +1978,10 @@ export default {
         source: "",
         status: "",
         landingSms: [],
+        appointmentRegistered: false,
+        appointmentDate: "",
+        appointmentTime: "",
+        appointmentPatientName: "",
         interest: "",
         reason: "",
         avatarUrl: "",
@@ -1945,8 +2034,23 @@ export default {
       return this.landingSmsValues(value).join('، ');
     },
 
-    toggleLandingMenu(row) {
-      this.activeLandingRowId = this.activeLandingRowId === row._localId ? null : row._localId;
+    toggleLandingMenu(row, event) {
+      if (this.activeLandingRowId === row._localId) {
+        this.closeLandingMenu();
+        return;
+      }
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuWidth = 230;
+      const gap = 6;
+      const left = Math.max(8, Math.min(window.innerWidth - menuWidth - 8, rect.right - menuWidth));
+      this.landingMenuStyle = {
+        top: `${Math.min(window.innerHeight - 12, rect.bottom + gap)}px`,
+        left: `${left}px`,
+        right: "auto",
+        width: `${menuWidth}px`,
+      };
+      this.activeLandingRowId = row._localId;
     },
 
     toggleLandingSms(row, item) {
@@ -2084,31 +2188,74 @@ export default {
 
     formatMoney(val) {
       if (val === "" || val === null || val === undefined) return "—";
-      const num = Number(val);
+      const num = this.moneyToNumber(val);
       if (Number.isNaN(num)) return val;
       return num.toLocaleString("fa-IR") + " تومان";
     },
 
+    moneyToNumber(value) {
+      const normalized = this.normalizeDigits(value)
+        .replace(/,/g, "")
+        .replace(/[^\d.-]/g, "");
+      const number = Number(normalized);
+      return Number.isFinite(number) ? number : 0;
+    },
+
+    formatMoneyInput(value) {
+      const number = this.moneyToNumber(value);
+      return number ? number.toLocaleString("en-US") : "";
+    },
+
+    updateNewCampaignCost(event) {
+      this.newCampaign.cost = this.moneyToNumber(event.target.value) || "";
+    },
+
+    normalizeDigits(value) {
+      const persian = "۰۱۲۳۴۵۶۷۸۹";
+      const arabic = "٠١٢٣٤٥٦٧٨٩";
+      return String(value || "")
+        .replace(/[۰-۹]/g, digit => persian.indexOf(digit))
+        .replace(/[٠-٩]/g, digit => arabic.indexOf(digit));
+    },
+
     normalizeDateValue(value) {
       if (!value) return "";
-      if (value instanceof Date) return value.toISOString().slice(0, 10);
+      if (value instanceof Date) return moment(value).format("YYYY-MM-DD");
       if (typeof value === "object") {
-        const candidate = value.format || value.date || value.value || value.display || value._d;
+        const candidate = value.format || value.date || value.value || value.display || value._d || value.target?.value;
         if (candidate && candidate !== value) return this.normalizeDateValue(candidate);
       }
 
-      return String(value).trim();
+      const normalized = this.normalizeDigits(String(value).trim())
+        .replace(/\//g, "-")
+        .replace(/\s+/g, "");
+
+      if (!normalized || /^0{4}-/.test(normalized)) return "";
+
+      const jalali = moment(normalized, ["jYYYY-jMM-jDD", "jYYYY-jM-jD"], true);
+      if (jalali.isValid() && Number(normalized.slice(0, 4)) < 1700) {
+        return jalali.format("YYYY-MM-DD");
+      }
+
+      const gregorian = moment(normalized, ["YYYY-MM-DD", "YYYY-M-D"], true);
+      if (gregorian.isValid()) return gregorian.format("YYYY-MM-DD");
+
+      return normalized;
+    },
+
+    setNewCampaignDate(value) {
+      const normalized = this.normalizeDateValue(value);
+      if (normalized) this.newCampaign.date = normalized;
     },
 
     formatDateFa(dateStr) {
       const raw = this.normalizeDateValue(dateStr);
       if (!raw) return "—";
 
-      const normalized = raw.replace(/\//g, "-");
-      const parsed = moment(normalized, ["YYYY-MM-DD", "YYYY-M-D"], true);
+      const parsed = moment(raw, ["YYYY-MM-DD", "YYYY-M-D"], true);
       if (parsed.isValid()) return parsed.format("jYYYY/jMM/jDD");
 
-      const looseParsed = moment(normalized);
+      const looseParsed = moment(raw);
       return looseParsed.isValid() ? looseParsed.format("jYYYY/jMM/jDD") : raw;
     },
 
@@ -2169,6 +2316,10 @@ export default {
                   : String(r.landingSms || '').split('،').map(item => item.trim()).filter(Boolean),
                 interest: normalizeInterest(r.interest ?? ""),
                 reason: r.reason ?? "",
+                appointmentRegistered: Boolean(r.appointmentRegistered),
+                appointmentDate: r.appointmentDate ?? "",
+                appointmentTime: r.appointmentTime ?? "",
+                appointmentPatientName: r.appointmentPatientName ?? "",
                 avatarUrl: r.avatarUrl ?? "",
                 answeredWithoutInterestAt: r.answeredWithoutInterestAt ?? "",
               }))
@@ -2779,6 +2930,40 @@ export default {
   box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
 }
 
+.money-input-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #dbe2ea;
+  border-radius: 16px;
+  background: #fbfdff;
+}
+
+.money-input-wrap input {
+  width: 100%;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  direction: ltr;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-input-wrap span {
+  padding: 0 14px;
+  border-right: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.money-input-wrap:focus-within {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
+}
+
 .field-error,
 .field-hint {
   color: #64748b;
@@ -2819,6 +3004,7 @@ export default {
 .campaign-patient-cell input { min-width:0; flex:1; }
 .campaign-patient-avatar { width:34px; height:34px; flex:0 0 34px; border:3px solid #3b82f6; border-radius:50%; object-fit:cover; background:#eff6ff; }
 .campaign-patient-avatar.fallback { display:grid; place-items:center; color:#1d4ed8; font-weight:900; }
+.appointment-cell{min-width:0}.row-appointment-btn{width:100%;height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 6px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10px;font-weight:900;line-height:1.2;cursor:pointer;transition:.16s}.row-appointment-btn:hover{border-color:#60a5fa;background:#dbeafe;transform:translateY(-1px)}.row-appointment-btn.registered{border-color:#bbf7d0;background:#ecfdf5;color:#047857}.row-appointment-btn small{max-width:100%;overflow:hidden;color:inherit;font-size:8px;font-weight:800;opacity:.82;text-overflow:ellipsis;white-space:nowrap}
 .campaign-status-select { padding:7px 10px; border:2px solid transparent; border-radius:10px; font-family:inherit; font-weight:900; }
 .campaign-status-active { color:#15803d; background:#dcfce7; border-color:#86efac; }
 .campaign-status-paused { color:#b45309; background:#fef3c7; border-color:#fcd34d; }
@@ -3521,7 +3707,7 @@ export default {
   cursor: grab;
 }
 .report-filter-tabs{display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:6px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.report-filter-tabs button{height:40px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#64748b;font-family:inherit;font-weight:900;cursor:pointer}.report-filter-tabs button.active{background:#2563eb;color:#fff;box-shadow:0 7px 18px rgba(37,99,235,.2)}.report-filter-tabs>span{margin-right:auto;padding:5px 10px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:11px;font-weight:900}.report-filter-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.report-filter-group{min-width:0;display:flex;flex-direction:column;gap:8px}.report-filter-group.wide{grid-column:span 2}.report-filter-group>b{color:#334155;font-size:12px}.report-filter-group>input,.report-cost-range input{height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;outline:none}.report-filter-group>input:focus,.report-cost-range input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.report-filter-chips{display:flex;gap:6px;flex-wrap:wrap}.report-filter-chips label{display:flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #dbe3ed;border-radius:999px;background:#fff;color:#475569;font-size:10px;font-weight:900;cursor:pointer}.report-filter-chips label.selected{border-color:#60a5fa;background:#dbeafe;color:#1d4ed8}.report-filter-chips input{display:none}.report-cost-range>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-filter-actions{display:flex;justify-content:flex-end;padding:8px 0}.report-filter-actions button{padding:8px 13px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7;color:#b91c1c;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.filtered-campaign-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-height:52vh;overflow:auto;padding:5px}.filtered-campaign-results article{padding:15px;border:1px solid #e2e8f0;border-radius:15px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);cursor:pointer;transition:.18s}.filtered-campaign-results article:hover{transform:translateY(-2px);border-color:#93c5fd;box-shadow:0 12px 25px rgba(15,23,42,.1)}.filtered-campaign-results header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.filtered-campaign-results header strong{overflow:hidden;color:#0f172a;text-overflow:ellipsis;white-space:nowrap}.filtered-campaign-results header span{padding:4px 7px;border-radius:999px;font-size:9px;font-weight:900}.filtered-campaign-results article>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filtered-campaign-results article>div span{display:flex;justify-content:space-between;padding:7px;border-radius:8px;background:#f8fafc;color:#64748b;font-size:10px}.filtered-campaign-results article>div b{color:#1e293b}@media(max-width:900px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr 1fr}}@media(max-width:640px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr}.report-filter-group.wide{grid-column:auto}.report-filter-tabs button{padding:0 10px}.report-filter-tabs>span{display:none}}
-.landing-multi-cell{position:relative;overflow:visible!important}.landing-multi-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer}.landing-multi-trigger.active{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.landing-multi-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.landing-multi-menu{position:absolute;z-index:500;top:calc(100% + 5px);right:4px;width:230px;padding:8px;border:1px solid #dbeafe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2)}.landing-multi-title{padding:5px 7px 9px;border-bottom:1px solid #eef2f7;color:#334155;font-size:11px;font-weight:1000}.landing-multi-menu label{display:flex;align-items:center;gap:8px;padding:9px 7px;border-radius:8px;color:#475569;font-size:11px;font-weight:800;cursor:pointer}.landing-multi-menu label:hover,.landing-multi-menu label.selected{background:#eff6ff;color:#1d4ed8}.landing-multi-menu input{width:16px!important;height:16px!important;accent-color:#2563eb}.landing-multi-menu label span{flex:1}.landing-multi-menu label i{color:#16a34a;font-style:normal;font-weight:1000}.landing-clear-btn{width:100%;margin-top:5px;padding:8px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
+.landing-multi-cell{position:relative;overflow:visible!important}.landing-multi-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer}.landing-multi-trigger.active{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.landing-multi-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.landing-multi-menu{position:absolute;z-index:500;top:calc(100% + 5px);right:4px;width:230px;padding:8px;border:1px solid #dbeafe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2)}.landing-multi-menu-floating{position:fixed!important;z-index:1000005!important;max-height:min(320px,calc(100vh - 24px));overflow:auto}.landing-multi-title{padding:5px 7px 9px;border-bottom:1px solid #eef2f7;color:#334155;font-size:11px;font-weight:1000}.landing-multi-menu label{display:flex;align-items:center;gap:8px;padding:9px 7px;border-radius:8px;color:#475569;font-size:11px;font-weight:800;cursor:pointer}.landing-multi-menu label:hover,.landing-multi-menu label.selected{background:#eff6ff;color:#1d4ed8}.landing-multi-menu input{width:16px!important;height:16px!important;accent-color:#2563eb}.landing-multi-menu label span{flex:1}.landing-multi-menu label i{color:#16a34a;font-style:normal;font-weight:1000}.landing-clear-btn{width:100%;margin-top:5px;padding:8px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
 
 /* Compact responsive follow-up header */
 .flwup-root{width:100%;max-width:100%;min-width:0;padding:clamp(12px,1.5vw,24px);overflow-x:hidden}

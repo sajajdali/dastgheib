@@ -1228,8 +1228,12 @@
         </header>
 
         <div v-if="activeTimelineDraft" class="timeline-modal-body">
+          <div v-if="timelineValidationSummary" class="timeline-validation-alert" role="alert">
+            {{ timelineValidationSummary }}
+          </div>
+
           <div class="timeline-form-grid compact">
-            <label>
+            <label :class="{ 'timeline-field-error': timelineValidationErrors.time }">
               ساعت نوبت
               <date-picker
                 v-model="activeTimelineDraft.time"
@@ -1243,7 +1247,10 @@
                 :round-minute="appointmentMinuteStep > 1"
                 input-class="timeline-modal-input"
                 popover-class="time-picker-popover"
+                append-to="body"
+                @change="clearTimelineValidationError('time')"
               />
+              <small v-if="timelineValidationErrors.time" class="timeline-error-text">{{ timelineValidationErrors.time }}</small>
             </label>
 
             <label v-if="false">
@@ -1270,7 +1277,7 @@
           </div>
 
           <div class="timeline-form-grid">
-            <label class="timeline-patient-search-field">
+            <label class="timeline-patient-search-field" :class="{ 'timeline-field-error': timelineValidationErrors.lastname }">
               نام و نام خانوادگی
               <input
                 v-model="activeTimelineDraft.lastname"
@@ -1281,6 +1288,7 @@
                 @focus="onTimelinePatientSearch"
                 @blur="closeTimelinePatientSearch"
               >
+              <small v-if="timelineValidationErrors.lastname" class="timeline-error-text">{{ timelineValidationErrors.lastname }}</small>
               <div v-if="timelinePatientSearchOpen" class="timeline-patient-results" @mousedown.prevent>
                 <div v-if="timelinePatientSearchLoading" class="timeline-patient-search-state">در حال جست‌وجو...</div>
                 <button
@@ -1302,9 +1310,10 @@
               </div>
             </label>
 
-            <label>
+            <label :class="{ 'timeline-field-error': timelineValidationErrors.phone }">
               شماره تماس
-              <input v-model="activeTimelineDraft.phone" type="text" @input="autoSetAppointmentStatus(activeTimelineDraft)" @blur="fillPatientByPhone(activeTimelineDraft)">
+              <input v-model="activeTimelineDraft.phone" type="text" @input="handleTimelinePhoneInput" @blur="fillPatientByPhone(activeTimelineDraft)">
+              <small v-if="timelineValidationErrors.phone" class="timeline-error-text">{{ timelineValidationErrors.phone }}</small>
             </label>
 
             <label>
@@ -1976,6 +1985,9 @@ export default {
       activeTimelineDay: null,
       activeTimelineRow: null,
       activeTimelineDraft: null,
+      activeTimelineFollowup: null,
+      pendingTimelineFollowup: null,
+      timelineValidationErrors: {},
       timelinePatientSearchResults: [],
       timelinePatientSearchLoading: false,
       timelinePatientSearchOpen: false,
@@ -2159,6 +2171,11 @@ export default {
         : `ویرایش نوبت ${this.activeTimelineDraft.lastname || ""}`.trim();
     },
 
+    timelineValidationSummary() {
+      const messages = Object.values(this.timelineValidationErrors || {}).filter(Boolean);
+      return messages.length ? messages.join("، ") : "";
+    },
+
     canViewBalanceAudits() {
       return this.permissions.includes("reports.financial");
     },
@@ -2316,6 +2333,7 @@ export default {
       const day = this.ensureScheduleDay(selectedDate);
       this.activateScheduleDay(day);
       this.handledOpenViewRequestAt = requestKey;
+      this.pendingTimelineFollowup = request.followup || null;
       this.$nextTick(() => this.openNewTimelineAppointment(day));
     },
 
@@ -2589,6 +2607,13 @@ export default {
       this.activeTimelineDay = day;
       this.activeTimelineRow = row;
       this.activeTimelineDraft = this.cloneTimelineRow(row);
+      if (this.pendingTimelineFollowup && !this.rowHasAppointment(row)) {
+        this.applyFollowupPrefillToDraft(this.activeTimelineDraft, this.pendingTimelineFollowup);
+        this.activeTimelineFollowup = this.pendingTimelineFollowup;
+        this.pendingTimelineFollowup = null;
+      } else {
+        this.activeTimelineFollowup = null;
+      }
       this.activeTimelineCreatedInModal = false;
       this.timelineModalOpen = true;
     },
@@ -2612,7 +2637,47 @@ export default {
       this.activeTimelineDay = null;
       this.activeTimelineRow = null;
       this.activeTimelineDraft = null;
+      this.activeTimelineFollowup = null;
       this.activeTimelineCreatedInModal = false;
+      this.timelineValidationErrors = {};
+    },
+
+    applyFollowupPrefillToDraft(draft, followup) {
+      if (!draft || !followup) return;
+      draft.lastname = followup.fullName || draft.lastname || "";
+      draft.phone = followup.phone || draft.phone || "";
+      draft.gender = followup.gender || draft.gender || "";
+      draft.source = followup.source || followup.campaignSource || followup.sourceName || draft.source || "";
+      draft.consultant = followup.consultant || draft.consultant || "";
+      draft.timelineConsultant = followup.consultant || draft.timelineConsultant || "";
+      if (followup.avatarUrl && !draft.profileThumbnailUrl && !draft.profilePhotoUrl) {
+        draft.profileThumbnailUrl = followup.avatarUrl;
+        draft.profilePhotoUrl = followup.avatarUrl;
+      }
+      const interestLabels = { 1: "کم", 2: "متوسط", 3: "زیاد", ok: "وقت داده شد" };
+      const followupDetails = [
+        followup.description,
+        followup.campaignTitle ? `کمپین: ${followup.campaignTitle}` : "",
+        followup.campaignSource || followup.sourceName ? `منبع کمپین: ${followup.campaignSource || followup.sourceName}` : "",
+        followup.contactDate ? `تاریخ تماس: ${followup.contactDate}` : "",
+        followup.followUpDate ? `تاریخ پیگیری: ${followup.followUpDate}` : "",
+        followup.status ? `وضعیت پیگیری: ${followup.status}` : "",
+        followup.interest ? `درجه تمایل: ${interestLabels[followup.interest] || followup.interest}` : "",
+        followup.reason ? `علت عدم تبدیل: ${followup.reason}` : "",
+        Array.isArray(followup.landingSms) && followup.landingSms.length ? `لندینگ‌ها: ${followup.landingSms.join("، ")}` : "",
+      ].filter(Boolean);
+      draft.description = [draft.description, ...followupDetails]
+        .filter(Boolean)
+        .filter((item, index, items) => items.indexOf(item) === index)
+        .join(" | ");
+      draft.status = draft.status || "وقت داده شد";
+      draft.newCustomer = true;
+    },
+
+    timelineDayGregorianDate(day) {
+      const month = this.months[this.currentMonth] || moment().format("jYYYY-jMM");
+      const date = moment(`${month}-${String(day?.dayNum || 1).padStart(2, "0")}`, "jYYYY-jMM-jDD", true);
+      return date.isValid() ? date.format("YYYY-MM-DD") : "";
     },
 
     onTimelineServiceSectionChanged() {
@@ -2628,8 +2693,8 @@ export default {
     async saveTimelineModal() {
       if (!this.activeTimelineDay || !this.activeTimelineRow || !this.activeTimelineDraft) return;
       const draft = this.activeTimelineDraft;
-      if (!String(draft.lastname || '').trim() || !String(draft.time || '').trim()) {
-        await Swal.fire({ icon:'warning', title:'اطلاعات نوبت کامل نیست', text:'نام بیمار و ساعت نوبت را وارد کنید.' });
+      if (!this.validateTimelineDraft(draft)) {
+        await Swal.fire({ icon:'warning', title:'اطلاعات نوبت کامل نیست', text:this.timelineValidationSummary || 'لطفا فیلدهای اجباری را کامل کنید.' });
         return;
       }
       const doctors = [...new Set((draft.timelineDoctors || []).filter(Boolean))].slice(0, 2);
@@ -2685,6 +2750,15 @@ export default {
       this.sortDayRowsByTime(this.activeTimelineDay);
       this.highlightedRowId = this.activeTimelineRow._rowId;
       this.saveData();
+      const followupResult = this.activeTimelineFollowup
+        ? {
+            followup: this.activeTimelineFollowup,
+            date: this.timelineDayGregorianDate(this.activeTimelineDay),
+            time: draft.time || "",
+            patientName: draft.lastname || "",
+            phone: draft.phone || "",
+          }
+        : null;
       this.closeTimelineModal(true);
 
       const failedSms = smsTypes.filter(type => !smsResults[type]?.success);
@@ -2695,6 +2769,9 @@ export default {
         timer: 1000,
         showConfirmButton: false
       });
+      if (followupResult) {
+        this.$emit("followup-appointment-created", followupResult);
+      }
     },
 
     async init() {
@@ -2748,11 +2825,20 @@ export default {
       row.patientId = patient.id || null;
       row.patientOutstandingDebt = Number(patient.outstanding_debt || 0);
       this.autoSetAppointmentStatus(row);
+      this.clearTimelineValidationError("lastname");
+      this.clearTimelineValidationError("phone");
+    },
+
+    handleTimelinePhoneInput() {
+      if (!this.activeTimelineDraft) return;
+      this.autoSetAppointmentStatus(this.activeTimelineDraft);
+      this.clearTimelineValidationError("phone");
     },
 
     onTimelinePatientSearch() {
       if (!this.activeTimelineDraft) return;
       this.autoSetAppointmentStatus(this.activeTimelineDraft);
+      this.clearTimelineValidationError("lastname");
       clearTimeout(this.timelinePatientSearchTimer);
       const query = String(this.activeTimelineDraft.lastname || '').trim();
       if (query.length < 2) {
@@ -2783,6 +2869,48 @@ export default {
       this.applyPatientToAppointment(this.activeTimelineDraft, patient);
       this.timelinePatientSearchOpen = false;
       this.timelinePatientSearchResults = [];
+    },
+
+    clearTimelineValidationError(field) {
+      if (!this.timelineValidationErrors?.[field]) return;
+      const nextErrors = { ...this.timelineValidationErrors };
+      delete nextErrors[field];
+      this.timelineValidationErrors = nextErrors;
+    },
+
+    validateTimelineDraft(draft) {
+      const errors = {};
+      const time = String(draft?.time || "").trim();
+      const name = String(draft?.lastname || "").trim();
+      const phone = String(draft?.phone || "").trim();
+
+      if (!time) {
+        errors.time = "ساعت نوبت را وارد کنید.";
+      } else if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+        errors.time = "ساعت نوبت باید با فرمت ۲۴ ساعته مثل 14:30 باشد.";
+      }
+
+      if (!name) {
+        errors.lastname = "نام و نام خانوادگی بیمار را وارد کنید.";
+      }
+
+      if (!phone) {
+        errors.phone = "شماره تماس بیمار را وارد کنید.";
+      } else if ((draft.sendAppointmentSms || draft.sendInfoSms) && !/^09\d{9}$/.test(this.normalizePhoneDigits(phone))) {
+        errors.phone = "برای ارسال پیامک، شماره موبایل معتبر وارد کنید.";
+      }
+
+      this.timelineValidationErrors = errors;
+      return !Object.keys(errors).length;
+    },
+
+    normalizePhoneDigits(value) {
+      const persian = "۰۱۲۳۴۵۶۷۸۹";
+      const arabic = "٠١٢٣٤٥٦٧٨٩";
+      return String(value || "")
+        .replace(/[۰-۹]/g, digit => persian.indexOf(digit))
+        .replace(/[٠-٩]/g, digit => arabic.indexOf(digit))
+        .replace(/\D/g, "");
     },
 
     isProblematicCustomer(row) {
@@ -6003,6 +6131,17 @@ smsColor(val) {
   background: #fff;
 }
 
+.timeline-validation-alert {
+  padding: 11px 13px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.8;
+}
+
 .timeline-form-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -6115,6 +6254,26 @@ smsColor(val) {
 .timeline-modal-input:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+
+.timeline-field-error {
+  color: #b91c1c !important;
+}
+
+.timeline-field-error input,
+.timeline-field-error select,
+.timeline-field-error textarea,
+.timeline-field-error .timeline-modal-input,
+.timeline-field-error .multiselect__tags {
+  border-color: #ef4444 !important;
+  background: #fff7f7 !important;
+}
+
+.timeline-error-text {
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.6;
 }
 
 .timeline-modal input:disabled {
@@ -7813,8 +7972,13 @@ tr.data-row td {
   cursor: pointer;
 }
 
+.vpd-wrapper,
 .time-picker-popover {
-  z-index: 999999 !important;
+  z-index: 1000010 !important;
+}
+
+.vpd-wrapper .vpd-container {
+  z-index: 1000011 !important;
 }
 
 .service-popup-meta {

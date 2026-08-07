@@ -1857,9 +1857,22 @@ input:focus {
 .resource-content tbody td:first-child{border-radius:0 16px 16px 0}
 .resource-content tbody td:last-child{border-radius:16px 0 0 16px}
 .staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:360px;min-width:360px}
-.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:390px;min-width:390px}
+.channels-content{max-width:100%;overflow:visible}
+.channels-content table{width:100%;min-width:0;table-layout:fixed;border-spacing:0 12px}
+.channels-content table th:nth-child(1),.channels-content table td:nth-child(1){width:130px}
+.channels-content table th:nth-child(2),.channels-content table td:nth-child(2){width:auto;text-align:right}
+.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:360px;min-width:0}
+.channels-content table th:nth-child(4),.channels-content table td:nth-child(4){width:190px}
+.channels-content tbody td{vertical-align:middle}
+.channels-content .actions-cell{min-height:58px;align-items:center;justify-content:center;gap:8px;flex-wrap:nowrap}
+.channels-content .btn-add,.channels-content .btn-remove{width:auto;min-width:74px;height:38px;padding:0 12px;gap:6px;border-radius:11px;line-height:1;box-shadow:0 7px 16px rgba(15,23,42,.1)}
+.channels-content .btn-add span,.channels-content .btn-remove span{font-size:18px;line-height:1}
+.channels-content .btn-add small,.channels-content .btn-remove small{display:block;color:inherit;font-size:10px;font-weight:900;line-height:1}
 .channel-card-icon{width:48px;height:48px;display:grid;place-items:center;margin:auto;border:1px solid #dbeafe;border-radius:14px;background:#eff6ff;font-size:23px}
-.channel-card-name{display:block;color:#1e293b;font-size:13px;text-align:right}
+.channel-card-name{display:block;min-width:0;overflow:hidden;color:#1e293b;font-size:13px;text-align:right;text-overflow:ellipsis;white-space:nowrap}
+.channels-content .doctor-settings-btn{width:100%;min-height:54px;display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px}
+.channels-content .doctor-settings-btn>span:nth-child(2){min-width:0;text-align:right}
+.channels-content .doctor-settings-btn strong,.channels-content .doctor-settings-btn small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .channel-settings-btn .doctor-settings-icon{background:#7c3aed}
 .channel-settings-btn>b{background:#ede9fe;color:#6d28d9}
 .channel-settings-modal{width:min(650px,100%)}
@@ -1869,4 +1882,4 @@ input:focus {
 .channel-modal-preview{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #ddd6fe;border-radius:14px;background:#faf5ff}
 .channel-modal-preview span{width:48px;height:48px;display:grid;place-items:center;border-radius:13px;background:#7c3aed;color:#fff;font-size:23px}
 .channel-modal-preview strong{color:#4c1d95;font-size:13px}
-@media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3),.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:300px;min-width:300px}}</style>
+@media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}</style>

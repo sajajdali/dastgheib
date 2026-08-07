@@ -20,6 +20,8 @@ use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CentralServiceTicketController;
+use App\Http\Controllers\StoreCheckoutController;
 use App\Http\Controllers\Api\CompletionSmsController;
 use App\Http\Controllers\Api\PhotoComparisonController;
 use App\Http\Controllers\Api\BeautyAnnotationController;
@@ -37,8 +39,12 @@ use App\Http\Controllers\Api\PersonalReportController;
 |--------------------------------------------------------------------------
 */
 //تنظیمات
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware('auth')->group(function () {
 Route::get('/auth/user', [AuthController::class, 'user']);
+Route::get('/store/terms', [StoreCheckoutController::class, 'terms']);
+Route::post('/store/checkout', [StoreCheckoutController::class, 'checkout']);
+Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIndex']);
+Route::post('/service-tickets', [CentralServiceTicketController::class, 'tenantStore'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/settings', [SettingController::class, 'index']);
 Route::post('/settings/internal', [SettingController::class, 'saveInternalSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/attendance-status', [SettingController::class, 'saveAttendanceStatus'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');

@@ -42,7 +42,7 @@
       </button>
 
       <button
-        v-if="canViewSettings"
+        v-if="canViewSettings && featureEnabled('satisfaction')"
         type="button"
         class="tab-btn"
         :class="{ active: activeSection === 'satisfaction' }"
@@ -85,7 +85,7 @@
         </label>
       </section>
 
-      <div class="accordion">
+      <div v-if="featureEnabled('patients')" class="accordion">
         <div class="accordion-header" @click="toggleAccordion('profile')">
           پرونده
         </div>
@@ -121,7 +121,7 @@
         </div>
       </div>
 
-      <div class="accordion">
+      <div v-if="featureEnabled('booking')" class="accordion">
         <div class="accordion-header" @click="toggleAccordion('appointmentColumns')">
           ستون‌های نوبت‌دهی
         </div>
@@ -133,7 +133,7 @@
             <label><input type="checkbox" v-model="appointmentColumns.payment_link" /> <span>لینک پرداخت</span></label>
             <label><input type="checkbox" v-model="appointmentColumns.best_staff" /> <span>نمایش بهترین پرسنل ماه</span></label>
           </div>
-          <div class="required-fields-settings">
+          <div v-if="featureEnabled('patients')" class="required-fields-settings">
             <div class="required-fields-head"><strong>اجباری یا اختیاری بودن اطلاعات تشکیل پرونده</strong><small>فیلد اجباری بدون تکمیل قابل ثبت نیست.</small></div>
             <label v-for="field in patientFieldOptions" :key="field.key">
               <span>{{ field.label }}</span>
@@ -145,7 +145,7 @@
         </div>
       </div>
 
-      <div class="accordion">
+      <div v-if="featureEnabled('booking')" class="accordion">
         <div class="accordion-header" @click="toggleAccordion('clinicSchedule')">
           برنامه نوبت‌دهی
         </div>
@@ -211,7 +211,7 @@
         </div>
       </div>
 
-      <div class="accordion customer-level-settings">
+      <div v-if="featureEnabled('patients')" class="accordion customer-level-settings">
         <div class="accordion-header" @click="toggleAccordion('customerLevels')">دسته‌بندی خودکار مشتری‌ها</div>
         <div v-if="openAccordion === 'customerLevels'" class="accordion-body">
           <p class="level-settings-help">هر سطح بر اساس حداقل و حداکثر پرداخت در بازه خودش یا حداقل مراجعه همان بازه محاسبه می‌شود.</p>
@@ -399,8 +399,8 @@
         <article class="birthday-sms-card">
           <div><span class="section-eyebrow">ارسال خودکار ساعت ۹ صبح</span><h3>پیامک تبریک تولد</h3><p>برای بیمارانی که امروز تولدشان است فقط یک پیام در هر سال ارسال می‌شود.</p></div>
           <label class="active-switch"><input v-model="smsSettings.birthday.enabled" type="checkbox"><span>{{ smsSettings.birthday.enabled ? 'فعال' : 'غیرفعال' }}</span></label>
-          <label class="template-message-field">متن پیامک<textarea v-model="smsSettings.birthday.content" maxlength="1000" placeholder="{name} عزیز، تولدتان مبارک..."></textarea></label>
-          <div class="template-variables"><span>متغیرها:</span><button type="button" @click="smsSettings.birthday.content += '{name}'">{name}</button><button type="button" @click="smsSettings.birthday.content += '{clinic}'">{clinic}</button></div>
+          <label class="template-message-field">نام الگوی SHSMS<input v-model.trim="smsSettings.birthday.content" type="text" maxlength="190" placeholder="مثلاً birthday_message"></label>
+          <label class="template-message-field">متن راهنما<textarea v-model="smsSettings.birthday.guide_text" maxlength="1000" placeholder="پارامترها: {name}، {clinic}. متن واقعی داخل پنل SHSMS تعریف می‌شود."></textarea></label>
         </article>
         <div class="sms-section-head">
           <div>
@@ -446,17 +446,28 @@
             </div>
 
             <label class="template-message-field">
-              متن پیامک
+              نام الگوی SHSMS
+              <input
+                v-model.trim="template.content"
+                type="text"
+                maxlength="190"
+                placeholder="مثلاً appointment_reminder"
+              >
+              <small>نام دقیق template تعریف‌شده در پنل SHSMS را وارد کنید.</small>
+            </label>
+
+            <label class="template-message-field">
+              متن راهنما
               <textarea
-                v-model="template.content"
+                v-model="template.guide_text"
                 maxlength="2000"
-                placeholder="متن پیامک را وارد کنید..."
+                placeholder="اینجا فقط راهنمای متن و پارامترهای الگو را بنویسید؛ متن واقعی در SHSMS است."
               ></textarea>
-              <small>{{ template.content.length }} / ۲۰۰۰ کاراکتر</small>
+              <small>{{ (template.guide_text || '').length }} / ۲۰۰۰ کاراکتر</small>
             </label>
 
             <div class="template-variables">
-              <span>متغیرهای قابل استفاده:</span>
+              <span>پارامترهای پیشنهادی:</span>
               <button
                 v-for="variable in smsVariables"
                 :key="variable"
@@ -481,7 +492,7 @@
       <Roles embedded />
     </div>
 
-    <div v-if="canViewSettings && activeSection === 'satisfaction'" class="satisfaction-settings-wrapper">
+    <div v-if="canViewSettings && featureEnabled('satisfaction') && activeSection === 'satisfaction'" class="satisfaction-settings-wrapper">
       <header class="satisfaction-settings-head">
         <div>
           <span>فرم‌ساز رضایت‌مندی</span>
@@ -525,9 +536,10 @@
                 <option value="text">متن کوتاه</option>
               </select>
             </label>
-            <label class="active-switch satisfaction-switch">
+            <label class="satisfaction-required-toggle" :class="{ required: question.required }">
               <input v-model="question.required" type="checkbox">
-              <span>{{ question.required ? 'اجباری' : 'اختیاری' }}</span>
+              <span class="toggle-track"><i></i></span>
+              <b>{{ question.required ? 'اجباری' : 'اختیاری' }}</b>
             </label>
           </article>
         </div>
@@ -603,18 +615,31 @@
 
 <script setup>
 import { avatarInitial, avatarUrl } from '@/utils/avatar'
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, onMounted, watch } from "vue";
 import Swal from "sweetalert2";
 import Roles from "./Roles.vue";
 import Manabe from "./manabe.vue";
 import axios from "axios";
 
 const props = defineProps({
-  currentUser: { type: Object, default: null }
+  currentUser: { type: Object, default: null },
+  enabledFeatures: { type: Array, default: null }
 });
 const isSuperAdmin = computed(() => (props.currentUser?.roles || []).some(role => ['مدیر کل', 'مدیر سیستم', 'super admin', 'super-admin'].includes(String(role).trim().toLowerCase())));
 const canViewSettings = computed(() => isSuperAdmin.value);
 const canViewResources = computed(() => isSuperAdmin.value);
+const featureEnabled = (feature) => {
+  if (!feature || !Array.isArray(props.enabledFeatures)) return true;
+  const aliases = {
+    chat: "patients",
+    staffEval: "resources",
+    tasks: "followups",
+    campaign: "automation",
+    aiReport: "beauty",
+  };
+  const normalized = props.enabledFeatures.map(item => aliases[item] || item);
+  return normalized.includes(feature);
+};
 const attendanceEnabled = ref(false);
 const attendanceSaving = ref(false);
 const SATISFACTION_SETTINGS_KEY = "satisfaction_form_settings_v1";
@@ -661,7 +686,7 @@ const serviceFinderPaymentGroups = computed(() => [
 
 // داده‌های بخش تنظیمات داخلی
 const sms = ref({ appointment: "", info: "", welcome: "" });
-const smsSettings = ref({ provider: "shsms", templates: [], birthday: { enabled: false, content: "{name} عزیز، تولدتان مبارک. {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true } });
+const smsSettings = ref({ provider: "shsms", templates: [], birthday: { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true } });
 const leadRecipientDraft = ref("");
 const leadAlertKeys = ["inventory_empty", "active_tickets", "daily_appointments", "daily_financial"];
 const allLeadAlertsSelected = computed(() => leadAlertKeys.every(key => smsSettings.value.lead_alerts[key]));
@@ -827,6 +852,7 @@ const accessSections = ref([
 ]);
 
 const toggleSection = (section) => {
+  if (section === "satisfaction" && !featureEnabled("satisfaction")) return;
   activeSection.value = activeSection.value === section ? "" : section;
   openAccordion.value = "";
 };
@@ -841,6 +867,16 @@ const customerLevelPeriodTitle = (levelKey, title) => {
   const months = Math.max(1, Number(customerLevels.value[`${levelKey}_visit_period_months`] || 3));
   return `${title} در ${months.toLocaleString("fa-IR")} ماه`;
 };
+
+watch(
+  () => props.enabledFeatures,
+  () => {
+    if (activeSection.value === "satisfaction" && !featureEnabled("satisfaction")) {
+      activeSection.value = canViewSettings.value ? "internal" : "resources";
+    }
+  },
+  { deep: true },
+);
 
 const addPaymentMethodRow = () => paymentMethodRows.value.push({ name: "" });
 const removePaymentMethodRow = (index) => {
@@ -956,6 +992,7 @@ const makeSmsTemplate = () => ({
   title: "",
   category: "general",
   content: "",
+  guide_text: "",
   active: true
 });
 
@@ -994,8 +1031,9 @@ const removeSmsTemplate = async (index) => {
 };
 
 const appendSmsVariable = (template, variable) => {
-  const separator = template.content && !template.content.endsWith(" ") ? " " : "";
-  template.content += `${separator}${variable}`;
+  const guide = template.guide_text || "";
+  const separator = guide && !guide.endsWith(" ") ? " " : "";
+  template.guide_text = `${guide}${separator}${variable}`;
 };
 
 // ۱. دریافت اطلاعات از لاراول هنگام لود صفحه
@@ -1008,13 +1046,14 @@ const fetchSettings = async () => {
     if (data.sms) sms.value = data.sms;
     if (data.sms_settings) {
       smsSettings.value.provider = data.sms_settings.provider || "shsms";
-      smsSettings.value.birthday = data.sms_settings.birthday || { enabled: false, content: "{name} عزیز، تولدتان مبارک. {clinic}" };
+      smsSettings.value.birthday = data.sms_settings.birthday || { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" };
       smsSettings.value.lead_alerts = data.sms_settings.lead_alerts || { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true };
       smsSettings.value.templates = (data.sms_settings.templates || []).map((template, index) => ({
         id: template.id || `template-loaded-${index}`,
         title: template.title || "",
         category: template.category || "general",
         content: template.content || "",
+        guide_text: template.guide_text || "",
         active: template.active !== false
       }));
     }
@@ -1193,7 +1232,7 @@ const saveSmsSettings = async () => {
     await Swal.fire({
       icon: "warning",
       title: "الگوی ناقص",
-      text: "عنوان و متن همه الگوهای پیامک را کامل کنید."
+      text: "عنوان و نام الگوی SHSMS را برای همه الگوها کامل کنید."
     });
     return;
   }
@@ -1596,6 +1635,7 @@ textarea{ min-height:120px; resize:none; }
 
 .satisfaction-settings-wrapper{width:100%;box-sizing:border-box;display:grid;gap:18px;padding:24px;border:1px solid #dbeafe;border-radius:26px;background:#f8fbff;box-shadow:0 14px 38px rgba(37,99,235,.08);text-align:center}.satisfaction-settings-head{display:flex;align-items:center;justify-content:space-between;gap:18px;text-align:right}.satisfaction-settings-head span{color:#2563eb;font-size:11px;font-weight:900}.satisfaction-settings-head h2{margin:5px 0;color:#172033}.satisfaction-settings-head p{margin:0;color:#64748b;font-size:12px;line-height:1.9}.satisfaction-settings-head button,.satisfaction-actions button{height:42px;padding:0 16px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}.satisfaction-builder{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.9fr);gap:16px;align-items:start}.satisfaction-question-list{display:grid;gap:10px}.satisfaction-question-editor{display:grid;grid-template-columns:1.2fr .7fr auto;align-items:end;gap:10px;padding:14px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;text-align:right}.question-editor-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between}.question-editor-head strong{color:#1e293b}.question-editor-head button{width:32px;height:32px;border:0;border-radius:9px;background:#fee2e2;color:#dc2626;font-size:19px;cursor:pointer}.question-editor-head button:disabled{opacity:.35;cursor:not-allowed}.satisfaction-question-editor label{display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}.satisfaction-question-editor input,.satisfaction-question-editor select,.satisfaction-preview input,.satisfaction-preview textarea{box-sizing:border-box;width:100%;min-height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;text-align:center}.satisfaction-switch{align-self:center;justify-self:center}.satisfaction-preview{display:grid;gap:15px;padding:20px;border:1px solid #e2e8f0;border-radius:22px;background:#fff;text-align:center}.satisfaction-preview h3{margin:0;color:#0f172a;font-size:22px}.satisfaction-preview-question{display:grid;gap:10px;justify-items:center;padding:15px;border:1px solid #eef2f7;border-radius:16px;background:#fbfdff}.satisfaction-preview-question strong{color:#1e293b;font-size:14px}.satisfaction-options{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}.satisfaction-option{min-width:72px;height:36px;padding:0 12px;border:2px solid transparent;border-radius:999px;background:#f8fafc;font-family:inherit;font-size:11px;font-weight:1000;cursor:pointer;transition:.18s}.satisfaction-option.excellent{color:#166534;background:#dcfce7}.satisfaction-option.good{color:#15803d;background:#f0fdf4}.satisfaction-option.average{color:#475569;background:#f1f5f9}.satisfaction-option.bad{color:#b91c1c;background:#fee2e2}.satisfaction-option.weak{color:#fff;background:#dc2626}.satisfaction-option.selected{transform:translateY(-2px);box-shadow:0 8px 18px rgba(15,23,42,.16)}.satisfaction-option.excellent.selected{border-color:#166534;background:#15803d;color:#fff}.satisfaction-option.good.selected{border-color:#22c55e;background:#bbf7d0;color:#14532d}.satisfaction-option.average.selected{border-color:#64748b;background:#cbd5e1;color:#1e293b}.satisfaction-option.bad.selected{border-color:#f87171;background:#fecaca;color:#7f1d1d}.satisfaction-option.weak.selected{border-color:#7f1d1d;background:#991b1b;color:#fff}.satisfaction-preview textarea{min-height:92px;padding:12px;resize:vertical}.satisfaction-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}.satisfaction-actions span{margin-left:auto;color:#15803d;font-size:12px;font-weight:900}.satisfaction-actions button{background:#64748b}.satisfaction-actions button.primary{background:#16a34a}
 .satisfaction-question-editor{cursor:grab}.satisfaction-question-editor.dragging{opacity:.55;border-color:#60a5fa;background:#eff6ff;cursor:grabbing}.drag-handle{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:16px;cursor:grab}.question-actions{display:flex;align-items:center;gap:6px}.question-actions button{background:#f1f5f9!important;color:#475569!important;font-size:14px!important}.question-actions button:last-child{background:#fee2e2!important;color:#dc2626!important;font-size:19px!important}
+.satisfaction-required-toggle{height:40px;align-self:end;justify-self:start;display:inline-flex!important;grid-template-columns:none!important;align-items:center;gap:8px;padding:0 10px!important;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:900;cursor:pointer;transition:border-color .18s ease,background-color .18s ease,color .18s ease,box-shadow .18s ease}.satisfaction-required-toggle input{position:absolute;opacity:0;pointer-events:none}.satisfaction-required-toggle .toggle-track{position:relative;width:30px;height:18px;flex:0 0 30px;border-radius:999px;background:#cbd5e1;transition:background-color .18s ease}.satisfaction-required-toggle .toggle-track i{position:absolute;top:3px;right:3px;width:12px;height:12px;border-radius:999px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.18);transition:transform .18s ease}.satisfaction-required-toggle b{line-height:1;color:inherit}.satisfaction-required-toggle.required{border-color:#bbf7d0;background:#f0fdf4;color:#15803d;box-shadow:0 8px 18px rgba(34,197,94,.08)}.satisfaction-required-toggle.required .toggle-track{background:#22c55e}.satisfaction-required-toggle.required .toggle-track i{transform:translateX(-12px)}.satisfaction-required-toggle:hover{border-color:#bfdbfe;background:#fff}
 
 @media(max-width:768px){ .top-tabs{ align-items:center; gap:6px; } .tab-btn{flex:0 0 auto;padding:7px 12px;text-align:center}.row-box,.user-fields,.template-fields,.lead-alert-options{ grid-template-columns:1fr; } .accordion{ width:100%; } .sms-provider-card,.sms-section-head,.lead-alert-head,.satisfaction-settings-head{ align-items:stretch; flex-direction:column; } .provider-field{ width:100%; }.payment-settings-wrapper,.satisfaction-settings-wrapper{padding:16px}.payment-settings-head{align-items:flex-start;flex-direction:column}.payment-settings-actions,.satisfaction-actions{align-items:stretch;flex-direction:column}.payment-settings-actions button,.satisfaction-actions button{width:100%}.lead-recipient-field>div{flex-direction:column}.lead-recipient-field button{height:42px}.satisfaction-builder,.satisfaction-question-editor{grid-template-columns:1fr}.satisfaction-preview{padding:14px}.satisfaction-actions span{margin-left:0} }
 

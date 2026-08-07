@@ -6,34 +6,41 @@
     </header>
 
     <div class="advanced-search">
-      <div class="search-main"><span>⌕</span><input v-model.trim="filters.q" @keyup.enter="load" placeholder="نام، پرونده یا موبایل"></div>
-      <div class="tag-search-filter">
-        <span>⌕</span>
-        <input v-model.trim="filters.tag" list="photo-service-tags" placeholder="جست‌وجوی تگ" @keyup.enter="load">
-        <button v-if="filters.tag" type="button" title="پاک کردن تگ" @click="filters.tag = ''">×</button>
-        <datalist id="photo-service-tags">
-          <option v-for="tag in tags" :key="tag" :value="tag"></option>
-        </datalist>
+      <div class="photos-filter-row photos-filter-primary">
+        <div class="search-main"><span>⌕</span><input v-model.trim="filters.q" @keyup.enter="load" placeholder="نام، پرونده یا موبایل"></div>
+        <div class="tag-search-filter">
+          <span>⌕</span>
+          <input v-model.trim="filters.tag" list="photo-service-tags" placeholder="جست‌وجوی تگ" @keyup.enter="load">
+          <button v-if="filters.tag" type="button" title="پاک کردن تگ" @click="filters.tag = ''">×</button>
+          <datalist id="photo-service-tags">
+            <option v-for="tag in tags" :key="tag" :value="tag"></option>
+          </datalist>
+        </div>
+        <select v-model="filters.gender"><option value="">جنسیت</option><option value="female">زن</option><option value="male">مرد</option></select>
+        <select v-model="filters.age_group"><option value="">سن</option><option value="young">جوان</option><option value="old">پیر</option></select>
+        <select v-model="filters.angle"><option value="">زاویه</option><option v-for="item in angles" :key="item.key" :value="item.key">{{ item.label }}</option></select>
+        <select v-model="filters.featured"><option value="">نوع تصویر</option><option value="featured">★ برترین‌ها</option><option value="regular">معمولی</option></select>
       </div>
-      <select v-model="filters.gender"><option value="">جنسیت</option><option value="female">زن</option><option value="male">مرد</option></select>
-      <select v-model="filters.age_group"><option value="">سن</option><option value="young">جوان</option><option value="old">پیر</option></select>
-      <select v-model="filters.angle"><option value="">زاویه</option><option v-for="item in angles" :key="item.key" :value="item.key">{{ item.label }}</option></select>
-      <select v-model="filters.featured"><option value="">نوع تصویر</option><option value="featured">★ برترین‌ها</option><option value="regular">معمولی</option></select>
-      <div class="photos-date-field">
-        <date-picker v-model="filters.date_from" format="jYYYY-jMM-jDD" display-format="jYYYY/jMM/jDD" placeholder="از تاریخ" auto-submit color="#2563eb" input-class="photos-date-input" />
+
+      <div class="photos-filter-row photos-filter-secondary">
+        <div class="photos-date-field">
+          <date-picker v-model="filters.date_from" format="jYYYY-jMM-jDD" display-format="jYYYY/jMM/jDD" placeholder="از تاریخ" auto-submit color="#2563eb" input-class="photos-date-input" />
+        </div>
+        <div class="photos-date-field">
+          <date-picker v-model="filters.date_to" format="jYYYY-jMM-jDD" display-format="jYYYY/jMM/jDD" placeholder="تا تاریخ" auto-submit color="#2563eb" input-class="photos-date-input" />
+        </div>
+        <label class="complete-filter"><input v-model="filters.only_complete" type="checkbox"> جفت کامل</label>
+        <label class="complete-filter consent-filter"><input v-model="filters.consented_only" type="checkbox"> فقط دارای رضایت</label>
+        <div class="photos-filter-actions">
+          <button class="search-btn photo-icon-action" type="button" :disabled="loading" title="جست‌وجو" aria-label="جست‌وجو" @click="load">
+            <i v-if="loading" class="photo-action-spinner"></i>
+            <svg v-else viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+          </button>
+          <button class="clear-btn photo-icon-action" type="button" title="پاک‌کردن فیلترها" aria-label="پاک‌کردن فیلترها" @click="clearFilters">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15 13.5 5.5a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3L9 20H4z"/><path d="m11 8 5 5M9 20h11"/></svg>
+          </button>
+        </div>
       </div>
-      <div class="photos-date-field">
-        <date-picker v-model="filters.date_to" format="jYYYY-jMM-jDD" display-format="jYYYY/jMM/jDD" placeholder="تا تاریخ" auto-submit color="#2563eb" input-class="photos-date-input" />
-      </div>
-      <label class="complete-filter"><input v-model="filters.only_complete" type="checkbox"> جفت کامل</label>
-      <label class="complete-filter consent-filter"><input v-model="filters.consented_only" type="checkbox"> فقط دارای رضایت</label>
-      <button class="search-btn photo-icon-action" type="button" :disabled="loading" title="جست‌وجو" aria-label="جست‌وجو" @click="load">
-        <i v-if="loading" class="photo-action-spinner"></i>
-        <svg v-else viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
-      </button>
-      <button class="clear-btn photo-icon-action" type="button" title="پاک‌کردن فیلترها" aria-label="پاک‌کردن فیلترها" @click="clearFilters">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15 13.5 5.5a2.1 2.1 0 0 1 3 0l2 2a2.1 2.1 0 0 1 0 3L9 20H4z"/><path d="m11 8 5 5M9 20h11"/></svg>
-      </button>
     </div>
 
     <div class="angle-filter-row">
@@ -186,6 +193,24 @@ export default {
 .photos-date-field{width:100%;min-width:0}
 .photos-date-field :deep(.vpd-input-group),.photos-date-field :deep(.vpd-input-group input),.photos-date-field :deep(.vpd-input-group .photos-date-input){width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
 .photos-date-field :deep(.vpd-input-group){display:block!important}
+.advanced-search{display:grid!important;grid-template-columns:1fr!important;gap:10px!important;padding:16px!important}
+.photos-filter-row{display:grid;gap:10px;align-items:center;min-width:0}
+.photos-filter-primary{grid-template-columns:minmax(260px,1.7fr) minmax(220px,1.1fr) repeat(4,minmax(128px,.72fr))}
+.photos-filter-secondary{grid-template-columns:minmax(220px,1fr) minmax(220px,1fr) minmax(130px,.55fr) minmax(180px,.72fr) auto}
+.advanced-search input,.advanced-search select{width:100%;height:44px!important;box-sizing:border-box;font-size:12px;font-weight:800}
+.search-main,.tag-search-filter,.photos-date-field{height:44px;min-width:0}
+.search-main span,.tag-search-filter>span{top:50%!important;transform:translateY(-50%);line-height:1}
+.tag-search-filter button{top:50%!important;transform:translateY(-50%);left:8px!important}
+.photos-date-field{position:relative;overflow:hidden;border:1px solid #dbe3ec;border-radius:10px;background:#fff}
+.photos-date-field :deep(.vpd-input-group){position:relative!important;width:100%!important;height:100%!important;display:block!important}
+.photos-date-field :deep(.vpd-icon-btn){position:absolute!important;left:0!important;top:0!important;width:44px!important;height:44px!important;display:grid!important;place-items:center!important;background:#2563eb!important;color:#fff!important;border-radius:0!important}
+.photos-date-field :deep(.vpd-icon-btn svg){width:18px!important;height:18px!important}
+:deep(.photos-date-input){height:44px!important;padding:0 12px 0 52px!important;border:0!important;border-radius:10px!important}
+.complete-filter{height:36px;align-self:center;justify-content:center;gap:6px;padding:0 11px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;white-space:nowrap;font-size:11px;font-weight:900;line-height:1}
+.complete-filter input{width:14px!important;height:14px!important;min-width:14px!important;margin:0}
+.consent-filter{height:36px;border-radius:999px}
+.photos-filter-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+.photo-icon-action{width:44px!important;height:44px!important;min-width:44px!important;border-radius:11px!important}
 .result-thumbs{position:relative}
 .result-thumbs.sensitive{border:2px solid #ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.12)}
 .result-thumbs img.sensitive{outline:3px solid #ef4444;outline-offset:-3px}
@@ -197,4 +222,6 @@ export default {
 .angle-view-nav>div button{flex:0 0 auto;height:28px;padding:0 9px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#64748b;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}
 .angle-view-nav>div button.active{border-color:#2563eb;background:#2563eb;color:#fff}
 @media(max-width:800px){.angle-view-nav{grid-template-columns:1fr 1fr}.angle-view-nav>div{grid-column:1/-1;order:3}.angle-view-nav>button{width:100%}}
+@media(max-width:1200px){.photos-filter-primary{grid-template-columns:repeat(3,minmax(0,1fr))}.photos-filter-primary .search-main{grid-column:span 2}.photos-filter-secondary{grid-template-columns:repeat(2,minmax(0,1fr))}.photos-filter-actions{justify-content:flex-start}}
+@media(max-width:700px){.photos-filter-primary,.photos-filter-secondary{grid-template-columns:1fr}.photos-filter-primary .search-main{grid-column:auto}.photos-filter-actions{justify-content:stretch}.photo-icon-action{flex:1}}
 </style>

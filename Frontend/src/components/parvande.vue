@@ -164,7 +164,7 @@
 
         <div class="action-buttons-wrap" style="display: flex; gap: 8px;">
           <button
-            v-if="searchResults.length === 1"
+            v-if="canUseGallery && searchResults.length === 1"
             class="media-btn"
             @click="openMediaModal(searchResults[0])"
           >
@@ -209,7 +209,7 @@
                     v-if="key === 'first_name'"
                     :patient="row"
                     :size="38"
-                    clickable
+                    :clickable="canUseGallery"
                     @click.stop="openMediaModal(row)"
                   />
                   <button
@@ -257,7 +257,7 @@
               :patient="activePatientProfile"
               :size="112"
               original
-              clickable
+              :clickable="canUseGallery"
               @click="openMediaModal(activePatientProfile)"
             />
             <h1>{{ patientFullName(activePatientProfile) }}</h1>
@@ -271,6 +271,7 @@
             </div>
             <div class="profile-quick-actions">
               <button
+                v-if="canUseGallery"
                 type="button"
                 class="profile-gallery-action"
                 title="مشاهده عکس‌ها و گالری پرونده"
@@ -284,6 +285,7 @@
                 </svg>
               </button>
               <button
+                v-if="canUseBeauty"
                 type="button"
                 class="profile-beauty-action"
                 title="باز کردن پرونده زیبایار"
@@ -296,7 +298,7 @@
                 </svg>
               </button>
             </div>
-            <div v-if="latestProfilePhotosLoading || latestProfilePhotos.length" class="profile-latest-photos">
+            <div v-if="canUseGallery && (latestProfilePhotosLoading || latestProfilePhotos.length)" class="profile-latest-photos">
               <button
                 v-for="photo in latestProfilePhotos"
                 :key="photo.id"
@@ -1380,6 +1382,10 @@ export default {
     openPatientRequest: {
       type: Object,
       default: null
+    },
+    enabledFeatures: {
+      type: Array,
+      default: null
     }
   },
 
@@ -1551,6 +1557,14 @@ export default {
   },
 
   computed: {
+    canUseGallery() {
+      return this.featureEnabled('gallery')
+    },
+
+    canUseBeauty() {
+      return this.featureEnabled('beauty')
+    },
+
     patientResultColumns() {
       if (!this.searchResults.length) return []
 
@@ -1837,6 +1851,18 @@ export default {
   },
 
   methods: {
+    featureEnabled(feature) {
+      if (!feature || !Array.isArray(this.enabledFeatures)) return true
+      const aliases = {
+        chat: 'patients',
+        staffEval: 'resources',
+        tasks: 'followups',
+        campaign: 'automation',
+        aiReport: 'beauty'
+      }
+      return this.enabledFeatures.map(item => aliases[item] || item).includes(feature)
+    },
+
     selectCity(city) {
       this.form.city = city.name
     },
@@ -2278,6 +2304,7 @@ export default {
     },
 
     async openMediaModal(patient) {
+      if (!this.canUseGallery) return
       this.activeMediaPatient = patient
       this.currentMediaFolderId = null
       this.mediaBreadcrumbs = []

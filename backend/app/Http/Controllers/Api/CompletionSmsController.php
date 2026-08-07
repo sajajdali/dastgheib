@@ -3,31 +3,38 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Patient;
+use App\Services\ShsmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 
 class CompletionSmsController extends Controller
 {
+    public function __construct(private ShsmsService $sms)
+    {
+    }
+
     private function smsTemplates()
     {
         return collect(json_decode((string) AppSetting::getByKey('sms_templates', '[]'), true));
     }
 
-    private function sendSms(string $recipient, string $message): void
+    private function activeTemplate(string $category): string
     {
-        if (!config('services.shsms.endpoint') || !config('services.shsms.token')) {
-            throw new \RuntimeException('اتصال SHSMS تنظیم نشده است. مقادیر SHSMS_ENDPOINT و SHSMS_TOKEN را در env وارد کنید.');
+        $matched = $this->smsTemplates()
+            ->first(fn($item) => ($item['category'] ?? '') === $category && ($item['active'] ?? true));
+        $template = $matched['content'] ?? (string) AppSetting::getByKey('sms_'.$category, '');
+
+        $template = trim((string) $template);
+        if ($template === '') {
+            throw new \RuntimeException('نام الگوی SHSMS در تنظیمات تعریف نشده است.');
         }
 
-        Http::withToken(config('services.shsms.token'))
-            ->acceptJson()
-            ->post(config('services.shsms.endpoint'), [
-                'mobile' => $recipient,
-                'message' => $message,
-                'sender' => config('services.shsms.sender'),
-            ])
-            ->throw();
+        return $template;
+    }
+
+    private function sendTemplateSms(string $recipient, string $template, array $params): void
+    {
+        $this->sms->sendTemplate($recipient, $template, $params);
     }
 
     public function send(Request $request)
@@ -40,9 +47,8 @@ class CompletionSmsController extends Controller
             'reference' => ['required','string','max:190'],
         ]);
         if (!config('services.shsms.endpoint') || !config('services.shsms.token')) {
-            return response()->json(['message'=>'اتصال SHSMS تنظیم نشده است. مقادیر SHSMS_ENDPOINT و SHSMS_TOKEN را در env وارد کنید.'], 422);
+            return response()->json(['message'=>'اتصال SHSMS تنظیم نشده است. مقادیر SHSMS_ENDPOINT و SHSMS_API_TOKEN را در env وارد کنید.'], 422);
         }
-        $templates = $this->smsTemplates();
         $results = [];
         foreach ($data['types'] as $type) {
             try {
@@ -56,12 +62,16 @@ class CompletionSmsController extends Controller
                     : (float) ($data['referral_amount'] ?? 0);
                 if ($type === 'referral_credit' && $amount <= 0) throw new \RuntimeException('مبلغ واریز معرف مشخص نشده است.');
                 $balance = $referrer ? $referrer->wallet_balance + $amount : 0;
-                $content = $templates->first(fn($item) => ($item['category'] ?? '') === $type && ($item['active'] ?? true))['content'] ?? $this->defaultTemplate($type);
+                $template = $this->activeTemplate($type);
                 $link = $type === 'payment_link'
                     ? (string) ($data['payment_link'] ?? '')
                     : (string) config('services.shsms.treatment_link');
-                $message = strtr($content, ['{name}'=>$data['patient_name']??'', '{amount}'=>number_format($amount), '{balance}'=>number_format($balance), '{link}'=>$link]);
-                $this->sendSms($recipient, $message);
+                $this->sendTemplateSms($recipient, $template, $this->paramsFor($type, [
+                    'name' => $data['patient_name'] ?? '',
+                    'amount' => number_format($amount),
+                    'balance' => number_format($balance),
+                    'link' => $link,
+                ]));
                 if ($referrer) {
                     DB::transaction(function() use($referrer,$amount,$data) {
                         $description = 'referral-reward:'.$data['reference'];
@@ -85,24 +95,11 @@ class CompletionSmsController extends Controller
         ]);
 
         try {
-            $templates = $this->smsTemplates();
-            $content = $templates
-                ->first(fn ($item) => ($item['category'] ?? '') === 'payment_link' && ($item['active'] ?? true))['content']
-                ?? '{name} عزیز، لینک پرداخت نوبت شما: {link} مبلغ: {amount} تومان';
-
-            $message = strtr($content, [
-                '{name}' => $data['patient_name'] ?? '',
-                '{link}' => $data['payment_link'],
-                '{amount}' => number_format((float) ($data['amount'] ?? 0)),
-                '{balance}' => '',
-                '{date}' => '',
-                '{time}' => '',
-                '{doctor}' => '',
-                '{clinic}' => '',
-                '{code}' => '',
-            ]);
-
-            $this->sendSms($data['patient_phone'], $message);
+            $this->sendTemplateSms($data['patient_phone'], $this->activeTemplate('payment_link'), $this->paramsFor('payment_link', [
+                'name' => $data['patient_name'] ?? '',
+                'link' => $data['payment_link'],
+                'amount' => number_format((float) ($data['amount'] ?? 0)),
+            ]));
 
             return response()->json([
                 'success' => true,
@@ -125,29 +122,33 @@ class CompletionSmsController extends Controller
         if (!config('services.shsms.endpoint') || !config('services.shsms.token')) {
             return response()->json(['message'=>'اتصال سامانه پیامک تنظیم نشده است.'], 422);
         }
-        $templates = $this->smsTemplates();
         $results = [];
         foreach ($data['types'] as $type) {
             try {
-                $content = $templates->first(fn($item) => ($item['category'] ?? '') === $type && ($item['active'] ?? true))['content']
-                    ?? (string) AppSetting::getByKey('sms_'.$type, '');
-                if (!trim($content)) throw new \RuntimeException('متن پیامک در تنظیمات تعریف نشده است.');
-                $message = strtr($content, [
-                    '{name}'=>$data['patient_name']??'', '{date}'=>$data['date']??'', '{time}'=>$data['time']??'',
-                    '{doctor}'=>implode('، ', $data['doctors']??[]), '{consultant}'=>$data['consultant']??'',
-                    '{clinic}'=>(string) AppSetting::getByKey('clinic_name',''), '{amount}'=>'', '{balance}'=>'', '{link}'=>'', '{code}'=>'',
-                ]);
-                $this->sendSms($data['patient_phone'], $message);
+                $this->sendTemplateSms($data['patient_phone'], $this->activeTemplate($type), $this->paramsFor($type, [
+                    'name' => $data['patient_name'] ?? '',
+                    'date' => $data['date'] ?? '',
+                    'time' => $data['time'] ?? '',
+                    'doctor' => implode('، ', $data['doctors'] ?? []),
+                    'consultant' => $data['consultant'] ?? '',
+                    'clinic' => (string) AppSetting::getByKey('clinic_name', ''),
+                ]));
                 $results[$type] = ['success'=>true, 'sent_at'=>now()->format('Y-m-d H:i:s')];
             } catch (\Throwable $e) { $results[$type] = ['success'=>false, 'message'=>$e->getMessage()]; }
         }
         return response()->json(['results'=>$results]);
     }
 
-    private function defaultTemplate(string $type): string { return match($type) {
-        'referral_credit'=>'{amount} تومان بابت معرفی به کیف پول شما واریز شد. موجودی فعلی: {balance} تومان.',
-        'treatment_care'=>'توصیه‌های بعد از درمان: {link}',
-        'payment_link'=>'{name} عزیز، لینک پرداخت نوبت شما: {link} مبلغ: {amount} تومان',
-        default=>'{name} عزیز، از اعتماد شما سپاسگزاریم. به مجموعه ما خوش آمدید.'
-    }; }
+    private function paramsFor(string $type, array $values): array
+    {
+        return match($type) {
+            'appointment' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? '', $values['doctor'] ?? '', $values['clinic'] ?? ''],
+            'info' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? '', $values['doctor'] ?? '', $values['consultant'] ?? '', $values['clinic'] ?? ''],
+            'welcome' => [$values['name'] ?? '', (string) AppSetting::getByKey('clinic_name', '')],
+            'referral_credit' => [$values['name'] ?? '', $values['amount'] ?? '', $values['balance'] ?? ''],
+            'treatment_care' => [$values['name'] ?? '', $values['link'] ?? ''],
+            'payment_link' => [$values['name'] ?? '', $values['link'] ?? '', $values['amount'] ?? ''],
+            default => array_values($values),
+        };
+    }
 }

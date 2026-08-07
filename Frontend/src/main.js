@@ -3,7 +3,7 @@ import App from './App.vue'
 import axios from 'axios'
 import './scss/main.scss'
 
-const backendPaths = ['/api', '/sanctum', '/login', '/logout', '/broadcasting/auth']
+const backendPaths = ['/api', '/central-api', '/csrf-cookie', '/login', '/logout', '/broadcasting/auth']
 
 const isBackendUrl = (url) => {
   const value = String(url || '')
@@ -68,7 +68,7 @@ window.fetch = async (input, init = {}) => {
 
   const method = String(init.method || 'GET').toUpperCase()
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !getCookie('XSRF-TOKEN')) {
-    await nativeFetch('/sanctum/csrf-cookie', {
+    await nativeFetch('/csrf-cookie', {
       credentials: 'include',
       headers: { Accept: 'application/json' },
     })

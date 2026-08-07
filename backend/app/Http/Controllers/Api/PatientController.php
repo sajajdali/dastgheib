@@ -150,10 +150,7 @@ class PatientController extends Controller
             ->map(fn (Carbon $date) => $date->format('m-d'))
             ->all();
         $jalaliMonthDays = $gregorianDates
-            ->map(function (Carbon $date) {
-                $parts = explode('/', jdate($date)->format('Y/m/d'));
-                return str_pad($parts[1] ?? '', 2, '0', STR_PAD_LEFT).'-'.str_pad($parts[2] ?? '', 2, '0', STR_PAD_LEFT);
-            })
+            ->map(fn (Carbon $date) => $this->gregorianToJalaliMonthDay($date))
             ->all();
 
         $patients = Patient::query()
@@ -184,6 +181,38 @@ class PatientController extends Controller
             '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
             '/' => '-',
         ]);
+    }
+
+    private function gregorianToJalaliMonthDay(Carbon $date): string
+    {
+        $gy = (int) $date->format('Y') - 1600;
+        $gm = (int) $date->format('n') - 1;
+        $gd = (int) $date->format('j') - 1;
+        $gregorianMonthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        $jalaliMonthDays = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+
+        $days = 365 * $gy + intdiv($gy + 3, 4) - intdiv($gy + 99, 100) + intdiv($gy + 399, 400);
+        for ($i = 0; $i < $gm; $i += 1) {
+            $days += $gregorianMonthDays[$i];
+        }
+
+        $year = $gy + 1600;
+        if ($gm > 1 && ($year % 4 === 0 && ($year % 100 !== 0 || $year % 400 === 0))) {
+            $days += 1;
+        }
+        $days += $gd - 79;
+
+        $days %= 12053;
+        $days %= 1461;
+        if ($days >= 366) {
+            $days = ($days - 1) % 365;
+        }
+
+        for ($jm = 0; $jm < 11 && $days >= $jalaliMonthDays[$jm]; $jm += 1) {
+            $days -= $jalaliMonthDays[$jm];
+        }
+
+        return str_pad((string) ($jm + 1), 2, '0', STR_PAD_LEFT).'-'.str_pad((string) ($days + 1), 2, '0', STR_PAD_LEFT);
     }
 
     public function update(Request $request, $id)

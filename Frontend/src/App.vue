@@ -1,5 +1,12 @@
 <template>
-  <div v-if="authLoading" class="auth-boot" dir="rtl">
+  <template v-if="isCentralApp">
+    <CentralAdmin />
+    <a class="central-clinic-shortcut" href="http://clinic1.localhost:5175/">
+      ورود به محیط کلینیک
+    </a>
+  </template>
+
+  <div v-else-if="authLoading" class="auth-boot" dir="rtl">
     <span class="auth-boot-spinner"></span>
     در حال بررسی ورود...
   </div>
@@ -40,6 +47,14 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
         <span>{{ isDark ? 'حالت روشن' : 'حالت شب' }}</span>
       </button>
+      <button v-if="isClinicManager" type="button" @click="openServiceStatusPage">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/><path d="M7 5v4M12 10v4M17 15v4"/></svg>
+        <span>سرویس‌ها</span>
+      </button>
+      <button v-if="isClinicManager" type="button" @click="uiMenuOpen = false; changePage('Setting')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06A1.8 1.8 0 0 0 15 19.4a1.8 1.8 0 0 0-1 .6l-.04.08a2 2 0 0 1-3.84 0L10.08 20A1.8 1.8 0 0 0 9 19.4a1.8 1.8 0 0 0-1.98.36l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-.6-1l-.08-.04a2 2 0 0 1 0-3.84L4 10.08A1.8 1.8 0 0 0 4.6 9a1.8 1.8 0 0 0-.36-1.98l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.8 1.8 0 0 0 9 4.6a1.8 1.8 0 0 0 1-.6l.04-.08a2 2 0 0 1 3.84 0L13.92 4A1.8 1.8 0 0 0 15 4.6a1.8 1.8 0 0 0 1.98-.36l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.8 1.8 0 0 0 19.4 9a1.8 1.8 0 0 0 .6 1l.08.04a2 2 0 0 1 0 3.84L20 13.92a1.8 1.8 0 0 0-.6 1.08Z"/></svg>
+        <span>تنظیمات</span>
+      </button>
       <button class="utility-logout" type="button" @click="uiMenuOpen = false; logout()">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6.8A1.8 1.8 0 0 0 5 6.8v10.4A1.8 1.8 0 0 0 6.8 19H10"/><path d="M14 8l4 4-4 4M9 12h9"/></svg>
         <span>خروج از حساب</span>
@@ -75,6 +90,7 @@
       :permissions="user.permissions || []"
       :roles="user.roles || []"
       :attendance-enabled="attendanceEnabled"
+      :enabled-features="tenantEnabledFeatures"
       @select="changePage"
       @close-all="closeAllPages"
     />
@@ -89,6 +105,7 @@
       <Parvande
         v-if="currentPage === 'Parvande'"
         :open-patient-request="pendingPatientProfileRequest"
+        :enabled-features="tenantEnabledFeatures"
         @open-page="changePage"
         @open-beauty-record="openBeautyRecordFromPatient"
       />
@@ -100,11 +117,13 @@
         :permissions="user.permissions || []"
         :open-view-request="pendingAppointmentViewRequest"
         @open-patient-profile="openPatientProfileFromAppointment"
+        @followup-appointment-created="handleFollowupAppointmentCreated"
       />
 
       <FlwUp
         v-if="currentPage === 'Peygiri'"
         :permissions="user.permissions || []"
+        :appointment-result="pendingFollowupAppointmentResult"
         @open-appointments-timeline="openAppointmentsTimeline"
       />
 
@@ -146,8 +165,88 @@
       />
 
       <!-- تنظیمات -->
-      <Setting v-if="currentPage === 'Setting'" :current-user="user" />
-      <Store v-if="currentPage === 'Store'" />
+      <Setting v-if="currentPage === 'Setting'" :current-user="user" :enabled-features="tenantEnabledFeatures" />
+      <Store
+        v-if="currentPage === 'Store'"
+        :enabled-features="tenantEnabledFeatures"
+        :initial-module-key="pendingStoreModuleKey"
+      />
+      <ServiceTickets v-if="currentPage === 'ServiceTickets'" @back="currentPage = 'ServiceStatus'" />
+
+      <section v-if="currentPage === 'ServiceStatus'" class="service-status-page" dir="rtl">
+        <header class="service-page-hero">
+          <div>
+            <small>وضعیت سرویس کلینیک</small>
+            <h1>{{ serviceTenantName }}</h1>
+            <p>جزئیات سرویس، ماژول‌های فعال، زمان باقی‌مانده و شارژ پیامک در این صفحه دیده می‌شود.</p>
+          </div>
+          <button type="button" @click="currentPage = null">بازگشت</button>
+        </header>
+
+        <div class="service-page-grid">
+          <section class="service-status-card service-status-card-main">
+            <div>
+              <span>سرویس فعال</span>
+              <strong>{{ servicePlanName }}</strong>
+              <small>{{ serviceStatusLabel }}</small>
+            </div>
+            <b>{{ serviceDaysRemainingLabel }}</b>
+          </section>
+
+          <article class="service-metric-card">
+            <span>تاریخ اتمام</span>
+            <strong>{{ serviceExpiresAtLabel }}</strong>
+          </article>
+          <article class="service-metric-card">
+            <span>شارژ پنل پیامک</span>
+            <strong>{{ smsBalanceLabel }}</strong>
+          </article>
+          <article class="service-metric-card">
+            <span>ماژول‌های فعال</span>
+            <strong>{{ activeModuleNames.length.toLocaleString('fa-IR') }} مورد</strong>
+          </article>
+        </div>
+
+        <section class="service-modules-card service-page-card">
+          <div class="service-card-head">
+            <strong>امکانات فعال برای این کلینیک</strong>
+            <span>{{ activeModuleNames.length.toLocaleString('fa-IR') }} ماژول</span>
+          </div>
+          <div v-if="activeModuleNames.length" class="service-module-list">
+            <span v-for="module in activeModuleNames" :key="module">{{ module }}</span>
+          </div>
+          <p v-else>هیچ ماژول خریداری‌شده‌ای برای این کلینیک فعال نیست.</p>
+        </section>
+
+        <section class="service-modules-card service-page-card">
+          <div class="service-card-head">
+            <strong>ماژول‌های قابل خرید</strong>
+            <span>{{ purchasableModules.length.toLocaleString('fa-IR') }} مورد</span>
+          </div>
+          <div v-if="purchasableModules.length" class="service-purchase-list">
+            <article v-for="module in purchasableModules" :key="module.id">
+              <div>
+                <strong>{{ module.name }}</strong>
+                <small>{{ formatServicePrice(module.price) }}</small>
+              </div>
+              <button type="button" @click="buyServiceModule(module.id)">خرید ماژول</button>
+            </article>
+          </div>
+          <p v-else>همه ماژول‌های قابل خرید برای این کلینیک فعال شده‌اند.</p>
+        </section>
+
+        <section class="service-question-card">
+          <div>
+            <small>ارتباط با مدیر کل سیستم</small>
+            <h2>سوالات و پشتیبانی سرویس</h2>
+            <p>سوال‌ها، پاسخ‌ها، وضعیت پیگیری و فایل‌های ضمیمه را از صفحه پشتیبانی سرویس مدیریت کن.</p>
+          </div>
+          <footer>
+            <span>برای ثبت سوال جدید یا دیدن جواب‌ها وارد پشتیبانی سرویس شو.</span>
+            <button type="button" @click="currentPage = 'ServiceTickets'">ورود به پشتیبانی</button>
+          </footer>
+        </section>
+      </section>
 
     </div>
 
@@ -158,8 +257,10 @@
 
 import axios from "axios";
 import Swal from "sweetalert2";
+import { CENTRAL_MODULES } from "./central/data/modules";
 
 import Login from "./components/Login.vue";
+import CentralAdmin from "./components/CentralAdmin.vue";
 
 import Menu from "./components/menu.vue";
 
@@ -188,6 +289,7 @@ import Bills from "./components/bills.vue";
 
 import Setting from "./components/Setting.vue";
 import Store from "./components/Store.vue";
+import ServiceTickets from "./components/ServiceTickets.vue";
 
 import HRtimes from "./components/HRtimes.vue";
 import { startPresence, stopPresence } from "./services/presence";
@@ -199,6 +301,7 @@ export default {
   components: {
 
     Login,
+    CentralAdmin,
 
     Menu,
 
@@ -227,6 +330,7 @@ export default {
 
     Setting,
     Store,
+    ServiceTickets,
 
     HRtimes
 
@@ -247,14 +351,17 @@ export default {
       pendingPatientProfileRequest: null
       ,pendingBeautyRecordRequest: null
       ,pendingAppointmentViewRequest: null
+      ,pendingFollowupAppointmentResult: null
       ,authNoticeOpen: false
       ,myReportOpen: false
       ,myReportLoading: false
       ,myReport: null
       ,myReportError: ""
       ,reportMonth: ""
+      ,pendingStoreModuleKey: ""
       ,attendanceEnabled: false
       ,uiMenuOpen: false
+      ,isCentralApp: ["localhost", "127.0.0.1"].includes(window.location.hostname)
 
     };
 
@@ -264,6 +371,12 @@ export default {
 
     window.addEventListener("app:auth-expired", this.handleAuthExpired);
     window.addEventListener("app:attendance-status-changed", this.handleAttendanceStatusChanged);
+    window.addEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
+    if (this.isCentralApp) {
+      document.body.classList.add("central-host");
+      this.authLoading = false;
+      return;
+    }
     this.checkAuth();
 
     const saved = localStorage.getItem("darkMode");
@@ -280,8 +393,10 @@ export default {
 
   beforeUnmount() {
     stopPresence();
+    document.body.classList.remove("central-host");
     window.removeEventListener("app:auth-expired", this.handleAuthExpired);
     window.removeEventListener("app:attendance-status-changed", this.handleAttendanceStatusChanged);
+    window.removeEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
   },
 
   watch: {
@@ -307,6 +422,25 @@ export default {
   },
 
   computed: {
+    tenantEnabledFeatures() {
+      const features = this.user?.tenant?.module_ids;
+      if (!Array.isArray(features)) return null;
+      const aliases = {
+        chat: 'patients',
+        staffEval: 'resources',
+        tasks: 'followups',
+        campaign: 'automation',
+        aiReport: 'beauty',
+        appointments: 'booking',
+        appointment: 'booking',
+        time: 'booking',
+        Vaghtdahi: 'booking',
+        shop: 'online_store',
+        store: 'online_store',
+      };
+      return features.map((feature) => aliases[feature] || feature);
+    },
+
     isClinicManager() {
       const allowed = ["مدیر کل", "مدیر سیستم", "super admin", "super-admin"];
       return (this.user?.roles || []).some(role => allowed.includes(String(role).trim().toLowerCase()));
@@ -322,10 +456,74 @@ export default {
       const names = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
       const [year, month] = this.reportMonth.split("-").map(Number);
       return `${names[month - 1]} ${Number(year).toLocaleString("fa-IR", { useGrouping: false })}`;
+    },
+
+    serviceTenantName() {
+      return this.user?.tenant?.name || this.user?.tenant?.id || "کلینیک";
+    },
+
+    servicePlanName() {
+      return this.user?.tenant?.plan?.name || "بدون پلن ثبت‌شده";
+    },
+
+    serviceStatusLabel() {
+      return (this.user?.tenant?.status || "active") === "active" ? "فعال" : "غیرفعال";
+    },
+
+    serviceDaysRemainingLabel() {
+      const days = this.user?.tenant?.plan?.days_remaining;
+      if (days === null || days === undefined) return "نامشخص";
+      return days > 0 ? `${Number(days).toLocaleString("fa-IR")} روز مانده` : "منقضی شده";
+    },
+
+    serviceExpiresAtLabel() {
+      const value = this.user?.tenant?.plan?.expires_at;
+      if (!value) return "ثبت نشده";
+      return new Date(`${value}T12:00:00`).toLocaleDateString("fa-IR-u-ca-persian", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    },
+
+    smsBalanceLabel() {
+      const value = this.user?.tenant?.sms_balance;
+      if (value === null || value === undefined || value === "") return "ثبت نشده";
+      const amount = Number(value);
+      return Number.isFinite(amount) ? `${amount.toLocaleString("fa-IR")} تومان` : String(value);
+    },
+
+    activeModuleNames() {
+      const ids = Array.isArray(this.tenantEnabledFeatures) ? this.tenantEnabledFeatures : [];
+      return ids.map((id) => CENTRAL_MODULES.find((module) => module.id === id)?.name || id);
+    },
+
+    purchasableModules() {
+      const activeIds = Array.isArray(this.tenantEnabledFeatures) ? this.tenantEnabledFeatures : [];
+      return CENTRAL_MODULES.filter((module) => !activeIds.includes(module.id));
     }
   },
 
   methods: {
+    openServiceStatusPage() {
+      if (!this.isClinicManager) return;
+      this.uiMenuOpen = false;
+      this.currentPage = "ServiceStatus";
+    },
+
+    formatServicePrice(value) {
+      if (!Number(value)) return "رایگان";
+      return `${Number(value).toLocaleString("fa-IR")} تومان`;
+    },
+
+    buyServiceModule(moduleId) {
+      this.pendingStoreModuleKey = moduleId;
+      this.currentPage = "Store";
+      window.setTimeout(() => {
+        this.pendingStoreModuleKey = "";
+      }, 500);
+    },
+
     openMyReport() {
       this.reportMonth = this.currentJalaliMonth;
       this.myReportOpen = true;
@@ -446,6 +644,30 @@ export default {
     },
 
     changePage(menuValue) {
+      const featureMap = {
+        Parvande: 'patients',
+        Vaghtdahi: 'booking',
+        Peygiri: 'followups',
+        Notif: 'leads',
+        dermatracker: 'beauty',
+        Photos: 'gallery',
+        Gozaresh: 'report',
+        Anbar: 'inventory',
+        Ticket: 'tickets',
+        Products: 'finder',
+        Automation: 'automation',
+        Bills: 'bills',
+        HRtimes: 'attendance',
+        Store: null,
+        Setting: 'settings',
+      };
+      const feature = featureMap[menuValue];
+      if (menuValue === "Setting") {
+        if (this.isClinicManager) this.currentPage = menuValue;
+        return;
+      }
+      if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return;
+
       const permissionMap = {
         Parvande: 'patients.view',
         Photos: 'photos.view',
@@ -464,7 +686,6 @@ export default {
       if (requiredPermission && !this.user.permissions.includes(requiredPermission)) return;
 
       if (menuValue === "HRtimes" && !this.attendanceEnabled) return;
-      if (menuValue === "Setting" && !this.isClinicManager) return;
       if (menuValue === "Store" && !this.isClinicManager) return;
 
       if (menuValue === "Vaghtdahi") {
@@ -490,7 +711,11 @@ export default {
     },
 
     openBeautyRecordFromPatient(patient) {
-      if (!this.user?.permissions?.includes('beauty.view') || !patient?.id) return;
+      if (
+        !this.user?.permissions?.includes('beauty.view')
+        || !this.featureEnabledForTenant('beauty')
+        || !patient?.id
+      ) return;
       this.pendingBeautyRecordRequest = {
         ...patient,
         requestedAt: Date.now()
@@ -499,12 +724,20 @@ export default {
     },
 
     openBeautyRecordFromNotification(patient) {
-      if (!this.user?.permissions?.includes('beauty.view') || !patient?.id) return;
+      if (
+        !this.user?.permissions?.includes('beauty.view')
+        || !this.featureEnabledForTenant('beauty')
+        || !patient?.id
+      ) return;
       this.pendingBeautyRecordRequest = {
         ...patient,
         requestedAt: Date.now()
       };
       this.currentPage = 'dermatracker';
+    },
+
+    featureEnabledForTenant(feature) {
+      return !Array.isArray(this.tenantEnabledFeatures) || this.tenantEnabledFeatures.includes(feature);
     },
 
     openInventoryFromNotification() {
@@ -565,9 +798,23 @@ export default {
       this.pendingAppointmentViewRequest = {
         view: "timeline",
         date: payload.date || "",
+        followup: payload.followup || null,
         requestedAt: Date.now()
       };
       this.currentPage = "Vaghtdahi";
+    },
+
+    handleOpenAppointmentsTimelineEvent(event) {
+      this.openAppointmentsTimeline(event?.detail || {});
+    },
+
+    handleFollowupAppointmentCreated(payload = {}) {
+      if (!payload?.followup?.campaignId || !payload?.followup?.rowId) return;
+      this.pendingFollowupAppointmentResult = {
+        ...payload,
+        requestedAt: Date.now()
+      };
+      this.currentPage = "Peygiri";
     },
 
     closeAllPages() {
@@ -619,6 +866,18 @@ body.dark {
   padding: 20px;
 
   transition: 0.3s;
+
+}
+
+body.central-host {
+
+  background: #0c2723;
+
+}
+
+body.central-host #app {
+
+  padding: 0;
 
 }
 
@@ -757,6 +1016,12 @@ body.dark {
   #app {
 
     padding: 14px;
+
+  }
+
+  body.central-host #app {
+
+    padding: 0;
 
   }
 
@@ -955,6 +1220,256 @@ body.dark {
   background: #fff1f2;
   color: #b91c1c;
 }
+.service-status-page {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+  color: #0f172a;
+}
+.service-page-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(239, 246, 255, .96), rgba(236, 253, 245, .94)),
+    #fff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, .08);
+}
+.service-page-hero small,
+.service-question-card small {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+}
+.service-page-hero h1,
+.service-question-card h2 {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 24px;
+}
+.service-page-hero p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.9;
+}
+.service-page-hero button {
+  flex: 0 0 auto;
+  min-width: 92px;
+  height: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.service-page-grid {
+  display: grid;
+  grid-template-columns: 1.35fr repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.service-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #eff6ff, #ecfdf5);
+}
+.service-status-card-main {
+  min-height: 142px;
+  border-radius: 20px;
+}
+.service-status-card div {
+  display: grid;
+  gap: 5px;
+}
+.service-status-card span,
+.service-metric-card span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+.service-status-card strong {
+  color: #1e293b;
+  font-size: 20px;
+}
+.service-status-card small {
+  width: max-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 900;
+}
+.service-status-card b {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 13px;
+}
+.service-metric-card,
+.service-modules-card,
+.service-question-card {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+.service-metric-card {
+  align-content: center;
+  min-height: 142px;
+}
+.service-metric-card strong {
+  color: #1e293b;
+  font-size: 15px;
+}
+.service-page-card {
+  padding: 18px;
+  border-radius: 18px;
+  background: #fff;
+}
+.service-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.service-card-head strong {
+  color: #1e293b;
+}
+.service-card-head span {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+}
+.service-module-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.service-purchase-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.service-purchase-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 68px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.service-purchase-list article div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.service-purchase-list article strong {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 1000;
+}
+.service-purchase-list article small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+.service-purchase-list article button {
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 11px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.service-module-list span {
+  padding: 7px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+}
+.service-modules-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+.service-question-card {
+  padding: 20px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .07);
+}
+.service-question-card textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 132px;
+  padding: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  outline: 0;
+  background: #f8fafc;
+  color: #0f172a;
+  font: 800 13px/2 tahoma;
+}
+.service-question-card textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
+}
+.service-question-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.service-question-card footer span {
+  min-height: 22px;
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 900;
+}
+.service-question-card footer button {
+  width: 118px;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.service-question-card footer button:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
 .dark .utility-menu-toggle,
 .dark .utility-menu-panel {
   border-color: #334155;
@@ -962,10 +1477,38 @@ body.dark {
 }
 .dark .utility-menu-panel header { border-color: #334155; }
 .dark .utility-menu-panel > button { background: #1e293b; color: #e2e8f0; }
+.central-clinic-shortcut {
+  position: fixed;
+  z-index: 10000;
+  left: 18px;
+  bottom: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 148px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .18);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+.central-clinic-shortcut:hover {
+  background: #2563eb;
+}
 
 @media (max-width: 600px) {
   .utility-menu-toggle { top: 12px; left: 12px; width: 40px; height: 40px; }
   .utility-menu-panel { top: 60px; left: 12px; width: min(230px, calc(100vw - 24px)); }
+  .service-page-grid { grid-template-columns: 1fr; }
+  .service-purchase-list { grid-template-columns: 1fr; }
+  .service-page-hero,
+  .service-question-card footer { align-items: stretch; flex-direction: column; }
+  .service-status-card { align-items: stretch; flex-direction: column; }
+  .service-question-card footer button { width: 100%; }
 }
 
 @keyframes auth-spin { to { transform: rotate(360deg); } }

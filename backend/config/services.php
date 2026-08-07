@@ -3,8 +3,10 @@
 return [
 
     'shsms' => [
-        'endpoint' => env('SHSMS_ENDPOINT'),
-        'token' => env('SHSMS_TOKEN'),
+        'endpoint' => env('SHSMS_ENDPOINT', 'https://shsms.ir/api/v1/sendms'),
+        'token' => env('SHSMS_API_TOKEN', env('SHSMS_TOKEN')),
+        'text_template' => env('SHSMS_TEXT_TEMPLATE'),
+        'sandbox' => filter_var(env('SMS_SEND_SANDBOX', false), FILTER_VALIDATE_BOOLEAN),
         'sender' => env('SHSMS_SENDER'),
         'treatment_link' => env('TREATMENT_GUIDE_URL'),
     ],

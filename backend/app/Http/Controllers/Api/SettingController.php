@@ -78,9 +78,9 @@ class SettingController extends Controller
 
         if (! is_array($smsTemplates) || count($smsTemplates) === 0) {
             $legacyTemplates = [
-                ['id' => 'appointment', 'title' => 'یادآوری نوبت', 'category' => 'appointment', 'content' => AppSetting::getByKey('sms_appointment', ''), 'active' => true],
-                ['id' => 'info', 'title' => 'اطلاعات مراجعه', 'category' => 'info', 'content' => AppSetting::getByKey('sms_info', ''), 'active' => true],
-                ['id' => 'welcome', 'title' => 'خوش‌آمدگویی', 'category' => 'welcome', 'content' => AppSetting::getByKey('sms_welcome', ''), 'active' => true],
+                ['id' => 'appointment', 'title' => 'یادآوری نوبت', 'category' => 'appointment', 'content' => AppSetting::getByKey('sms_appointment', ''), 'guide_text' => 'پارامترها: {name}، {date}، {time}، {doctor}، {clinic}', 'active' => true],
+                ['id' => 'info', 'title' => 'اطلاعات مراجعه', 'category' => 'info', 'content' => AppSetting::getByKey('sms_info', ''), 'guide_text' => 'پارامترها: {name}، {date}، {time}، {doctor}، {consultant}، {clinic}', 'active' => true],
+                ['id' => 'welcome', 'title' => 'خوش‌آمدگویی', 'category' => 'welcome', 'content' => AppSetting::getByKey('sms_welcome', ''), 'guide_text' => 'پارامترها: {name}، {clinic}', 'active' => true],
             ];
 
             $smsTemplates = array_values(array_filter(
@@ -90,14 +90,28 @@ class SettingController extends Controller
         }
 
         $completionTemplates = [
-            ['id'=>'referral-credit','title'=>'واریز مبلغ برای معرف','category'=>'referral_credit','content'=>'{amount} تومان بابت معرفی به کیف پول شما واریز شد. موجودی فعلی: {balance} تومان.','active'=>true],
-            ['id'=>'treatment-care','title'=>'توصیه‌های بعد از درمان','category'=>'treatment_care','content'=>'توصیه‌های بعد از درمان را از این لینک مشاهده کنید: {link}','active'=>true],
-            ['id'=>'payment-link','title'=>'لینک پرداخت','category'=>'payment_link','content'=>'{name} عزیز، لینک پرداخت نوبت شما: {link} مبلغ: {amount} تومان','active'=>true],
-            ['id'=>'completion-welcome','title'=>'خوش‌آمدگویی بعد از درمان','category'=>'welcome','content'=>'{name} عزیز، از اعتماد شما سپاسگزاریم. به مجموعه ما خوش آمدید.','active'=>true],
+            ['id'=>'referral-credit','title'=>'واریز مبلغ برای معرف','category'=>'referral_credit','content'=>'','guide_text'=>'پارامترها: {name}، {amount}، {balance}','active'=>true],
+            ['id'=>'treatment-care','title'=>'توصیه‌های بعد از درمان','category'=>'treatment_care','content'=>'','guide_text'=>'پارامترها: {name}، {link}','active'=>true],
+            ['id'=>'payment-link','title'=>'لینک پرداخت','category'=>'payment_link','content'=>'','guide_text'=>'پارامترها: {name}، {link}، {amount}','active'=>true],
+            ['id'=>'completion-welcome','title'=>'خوش‌آمدگویی بعد از درمان','category'=>'welcome','content'=>'','guide_text'=>'پارامترها: {name}، {clinic}','active'=>true],
         ];
         foreach ($completionTemplates as $template) {
             if (! collect($smsTemplates)->contains(fn ($item) => ($item['category'] ?? '') === $template['category'])) $smsTemplates[] = $template;
         }
+        $templateGuides = [
+            'appointment' => 'پارامترها: {name}، {date}، {time}، {doctor}، {clinic}',
+            'info' => 'پارامترها: {name}، {date}، {time}، {doctor}، {consultant}، {clinic}',
+            'welcome' => 'پارامترها: {name}، {clinic}',
+            'referral_credit' => 'پارامترها: {name}، {amount}، {balance}',
+            'treatment_care' => 'پارامترها: {name}، {link}',
+            'payment_link' => 'پارامترها: {name}، {link}، {amount}',
+        ];
+        $smsTemplates = collect($smsTemplates)
+            ->map(fn (array $template) => array_merge($template, [
+                'guide_text' => $template['guide_text'] ?? ($templateGuides[$template['category'] ?? ''] ?? 'پارامترها را مطابق الگوی SHSMS وارد کنید.'),
+            ]))
+            ->values()
+            ->all();
         $leadAlertsRaw = AppSetting::getByKey('sms_lead_alerts', '{}');
         $leadAlerts = is_string($leadAlertsRaw) ? json_decode($leadAlertsRaw, true) : $leadAlertsRaw;
         $leadAlerts = array_replace_recursive([
@@ -121,7 +135,8 @@ class SettingController extends Controller
                 'templates' => $smsTemplates,
                 'birthday' => [
                     'enabled' => AppSetting::getByKey('birthday_sms_enabled', '0') === '1',
-                    'content' => AppSetting::getByKey('birthday_sms_content', '{name} عزیز، تولدتان مبارک. {clinic}'),
+                    'content' => AppSetting::getByKey('birthday_sms_content', ''),
+                    'guide_text' => AppSetting::getByKey('birthday_sms_guide_text', 'پارامترها: {name}، {clinic}'),
                 ],
                 'lead_alerts' => $leadAlerts,
             ],
@@ -418,10 +433,12 @@ class SettingController extends Controller
             'templates.*.id' => ['nullable', 'string', 'max:100'],
             'templates.*.title' => ['required', 'string', 'max:100'],
             'templates.*.category' => ['required', 'in:general,appointment,info,welcome,referral_credit,treatment_care,payment_link'],
-            'templates.*.content' => ['required', 'string', 'max:2000'],
+            'templates.*.content' => ['required', 'string', 'max:190'],
+            'templates.*.guide_text' => ['nullable', 'string', 'max:2000'],
             'templates.*.active' => ['required', 'boolean'],
             'birthday.enabled' => ['required', 'boolean'],
-            'birthday.content' => ['required_if:birthday.enabled,true', 'nullable', 'string', 'max:1000'],
+            'birthday.content' => ['required_if:birthday.enabled,true', 'nullable', 'string', 'max:190'],
+            'birthday.guide_text' => ['nullable', 'string', 'max:1000'],
             'lead_alerts.enabled' => ['required', 'boolean'],
             'lead_alerts.recipients' => ['present', 'array', 'max:20'],
             'lead_alerts.recipients.*' => ['required', 'regex:/^09\d{9}$/'],
@@ -432,7 +449,7 @@ class SettingController extends Controller
         ], [
             'provider.in' => 'سامانه پیامکی انتخاب‌شده معتبر نیست.',
             'templates.*.title.required' => 'عنوان همه الگوهای پیامک الزامی است.',
-            'templates.*.content.required' => 'متن همه الگوهای پیامک الزامی است.',
+            'templates.*.content.required' => 'نام الگوی SHSMS همه الگوها الزامی است.',
         ]);
 
         $templates = collect($validated['templates'])
@@ -442,12 +459,14 @@ class SettingController extends Controller
                 'title' => trim($template['title']),
                 'category' => $template['category'],
                 'content' => trim($template['content']),
+                'guide_text' => trim((string) ($template['guide_text'] ?? '')),
                 'active' => (bool) $template['active'],
             ]);
 
         AppSetting::updateOrCreate(['key' => 'sms_provider'], ['value' => $validated['provider']]);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_enabled'], ['value' => $validated['birthday']['enabled'] ? '1' : '0']);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_content'], ['value' => trim((string) ($validated['birthday']['content'] ?? ''))]);
+        AppSetting::updateOrCreate(['key' => 'birthday_sms_guide_text'], ['value' => trim((string) ($validated['birthday']['guide_text'] ?? ''))]);
         $leadAlerts = $validated['lead_alerts'];
         $leadAlerts['recipients'] = collect($leadAlerts['recipients'])->map(fn ($number) => trim($number))->unique()->values()->all();
         AppSetting::updateOrCreate(['key' => 'sms_lead_alerts'], ['value' => json_encode($leadAlerts, JSON_UNESCAPED_UNICODE)]);

@@ -57,6 +57,10 @@ export default {
     attendanceEnabled: {
       type: Boolean,
       default: false
+    },
+    enabledFeatures: {
+      type: Array,
+      default: null
     }
   },
 
@@ -83,21 +87,19 @@ export default {
         Store: 'store.view'
       },
       items: [
-        { label: 'پرونده', value: 'Parvande' },
-        { label: 'وقت دهی', value: 'Vaghtdahi' },
-        { label: 'پیگیری', value: 'Peygiri' },
-        { label: 'سرنخ‌ها', value: 'Notif' },
-        { label: 'زیبایار', value: 'dermatracker' },
-        { label: 'عکس‌ها', value: 'Photos' },
-        { label: 'گزارش', value: 'Gozaresh' },
-        { label: 'انبار', value: 'Anbar' },
-        { label: 'تیکت', value: 'Ticket' },
-        { label: 'خدمت یاب', value: 'Products' },
-        { label: 'اتوماسیون', value: 'Automation' },
-        { label: 'قبوض', value: 'Bills' },
-        { label: 'حضور غیاب', value: 'HRtimes' },
-        { label: 'فروشگاه', value: 'Store' },
-        { label: 'تنظیمات', value: 'Setting' }
+        { label: 'پرونده', value: 'Parvande', feature: 'patients' },
+        { label: 'وقت دهی', value: 'Vaghtdahi', feature: 'booking' },
+        { label: 'پیگیری', value: 'Peygiri', feature: 'followups' },
+        { label: 'زیبایار', value: 'dermatracker', feature: 'beauty' },
+        { label: 'عکس‌ها', value: 'Photos', feature: 'gallery' },
+        { label: 'گزارش', value: 'Gozaresh', feature: 'report' },
+        { label: 'انبار', value: 'Anbar', feature: 'inventory' },
+        { label: 'تیکت', value: 'Ticket', feature: 'tickets' },
+        { label: 'خدمت یاب', value: 'Products', feature: 'finder' },
+        { label: 'اتوماسیون', value: 'Automation', feature: 'automation' },
+        { label: 'قبوض', value: 'Bills', feature: 'bills' },
+        { label: 'حضور غیاب', value: 'HRtimes', feature: 'attendance' },
+        { label: 'فروشگاه', value: 'Store', feature: null }
       ]
     }
   },
@@ -114,6 +116,7 @@ export default {
         if (item.value === 'Setting' || item.value === 'Store') {
           return this.isClinicManager
         }
+        if (!this.featureEnabled(item.feature)) return false
         const requiredPermission = this.permissionMap[item.value]
         return requiredPermission && this.permissions.includes(requiredPermission)
       })
@@ -136,6 +139,20 @@ export default {
   methods: {
     select(val) {
       this.$emit('select', val)
+    },
+    featureEnabled(feature) {
+      if (!feature || !Array.isArray(this.enabledFeatures)) return true
+      const aliases = {
+        chat: 'patients',
+        staffEval: 'resources',
+        tasks: 'followups',
+        campaign: 'automation',
+        aiReport: 'beauty',
+        shop: 'online_store',
+        store: 'online_store'
+      }
+      const normalized = this.enabledFeatures.map(item => aliases[item] || item)
+      return normalized.includes(feature)
     },
     normalizeDigits(value) {
       const persian = '۰۱۲۳۴۵۶۷۸۹'
