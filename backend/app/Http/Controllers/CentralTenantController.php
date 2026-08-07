@@ -136,11 +136,18 @@ class CentralTenantController extends Controller
                 ->map(fn (Domain $domain) => [
                     'id' => $domain->id,
                     'domain' => $domain->domain,
-                    'url' => 'http://'.$domain->domain.':5175/',
+                    'url' => $this->domainUrl($domain->domain),
                 ])
                 ->values(),
             'created_at' => optional($tenant->created_at)->toDateTimeString(),
         ];
+    }
+
+    private function domainUrl(string $domain): string
+    {
+        $scheme = parse_url((string) config('app.url'), PHP_URL_SCHEME) ?: 'https';
+
+        return $scheme.'://'.$domain.'/';
     }
 
     private function moduleSubscriptions(Tenant $tenant): array
