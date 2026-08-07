@@ -264,7 +264,7 @@ import CentralAdmin from "./components/CentralAdmin.vue";
 
 import Menu from "./components/menu.vue";
 
-import Notif from "./components/notif.vue";
+import Notif from "./components/Notif.vue";
 
 import Saranj from "./components/saranj.vue";
 
@@ -281,11 +281,11 @@ import Gozaresh from "./components/gozaresh.vue";
 
 import Dermatracker from "./components/dermatracker.vue";
 
-import Ticket from "./components/Ticket.vue";
+import Ticket from "./components/ticket.vue";
 
 import Products from "./components/products.vue";
 
-import Bills from "./components/bills.vue";
+import Bills from "./components/Bills.vue";
 
 import Setting from "./components/Setting.vue";
 import Store from "./components/Store.vue";
