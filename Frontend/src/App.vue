@@ -1,7 +1,7 @@
 <template>
   <template v-if="isCentralApp">
     <CentralAdmin />
-    <a class="central-clinic-shortcut" href="http://clinic1.localhost:5175/">
+    <a v-if="showLocalClinicShortcut" class="central-clinic-shortcut" href="http://clinic1.localhost:5175/">
       ورود به محیط کلینیک
     </a>
   </template>
@@ -427,6 +427,10 @@ export default {
   },
 
   computed: {
+    showLocalClinicShortcut() {
+      return ["localhost", "127.0.0.1"].includes(window.location.hostname.toLowerCase());
+    },
+
     tenantEnabledFeatures() {
       const features = this.user?.tenant?.module_ids;
       if (!Array.isArray(features)) return null;
