@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class PatientMediaFolder extends Model
 {
+    use Auditable;
+
+    public function activitySection(): string { return 'پوشه عکس‌ها'; }
+
     protected $fillable = [
         'patient_id',
         'parent_id',

@@ -74,7 +74,7 @@
 
       <main v-if="selected" class="comparison-viewer">
         <div class="viewer-meta">
-          <div><h2>{{ selected.is_featured ? '★ ' : '' }}{{ patientName(selected.patient) }}</h2><p>پرونده {{ selected.patient?.file_number || '-' }} · {{ selected.patient?.phone || '-' }}</p><em v-if="selected.before?.usage_consent === false || selected.after?.usage_consent === false" class="consent-warning large">عدم رضایت استفاده از تصاویر</em></div>
+          <div><h2>{{ selected.is_featured ? '★ ' : '' }}{{ patientName(selected.patient) }}</h2><p>پرونده {{ selected.patient?.file_number || '-' }} · {{ displayPatientPhone(selected.patient?.phone) || '-' }}</p><em v-if="selected.before?.usage_consent === false || selected.after?.usage_consent === false" class="consent-warning large">عدم رضایت استفاده از تصاویر</em></div>
           <div class="viewer-facts"><span>{{ selected.angle_label }}</span><span>{{ selected.date || 'بدون تاریخ' }}</span></div>
         </div>
         <div v-if="selectedPatientAngles.length > 1" class="angle-view-nav">
@@ -116,11 +116,15 @@ const ANGLES = [
 export default {
   name: 'Photos',
   components: { DatePicker },
+  props: {
+    permissions: { type: Array, default: () => [] }
+  },
   data: () => ({
     angles: ANGLES, services: [], tags: [], comparisons: [], selected: null, loading: false, error: '',
     filters: { q: '', tag: '', gender: '', age_group: '', angle: '', featured: '', date_from: '', date_to: '', only_complete: false, consented_only: false }
   }),
   computed: {
+    canViewPatientPhone() { return this.permissions.includes('patients.view_phone') },
     featuredComparisons() { return this.comparisons.filter(item => item.is_featured) },
     regularComparisons() { return this.comparisons.filter(item => !item.is_featured) },
     selectedPatientAngles() {
@@ -147,6 +151,14 @@ export default {
   },
   mounted() { this.load() },
   methods: {
+    displayPatientPhone(value) {
+      const text = String(value || '').trim()
+      if (!text) return ''
+      if (this.canViewPatientPhone || text.includes('•') || text.includes('*')) return text
+      const digits = text.replace(/\D/g, '')
+      if (digits.length <= 4) return '••••'
+      return `${digits.slice(0, 3)}••••${digits.slice(-2)}`
+    },
     patientName(patient) { return [patient?.first_name, patient?.last_name].filter(Boolean).join(' ') || 'بیمار نامشخص' },
     hasSensitivePhoto(item) { return item?.before?.usage_consent === false || item?.after?.usage_consent === false },
     selectAdjacentAngle(step) {

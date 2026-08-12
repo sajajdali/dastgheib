@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class InventoryCommission extends Model
 {
+    use Auditable;
+
+    public function activitySection(): string { return 'پورسانت خدمات'; }
+
     protected $fillable = [
         'inventory_id',
         'recipient_type',

@@ -11,6 +11,7 @@ return [
                 ['name' => 'patients.update', 'label' => 'ویرایش پرونده'],
                 ['name' => 'patients.delete', 'label' => 'حذف پرونده'],
                 ['name' => 'patients.wallet', 'label' => 'مدیریت کیف پول'],
+                ['name' => 'patients.view_phone', 'label' => 'مشاهده شماره تماس بیمار'],
             ],
         ],
         [
@@ -48,6 +49,7 @@ return [
             'label' => 'گزارش‌ها',
             'permissions' => [
                 ['name' => 'reports.view', 'label' => 'مشاهده گزارش‌ها'],
+                ['name' => 'activity_logs.view', 'label' => 'مشاهده سوابق فعالیت'],
                 ['name' => 'reports.financial', 'label' => 'گزارش مالی'],
                 ['name' => 'reports.appointments', 'label' => 'گزارش نوبت‌دهی'],
                 ['name' => 'reports.marketing', 'label' => 'گزارش تبلیغات'],
@@ -106,10 +108,10 @@ return [
         ],
         [
             'key' => 'bills',
-            'label' => 'قبوض',
+            'label' => 'هزینه‌ها',
             'permissions' => [
-                ['name' => 'bills.view', 'label' => 'مشاهده قبوض'],
-                ['name' => 'bills.manage', 'label' => 'مدیریت قبوض'],
+                ['name' => 'bills.view', 'label' => 'مشاهده هزینه‌ها'],
+                ['name' => 'bills.manage', 'label' => 'مدیریت هزینه‌ها'],
             ],
         ],
         [
@@ -119,6 +121,13 @@ return [
                 ['name' => 'attendance.view', 'label' => 'مشاهده حضور و غیاب'],
                 ['name' => 'attendance.clock', 'label' => 'ثبت ورود و خروج'],
                 ['name' => 'attendance.manage', 'label' => 'مدیریت حضور و غیاب'],
+            ],
+        ],
+        [
+            'key' => 'payroll',
+            'label' => 'حقوق و تسویه',
+            'permissions' => [
+                ['name' => 'payroll.view', 'label' => 'مشاهده حقوق و تسویه'],
             ],
         ],
         [

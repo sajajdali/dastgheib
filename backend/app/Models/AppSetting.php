@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class AppSetting extends Model
 {
+    use Auditable;
+
+    public function activitySection(): string { return 'تنظیمات'; }
+
     protected $fillable = ['key', 'value'];
 
     // فعال کردن کستینگ بومی لاراول

@@ -35,37 +35,53 @@
     </section>
 
     <aside class="section-panel">
-      <div class="panel-head">
-        <h3>بخش‌های انبار</h3>
-        <button class="icon-btn primary" type="button" title="افزودن بخش" @click="addSection">+</button>
-      </div>
-
-      <div class="section-list">
-        <button
-          v-for="section in sections"
-          :key="sectionKey(section)"
-          class="section-item"
-          :class="{ active: activeSectionKey === sectionKey(section) }"
-          :aria-pressed="activeSectionKey === sectionKey(section)"
-          type="button"
-          @click="activeSectionKey = sectionKey(section)"
-        >
-          <input
-            v-model="section.name"
-            type="text"
-            placeholder="نام بخش"
-            @click.stop
-          >
-          <span>{{ sectionItemCount(section) }}</span>
-          <small v-if="activeSectionKey === sectionKey(section)" class="selected-section-label">
-            ✓ انتخاب‌شده
-          </small>
+      <div class="inventory-structure-head">
+        <button class="structure-add-root-btn" type="button" @click="addRootSection">
+          <span>+</span>
+          انبار جدید
         </button>
+        <h3>ساختار انبار</h3>
       </div>
 
-      <button class="delete-section-btn" type="button" @click="removeActiveSection">
+      <div class="inventory-tree">
+        <div
+          v-for="node in inventoryTreeNodes"
+          :key="sectionKey(node.section)"
+          class="tree-node"
+          :class="{ active: activeTreeKey === sectionKey(node.section), root: node.level === 1, leaf: node.level === 2 }"
+          :style="{ '--tree-depth': node.level - 1 }"
+          @click="selectTreeNode(node.section)"
+        >
+          <button
+            type="button"
+            class="tree-toggle-btn"
+            :class="{ open: isTreeExpanded(node.section) }"
+            :disabled="!node.hasChildren"
+            title="باز و بسته کردن"
+            aria-label="باز و بسته کردن"
+            @click.stop="toggleTreeNode(node.section)"
+          ></button>
+          <input v-model="node.section.name" :placeholder="treePlaceholder(node.level)" @click.stop @focus="selectTreeNode(node.section)">
+          <span class="tree-dot" aria-hidden="true"></span>
+          <span class="tree-count">{{ treeNodeCount(node.section).toLocaleString('fa-IR') }}</span>
+          <span class="tree-spacer" aria-hidden="true"></span>
+          <button
+            type="button"
+            class="tree-add-btn"
+            :disabled="node.level >= 2"
+            :title="node.level >= 2 ? 'زیرشاخه سطح آخر است' : 'افزودن زیرشاخه'"
+            aria-label="افزودن زیرشاخه"
+            @click.stop="addChildSection(sectionKey(node.section), node.level + 1)"
+          >+</button>
+          <button type="button" class="tree-more-btn" title="حذف" aria-label="حذف" @click.stop="removeSectionNode(node.section)">⋮</button>
+        </div>
+
+        <small v-if="!inventoryTreeNodes.length" class="tree-empty">اولین انبار را بسازید</small>
+      </div>
+
+      <button v-if="false" class="delete-section-btn" type="button" @click="removeActiveSection">
         <span aria-hidden="true">×</span>
-        حذف بخش انتخاب‌شده
+        حذف گروه انتخاب‌شده
       </button>
     </aside>
 
@@ -152,20 +168,31 @@
           >×</button>
         </div>
 
-        <div class="panel-head">
+        <div v-if="!needsCompletedHierarchy || searchQuery" class="panel-head">
           <div>
-            <h3>{{ searchQuery ? 'نتایج جست‌وجو در کل انبار' : `آیتم‌های ${activeSectionName}` }}</h3>
-            <p>{{ searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : 'کالاها و خدمات این بخش را همراه موجودی و پورسانت معرف مدیریت کنید.' }}</p>
+            <h3>{{ searchQuery ? 'نتایج جست‌وجو در کل انبار' : inventoryTableTitle }}</h3>
+            <p>{{ searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : inventoryTableSubtitle }}</p>
           </div>
           <div class="panel-actions">
             <button class="text-btn ghost" type="button" @click="openCommissionModal(selectedRow)">
               ثبت پورسانت
             </button>
-            <button class="text-btn primary" type="button" @click="addRow">+ ردیف جدید</button>
+            <button
+              class="text-btn primary"
+              type="button"
+              :disabled="needsCompletedHierarchy"
+              :title="needsCompletedHierarchy ? 'ابتدا یک زیرشاخه انتخاب کنید' : 'افزودن ردیف جدید'"
+              @click="addRow"
+            >+ ردیف جدید</button>
           </div>
         </div>
 
-        <div class="table-wrap">
+        <div v-if="needsCompletedHierarchy && !searchQuery" class="inventory-branch-message">
+          <strong>لطفا زیرشاخه را انتخاب کنید</strong>
+          <span>برای نمایش یا ثبت آیتم‌ها، یک زیرشاخه از انبار را انتخاب کنید.</span>
+        </div>
+
+        <div v-else class="table-wrap">
           <table>
             <colgroup>
               <col class="name-col">
@@ -264,7 +291,7 @@
 
               <tr v-if="displayedRows.length === 0">
                 <td colspan="10" class="empty-cell">
-                  {{ searchQuery ? 'نتیجه‌ای برای این جست‌وجو در انبار پیدا نشد.' : 'برای این بخش هنوز آیتمی ثبت نشده است.' }}
+                  {{ inventoryEmptyMessage }}
                 </td>
               </tr>
             </tbody>
@@ -426,7 +453,12 @@ export default {
       staff: [],
       users: [],
       inventoryView: "table",
+      activeRootKey: "",
+      activeSubKey: "",
       activeSectionKey: "",
+      activeTreeKey: "",
+      expandedSectionKeys: [],
+      sectionIdRedirects: {},
       selectedRow: null,
       showDefaultCommissionModal: false,
       defaultCommissionRow: null,
@@ -461,11 +493,55 @@ export default {
       return this.activeSection?.name || "بخش انتخاب‌شده"
     },
 
+    needsCompletedHierarchy() {
+      return !this.searchQuery && !this.activeSectionKey
+    },
+
+    inventoryTableTitle() {
+      return this.needsCompletedHierarchy ? "شاخه‌بندی کامل نشده" : `آیتم‌های ${this.activeSectionName}`
+    },
+
+    inventoryTableSubtitle() {
+      return this.needsCompletedHierarchy
+        ? "برای نمایش و ثبت آیتم، یک زیرشاخه از انبار را انتخاب کنید."
+        : "کالاها و خدمات این بخش را همراه موجودی و پورسانت معرف مدیریت کنید."
+    },
+
+    inventoryEmptyMessage() {
+      if (this.searchQuery) return "نتیجه‌ای برای این جست‌وجو در انبار پیدا نشد."
+      if (this.needsCompletedHierarchy) return "لطفا شاخه‌بندی را کامل کنید."
+      return "برای این بخش هنوز آیتمی ثبت نشده است."
+    },
+
+    rootSections() {
+      return this.sections.filter(section => Number(section.level || 1) === 1)
+    },
+
+    activeSubSections() {
+      return this.childSections(this.activeRootKey)
+    },
+
+    inventoryTreeNodes() {
+      const nodes = []
+      const walk = (parentKey, level) => {
+        this.childSections(parentKey).forEach(section => {
+          const children = this.childSections(this.sectionKey(section))
+          nodes.push({ section, level, hasChildren: children.length > 0 })
+          if (children.length && this.isTreeExpanded(section)) {
+            walk(this.sectionKey(section), level + 1)
+          }
+        })
+      }
+      walk("", 1)
+      return nodes
+    },
+
     activeSection() {
       return this.sections.find(section => this.sectionKey(section) === this.activeSectionKey)
     },
 
     activeSectionRows() {
+      if (!this.activeSectionKey) return []
       return this.rows.filter(row => this.rowSectionKey(row) === this.activeSectionKey)
     },
 
@@ -619,21 +695,32 @@ export default {
         this.staff = contextRes.data.staff || []
         this.users = contextRes.data.users || []
 
-        this.sections = (contextRes.data.sections || []).map((section, index) => ({
+        const normalizedSections = this.normalizeInventorySections(contextRes.data.sections || [])
+        this.sectionIdRedirects = normalizedSections.redirects
+
+        this.sections = normalizedSections.sections.map((section, index) => ({
           id: section.id,
           client_id: null,
+          parent_id: section.parent_id || section.parentId || null,
+          level: Number(section.level || 1),
           name: section.name,
           sort_order: section.sort_order ?? index
         }))
 
         if (!this.sections.length) {
-          this.sections = [this.makeSection("عمومی")]
+          this.sections = this.defaultSections()
         }
 
+        this.expandedSectionKeys = this.sections
+          .filter(section => Number(section.level || 1) < 2)
+          .map(section => this.sectionKey(section))
+
         const restoredSection = this.sections.find(section => this.sectionKey(section) === previousSectionKey)
-        this.activeSectionKey = options.keepState && restoredSection
-          ? this.sectionKey(restoredSection)
-          : this.sectionKey(this.sections[0])
+        if (options.keepState && restoredSection) {
+          this.selectHierarchyForLeaf(restoredSection)
+        } else {
+          this.selectFirstLeaf()
+        }
 
         this.rows = (inventoryRes.data || []).map((item, index) => this.normalizeItem(item, index))
         this.originalStockByKey = this.makeStockSnapshot(this.rows)
@@ -660,13 +747,51 @@ export default {
       }
     },
 
+    normalizeInventorySections(sections = []) {
+      const redirects = {}
+      const byKey = new Map((sections || []).map(section => [String(section.id || section.client_id || ""), section]))
+      const normalized = []
+
+      ;(sections || []).forEach(section => {
+        const key = String(section.id || section.client_id || "")
+        const level = Number(section.level || 1)
+
+        if (level <= 2) {
+          normalized.push({
+            ...section,
+            level,
+            parent_id: level === 1 ? null : section.parent_id || section.parentId || null,
+          })
+          return
+        }
+
+        const parent = byKey.get(String(section.parent_id || section.parentId || ""))
+        if (key && parent) {
+          redirects[key] = String(parent.id || parent.client_id || "")
+        }
+      })
+
+      return { sections: normalized, redirects }
+    },
+
+    resolveSectionKey(sectionKey) {
+      const key = String(sectionKey || "")
+      return this.sectionIdRedirects[key] || key
+    },
+
+    firstSelectableSectionKey() {
+      const section = this.sections.find(item => Number(item.level || 1) === 2) || this.sections[0]
+      return section ? this.sectionKey(section) : ""
+    },
+
     normalizeItem(item, index) {
-      const fallbackSection = this.sections[0] ? this.sectionKey(this.sections[0]) : ""
+      const fallbackSection = this.firstSelectableSectionKey()
+      const rawSectionKey = item.section_id || item.section?.id || fallbackSection
 
       return {
         localId: `row-${item.id || Date.now()}-${index}`,
         id: item.id || null,
-        section_id: item.section_id || item.section?.id || fallbackSection,
+        section_id: this.resolveSectionKey(rawSectionKey) || fallbackSection,
         name: item.name || "",
         serviceTags: Array.isArray(item.service_tags || item.serviceTags) ? [...(item.service_tags || item.serviceTags)] : [],
         tagDraft: "",
@@ -770,6 +895,8 @@ export default {
           sections: this.sections.map((section, index) => ({
             id: section.id,
             client_id: section.client_id,
+            parent_id: section.parent_id,
+            level: section.level,
             name: section.name,
             sort_order: index
           })),
@@ -812,26 +939,151 @@ export default {
       }
     },
 
-    makeSection(name = "") {
+    defaultSections() {
+      const root = this.makeSection("پوست و زیبایی", null, 1)
+      const sub = this.makeSection("ژل", root.client_id, 2)
+      return [root, sub]
+    },
+
+    makeSection(name = "", parentId = null, level = 1) {
       return {
         id: null,
         client_id: `section-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        parent_id: parentId,
+        level,
         name,
         sort_order: this.sections.length
       }
     },
 
-    addSection() {
-      const section = this.makeSection("بخش جدید")
+    addRootSection() {
+      const section = this.makeSection("انبار جدید", null, 1)
       this.sections.push(section)
-      this.activeSectionKey = this.sectionKey(section)
+      this.expandedSectionKeys.push(this.sectionKey(section))
+      this.selectRoot(section)
+    },
+
+    addChildSection(parentKey, level) {
+      if (!parentKey || Number(level) > 2) return
+      const section = this.makeSection("زیرشاخه جدید", parentKey, level)
+      this.sections.push(section)
+      if (!this.expandedSectionKeys.includes(String(parentKey))) {
+        this.expandedSectionKeys.push(String(parentKey))
+      }
+      this.selectSub(section)
+    },
+
+    selectRoot(section) {
+      this.activeRootKey = this.sectionKey(section)
+      this.activeTreeKey = this.activeRootKey
+      if (!this.expandedSectionKeys.includes(this.activeRootKey)) this.expandedSectionKeys.push(this.activeRootKey)
+      this.activeSubKey = ""
+      this.activeSectionKey = ""
+      this.selectedRow = null
+    },
+
+    selectSub(section) {
+      this.activeSubKey = this.sectionKey(section)
+      this.activeTreeKey = this.activeSubKey
+      if (!this.expandedSectionKeys.includes(this.activeSubKey)) this.expandedSectionKeys.push(this.activeSubKey)
+      this.activeSectionKey = this.activeSubKey
+      this.selectedRow = this.activeSectionRows[0] || null
+    },
+
+    selectTreeNode(section) {
+      const level = Number(section.level || 1)
+      if (level === 1) {
+        this.selectRoot(section)
+        return
+      }
+      if (level === 2) {
+        this.selectSub(section)
+        return
+      }
+      this.selectSub(section)
+    },
+
+    selectFirstLeaf() {
+      const leaf = this.sections
+        .filter(section => Number(section.level || 1) === 2)
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))[0]
+      if (leaf) {
+        this.selectHierarchyForLeaf(leaf)
+        return
+      }
+      const root = this.rootSections[0]
+      if (root) this.selectRoot(root)
+    },
+
+    selectHierarchyForLeaf(leaf) {
+      const root = this.sections.find(section => this.sectionKey(section) === String(leaf.parent_id || ""))
+      this.activeRootKey = root ? this.sectionKey(root) : ""
+      this.activeSubKey = this.sectionKey(leaf)
+      this.activeSectionKey = this.sectionKey(leaf)
+      this.activeTreeKey = this.activeSectionKey
+      ;[this.activeRootKey].filter(Boolean).forEach(key => {
+        if (!this.expandedSectionKeys.includes(key)) this.expandedSectionKeys.push(key)
+      })
+    },
+
+    childSections(parentKey) {
+      return this.sections
+        .filter(section => String(section.parent_id || "") === String(parentKey || ""))
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    },
+
+    isTreeExpanded(section) {
+      return this.expandedSectionKeys.includes(this.sectionKey(section))
+    },
+
+    toggleTreeNode(section) {
+      const key = this.sectionKey(section)
+      const index = this.expandedSectionKeys.indexOf(key)
+      if (index >= 0) this.expandedSectionKeys.splice(index, 1)
+      else this.expandedSectionKeys.push(key)
+    },
+
+    treeNodeCount(section) {
+      return Number(section.level || 1) === 2
+        ? this.sectionItemCount(section)
+        : this.childSections(this.sectionKey(section)).length
+    },
+
+    treePlaceholder(level) {
+      if (Number(level) === 1) return "مثلا پوست و زیبایی"
+      return "مثلا ژل یا بوتاکس"
+    },
+
+    removeSectionNode(section) {
+      this.selectTreeNode(section)
+      const key = this.sectionKey(section)
+      if (this.childSections(key).length) {
+        alert("این شاخه زیرشاخه دارد. ابتدا زیرشاخه‌های داخل آن را حذف کنید.")
+        return
+      }
+      if (Number(section.level || 1) === 2 && this.rows.some(row => this.rowSectionKey(row) === key)) {
+        alert(`این گروه دارای ${this.sectionItemCount(section)} آیتم است. ابتدا آیتم‌های داخل آن را حذف کنید.`)
+        return
+      }
+      if (this.sections.length <= 1) {
+        alert("حداقل یک بخش باید در انبار باقی بماند.")
+        return
+      }
+      const index = this.sections.findIndex(item => this.sectionKey(item) === key)
+      if (index >= 0) this.sections.splice(index, 1)
+      this.expandedSectionKeys = this.expandedSectionKeys.filter(item => item !== key)
+      this.selectFirstLeaf()
     },
 
     removeActiveSection() {
       if (!this.activeSection) return
+      if (Number(this.activeSection.level || 1) !== 2) {
+        alert("برای حذف، ابتدا یک زیرشاخه انتخاب کنید.")
+        return
+      }
 
       if (this.activeSectionRows.length > 0) {
-        alert(`این بخش دارای ${this.activeSectionRows.length} آیتم است. ابتدا همه آیتم‌های این بخش را حذف کنید تا امکان حذف بخش فراهم شود.`)
+        alert(`این گروه دارای ${this.activeSectionRows.length} آیتم است. ابتدا همه آیتم‌های این گروه را حذف کنید تا امکان حذف فراهم شود.`)
         return
       }
 
@@ -842,10 +1094,14 @@ export default {
 
       const index = this.sections.findIndex(section => this.sectionKey(section) === this.activeSectionKey)
       this.sections.splice(index, 1)
-      this.activeSectionKey = this.sectionKey(this.sections[0])
+      this.selectFirstLeaf()
     },
 
     addRow() {
+      if (!this.activeSectionKey) {
+        alert("ابتدا یک زیرشاخه از انبار انتخاب کنید.")
+        return
+      }
       const row = {
         localId: `row-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         id: null,
@@ -1004,7 +1260,9 @@ export default {
 
     sectionNameForRow(row) {
       const section = this.sections.find(item => this.sectionKey(item) === this.rowSectionKey(row))
-      return section?.name || "بدون بخش"
+      if (!section) return "بدون گروه"
+      const parent = this.sections.find(item => this.sectionKey(item) === String(section.parent_id || ""))
+      return [parent?.name, section.name].filter(Boolean).join(" / ")
     },
 
     normalizeSearchText(value) {
@@ -1086,7 +1344,7 @@ export default {
 
 .inventory-page {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: minmax(420px, 520px) minmax(0, 1fr);
   direction: rtl;
   gap: 18px;
   padding: 18px 26px 28px;
@@ -1200,6 +1458,13 @@ export default {
   border-radius: 8px;
   padding: 16px;
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.section-panel {
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  direction: rtl;
+  text-align: right;
 }
 
 .inventory-main {
@@ -1457,63 +1722,212 @@ p {
   line-height: 1.8;
 }
 
-.section-list {
+.inventory-structure-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-direction: row-reverse;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.inventory-structure-head h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 17px;
+  font-weight: 1000;
+  text-align: right;
+}
+
+.structure-add-root-btn {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #2f6df3;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  direction: rtl;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(47, 109, 243, .22);
+}
+
+.structure-add-root-btn span {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.inventory-tree {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 5px;
 }
 
-.section-item {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
+.tree-node {
+  min-height: 42px;
+  min-width: 0;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  border: 1px solid #e6edf7;
-  background: #f8fbff;
-  border-radius: 8px;
-  padding: 9px;
+  gap: 6px;
+  padding: 0 10px;
+  padding-right: calc(10px + (var(--tree-depth) * 16px));
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
   cursor: pointer;
-  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  transition: background-color .16s ease, border-color .16s ease;
 }
 
-.section-item.active {
-  border-color: #2563eb;
-  border-right-width: 4px;
-  background: #eaf4ff;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, .18);
+.tree-node:hover {
+  background: #f8fafc;
 }
 
-.section-item span {
-  grid-column: 1;
-  grid-row: 1;
-  background: #e7edf5;
-  color: #526174;
+.tree-node.active {
+  background: #eaf3ff;
+}
+
+.tree-more-btn,
+.tree-add-btn,
+.tree-toggle-btn {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tree-more-btn {
+  color: #94a3b8;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.tree-add-btn {
+  color: #2563eb;
+  font-size: 16px;
+  font-weight: 1000;
+}
+
+.tree-add-btn:disabled {
+  color: transparent;
+  cursor: default;
+}
+
+.tree-toggle-btn {
+  width: 16px;
+  height: 16px;
+  position: relative;
+}
+
+.tree-toggle-btn::before {
+  content: "";
+  position: absolute;
+  inset: 5px 5px;
+  border-top: 4px solid #94a3b8;
+  border-right: 3.5px solid transparent;
+  border-left: 3.5px solid transparent;
+  transition: transform .16s ease;
+}
+
+.tree-toggle-btn.open::before {
+  transform: rotate(90deg);
+}
+
+.tree-toggle-btn:disabled::before {
+  opacity: 0;
+}
+
+.tree-dot {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 6px 0;
+  background: #cbd5e1;
 }
 
-.section-item input {
-  grid-column: 2;
-  grid-row: 1;
+.tree-node input {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 70px;
+  max-width: 150px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #374151;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
   text-align: right;
-  font-weight: 800;
-  border-color: #cbd9ea;
+  outline: none;
 }
 
-.section-item.active input {
-  border-color: #93c5fd;
-  background: #fff;
+.tree-node.leaf input {
+  font-size: 12px;
+}
+
+.tree-node.active input {
   color: #1d4ed8;
 }
 
-.selected-section-label {
-  grid-column: 2;
-  color: #2563eb;
+.tree-count {
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tree-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.tree-empty {
+  display: grid;
+  place-items: center;
+  min-height: 46px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #94a3b8;
   font-size: 10px;
   font-weight: 900;
-  text-align: right;
+}
+
+.inventory-branch-message {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 22px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #64748b;
+  text-align: center;
+}
+
+.inventory-branch-message strong {
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 1000;
+}
+
+.inventory-branch-message span {
+  max-width: 520px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.9;
 }
 
 .table-wrap {
@@ -2219,6 +2633,10 @@ select:focus {
   }
 
   .inventory-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-tree {
     grid-template-columns: 1fr;
   }
 

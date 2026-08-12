@@ -1,12 +1,20 @@
 const period = (key, label, price) => ({ key, label, price });
 const oneTime = (price) => [period("one_time", "یک‌باره", price)];
 const monthly = (price) => [period("monthly", "ماهانه", price)];
+const moduleImage = (icon, color = "#2563eb") => {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="140" height="140" viewBox="0 0 140 140">
+      <text x="70" y="76" text-anchor="middle" dominant-baseline="middle" font-size="112" font-family="Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif">${icon}</text>
+    </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg.replace(/\s+/g, " ").trim())}`;
+};
 
-export const STORE_MODULES = [
+const STORE_MODULES_RAW = [
   { key: "doctor_chat", title: "چت آنلاین پزشک", price: 1800000, periods: oneTime(1800000), category: "marketing", categoryLabel: "ارتباط با بیمار", icon: "🩺", color: "#2563eb", billing: "یک‌باره", comingSoon: true, description: "گفت‌وگوی آنلاین اختصاصی پزشک با مراجعه‌کننده‌ها.", longDescription: "چت آنلاین پزشک برای ارتباط سریع، ثبت گفتگو و پاسخ‌دهی مستقیم پزشک به مراجعه‌کننده طراحی شده است." },
   { key: "attendance", title: "حضور غیاب", price: 2800000, periods: oneTime(2800000), category: "operations", categoryLabel: "پرسنل", icon: "✅", color: "#16a34a", billing: "یک‌باره", description: "ثبت ورود و خروج و کنترل کارکرد پرسنل.", longDescription: "حضور غیاب برای مدیریت شیفت، ورود، خروج و گزارش کارکرد روزانه پرسنل استفاده می‌شود." },
   { key: "staff_evaluation", title: "ارزیابی پرسنل", price: 2900000, periods: oneTime(2900000), category: "operations", categoryLabel: "پرسنل", icon: "⭐", color: "#f97316", billing: "یک‌باره", comingSoon: true, description: "ارزیابی عملکرد و امتیازدهی به اعضای تیم.", longDescription: "ارزیابی پرسنل برای سنجش کیفیت پاسخگویی، نظم، فروش و عملکرد تیم در بازه‌های مختلف کاربرد دارد." },
   { key: "staff_tasks", title: "وظایف پرسنل", price: 3700000, periods: oneTime(3700000), category: "operations", categoryLabel: "مدیریت کار", icon: "📋", color: "#7c3aed", billing: "یک‌باره", comingSoon: true, description: "تعریف، پیگیری و کنترل وظایف داخلی پرسنل.", longDescription: "وظایف پرسنل برای سپردن کار، تعیین مسئول، زمان‌بندی و پیگیری انجام کارهای داخلی طراحی شده است." },
+  { key: "employment_form", title: "فرم استخدام", price: 1500000, periods: oneTime(1500000), category: "operations", categoryLabel: "استخدام", icon: "🧾", color: "#0d9488", billing: "یک‌باره", comingSoon: true, image: "/store/employment-form.svg", description: "دریافت و مدیریت فرم‌های استخدامی پرسنل جدید.", longDescription: "فرم استخدام برای دریافت اطلاعات متقاضی، سوابق کاری، مهارت‌ها و پیگیری مراحل جذب نیرو در کلینیک طراحی می‌شود." },
   { key: "flowchart", title: "فلوچارت", price: 1900000, periods: oneTime(1900000), category: "operations", categoryLabel: "فرآیند", icon: "🔀", color: "#0ea5e9", billing: "یک‌باره", comingSoon: true, description: "طراحی و مدیریت مسیرهای کاری و درمانی.", longDescription: "فلوچارت برای ساخت مسیرهای کاری، گردش کار و مراحل خدمات کلینیک استفاده می‌شود." },
   { key: "booking", title: "وقت دهی آنلاین", price: 4500000, periods: oneTime(4500000), category: "marketing", categoryLabel: "رزرو", icon: "📅", color: "#ec4899", billing: "یک‌باره", description: "رزرو آنلاین نوبت توسط مشتری.", longDescription: "وقت‌دهی آنلاین مسیر رزرو را برای مشتری ساده می‌کند و ظرفیت‌های آزاد را به شکل کنترل‌شده نمایش می‌دهد." },
   { key: "wallet", title: "کیف پول مشتری", price: 2800000, periods: oneTime(2800000), category: "finance", categoryLabel: "پرداخت", icon: "👛", color: "#059669", billing: "یک‌باره", description: "مدیریت اعتبار و مانده حساب مشتری.", longDescription: "کیف پول مشتری برای شارژ حساب، برداشت، اعتبار هدیه و کنترل مانده مالی مراجعه‌کننده‌ها استفاده می‌شود." },
@@ -23,7 +31,7 @@ export const STORE_MODULES = [
   { key: "voip", title: "سیستم وُیپ", price: 4800000, periods: oneTime(4800000), category: "marketing", categoryLabel: "تماس", icon: "☎️", color: "#6d28d9", billing: "یک‌باره", comingSoon: true, description: "اتصال و مدیریت تماس‌های VoIP.", longDescription: "سیستم ویپ برای ثبت تماس‌ها، مدیریت مکالمات و اتصال ارتباط تلفنی به پرونده مشتری طراحی شده است." },
   { key: "auto_sms", title: "پیامک خودکار", price: 1500000, periods: oneTime(1500000), category: "marketing", categoryLabel: "پیامک", icon: "✉️", color: "#f59e0b", billing: "یک‌باره", comingSoon: true, description: "ارسال خودکار پیامک بر اساس رویدادها.", longDescription: "پیامک خودکار برای ارسال پیام‌های زمان‌بندی‌شده، یادآوری و پاسخ‌های اتوماتیک کاربرد دارد." },
   { key: "gift_cards", title: "مدیریت کارت هدیه", price: 2500000, periods: oneTime(2500000), category: "finance", categoryLabel: "باشگاه مشتریان", icon: "🎁", color: "#ec4899", billing: "یک‌باره", comingSoon: true, description: "تعریف و مدیریت کارت هدیه.", longDescription: "مدیریت کارت هدیه برای صدور، مصرف، رهگیری و گزارش کارت‌های هدیه مشتریان استفاده می‌شود." },
-  { key: "poll_box", title: "صندوق رای", price: 2500000, periods: oneTime(2500000), category: "marketing", categoryLabel: "نظرسنجی", icon: "🗳️", color: "#2563eb", billing: "یک‌باره", comingSoon: true, description: "جمع‌آوری رای و نظر مشتریان.", longDescription: "صندوق رای برای اجرای نظرسنجی، رای‌گیری داخلی و جمع‌آوری بازخورد کاربرد دارد." },
+  { key: "poll_box", title: "صندوق رای", price: 1800000, periods: oneTime(1800000), category: "marketing", categoryLabel: "نظرسنجی", icon: "🗳️", color: "#2563eb", billing: "یک‌باره", comingSoon: true, image: "/store/poll-box.svg", description: "ثبت رای و نظر مشتریان در چند کلیک.", longDescription: "صندوق رای برای ساخت نظرسنجی‌های ساده، جمع‌آوری رای مشتریان و بررسی سریع بازخوردها طراحی می‌شود." },
   { key: "heatmap", title: "نقشه حرارتی", price: 1200000, periods: oneTime(1200000), category: "insight", categoryLabel: "تحلیل", icon: "🌡️", color: "#14b8a6", billing: "یک‌باره", comingSoon: true, description: "نمایش نقاط داغ عملکرد و تعامل.", longDescription: "نقشه حرارتی برای تحلیل تمرکز مراجعه‌ها، تعامل‌ها یا شاخص‌های عملیاتی به شکل تصویری استفاده می‌شود." },
   { key: "service_recommendation", title: "پیشنهاد خدمت", price: 1200000, periods: oneTime(1200000), category: "insight", categoryLabel: "هوشمند", icon: "💡", color: "#f59e0b", billing: "یک‌باره", comingSoon: true, description: "پیشنهاد خدمات مناسب به مشتری.", longDescription: "پیشنهاد خدمت برای کمک به فروش مکمل و معرفی خدمت متناسب با سابقه مشتری استفاده می‌شود." },
   { key: "laser_booking", title: "نوبت دهی لیزر مو", price: 3800000, periods: oneTime(3800000), category: "marketing", categoryLabel: "رزرو تخصصی", icon: "〰️", color: "#0d9488", billing: "یک‌باره", comingSoon: true, description: "نوبت‌دهی اختصاصی خدمات لیزر مو.", longDescription: "نوبت‌دهی لیزر مو برای مدیریت جلسات، نواحی، زمان‌بندی و پیگیری مراجعه‌های لیزر طراحی شده است." },
@@ -38,6 +46,11 @@ export const STORE_MODULES = [
   { key: "organizations", title: "مدیریت ارگان ها", price: 3200000, periods: oneTime(3200000), category: "operations", categoryLabel: "قراردادها", icon: "🏢", color: "#0e7490", billing: "یک‌باره", comingSoon: true, description: "مدیریت ارگان‌ها، طرف قراردادها و سازمان‌ها.", longDescription: "مدیریت ارگان‌ها برای تعریف سازمان‌های طرف قرارداد، شرایط همکاری و ارتباط با مشتریان سازمانی کاربرد دارد." },
   { key: "customer_segmentation", title: "تفکیک مشتریان", price: 2500000, periods: oneTime(2500000), category: "insight", categoryLabel: "دسته‌بندی", icon: "🧩", color: "#f59e0b", billing: "یک‌باره", comingSoon: true, description: "دسته‌بندی مشتریان بر اساس رفتار و ویژگی‌ها.", longDescription: "تفکیک مشتریان برای ساخت گروه‌های هدف، تحلیل رفتار و اجرای کمپین‌های دقیق‌تر استفاده می‌شود." },
 ];
+
+export const STORE_MODULES = STORE_MODULES_RAW.map((module) => ({
+  ...module,
+  image: moduleImage(module.icon, module.color),
+}));
 
 export const CENTRAL_MODULES = STORE_MODULES.map(({ key, title, price, periods, comingSoon }) => ({
   id: key,

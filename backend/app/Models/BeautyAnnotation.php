@@ -2,10 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class BeautyAnnotation extends Model
 {
+    use Auditable;
+
+    public function activitySection(): string { return 'زیبایار'; }
+    public function activityLabel(): string { return trim(($this->area ?? '').' '.($this->problem ?? '')) ?: 'نقطه زیبایار #'.$this->getKey(); }
+
     protected $fillable = [
         'patient_id',
         'patient_media_id',
@@ -15,6 +21,8 @@ class BeautyAnnotation extends Model
         'area',
         'problem',
         'note',
+        'voice_path',
+        'voice_duration',
         'status',
         'annotation_date',
     ];

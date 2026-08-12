@@ -6,9 +6,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Support\ActivityLogger;
 
 class AuthController extends Controller
 {
@@ -46,8 +51,20 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($request->user()?->access_blocked) {
+            Auth::guard('web')->logout();
+            RateLimiter::hit($throttleKey, 60);
+
+            throw ValidationException::withMessages([
+                'login' => ['دسترسی این کاربر بسته شده است.'],
+            ]);
+        }
+
         RateLimiter::clear($throttleKey);
         $request->session()->regenerate();
+        ActivityLogger::manual('login', 'ورود و خروج', $request->user(), [], [], [
+            'login_field' => $field,
+        ]);
 
         return response()->json([
             'message' => 'ورود با موفقیت انجام شد.',
@@ -60,8 +77,93 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userData($request)]);
     }
 
+    public function updateUser(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('users', 'name')->ignore($user->id)],
+            'nickname' => ['nullable', 'string', 'max:255'],
+            'mobile' => ['nullable', 'string', 'max:20', Rule::unique('users', 'mobile')->ignore($user->id)],
+            'gender' => ['nullable', 'string', 'in:male,female'],
+            'password' => ['nullable', 'string', 'min:4'],
+        ], [], [
+            'name' => 'نام کاربر',
+            'nickname' => 'نام مستعار',
+            'mobile' => 'موبایل',
+            'gender' => 'جنسیت',
+            'password' => 'رمز عبور',
+        ]);
+
+        $user->name = trim($data['name']);
+        $user->mobile = trim((string) ($data['mobile'] ?? '')) ?: null;
+        if (Schema::hasColumn('users', 'nickname')) {
+            $user->nickname = trim((string) ($data['nickname'] ?? '')) ?: null;
+        }
+        if (Schema::hasColumn('users', 'gender')) {
+            $user->gender = $data['gender'] ?? null;
+        }
+        if (! empty($data['password'])) {
+            $user->password = Hash::make($data['password']);
+        }
+        $user->save();
+
+        return response()->json([
+            'message' => 'پروفایل با موفقیت ذخیره شد.',
+            'user' => $this->userData($request),
+        ]);
+    }
+
+    public function uploadUserPhoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'thumbnail' => 'required|image|mimes:webp|max:30|dimensions:width=50,height=50',
+        ]);
+
+        $user = $request->user();
+        Storage::disk('public')->delete(array_filter([
+            $user->profile_photo_path,
+            $user->profile_thumbnail_path,
+        ]));
+
+        $directory = "users/{$user->id}/profile";
+        $photoPath = $request->file('photo')->storeAs($directory, 'photo-'.Str::uuid().'.webp', 'public');
+        $thumbnailPath = $request->file('thumbnail')->storeAs($directory, 'thumbnail-'.Str::uuid().'.webp', 'public');
+
+        $user->update([
+            'profile_photo_path' => $photoPath,
+            'profile_thumbnail_path' => $thumbnailPath,
+        ]);
+
+        return response()->json([
+            'message' => 'عکس کاربر با موفقیت ذخیره شد.',
+            'user' => $this->userData($request),
+        ]);
+    }
+
+    public function deleteUserPhoto(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        Storage::disk('public')->delete(array_filter([
+            $user->profile_photo_path,
+            $user->profile_thumbnail_path,
+        ]));
+
+        $user->update([
+            'profile_photo_path' => null,
+            'profile_thumbnail_path' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'عکس کاربر حذف شد.',
+            'user' => $this->userData($request),
+        ]);
+    }
+
     public function logout(Request $request): JsonResponse
     {
+        $user = $request->user();
+        ActivityLogger::manual('logout', 'ورود و خروج', $user, [], [], []);
         Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -120,8 +222,13 @@ class AuthController extends Controller
         return [
             'id' => $user->id,
             'name' => $user->name,
+            'nickname' => $user->nickname ?? '',
             'email' => $user->email,
             'mobile' => $user->mobile,
+            'gender' => $user->gender ?? '',
+            'profile_photo_url' => $user->profile_photo_url,
+            'profile_thumbnail_url' => $user->profile_thumbnail_url,
+            'avatar_url' => $user->avatar_url,
             'roles' => $user->roles->pluck('name')->values(),
             'permissions' => $user->getAllPermissions()->pluck('name')->values(),
             'tenant' => $tenantData,

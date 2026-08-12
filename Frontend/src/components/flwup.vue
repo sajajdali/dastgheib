@@ -33,7 +33,7 @@
             <div class="today-followup-main">
               <div class="person-name">{{ item.fullName || 'بدون نام' }}</div>
               <div class="person-meta">
-                <span>{{ item.phone || 'بدون شماره' }}</span>
+                <span>{{ displayPatientPhone(item.phone) || 'بدون شماره' }}</span>
                 <span>•</span>
                 <span>{{ item.consultant || 'بدون مشاور' }}</span>
                 <span>•</span>
@@ -52,7 +52,7 @@
         <h3>عدم پیگیری</h3>
         <div v-if="!missedFollowups.length" class="empty-state">موردی وجود ندارد.</div>
         <div v-for="item in missedFollowups" :key="`missed-${item.campaignId}-${item._localId}`" class="missed-followup-row">
-          <span>{{ item.fullName || 'بدون نام' }}</span><span>{{ item.phone || 'بدون شماره' }}</span>
+          <span>{{ item.fullName || 'بدون نام' }}</span><span>{{ displayPatientPhone(item.phone) || 'بدون شماره' }}</span>
           <span>{{ item.campaignTitle }}</span><span>{{ formatDateFa(item.followUpDate) }}</span>
           <button type="button" @click.stop="openCampaign(item.campaignId)">باز کردن</button>
         </div>
@@ -510,6 +510,11 @@
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'phone')" @dblclick.stop="autoFitFollowupColumn('phone')"></div>
                     </th>
 
+                    <th class="center resizable" :style="{ width: colWidths.history + 'px' }">
+                      <div class="th-content">سابقه</div>
+                      <div class="resizer" @mousedown.stop.prevent="initResize($event, 'history')" @dblclick.stop="autoFitFollowupColumn('history')"></div>
+                    </th>
+
                     <!-- تاریخ تماس -->
                    <th class="center resizable" :style="{ width: colWidths.contactDate + 'px' }">
                     <div class="th-content">تاریخ تماس</div>
@@ -670,7 +675,20 @@
                   <tr v-for="row in reportFilteredRows" :key="row._localId">
                     <td class="center">{{ row.campaignTitle }}</td>
                     <td><input v-model="row.fullName" disabled /></td>
-                    <td><input v-model="row.phone" disabled /></td>
+                    <td><input :value="displayPatientPhone(row.phone)" disabled /></td>
+                    <td class="history-cell">
+                      <button
+                        type="button"
+                        class="history-light-btn"
+                        :class="{ active: followupHistoryRows(row).length > 1 }"
+                        :disabled="followupHistoryRows(row).length <= 1"
+                        :title="followupHistoryRows(row).length > 1 ? 'مشاهده سابقه صحبت‌ها' : 'سابقه قبلی ندارد'"
+                        @click.stop="openFollowupHistory(row)"
+                      >
+                        <span></span>
+                        <b>{{ Math.max(0, followupHistoryRows(row).length - 1) }}</b>
+                      </button>
+                    </td>
                     <td>
                       <date-picker
                         v-model="row.contactDate"
@@ -769,7 +787,7 @@
                   </tr>
 
                   <tr v-if="!reportFilteredRows.length">
-                    <td colspan="13" class="empty-state">
+                    <td colspan="14" class="empty-state">
                       موردی در این بازه تاریخی یافت نشد.
                     </td>
                   </tr>
@@ -863,6 +881,11 @@
                     <th class="center resizable" :style="{ width: colWidths.phone + 'px' }">
                       <div class="th-content">شماره تماس</div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'phone')" @dblclick.stop="autoFitFollowupColumn('phone')"></div>
+                    </th>
+
+                    <th class="center resizable" :style="{ width: colWidths.history + 'px' }">
+                      <div class="th-content">سابقه</div>
+                      <div class="resizer" @mousedown.stop.prevent="initResize($event, 'history')" @dblclick.stop="autoFitFollowupColumn('history')"></div>
                     </th>
 
                     <!-- تاریخ پیگیری -->
@@ -1001,7 +1024,11 @@
                 </thead>
 
                 <tbody>
-                  <tr v-for="row in activeFilteredRows" :key="row._localId">
+                  <tr
+                    v-for="row in activeFilteredRows"
+                    :key="row._localId"
+                    :class="{ 'duplicate-phone-row': duplicatePhoneInfo(row) }"
+                  >
                     <td>
                       <div class="campaign-patient-cell">
                         <img v-if="patientAvatar(row)" :src="patientAvatar(row)" class="campaign-patient-avatar" alt="" />
@@ -1010,11 +1037,38 @@
                       </div>
                     </td>
                     <td>
-                      <input
-                        v-model="row.phone"
-                        @input="lookupPatientByPhone(row)"
-                        @blur="fillPatientByPhone(row)"
-                      />
+                      <div
+                        class="phone-input-wrap"
+                        :class="{ duplicate: duplicatePhoneInfo(row) }"
+                        :title="duplicatePhoneTitle(row)"
+                      >
+                        <input
+                          v-if="canViewPatientPhone"
+                          v-model="row.phone"
+                          @input="lookupPatientByPhone(row)"
+                          @blur="fillPatientByPhone(row)"
+                        />
+                        <input
+                          v-else
+                          :value="displayPatientPhone(row.phone)"
+                          readonly
+                          title="نمایش شماره تماس برای این نقش غیرفعال است"
+                        />
+                        <span v-if="duplicatePhoneInfo(row)" class="duplicate-phone-badge">تکراری</span>
+                      </div>
+                    </td>
+                    <td class="history-cell">
+                      <button
+                        type="button"
+                        class="history-light-btn"
+                        :class="{ active: followupHistoryRows(row).length > 1 }"
+                        :disabled="followupHistoryRows(row).length <= 1"
+                        :title="followupHistoryRows(row).length > 1 ? 'مشاهده سابقه صحبت‌ها' : 'سابقه قبلی ندارد'"
+                        @click.stop="openFollowupHistory(row)"
+                      >
+                        <span></span>
+                        <b>{{ Math.max(0, followupHistoryRows(row).length - 1) }}</b>
+                      </button>
                     </td>
                     <td>
   <DatePicker
@@ -1140,7 +1194,7 @@
                   </tr>
 
                   <tr v-if="!activeFilteredRows.length">
-                    <td :colspan="canOpenAppointments ? 12 : 11" class="empty-state">
+                    <td :colspan="canOpenAppointments ? 13 : 12" class="empty-state">
                       موردی یافت نشد.
                     </td>
                   </tr>
@@ -1164,6 +1218,47 @@
         </div>
 
       </div>
+    </div>
+
+    <div v-if="historyModalOpen" class="history-modal-overlay" @click.self="closeFollowupHistory">
+      <section class="history-modal" role="dialog" aria-modal="true">
+        <header>
+          <div>
+            <small>سابقه پیگیری</small>
+            <h3>{{ historySubjectName }}</h3>
+            <p>{{ displayPatientPhone(historySubjectPhone) || 'بدون شماره' }} · {{ followupHistory.length }} رکورد</p>
+          </div>
+          <button type="button" title="بستن" @click="closeFollowupHistory">×</button>
+        </header>
+
+        <div class="history-timeline">
+          <article
+            v-for="item in followupHistory"
+            :key="`${item.campaignId}-${item.rowId}`"
+            :class="{ current: item.isCurrent }"
+          >
+            <div class="history-marker"></div>
+            <div class="history-card">
+              <div class="history-card-head">
+                <strong>{{ item.campaignTitle || 'کمپین بدون عنوان' }}</strong>
+                <span v-if="item.isCurrent">ردیف فعلی</span>
+              </div>
+              <dl>
+                <div><dt>تاریخ کمپین</dt><dd>{{ formatDateFa(item.campaignDate) || '-' }}</dd></div>
+                <div><dt>تاریخ تماس</dt><dd>{{ formatDateFa(item.contactDate) || '-' }}</dd></div>
+                <div><dt>تاریخ پیگیری</dt><dd>{{ formatDateFa(item.followUpDate) || '-' }}</dd></div>
+                <div><dt>مشاور</dt><dd>{{ item.consultant || '-' }}</dd></div>
+                <div><dt>منبع</dt><dd>{{ item.source || '-' }}</dd></div>
+                <div><dt>وضعیت</dt><dd>{{ item.status || '-' }}</dd></div>
+                <div><dt>تمایل</dt><dd>{{ item.interest || '-' }}</dd></div>
+                <div><dt>علت</dt><dd>{{ item.reason || '-' }}</dd></div>
+                <div><dt>لندینگ</dt><dd>{{ landingSmsText(item.landingSms) || '-' }}</dd></div>
+              </dl>
+              <p class="history-description">{{ item.description || 'توضیحی ثبت نشده است.' }}</p>
+            </div>
+          </article>
+        </div>
+      </section>
     </div>
 
     <div v-if="bannerGalleryCampaign" class="banner-gallery-page" @click.self="closeBannerGallery">
@@ -1247,6 +1342,7 @@ export default {
   props: {
     permissions: { type: Array, default: () => [] },
     appointmentResult: { type: Object, default: null },
+    openFollowupRequest: { type: Object, default: null },
   },
 
   components: {
@@ -1306,6 +1402,8 @@ export default {
       activeFilter: null,
       activeLandingRowId: null,
       landingMenuStyle: {},
+      historyModalOpen: false,
+      activeHistoryRow: null,
 
       staffOptions: [],
       channelOptions: [],
@@ -1331,6 +1429,7 @@ export default {
         campaignTitle: 128,
         fullName: 136,
         phone: 104,
+        history: 72,
         contactDate: 96,
         followUpDate: 96,
         gender: 64,
@@ -1350,6 +1449,7 @@ export default {
 
   computed: {
     canViewCampaignCost() { return this.permissions.includes('followups.campaign_cost'); },
+    canViewPatientPhone() { return this.permissions.includes('patients.view_phone'); },
     archivedCampaigns() { return this.campaigns.filter(c => this.isCampaignArchived(c)); },
     visibleCampaigns: {
       get() { return this.campaigns.filter(c => this.showArchived ? this.isCampaignArchived(c) : !this.isCampaignArchived(c)); },
@@ -1401,6 +1501,7 @@ export default {
         const colMatch = keys.every((key) => {
           const selected = this.selectedFilters[key];
           if (!selected.length) return true;
+          if (key === "interest" && r.interest === "ok" && selected.includes("ok") && !this.hasRegisteredAppointment(r)) return false;
           return selected.includes(r[key]);
         });
 
@@ -1444,6 +1545,7 @@ export default {
         const colMatch = keys.every((key) => {
           const selected = this.selectedReportFilters[key];
           if (!selected.length) return true;
+          if (key === "interest" && r.interest === "ok" && selected.includes("ok") && !this.hasRegisteredAppointment(r)) return false;
           return selected.includes(r[key]);
         });
 
@@ -1493,6 +1595,15 @@ export default {
       const today = this.getTodayString();
       return this.activeCampaign.rows.filter((r) => r.followUpDate === today);
     },
+    followupHistory() {
+      return this.activeHistoryRow ? this.followupHistoryRows(this.activeHistoryRow) : [];
+    },
+    historySubjectName() {
+      return this.activeHistoryRow?.fullName || "بدون نام";
+    },
+    historySubjectPhone() {
+      return this.activeHistoryRow?.phone || "";
+    },
   },
 
   created() {
@@ -1506,6 +1617,7 @@ export default {
     this.loadChannels();
     this.loadCampaignsFromLocal();
     this.applyAppointmentResult(this.appointmentResult);
+    if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
     window.addEventListener("beforeunload", this.handleBeforeUnload);
     window.addEventListener("scroll", this.closeLandingMenu, true);
     window.addEventListener("resize", this.closeLandingMenu);
@@ -1553,9 +1665,70 @@ export default {
         this.applyAppointmentResult(result);
       },
     },
+    openFollowupRequest: {
+      immediate: true,
+      deep: true,
+      handler(request) {
+        if (request) this.openRequestedFollowups(request);
+      },
+    },
   },
 
   methods: {
+    displayPatientPhone(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      if (this.canViewPatientPhone || text.includes("•") || text.includes("*")) return text;
+      const digits = text.replace(/\D/g, "");
+      if (digits.length <= 4) return "••••";
+      return `${digits.slice(0, 3)}••••${digits.slice(-2)}`;
+    },
+
+    followupHistoryRows(row) {
+      if (!row) return [];
+      const phone = this.normalizePhoneLookup(row.phone);
+      const name = this.normalizeFollowupLookup(row.fullName);
+      if (phone.length < 7 && name.length < 2) return [];
+
+      const currentId = String(row._localId || "");
+      const rows = [];
+      this.campaigns.forEach(campaign => {
+        (campaign.rows || []).forEach(item => {
+          const samePhone = phone.length >= 7 && this.normalizePhoneLookup(item.phone) === phone;
+          const sameName = phone.length < 7 && name.length >= 2 && this.normalizeFollowupLookup(item.fullName) === name;
+          if (!samePhone && !sameName) return;
+          rows.push({
+            ...item,
+            rowId: item._localId,
+            campaignId: campaign.id,
+            campaignTitle: campaign.title || "کمپین بدون عنوان",
+            campaignDate: campaign.date || "",
+            campaignStatus: campaign.campaignStatus || "",
+            source: item.source || campaign.sourceName || campaign.source || "",
+            isCurrent: String(item._localId || "") === currentId,
+          });
+        });
+      });
+
+      return rows.sort((a, b) => {
+        const aDate = a.contactDate || a.followUpDate || a.campaignDate || "";
+        const bDate = b.contactDate || b.followUpDate || b.campaignDate || "";
+        return String(bDate).localeCompare(String(aDate)) || Number(b.campaignId || 0) - Number(a.campaignId || 0);
+      });
+    },
+
+    openFollowupHistory(row) {
+      const rows = this.followupHistoryRows(row);
+      if (rows.length <= 1) return;
+      this.activeHistoryRow = row;
+      this.historyModalOpen = true;
+    },
+
+    closeFollowupHistory() {
+      this.historyModalOpen = false;
+      this.activeHistoryRow = null;
+    },
+
 
     consultantResource(name) { return findResourceByName(this.staffOptions, name); },
     consultantAvatar(name) { return avatarUrl(this.consultantResource(name)); },
@@ -1573,12 +1746,97 @@ export default {
       row.appointmentDate = result.date || "";
       row.appointmentTime = result.time || "";
       row.appointmentPatientName = result.patientName || row.fullName || "";
+      row.fullName = row.fullName || result.patientName || "";
+      row.phone = row.phone || result.phone || "";
       row.interest = "ok";
       row.status = row.status || "پاسخ داد";
       this.activeCampaignId = campaign.id;
       this.campaignSearch = "";
       this.activeFilter = null;
       this.saveCampaignsToLocal();
+    },
+
+    openRequestedFollowups(request) {
+      const phone = this.normalizeFollowupLookup(request.phone);
+      const name = this.normalizeFollowupLookup(request.fullName);
+      const terms = [phone, name].filter(Boolean);
+      if (!terms.length) return;
+
+      const matched = this.findFollowupMatch(terms);
+      if (!matched) {
+        this.showDateReportModal = true;
+        this.reportFilterTab = "customers";
+        this.reportSearch = request.phone || request.fullName || "";
+        return;
+      }
+
+      this.showDateReportModal = false;
+      this.showMissedFollowups = false;
+      this.showArchived = this.isCampaignArchived(matched.campaign);
+      this.openCampaign(matched.campaign.id);
+      this.campaignSearch = request.phone || request.fullName || matched.row.fullName || matched.row.phone || "";
+      this.$nextTick(() => {
+        document.querySelector(".campaign-table-modal .toolbar-input")?.focus();
+      });
+    },
+
+    findFollowupMatch(terms) {
+      for (const campaign of this.campaigns) {
+        const row = (campaign.rows || []).find(item => this.followupRowMatches(item, terms));
+        if (row) return { campaign, row };
+      }
+      return null;
+    },
+
+    followupRowMatches(row, terms) {
+      const searchable = this.normalizeFollowupLookup([
+        row.fullName,
+        row.phone,
+        row.consultant,
+        row.description,
+        row.source,
+      ].filter(Boolean).join(" "));
+      return terms.some(term => searchable.includes(term));
+    },
+
+    normalizeFollowupLookup(value) {
+      return String(value || "")
+        .replace(/[۰-۹]/g, char => String("۰۱۲۳۴۵۶۷۸۹".indexOf(char)))
+        .replace(/[٠-٩]/g, char => String("٠١٢٣٤٥٦٧٨٩".indexOf(char)))
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    },
+
+    normalizePhoneLookup(value) {
+      return this.normalizeFollowupLookup(value).replace(/\D/g, "");
+    },
+
+    duplicatePhoneInfo(row) {
+      const phone = this.normalizePhoneLookup(row?.phone);
+      if (phone.length < 7) return null;
+
+      for (const campaign of this.campaigns) {
+        for (const item of campaign.rows || []) {
+          if (item === row || item._localId === row?._localId) continue;
+          if (this.normalizePhoneLookup(item.phone) === phone) {
+            return {
+              campaign,
+              row: item,
+            };
+          }
+        }
+      }
+
+      return null;
+    },
+
+    duplicatePhoneTitle(row) {
+      const duplicate = this.duplicatePhoneInfo(row);
+      if (!duplicate) return "";
+      const campaignTitle = duplicate.campaign?.title || "کمپین بدون عنوان";
+      const person = duplicate.row?.fullName || "بدون نام";
+      return `این شماره قبلا در ${campaignTitle} برای ${person} ثبت شده است`;
     },
 
     lookupPatientByPhone(row) {
@@ -1795,7 +2053,7 @@ export default {
     },
 
     autoFitFollowupColumn(key) {
-      const fixed = { contactDate:108, followUpDate:108, gender:72, interest:88, landingSms:145, appointment:122 };
+      const fixed = { contactDate:108, followUpDate:108, gender:72, interest:88, landingSms:145, appointment:122, history:76 };
       if (fixed[key]) {
         this.colWidths[key] = fixed[key];
         return;
@@ -2096,6 +2354,17 @@ export default {
       ].some(value => String(value || "").trim());
     },
 
+    hasRegisteredAppointment(row) {
+      if (!row?.appointmentRegistered) return false;
+      return [
+        row.appointmentDate,
+        row.appointmentTime,
+        row.appointmentPatientName,
+        row.fullName,
+        row.phone,
+      ].some(value => String(value || "").trim());
+    },
+
     campaignLeadRows(campaign) {
       return Array.isArray(campaign?.rows)
         ? campaign.rows.filter(row => this.isMeaningfulLead(row))
@@ -2127,7 +2396,10 @@ export default {
     },
 
     getInterestCount(campaign, value) {
-      return this.campaignLeadRows(campaign).filter((r) => r.interest === value).length;
+      return this.campaignLeadRows(campaign).filter((r) => {
+        if (value === "ok") return r.interest === "ok" && this.hasRegisteredAppointment(r);
+        return r.interest === value;
+      }).length;
     },
 
     getAppointmentCount(campaign) {
@@ -2150,7 +2422,7 @@ export default {
         if (r.interest === "1") score += 15;
         if (r.interest === "2") score += 35;
         if (r.interest === "3") score += 60;
-        if (r.interest === "ok") score += 80;
+        if (r.interest === "ok" && this.hasRegisteredAppointment(r)) score += 80;
       });
 
       const finalScore = Math.round(score / validRows.length);
@@ -3300,6 +3572,41 @@ export default {
   box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
 }
 
+.phone-input-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.phone-input-wrap.duplicate input {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  font-weight: 900;
+  padding-left: 54px !important;
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, .18);
+}
+
+.duplicate-phone-badge {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  transform: translateY(-50%);
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 1000;
+  pointer-events: none;
+}
+
+.contacts-table tbody tr.duplicate-phone-row td {
+  background: #fff7f7;
+}
+
 .table-scroll {
   overflow: auto;
   border-radius: 18px;
@@ -3766,4 +4073,29 @@ export default {
 .resource-select-with-avatar{height:38px;min-width:0;gap:3px}.resource-select-with-avatar img,.resource-select-with-avatar>span{width:24px;height:24px;flex:0 0 24px;border-width:2px;font-size:9px}.resource-select-with-avatar select{min-width:0}
 .campaign-table-modal .landing-multi-trigger{height:34px;padding:0 6px;border-radius:7px;font-size:9px}
 .campaign-table-modal .landing-multi-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-cell{text-align:center}
+.history-light-btn{width:100%;height:34px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#94a3b8;font-family:inherit;font-size:9px;font-weight:1000;cursor:not-allowed}
+.history-light-btn span{width:10px;height:10px;border-radius:999px;background:#cbd5e1;box-shadow:inset 0 0 0 2px rgba(255,255,255,.8)}
+.history-light-btn b{min-width:16px;height:16px;display:grid;place-items:center;border-radius:999px;background:#e2e8f0;color:#64748b;font-size:8px}
+.history-light-btn.active{border-color:#86efac;background:#f0fdf4;color:#047857;cursor:pointer}
+.history-light-btn.active span{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.14),0 0 12px rgba(34,197,94,.55)}
+.history-light-btn.active b{background:#dcfce7;color:#047857}
+.history-light-btn.active:hover{border-color:#22c55e;background:#dcfce7}
+.history-modal-overlay{position:fixed;z-index:1000010;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}
+.history-modal{width:min(940px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.8);border-radius:22px;background:#fff;color:#0f172a;box-shadow:0 28px 90px rgba(15,23,42,.35)}
+.history-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}
+.history-modal small{color:#2563eb;font-size:11px;font-weight:1000}.history-modal h3{margin:4px 0;font-size:21px}.history-modal p{margin:0;color:#64748b;font-size:12px;font-weight:800}
+.history-modal>header>button{width:36px;height:36px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 5px 14px rgba(15,23,42,.08)}
+.history-timeline{overflow:auto;padding:18px 22px 22px}
+.history-timeline article{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;padding-bottom:14px}
+.history-timeline article:not(:last-child)::before{content:"";position:absolute;right:10px;top:20px;bottom:-2px;width:2px;background:#e2e8f0}
+.history-marker{position:relative;z-index:1;width:20px;height:20px;border:4px solid #dbeafe;border-radius:999px;background:#2563eb;box-shadow:0 0 0 4px #fff}
+.history-timeline article.current .history-marker{border-color:#bbf7d0;background:#16a34a}
+.history-card{min-width:0;padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.05)}
+.history-timeline article.current .history-card{border-color:#86efac;background:#f7fef9}
+.history-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}.history-card-head strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.history-card-head span{padding:4px 8px;border-radius:999px;background:#dcfce7;color:#047857;font-size:9px;font-weight:1000}
+.history-card dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.history-card dl div{min-width:0;padding:8px;border-radius:9px;background:#f8fafc}.history-card dt{margin-bottom:4px;color:#94a3b8;font-size:9px;font-weight:900}.history-card dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-size:11px;font-weight:900}
+.history-description{margin-top:10px!important;padding:10px;border-radius:10px;background:#f8fafc;color:#334155!important;font-size:12px!important;line-height:1.9!important;white-space:pre-wrap}
+@media(max-width:760px){.history-card dl{grid-template-columns:1fr 1fr}.history-modal>header{padding:15px}.history-timeline{padding:14px}.history-modal h3{font-size:18px}}
+@media(max-width:480px){.history-card dl{grid-template-columns:1fr}}
 @media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}</style>

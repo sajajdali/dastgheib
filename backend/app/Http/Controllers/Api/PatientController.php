@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use App\Services\CustomerLevelService;
 use App\Models\AppSetting;
+use App\Support\PatientPhoneVisibility;
 use Carbon\Carbon;
 
 class PatientController extends Controller
@@ -86,11 +87,11 @@ class PatientController extends Controller
 
         return response()->json([
             'message' => 'پرونده با موفقیت ثبت شد',
-            'patient' => $patient
+            'patient' => $this->hidePatientPhones($patient, $request)
         ], 201);
     }
 
-    public function findByPhone($phone, CustomerLevelService $levels)
+    public function findByPhone(Request $request, $phone, CustomerLevelService $levels)
     {
         $patient = Patient::where('phone', $phone)->first();
 
@@ -103,7 +104,7 @@ class PatientController extends Controller
             'id' => $patient->id,
             'first_name' => $patient->first_name,
             'last_name' => $patient->last_name,
-            'phone' => $patient->phone,
+            'phone' => PatientPhoneVisibility::hideValue($patient->phone, $request),
             'file_number' => $patient->file_number,
             'gender' => $patient->gender,
             'profile_thumbnail_url' => $patient->profile_thumbnail_url,
@@ -126,6 +127,7 @@ class PatientController extends Controller
                     ->orWhere('last_name', 'like', "%{$term}%")
                     ->orWhereRaw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) LIKE ?", ["%{$term}%"])
                     ->orWhere('file_number', 'like', "%{$term}%")
+                    ->orWhere('national_id', 'like', "%{$term}%")
                     ->orWhere('phone', 'like', "%{$term}%");
             });
         }
@@ -138,7 +140,13 @@ class PatientController extends Controller
             $query->where('phone', $request->phone);
         }
 
-        return response()->json($levels->decorate($query->limit(25)->get()));
+        if ($request->filled('national_id')) {
+            $query->where('national_id', $request->national_id);
+        }
+
+        $patients = $levels->decorate($query->limit(25)->get());
+
+        return response()->json($this->hidePatientPhones($patients, $request));
     }
 
     public function upcomingBirthdays(Request $request)
@@ -169,7 +177,8 @@ class PatientController extends Controller
                 return $patient;
             })
             ->filter()
-            ->values());
+            ->values()
+            ->tap(fn ($items) => $this->hidePatientPhones($items, $request)));
     }
 
     private function normalizeDateText(?string $value): string
@@ -219,7 +228,7 @@ class PatientController extends Controller
     {
         $patient = Patient::findOrFail($id);
 
-        $patient->update([
+        $updates = [
             'first_name'       => $request->first_name,
             'last_name'        => $request->last_name,
             'phone'            => $request->phone,
@@ -232,11 +241,37 @@ class PatientController extends Controller
             'customer_level'   => $request->customer_level,
             'patient_history'  => $request->patient_history,
             'medical_history'  => $request->medical_history,
-        ]);
+        ];
+
+        if (! PatientPhoneVisibility::canView($request) || PatientPhoneVisibility::looksMasked($updates['phone'] ?? '')) {
+            $updates['phone'] = $patient->phone;
+        }
+
+        $patient->update($updates);
 
         return response()->json([
             'success' => true
         ]);
+    }
+
+    private function hidePatientPhones($patients, Request $request)
+    {
+        if (PatientPhoneVisibility::canView($request)) {
+            return $patients;
+        }
+
+        $hideOne = function (Patient $patient) {
+            $patient->setAttribute('phone', PatientPhoneVisibility::mask($patient->phone));
+            $patient->setAttribute('second_phone', PatientPhoneVisibility::mask($patient->second_phone));
+
+            return $patient;
+        };
+
+        if ($patients instanceof Patient) {
+            return $hideOne($patients);
+        }
+
+        return $patients->each($hideOne);
     }
 
     public function updateCustomerLevel(Request $request, Patient $patient)

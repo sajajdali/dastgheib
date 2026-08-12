@@ -8,7 +8,9 @@ use App\Models\Inventory;
 use App\Models\InventorySection;
 use App\Models\Patient;
 use App\Models\PatientMedia;
+use App\Support\PatientPhoneVisibility;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class BeautyAnnotationController extends Controller
 {
@@ -119,18 +121,9 @@ class BeautyAnnotationController extends Controller
         return response()->json([
             'patient_count' => $patientCount,
             'annotations' => $query->limit(100)->get()->map(fn (BeautyAnnotation $annotation) => [
-                'id' => $annotation->id,
-                'patient_id' => $annotation->patient_id,
-                'patient_media_id' => $annotation->patient_media_id,
-                'area' => $annotation->area,
-                'problem' => $annotation->problem,
-                'note' => $annotation->note,
-                'status' => $annotation->status,
-                'annotation_date' => optional($annotation->annotation_date)?->toDateString(),
-                'created_at' => optional($annotation->created_at)->toDateTimeString(),
-                'patient' => $annotation->patient,
+                ...$this->formatAnnotation($annotation),
+                'patient' => $this->hidePatientPhones($annotation->patient, $request),
                 'media' => $annotation->media,
-                'created_by_name' => $annotation->creator?->name,
             ]),
         ]);
     }
@@ -172,25 +165,23 @@ class BeautyAnnotationController extends Controller
         }
 
         return response()->json([
-            'patient' => $patient,
+            'patient' => $this->hidePatientPhones($patient, $request),
             'front_photos' => $frontPhotos,
             'selected_photo' => $selectedPhoto,
-            'annotations' => $annotationsQuery->get()->map(fn (BeautyAnnotation $annotation) => [
-                'id' => $annotation->id,
-                'patient_id' => $annotation->patient_id,
-                'patient_media_id' => $annotation->patient_media_id,
-                'x_percent' => $annotation->x_percent,
-                'y_percent' => $annotation->y_percent,
-                'area' => $annotation->area,
-                'problem' => $annotation->problem,
-                'note' => $annotation->note,
-                'status' => $annotation->status,
-                'annotation_date' => optional($annotation->annotation_date)?->toDateString(),
-                'created_by_name' => $annotation->creator?->name,
-                'created_at' => optional($annotation->created_at)->toDateTimeString(),
-                'updated_at' => optional($annotation->updated_at)->toDateTimeString(),
-            ]),
+            'annotations' => $annotationsQuery->get()->map(fn (BeautyAnnotation $annotation) => $this->formatAnnotation($annotation)),
         ]);
+    }
+
+    private function hidePatientPhones(?Patient $patient, Request $request): ?Patient
+    {
+        if (! $patient || PatientPhoneVisibility::canView($request)) {
+            return $patient;
+        }
+
+        $patient->setAttribute('phone', PatientPhoneVisibility::mask($patient->phone));
+        $patient->setAttribute('second_phone', PatientPhoneVisibility::mask($patient->second_phone));
+
+        return $patient;
     }
 
     public function store(Request $request, Patient $patient)
@@ -202,6 +193,8 @@ class BeautyAnnotationController extends Controller
             'area' => 'nullable|string|max:120',
             'problem' => 'nullable|string|max:160',
             'note' => 'nullable|string',
+            'voice' => 'nullable|file|mimes:webm,ogg,mp3,wav,m4a,mp4|max:15360',
+            'voice_duration' => 'nullable|integer|min:0|max:3600',
             'status' => 'nullable|in:pending,done',
             'annotation_date' => 'nullable|date',
         ]);
@@ -211,14 +204,21 @@ class BeautyAnnotationController extends Controller
             ->where('media_type', 'image')
             ->findOrFail($data['patient_media_id']);
 
+        $voicePath = $request->hasFile('voice')
+            ? $request->file('voice')->store('beauty-annotations/voice', 'public')
+            : null;
+
+        unset($data['voice']);
+
         $annotation = BeautyAnnotation::create([
             ...$data,
+            'voice_path' => $voicePath,
             'patient_id' => $patient->id,
             'created_by' => $request->user()?->id,
             'status' => $data['status'] ?? 'pending',
         ]);
 
-        return response()->json($annotation, 201);
+        return response()->json($this->formatAnnotation($annotation->fresh()), 201);
     }
 
     public function update(Request $request, Patient $patient, BeautyAnnotation $annotation)
@@ -231,21 +231,56 @@ class BeautyAnnotationController extends Controller
             'area' => 'nullable|string|max:120',
             'problem' => 'nullable|string|max:160',
             'note' => 'nullable|string',
+            'voice' => 'nullable|file|mimes:webm,ogg,mp3,wav,m4a,mp4|max:15360',
+            'voice_duration' => 'nullable|integer|min:0|max:3600',
             'status' => 'sometimes|in:pending,done',
             'annotation_date' => 'nullable|date',
         ]);
 
+        if ($request->hasFile('voice')) {
+            if ($annotation->voice_path) {
+                Storage::disk('public')->delete($annotation->voice_path);
+            }
+            $data['voice_path'] = $request->file('voice')->store('beauty-annotations/voice', 'public');
+        }
+        unset($data['voice']);
+
         $annotation->update($data);
 
-        return response()->json($annotation->fresh());
+        return response()->json($this->formatAnnotation($annotation->fresh()));
     }
 
     public function destroy(Patient $patient, BeautyAnnotation $annotation)
     {
         abort_unless($annotation->patient_id === $patient->id, 404);
 
+        if ($annotation->voice_path) {
+            Storage::disk('public')->delete($annotation->voice_path);
+        }
+
         $annotation->delete();
 
         return response()->json(['message' => 'Annotation deleted.']);
+    }
+
+    private function formatAnnotation(BeautyAnnotation $annotation): array
+    {
+        return [
+            'id' => $annotation->id,
+            'patient_id' => $annotation->patient_id,
+            'patient_media_id' => $annotation->patient_media_id,
+            'x_percent' => $annotation->x_percent,
+            'y_percent' => $annotation->y_percent,
+            'area' => $annotation->area,
+            'problem' => $annotation->problem,
+            'note' => $annotation->note,
+            'voice_url' => $annotation->voice_path ? Storage::disk('public')->url($annotation->voice_path) : null,
+            'voice_duration' => $annotation->voice_duration,
+            'status' => $annotation->status,
+            'annotation_date' => optional($annotation->annotation_date)?->toDateString(),
+            'created_by_name' => $annotation->creator?->name,
+            'created_at' => optional($annotation->created_at)->toDateTimeString(),
+            'updated_at' => optional($annotation->updated_at)->toDateTimeString(),
+        ];
     }
 }

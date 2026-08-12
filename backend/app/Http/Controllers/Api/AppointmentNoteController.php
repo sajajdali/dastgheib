@@ -33,22 +33,27 @@ class AppointmentNoteController extends Controller
         $data = $request->validate([
             'appointment_key' => ['required', 'string', 'max:190'],
             'appointment_id' => ['nullable', 'integer', 'exists:appointments,id'],
-            'message_type' => ['required', 'in:text,audio'],
+            'message_type' => ['required', 'in:text,audio,image'],
             'message' => ['nullable', 'string', 'max:20000', 'required_if:message_type,text'],
             'audio' => ['nullable', 'file', 'max:15360', 'required_if:message_type,audio'],
             'audio_duration' => ['nullable', 'integer', 'min:0', 'max:3600'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,heic,heif', 'max:15360', 'required_if:message_type,image'],
         ]);
 
-        $path = $request->hasFile('audio')
+        $audioPath = $request->hasFile('audio')
             ? $request->file('audio')->store('appointment-notes/audio', 'public')
             : null;
+        $imagePath = $request->hasFile('image')
+            ? $request->file('image')->store('appointment-notes/images', 'public')
+            : null;
 
-        unset($data['audio']);
+        unset($data['audio'], $data['image']);
 
         $message = AppointmentNoteMessage::create([
             ...$data,
             'message' => trim((string) ($data['message'] ?? '')) ?: null,
-            'audio_path' => $path,
+            'audio_path' => $audioPath,
+            'image_path' => $imagePath,
             'user_id' => $request->user()?->id,
             'requires_secretary_attention' => $this->isDoctor($request),
         ]);
@@ -62,6 +67,9 @@ class AppointmentNoteController extends Controller
 
         if ($message->audio_path) {
             Storage::disk('public')->delete($message->audio_path);
+        }
+        if ($message->image_path) {
+            Storage::disk('public')->delete($message->image_path);
         }
 
         $message->delete();
@@ -77,6 +85,7 @@ class AppointmentNoteController extends Controller
             'message' => $message->message,
             'audio_url' => $message->audio_path ? Storage::disk('public')->url($message->audio_path) : null,
             'audio_duration' => $message->audio_duration,
+            'image_url' => $message->image_path ? Storage::disk('public')->url($message->image_path) : null,
             'requires_secretary_attention' => $message->requires_secretary_attention,
             'secretary_seen_at' => $message->secretary_seen_at,
             'created_at' => $message->created_at,

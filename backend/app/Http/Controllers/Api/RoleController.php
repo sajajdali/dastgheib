@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Support\ActivityLogger;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -35,6 +36,10 @@ class RoleController extends Controller
                 'guard_name' => 'web',
             ]);
             $role->syncPermissions($data['permissions'] ?? []);
+            ActivityLogger::manual('created', 'نقش‌ها و دسترسی‌ها', $role, [], [
+                'name' => $role->name,
+                'permissions' => $data['permissions'] ?? [],
+            ]);
 
             return $role;
         });
@@ -50,9 +55,18 @@ class RoleController extends Controller
             return response()->json(['message' => 'نام نقش مدیر سیستم قابل تغییر نیست.'], 422);
         }
 
-        DB::transaction(function () use ($role, $data) {
+        $before = [
+            'name' => $role->name,
+            'permissions' => $role->permissions()->pluck('name')->values()->all(),
+        ];
+
+        DB::transaction(function () use ($role, $data, $before) {
             $role->update(['name' => $data['name']]);
             $role->syncPermissions($data['permissions'] ?? []);
+            ActivityLogger::manual('role_permissions_updated', 'نقش‌ها و دسترسی‌ها', $role, $before, [
+                'name' => $role->name,
+                'permissions' => $data['permissions'] ?? [],
+            ]);
         });
 
         return response()->json($this->roleData($role->load('permissions')));
@@ -68,6 +82,10 @@ class RoleController extends Controller
             return response()->json(['message' => 'این نقش به کاربر متصل است؛ ابتدا تخصیص کاربران را تغییر دهید.'], 422);
         }
 
+        ActivityLogger::manual('deleted', 'نقش‌ها و دسترسی‌ها', $role, [
+            'name' => $role->name,
+            'permissions' => $role->permissions()->pluck('name')->values()->all(),
+        ]);
         $role->delete();
 
         return response()->json(['message' => 'نقش حذف شد.']);

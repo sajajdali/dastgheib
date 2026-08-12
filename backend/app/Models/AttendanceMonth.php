@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class AttendanceMonth extends Model
 {
+    use Auditable;
+
+    public function activitySection(): string { return 'حضور و غیاب'; }
+
     protected $fillable = [
         'resource_type',
         'resource_id',

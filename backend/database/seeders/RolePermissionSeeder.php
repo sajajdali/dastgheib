@@ -39,7 +39,7 @@ class RolePermissionSeeder extends Seeder
                 'appointments.update', 'services.view',
             ]),
             'مشاور' => $permissionsByPrefix(['followups'])
-                ->merge(['patients.view', 'appointments.view', 'appointments.update', 'services.view']),
+                ->merge(['patients.view', 'patients.view_phone', 'appointments.view', 'appointments.update', 'services.view']),
             'حسابدار' => $permissionsByPrefix(['reports', 'bills'])
                 ->merge(['appointments.income', 'inventory.view', 'inventory.cost']),
             'انباردار' => $permissionsByPrefix(['inventory']),

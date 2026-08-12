@@ -49,6 +49,28 @@
           </label>
         </div>
 
+        <label class="login-label" for="captcha">تایید امنیتی</label>
+        <div class="captcha-box" :class="{ invalid: captchaError }">
+          <span class="captcha-question">{{ captcha.question }}</span>
+          <span class="captcha-divider" aria-hidden="true"></span>
+          <input
+            id="captcha"
+            v-model.trim="captcha.answer"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="پاسخ"
+            @input="captchaError = ''"
+          />
+          <button type="button" title="تازه‌سازی کپچا" aria-label="تازه‌سازی کپچا" @click="refreshCaptcha">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 12a8 8 0 0 1-13.5 5.8M4 12A8 8 0 0 1 17.5 6.2" />
+              <path d="M17 3v4h-4M7 21v-4h4" />
+            </svg>
+          </button>
+        </div>
+        <div v-if="captchaError" class="captcha-error" role="alert">{{ captchaError }}</div>
+
         <div v-if="error" class="login-error" role="alert">{{ error }}</div>
 
         <button class="login-button" type="submit" :disabled="loading">
@@ -80,12 +102,16 @@ const superAdminCredentials = {
 };
 
 const form = reactive({ login: "", password: "", remember: false });
+const captcha = reactive({ question: "", expected: "", answer: "" });
 const loading = ref(false);
 const error = ref("");
+const captchaError = ref("");
 const showPassword = ref(false);
 const loginInput = ref(null);
 
 async function submitLogin() {
+  if (!validateCaptcha()) return;
+
   loading.value = true;
   error.value = "";
 
@@ -101,6 +127,7 @@ async function submitLogin() {
       : requestError.response?.data?.message || "ارتباط با سرور برقرار نشد.";
   } finally {
     loading.value = false;
+    refreshCaptcha();
   }
 }
 
@@ -108,10 +135,42 @@ function loginAsSuperAdmin() {
   form.login = superAdminCredentials.login;
   form.password = superAdminCredentials.password;
   form.remember = true;
+  captcha.answer = captcha.expected;
   submitLogin();
 }
 
-onMounted(() => loginInput.value?.focus());
+function refreshCaptcha() {
+  const a = Math.floor(Math.random() * 8) + 2;
+  const b = Math.floor(Math.random() * 7) + 3;
+  captcha.question = `${toPersianDigits(a)} + ${toPersianDigits(b)}`;
+  captcha.expected = String(a + b);
+  captcha.answer = "";
+  captchaError.value = "";
+}
+
+function validateCaptcha() {
+  const normalized = String(captcha.answer || "")
+    .replace(/[۰-۹]/g, char => String("۰۱۲۳۴۵۶۷۸۹".indexOf(char)))
+    .replace(/[٠-٩]/g, char => String("٠١٢٣٤٥٦٧٨٩".indexOf(char)))
+    .trim();
+
+  if (normalized !== captcha.expected) {
+    captchaError.value = "پاسخ کد امنیتی درست نیست.";
+    return false;
+  }
+
+  captchaError.value = "";
+  return true;
+}
+
+function toPersianDigits(value) {
+  return String(value).replace(/\d/g, digit => "۰۱۲۳۴۵۶۷۸۹"[digit]);
+}
+
+onMounted(() => {
+  refreshCaptcha();
+  loginInput.value?.focus();
+});
 </script>
 
 <style scoped>
@@ -185,6 +244,83 @@ onMounted(() => loginInput.value?.focus());
 .login-options { display:flex; justify-content:space-between; margin:15px 0; }
 .remember-option { display:flex; align-items:center; gap:7px; color:#64748b; font-size:12px; cursor:pointer; }
 .remember-option input { accent-color:#2563eb; }
+.captcha-box {
+  width: 100%;
+  height: 48px;
+  display: grid;
+  grid-template-columns: 104px 1px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 13px;
+  padding: 0 8px 0 7px;
+  border: 1px solid #dbe3ef;
+  border-radius: 13px;
+  background: #fbfdff;
+  transition: .2s;
+}
+.captcha-box.invalid {
+  border-color: #fca5a5;
+  background: #fff7f7;
+}
+.captcha-question {
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0;
+  direction: ltr;
+  user-select: none;
+}
+.captcha-divider {
+  width: 1px;
+  height: 24px;
+  display: block;
+  background: #dbe3ef;
+}
+.captcha-box button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  transition: .18s;
+}
+.captcha-box button:hover {
+  background: #eff6ff;
+}
+.captcha-box svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.captcha-box input {
+  width:100%;
+  height: 44px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #1f2937;
+  font-family:inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align:right;
+  outline:none;
+}
+.captcha-box:focus-within { border-color:#3b82f6; background:#fff; box-shadow:0 0 0 4px rgba(59,130,246,.1); }
+.captcha-error { margin:-5px 0 10px; color:#be123c; font-size:11px; font-weight:800; }
 .login-error { margin:0 0 13px; padding:10px 12px; border:1px solid #fecaca; border-radius:10px; background:#fff1f2; color:#be123c; font-size:12px; }
 
 .login-button {
@@ -234,5 +370,9 @@ onMounted(() => loginInput.value?.focus());
 }
 .login-footer { margin-top:22px; padding-top:17px; border-top:1px solid #edf1f7; color:#94a3b8; text-align:center; font-size:11px; }
 @keyframes spin { to { transform:rotate(360deg); } }
-@media (max-width:500px) { .login-page{padding:14px}.login-card{padding:25px 20px;border-radius:20px} }
+@media (max-width:500px) {
+  .login-page{padding:14px}
+  .login-card{padding:25px 20px;border-radius:20px}
+  .captcha-box{grid-template-columns:84px 1px minmax(0,1fr) 34px;gap:8px;padding:0 7px}
+}
 </style>

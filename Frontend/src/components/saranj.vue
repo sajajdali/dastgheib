@@ -26,9 +26,9 @@
       <span v-else-if="presence.connected" class="online-empty">کاربر دیگری آنلاین نیست</span>
     </div>
 
-    <div class="leads-toolbar" role="tablist" aria-label="نوع نمایش سرنخ‌ها">
+    <div v-if="visibleReports.length > 1" class="leads-toolbar" role="tablist" aria-label="نوع نمایش سرنخ‌ها">
       <button
-        v-for="report in reports"
+        v-for="report in visibleReports"
         :key="report.key"
         type="button"
         class="leads-tab"
@@ -60,6 +60,8 @@
 <script>
 import { presenceState, startPresence } from "../services/presence";
 
+const SHOW_LEGACY_REPORT = false;
+
 export default {
   name: "Saranj",
   props: {
@@ -73,7 +75,7 @@ export default {
       isLoading: true,
       activeReport: "current",
       reports: [
-        { key: "legacy", label: "نسخه قدیمی", src: "/reports/سرنج ها.dc.html" },
+        { key: "legacy", label: "نسخه قدیمی", src: "/reports/سرنج ها.dc.html", visible: SHOW_LEGACY_REPORT },
         { key: "current", label: "نسخه فعلی", src: "/reports/leads.html" },
       ],
       presence: presenceState,
@@ -96,8 +98,13 @@ export default {
     },
   },
   computed: {
+    visibleReports() {
+      return this.reports.filter((report) => report.visible !== false);
+    },
     activeReportSrc() {
-      return this.reports.find((report) => report.key === this.activeReport)?.src || "/reports/leads.html";
+      const src = this.reports.find((report) => report.key === this.activeReport)?.src || "/reports/leads.html";
+      const separator = src.includes("?") ? "&" : "?";
+      return `${src}${separator}v=20260810-real-appointments`;
     },
     visibleUsers() {
       return this.presence.users.slice(0, 10);

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenant;
 use App\Services\ModuleSubscriptionService;
+use Database\Seeders\CompleteDemoDataSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Stancl\Tenancy\Database\Models\Domain;
@@ -116,6 +118,32 @@ class CentralTenantController extends Controller
         $tenant->delete();
 
         return response()->json(['message' => 'سیستم و دیتابیس tenant حذف شد.']);
+    }
+
+    public function seedDemoData(Tenant $tenant): JsonResponse
+    {
+        tenancy()->initialize($tenant);
+
+        try {
+            app(CompleteDemoDataSeeder::class)->run();
+
+            $summary = [
+                'users' => DB::table('users')->count(),
+                'patients' => DB::table('patients')->count(),
+                'appointments' => DB::table('appointments')->where('source', 'دمو کامل')->count(),
+                'doctors' => DB::table('doctors')->where('name', 'like', '%دمو%')->count(),
+                'staff' => DB::table('staff')->where('name', 'like', '%دمو%')->count(),
+                'payroll_lines' => DB::table('resource_earning_lines')->whereIn('month', ['1405-05', '1405-06'])->count(),
+            ];
+        } finally {
+            tenancy()->end();
+        }
+
+        return response()->json([
+            'message' => 'دیتای تستی کامل برای این سایت ساخته شد.',
+            'summary' => $summary,
+            'tenant' => $this->tenantData($tenant->fresh('domains')),
+        ]);
     }
 
     private function tenantData(Tenant $tenant): array

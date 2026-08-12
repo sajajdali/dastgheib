@@ -43,13 +43,13 @@ class InventoryController extends Controller
         $sections = $request->input('sections', []);
 
         DB::transaction(function () use ($items, $sections) {
-            InventoryCommission::query()->delete();
-            Inventory::query()->delete();
+            InventoryCommission::query()->get()->each->delete();
+            Inventory::query()->get()->each->delete();
 
             $sectionIdMap = [];
 
             if (is_array($sections) && count($sections)) {
-                InventorySection::query()->delete();
+                InventorySection::query()->get()->each->delete();
 
                 foreach (array_values($sections) as $index => $section) {
                     if (empty($section['name'])) {
@@ -57,6 +57,8 @@ class InventoryController extends Controller
                     }
 
                     $created = InventorySection::create([
+                        'parent_id' => null,
+                        'level' => min(2, max(1, (int) ($section['level'] ?? 1))),
                         'name' => $section['name'],
                         'sort_order' => $section['sort_order'] ?? $index,
                     ]);
@@ -66,6 +68,18 @@ class InventoryController extends Controller
                             $sectionIdMap[(string) $section[$key]] = $created->id;
                         }
                     }
+                }
+
+                foreach (array_values($sections) as $section) {
+                    $key = (string) ($section['id'] ?? $section['client_id'] ?? '');
+                    $parentKey = (string) ($section['parent_id'] ?? $section['parentId'] ?? '');
+                    if ($key === '' || $parentKey === '' || ! isset($sectionIdMap[$key], $sectionIdMap[$parentKey])) {
+                        continue;
+                    }
+
+                    InventorySection::query()
+                        ->whereKey($sectionIdMap[$key])
+                        ->update(['parent_id' => $sectionIdMap[$parentKey]]);
                 }
             }
 

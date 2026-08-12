@@ -1,9 +1,16 @@
 <template>
   <div class="menu">
+    <button
+      v-if="overflowOpen"
+      type="button"
+      class="more-backdrop"
+      aria-label="بستن زیرمنو"
+      @click.stop="overflowOpen = false"
+    ></button>
     <ul class="menu-items">
       <!-- آیتم‌ها -->
       <li
-        v-for="item in visibleItems"
+        v-for="item in primaryItems"
         :key="item.value"
         class="menu-item"
         :class="{ active: currentPage === item.value }"
@@ -18,6 +25,38 @@
         >
           {{ formatBadgeCount(notificationCounts[item.value]) }}
         </span>
+      </li>
+
+      <li
+        v-if="overflowItems.length"
+        class="menu-item more-menu-item"
+        :class="{ active: overflowOpen || overflowActive }"
+        @click.stop="overflowOpen = !overflowOpen"
+      >
+        <div class="menu-dot"></div>
+        <span>بیشتر</span>
+        <svg class="more-arrow" :class="{ open: overflowOpen }" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 10l4 4 4-4"/>
+        </svg>
+        <span
+          v-if="overflowNotificationCount > 0"
+          class="notification-badge"
+          :aria-label="`${overflowNotificationCount} مورد سررسید شده`"
+        >
+          {{ formatBadgeCount(overflowNotificationCount) }}
+        </span>
+        <div v-if="overflowOpen" class="more-submenu" @click.stop>
+          <button
+            v-for="item in overflowItems"
+            :key="item.value"
+            type="button"
+            :class="{ active: currentPage === item.value }"
+            @click="selectOverflow(item.value)"
+          >
+            <span>{{ item.label }}</span>
+            <b v-if="notificationCounts[item.value] > 0">{{ formatBadgeCount(notificationCounts[item.value]) }}</b>
+          </button>
+        </div>
       </li>
 
       <!-- دکمه بستن -->
@@ -66,8 +105,9 @@ export default {
 
   data() {
     return {
-      notificationCounts: { Peygiri: 0, dermatracker: 0, Ticket: 0, Notif: 0, Anbar: 0, Vaghtdahi: 0, HRtimes: 0, Gozaresh: 0, Photos: 0 },
+      notificationCounts: { Peygiri: 0, dermatracker: 0, Ticket: 0, Notif: 0, Anbar: 0, Vaghtdahi: 0, HRtimes: 0, Payroll: 0, Gozaresh: 0, ActivityLogs: 0, Photos: 0 },
       notificationTimer: null,
+      overflowOpen: false,
       permissionMap: {
         Parvande: 'patients.view',
         Photos: 'photos.view',
@@ -75,12 +115,14 @@ export default {
         Peygiri: 'followups.view',
         Notif: 'followups.view',
         Gozaresh: 'reports.view',
+        ActivityLogs: 'activity_logs.view',
         Anbar: 'inventory.view',
         dermatracker: 'beauty.view',
         Ticket: 'tickets.view',
         Products: 'services.view',
         Automation: 'automation.view',
         Bills: 'bills.view',
+        Payroll: 'payroll.view',
         HRtimes: 'attendance.view',
         Roles: 'roles.view',
         Setting: 'settings.view',
@@ -97,9 +139,9 @@ export default {
         { label: 'تیکت', value: 'Ticket', feature: 'tickets' },
         { label: 'خدمت یاب', value: 'Products', feature: 'finder' },
         { label: 'اتوماسیون', value: 'Automation', feature: 'automation' },
-        { label: 'قبوض', value: 'Bills', feature: 'bills' },
+        { label: 'هزینه‌ها', value: 'Bills', feature: 'bills' },
         { label: 'حضور غیاب', value: 'HRtimes', feature: 'attendance' },
-        { label: 'فروشگاه', value: 'Store', feature: null }
+        { label: 'حقوق و تسویه', value: 'Payroll', feature: null }
       ]
     }
   },
@@ -113,13 +155,32 @@ export default {
     visibleItems() {
       return this.items.filter(item => {
         if (item.value === 'HRtimes' && !this.attendanceEnabled) return false
-        if (item.value === 'Setting' || item.value === 'Store') {
+        if (item.value === 'Payroll' && ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.permissions.includes(permission))) return true
+        if (item.value === 'Setting') {
           return this.isClinicManager
         }
         if (!this.featureEnabled(item.feature)) return false
         const requiredPermission = this.permissionMap[item.value]
         return requiredPermission && this.permissions.includes(requiredPermission)
       })
+    },
+
+    primaryItems() {
+      const primaryValues = ['Parvande', 'Vaghtdahi', 'dermatracker', 'Photos', 'Anbar', 'HRtimes']
+      return this.visibleItems.filter(item => primaryValues.includes(item.value))
+    },
+
+    overflowItems() {
+      const primaryValues = ['Parvande', 'Vaghtdahi', 'dermatracker', 'Photos', 'Anbar', 'HRtimes']
+      return this.visibleItems.filter(item => !primaryValues.includes(item.value))
+    },
+
+    overflowActive() {
+      return this.overflowItems.some(item => item.value === this.currentPage)
+    },
+
+    overflowNotificationCount() {
+      return this.overflowItems.reduce((sum, item) => sum + Number(this.notificationCounts[item.value] || 0), 0)
     }
   },
 
@@ -138,6 +199,11 @@ export default {
 
   methods: {
     select(val) {
+      this.overflowOpen = false
+      this.$emit('select', val)
+    },
+    selectOverflow(val) {
+      this.overflowOpen = false
       this.$emit('select', val)
     },
     featureEnabled(feature) {
@@ -884,7 +950,7 @@ export default {
   min-width: 0;
   margin: 0 0 0 58px;
   padding: 7px 8px;
-  overflow-x: auto;
+  overflow-x: visible;
   overflow-y: visible;
   direction: rtl;
   border: 1px solid rgba(219, 234, 254, .9);
@@ -978,6 +1044,12 @@ export default {
   background: white;
   box-shadow: 0 0 0 4px rgba(255, 255, 255, .18);
 }
+
+.more-menu-item { overflow: visible; }
+.more-backdrop{position:fixed;inset:0;z-index:10040;border:0;background:transparent;cursor:default}
+.more-arrow{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;transition:transform 180ms ease}.more-arrow.open{transform:rotate(180deg)}
+.more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:10050;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
+.more-submenu button{min-height:36px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#475569;cursor:pointer;font-size:12px;font-weight:850;text-align:right}.more-submenu button:hover,.more-submenu button.active{background:#eff6ff;color:#2563eb}.more-submenu button b{min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border-radius:999px;background:#dc2626;color:#fff;font-size:10px}
 
 .notification-badge {
   position: absolute;
@@ -1085,5 +1157,20 @@ export default {
 :global(.dark) .menu-item.active {
   background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
   color: #fff !important;
+}
+
+:global(.dark) .more-submenu {
+  border-color: #334155;
+  background: #172033;
+}
+
+:global(.dark) .more-submenu button {
+  color: #cbd5e1;
+}
+
+:global(.dark) .more-submenu button:hover,
+:global(.dark) .more-submenu button.active {
+  background: #1e293b;
+  color: #93c5fd;
 }
 </style>

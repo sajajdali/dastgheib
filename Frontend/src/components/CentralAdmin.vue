@@ -77,6 +77,7 @@
       @update-tenant="updateTenant"
       @add-domain="addDomain"
       @remove-domain="removeDomain"
+      @seed-demo-data="seedDemoData"
       @delete-tenant="deleteTenant"
     />
   </CentralLayout>
@@ -440,6 +441,23 @@ async function removeDomain({ tenant, domain }) {
     replaceTenant(data.tenant);
   } catch (requestError) {
     error.value = responseMessage(requestError, "حذف دامنه انجام نشد.");
+  }
+}
+
+async function seedDemoData(tenant) {
+  if (!window.confirm(`برای سایت ${tenant.name || tenant.id} دیتای تستی کامل ساخته شود؟`)) return;
+  saving.value = true;
+  error.value = "";
+  message.value = "";
+  try {
+    const { data } = await axios.post(`/central-api/tenants/${tenant.id}/demo-data`);
+    replaceTenant(data.tenant);
+    const summary = data.summary || {};
+    message.value = `${data.message || "دیتای تستی ساخته شد."} نوبت‌ها: ${summary.appointments || 0}، بیماران: ${summary.patients || 0}، ریزحقوق: ${summary.payroll_lines || 0}`;
+  } catch (requestError) {
+    error.value = responseMessage(requestError, "ساخت دیتای تستی انجام نشد.");
+  } finally {
+    saving.value = false;
   }
 }
 

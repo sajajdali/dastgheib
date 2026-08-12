@@ -19,7 +19,7 @@ class ContactController extends Controller
         $items = $request->items ?? [];
 
         // ابتدا کل جدول پاک می‌شود
-        Contact::truncate();
+        Contact::query()->get()->each->delete();
 
         // درج مجدد همه آیتم‌ها
         foreach ($items as $item) {

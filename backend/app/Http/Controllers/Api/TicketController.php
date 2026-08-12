@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class TicketController extends Controller
 {
@@ -39,7 +40,7 @@ class TicketController extends Controller
             'subject' => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
             'date' => ['required', 'string', 'max:10'],
-            'owner' => ['nullable', 'string', 'max:100'],
+            'owner' => ['required', 'string', 'max:100', Rule::exists('staff', 'name')],
             'priority' => ['required', 'in:low,medium,high,urgent'],
             'status' => ['required', 'in:active,done,expired'],
         ]);

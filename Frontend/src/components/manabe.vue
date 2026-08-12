@@ -196,9 +196,9 @@
             </td>
             <td data-label="نام پرسنل">
               <select v-model="row.user_id" class="resource-user-select" @change="syncResourceUser(row, 'staff')">
-                <option value="">انتخاب پرسنل از رول پرسنل</option>
+                <option value="">انتخاب کاربر برای پرسنل</option>
                 <option v-for="user in staffUserOptions" :key="user.id" :value="user.id">{{ user.user }}</option>
-                <option v-if="!staffUserOptions.length" value="" disabled>کاربری با رول پرسنل پیدا نشد</option>
+                <option v-if="!staffUserOptions.length" value="" disabled>کاربر غیر پزشک و غیر مدیر کل پیدا نشد</option>
               </select>
               <small v-if="row.name && !row.user_id" class="legacy-resource-name">{{ row.name }}</small>
             </td>
@@ -395,9 +395,15 @@ export default {
         .map(role => role.id);
     },
 
-    staffRoleIds() {
+    excludedStaffRoleIds() {
       return this.roles
-        .filter(role => String(role.name || '').includes('پرسنل'))
+        .filter(role => {
+          const name = String(role.name || '').trim().toLowerCase();
+          return name.includes('پزشک')
+            || name.includes('مدیر کل')
+            || name === 'super admin'
+            || name === 'super-admin';
+        })
         .map(role => role.id);
     },
 
@@ -406,7 +412,7 @@ export default {
     },
 
     staffUserOptions() {
-      return this.users.filter(user => this.userHasAnyRole(user, this.staffRoleIds));
+      return this.users.filter(user => !this.userHasAnyRole(user, this.excludedStaffRoleIds));
     }
   },
 
@@ -1857,6 +1863,15 @@ input:focus {
 .resource-content tbody td:first-child{border-radius:0 16px 16px 0}
 .resource-content tbody td:last-child{border-radius:16px 0 0 16px}
 .staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:360px;min-width:360px}
+.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),
+.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:190px;min-width:190px}
+.staff-content .actions-cell,.doctor-content .actions-cell{min-height:58px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:nowrap}
+.staff-content .btn-add,.staff-content .btn-remove,
+.doctor-content .btn-add,.doctor-content .btn-remove{width:auto;min-width:78px;height:40px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:11px;line-height:1;white-space:nowrap;box-shadow:0 7px 16px rgba(15,23,42,.1)}
+.staff-content .btn-add span,.staff-content .btn-remove span,
+.doctor-content .btn-add span,.doctor-content .btn-remove span{font-size:18px;line-height:1}
+.staff-content .btn-add small,.staff-content .btn-remove small,
+.doctor-content .btn-add small,.doctor-content .btn-remove small{display:block;color:inherit;font-size:10px;font-weight:900;line-height:1}
 .channels-content{max-width:100%;overflow:visible}
 .channels-content table{width:100%;min-width:0;table-layout:fixed;border-spacing:0 12px}
 .channels-content table th:nth-child(1),.channels-content table td:nth-child(1){width:130px}
@@ -1882,4 +1897,4 @@ input:focus {
 .channel-modal-preview{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #ddd6fe;border-radius:14px;background:#faf5ff}
 .channel-modal-preview span{width:48px;height:48px;display:grid;place-items:center;border-radius:13px;background:#7c3aed;color:#fff;font-size:23px}
 .channel-modal-preview strong{color:#4c1d95;font-size:13px}
-@media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}</style>
+@media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:180px;min-width:180px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}</style>

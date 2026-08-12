@@ -118,6 +118,7 @@
             <button class="central-button secondary" type="submit">افزودن</button>
           </form>
           <div class="central-actions">
+            <button class="central-button secondary compact" type="button" :disabled="saving" @click="$emit('seed-demo-data', tenant)">دیتای تستی</button>
             <button class="central-button secondary compact" type="button" @click="startEditTenant(tenant)">ویرایش</button>
             <button class="central-button danger compact" type="button" @click="$emit('delete-tenant', tenant)">حذف</button>
           </div>
@@ -196,7 +197,7 @@ const props = defineProps({
   message: { type: String, default: "" },
 });
 
-const emit = defineEmits(["create-tenant", "update-tenant", "add-domain", "remove-domain", "delete-tenant"]);
+const emit = defineEmits(["create-tenant", "update-tenant", "add-domain", "remove-domain", "delete-tenant", "seed-demo-data"]);
 
 const form = reactive({
   id: "",

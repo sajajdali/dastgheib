@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceMonth;
 use App\Models\Doctor;
+use App\Models\ResourceEarningLine;
 use App\Models\Staff;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,19 +44,24 @@ class AttendanceMonthController extends Controller
                 ->merge(Doctor::query()->pluck('id')->map(fn ($id) => ['type' => 'doctor', 'id' => $id]));
 
             $months = DB::transaction(function () use ($resources, $data) {
-                return $resources->map(fn ($resource) => AttendanceMonth::query()->firstOrCreate(
-                    [
-                        'resource_type' => $resource['type'],
-                        'resource_id' => $resource['id'],
-                        'year' => $data['year'],
-                        'month' => $data['month'],
-                    ],
-                    [
-                        'name' => $data['name'],
-                        'daily_hours' => $data['daily_hours'] ?? 8,
-                        'days' => $data['days'],
-                    ]
-                ))->values();
+                return $resources->map(function ($resource) use ($data) {
+                    $month = AttendanceMonth::query()->firstOrCreate(
+                        [
+                            'resource_type' => $resource['type'],
+                            'resource_id' => $resource['id'],
+                            'year' => $data['year'],
+                            'month' => $data['month'],
+                        ],
+                        [
+                            'name' => $data['name'],
+                            'daily_hours' => $data['daily_hours'] ?? 8,
+                            'days' => $data['days'],
+                        ]
+                    );
+                    $this->syncAttendanceEarningLines($month->fresh());
+
+                    return $month;
+                })->values();
             });
 
             return response()->json(['months' => $months], 201);
@@ -76,6 +82,7 @@ class AttendanceMonthController extends Controller
                 'days' => $data['days'],
             ]
         );
+        $this->syncAttendanceEarningLines($month->fresh());
 
         return response()->json([
             'month' => $month->fresh(),
@@ -118,6 +125,7 @@ class AttendanceMonthController extends Controller
         }
 
         $attendanceMonth->update($data);
+        $this->syncAttendanceEarningLines($attendanceMonth->fresh());
 
         return response()->json(['month' => $attendanceMonth->fresh()]);
     }
@@ -130,6 +138,7 @@ class AttendanceMonthController extends Controller
             (int) $attendanceMonth->resource_id,
             true
         );
+        $this->deleteAttendanceEarningLines($attendanceMonth);
         $attendanceMonth->delete();
 
         return response()->json(['success' => true]);
@@ -191,5 +200,122 @@ class AttendanceMonthController extends Controller
         });
 
         abort_if($clockChanged, 403, 'شما اجازه ثبت ورود و خروج را ندارید.');
+    }
+
+    private function syncAttendanceEarningLines(AttendanceMonth $attendanceMonth): void
+    {
+        $this->deleteAttendanceEarningLines($attendanceMonth);
+
+        $resource = $this->attendanceResource($attendanceMonth);
+        if (! $resource) {
+            return;
+        }
+
+        foreach (($attendanceMonth->days ?? []) as $day) {
+            if (! is_array($day)) {
+                continue;
+            }
+
+            $payload = $this->attendanceLinePayload($attendanceMonth, $resource, $day);
+            if ($payload) {
+                ResourceEarningLine::create($payload);
+            }
+        }
+    }
+
+    private function deleteAttendanceEarningLines(AttendanceMonth $attendanceMonth): void
+    {
+        ResourceEarningLine::query()
+            ->whereNull('appointment_id')
+            ->where('month', $this->ledgerMonth($attendanceMonth))
+            ->where('resource_type', $attendanceMonth->resource_type)
+            ->where('resource_id', $attendanceMonth->resource_id)
+            ->whereIn('earning_type', ['attendance_overtime', 'attendance_shortage', 'attendance_absence'])
+            ->delete();
+    }
+
+    private function attendanceLinePayload(AttendanceMonth $attendanceMonth, Doctor|Staff $resource, array $day): ?array
+    {
+        $dayNumber = (int) ($day['day'] ?? 0);
+        if ($dayNumber <= 0) {
+            return null;
+        }
+
+        $absent = (bool) ($day['absent'] ?? false);
+        $leaveApproved = (bool) ($day['leaveApproved'] ?? false);
+        $employerApproved = (bool) ($day['employerApproved'] ?? false);
+        $workedHours = max(0, (float) ($day['workedHours'] ?? 0));
+        $diff = (float) ($day['diff'] ?? 0);
+        $amount = (float) ($day['amount'] ?? 0);
+        $earningType = null;
+        $rate = 0;
+        $description = null;
+
+        if ($absent && ! $leaveApproved) {
+            $earningType = 'attendance_absence';
+            $rate = (float) ($resource->absence_deduction ?? 0);
+            $amount = $amount < 0 ? $amount : -$rate;
+            $description = 'کسر عدم حضور روز '.$dayNumber;
+        } elseif ($diff > 0 && $employerApproved) {
+            $earningType = 'attendance_overtime';
+            $rate = (float) ($resource->overtime_hourly_rate ?? 0);
+            $amount = $amount > 0 ? $amount : round($diff * $rate);
+            $description = 'اضافه‌کاری تاییدشده روز '.$dayNumber;
+        } elseif ($diff < 0) {
+            $earningType = 'attendance_shortage';
+            $rate = (float) ($resource->shortage_hourly_deduction ?? 0);
+            $amount = $amount < 0 ? $amount : -round(abs($diff) * $rate);
+            $description = 'کسر کسری ساعت روز '.$dayNumber;
+        }
+
+        if (! $earningType || abs($amount) <= 0) {
+            return null;
+        }
+
+        return [
+            'appointment_id' => null,
+            'month' => $this->ledgerMonth($attendanceMonth),
+            'day_num' => $dayNumber,
+            'earned_at' => now(),
+            'resource_type' => $attendanceMonth->resource_type,
+            'resource_id' => $attendanceMonth->resource_id,
+            'resource_name' => $resource->name,
+            'earning_type' => $earningType,
+            'quantity' => $absent ? 1 : abs($diff),
+            'gross_amount' => $amount,
+            'net_amount' => $amount,
+            'commission_base' => $absent ? 1 : abs($diff),
+            'commission_type' => $absent ? 'absence' : 'hourly',
+            'commission_value' => $rate,
+            'amount' => $amount,
+            'calculation_snapshot' => [
+                'attendance_month_id' => $attendanceMonth->id,
+                'daily_hours' => (float) $attendanceMonth->daily_hours,
+                'worked_hours' => $workedHours,
+                'diff_hours' => $diff,
+                'in' => $day['in'] ?? null,
+                'out' => $day['out'] ?? null,
+                'employer_approved' => $employerApproved,
+                'leave_request_title' => $day['leaveRequestTitle'] ?? null,
+                'leave_approved' => $leaveApproved,
+                'absent' => $absent,
+                'overtime_hourly_rate' => (float) ($resource->overtime_hourly_rate ?? 0),
+                'shortage_hourly_deduction' => (float) ($resource->shortage_hourly_deduction ?? 0),
+                'absence_deduction' => (float) ($resource->absence_deduction ?? 0),
+            ],
+            'description' => $description,
+        ];
+    }
+
+    private function attendanceResource(AttendanceMonth $attendanceMonth): Doctor|Staff|null
+    {
+        $model = $attendanceMonth->resource_type === 'doctor' ? Doctor::query() : Staff::query();
+
+        return $model->find($attendanceMonth->resource_id);
+    }
+
+    private function ledgerMonth(AttendanceMonth $attendanceMonth): string
+    {
+        return sprintf('%04d-%02d', $attendanceMonth->year, $attendanceMonth->month);
     }
 }

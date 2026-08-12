@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\InventorySection;
 use App\Models\PatientMedia;
+use App\Support\PatientPhoneVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
@@ -69,7 +70,7 @@ class PhotoComparisonController extends Controller
                 $media->folder?->inventory_section_id,
                 $media->photo_angle_key,
             ]))
-            ->map(fn (Collection $rows) => $this->comparison($rows))
+            ->map(fn (Collection $rows) => $this->comparison($rows, $request))
             ->when($request->filled('service_id'), function (Collection $rows) use ($data) {
                 return $rows->filter(function ($row) use ($data) {
                     return (int) ($row['service']?->id ?? 0) === (int) $data['service_id']
@@ -107,7 +108,7 @@ class PhotoComparisonController extends Controller
         ]);
     }
 
-    private function comparison(Collection $rows): array
+    private function comparison(Collection $rows, Request $request): array
     {
         /** @var PatientMedia $sample */
         $sample = $rows->first();
@@ -118,9 +119,14 @@ class PhotoComparisonController extends Controller
             ->unique(fn ($tag) => $tag['id'] ?? $tag['key'] ?? $tag['name'] ?? serialize($tag))
             ->values();
 
+        $patient = $sample->patient;
+        if ($patient && ! PatientPhoneVisibility::canView($request)) {
+            $patient->setAttribute('phone', PatientPhoneVisibility::mask($patient->phone));
+        }
+
         return [
             'key' => implode('-', [$sample->patient_id, $sample->folder?->folder_date, $sample->folder?->inventory_section_id, $sample->photo_angle_key]),
-            'patient' => $sample->patient,
+            'patient' => $patient,
             'date' => $sample->folder?->folder_date,
             'sort_date' => max($before?->created_at?->timestamp ?? 0, $after?->created_at?->timestamp ?? 0),
             'service' => $sample->folder?->inventorySection,

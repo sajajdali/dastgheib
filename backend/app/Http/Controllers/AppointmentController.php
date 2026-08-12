@@ -6,16 +6,21 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\AppointmentBalanceAudit;
 use App\Models\AppointmentNoteMessage;
+use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Inventory;
+use App\Models\InventoryCommission;
+use App\Models\ResourceEarningLine;
+use App\Models\Staff;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 use App\Services\CustomerLevelService;
+use App\Support\PatientPhoneVisibility;
 
 class AppointmentController extends Controller
 {
     // دریافت نوبت‌ها (فقط کل نوبت‌ها را برمی‌گرداند)
-    public function getAppointments(CustomerLevelService $levels)
+    public function getAppointments(Request $request, CustomerLevelService $levels)
     {
         $appointments = Appointment::query()
             ->orderBy('month')
@@ -25,7 +30,7 @@ class AppointmentController extends Controller
             ->get();
 
         if ($appointments->isEmpty()) {
-            return response()->json($appointments);
+            return response()->json($this->hideAppointmentPhones($appointments, $request));
         }
 
         $appointmentKeys = $appointments->map(fn (Appointment $appointment) => $this->appointmentNoteKey($appointment))->unique()->values();
@@ -82,7 +87,19 @@ class AppointmentController extends Controller
             $appointment->setAttribute('patient_outstanding_debt', $patient?->outstanding_debt ?? 0);
         });
 
-        return response()->json($appointments);
+        return response()->json($this->hideAppointmentPhones($appointments, $request));
+    }
+
+    private function hideAppointmentPhones($appointments, Request $request)
+    {
+        if (PatientPhoneVisibility::canView($request)) {
+            return $appointments;
+        }
+
+        return $appointments->each(function (Appointment $appointment) {
+            $appointment->setAttribute('phone', PatientPhoneVisibility::mask($appointment->phone));
+            $appointment->setAttribute('referrer_phone', PatientPhoneVisibility::mask($appointment->referrer_phone));
+        });
     }
 
     private function appointmentNoteKey(Appointment $appointment): string
@@ -122,7 +139,11 @@ class AppointmentController extends Controller
                 $existingById = $existingAppointments->keyBy('id');
                 $existingByKey = $existingAppointments->keyBy(fn (Appointment $item) => $this->appointmentAuditKey($item->toArray()));
 
-                Appointment::where('month', $month)->delete();
+                $existingAppointments->each->delete();
+                ResourceEarningLine::query()
+                    ->where('month', $month)
+                    ->whereNull('appointment_id')
+                    ->delete();
             } else {
                 // اگر اصلاً مشخص نیست چه ماهی است، هیچ کاری نکن و چیزی را پاک نکن
                 return; 
@@ -141,6 +162,23 @@ class AppointmentController extends Controller
                     // تبدیل فیلد خدمات به آرایه برای ذخیره در JSON
                     if (isset($appt['services']) && is_string($appt['services'])) {
                         $appt['services'] = json_decode($appt['services'], true);
+                    }
+
+                    if (! PatientPhoneVisibility::canView($request)) {
+                        if ($previousAppointment) {
+                            $appt['phone'] = $previousAppointment->phone;
+                            $appt['referrer_phone'] = $previousAppointment->referrer_phone;
+                        } else {
+                            $appt['phone'] = '';
+                            $appt['referrer_phone'] = '';
+                        }
+                    } elseif ($previousAppointment) {
+                        if (PatientPhoneVisibility::looksMasked($appt['phone'] ?? '')) {
+                            $appt['phone'] = $previousAppointment->phone;
+                        }
+                        if (PatientPhoneVisibility::looksMasked($appt['referrer_phone'] ?? '')) {
+                            $appt['referrer_phone'] = $previousAppointment->referrer_phone;
+                        }
                     }
 
                     $financial = $this->normalizeServiceDiscounts($appt['services'] ?? []);
@@ -169,6 +207,7 @@ class AppointmentController extends Controller
 
                     $created = Appointment::create($appt);
                     $this->recordBalanceAudit($request, $created, $previousAppointment);
+                    $this->syncResourceEarningLines($created);
 
                     $auditKey = $this->appointmentAuditKey($created->toArray());
                     $referralSource = "referral|{$month}|".sha1($auditKey);
@@ -230,6 +269,8 @@ class AppointmentController extends Controller
                         }
                     }
                 }
+
+                $this->syncMonthlySalesBonusLines($month);
             }
 
             WalletTransaction::query()
@@ -275,7 +316,7 @@ class AppointmentController extends Controller
                 'day_num' => $audit->day_num,
                 'sort_order' => $audit->sort_order,
                 'patient_name' => $audit->patient_name,
-                'phone' => $audit->phone,
+                'phone' => PatientPhoneVisibility::hideValue($audit->phone, $request),
                 'file_number' => $audit->file_number,
                 'old_debt' => (int) $audit->old_debt,
                 'new_debt' => (int) $audit->new_debt,
@@ -384,6 +425,257 @@ class AppointmentController extends Controller
         return $negative ? -$amount : $amount;
     }
 
+    private function syncResourceEarningLines(Appointment $appointment): void
+    {
+        ResourceEarningLine::query()->where('appointment_id', $appointment->id)->delete();
+
+        $lines = $this->appointmentServiceLines($appointment->services ?? []);
+        if ($lines === []) {
+            return;
+        }
+
+        $names = collect($lines)->pluck('name')->filter()->unique()->values();
+        $inventories = Inventory::with('commissions')->whereIn('name', $names)->get()->keyBy('name');
+        $doctors = Doctor::query()->get()->keyBy(fn (Doctor $doctor) => $this->resourceKey($doctor->name));
+        $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
+
+        foreach ($lines as $line) {
+            $inventory = $inventories->get($line['name']);
+            if (! $inventory) {
+                continue;
+            }
+
+            foreach ([
+                ['type' => 'doctor', 'name' => $line['doctor'] ?: $appointment->doctor, 'map' => $doctors],
+                ['type' => 'staff', 'name' => $line['consultant'] ?: $appointment->consultant, 'map' => $staff],
+            ] as $target) {
+                $resourceName = trim((string) $target['name']);
+                if ($resourceName === '') {
+                    continue;
+                }
+
+                $resource = $target['map']->get($this->resourceKey($resourceName));
+                if (! $resource || ! $this->resourceReceivesCommission($resource, (bool) $appointment->new_customer)) {
+                    continue;
+                }
+
+                $this->createBaseCommissionLine($appointment, $line, $inventory, $target['type'], $resource);
+                $this->createInventoryCommissionLines($appointment, $line, $inventory, $target['type'], $resource);
+            }
+        }
+    }
+
+    private function appointmentServiceLines(array $services): array
+    {
+        $lines = [];
+        foreach (array_values($services) as $index => $service) {
+            $service = is_array($service) ? $service : [];
+            $lines[] = $this->normalizeEarningServiceLine($service, $index, false);
+            foreach (array_values($service['addons'] ?? []) as $addon) {
+                $lines[] = $this->normalizeEarningServiceLine(is_array($addon) ? $addon : [], $index, true, $service);
+            }
+        }
+
+        return collect($lines)->filter(fn ($line) => $line['name'] !== '')->values()->all();
+    }
+
+    private function normalizeEarningServiceLine(array $line, int $index, bool $isAddon, array $parent = []): array
+    {
+        return [
+            'name' => trim((string) ($line['name'] ?? '')),
+            'quantity' => max(1, (float) ($line['cc'] ?? 1)),
+            'discount' => max(0, (float) ($line['discount'] ?? 0)),
+            'doctor' => trim((string) ($line['doctor'] ?? $parent['doctor'] ?? '')),
+            'consultant' => trim((string) ($line['consultant'] ?? $parent['consultant'] ?? '')),
+            'index' => $index,
+            'is_addon' => $isAddon,
+        ];
+    }
+
+    private function createBaseCommissionLine(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
+    {
+        $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials);
+        $commissionValue = (float) ($resource->bonus ?? 0);
+        $amount = $this->calculateCommissionAmount('percent', $commissionValue, $amounts['base'], $line['quantity']);
+        if ($amount <= 0) {
+            return;
+        }
+
+        ResourceEarningLine::create($this->earningPayload(
+            $appointment,
+            $line,
+            $inventory,
+            $type,
+            $resource,
+            'base_commission',
+            'percent',
+            $commissionValue,
+            $amount,
+            $amounts,
+            "پورسانت پایه {$commissionValue}% برای {$line['name']}"
+        ));
+    }
+
+    private function createInventoryCommissionLines(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
+    {
+        $commissions = $inventory->commissions
+            ->where('recipient_type', $type)
+            ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
+
+        foreach ($commissions as $commission) {
+            $amounts = $this->earningAmounts($line, $inventory, false);
+            $commissionType = $commission->commission_type === 'fixed' ? 'fixed' : 'percent';
+            $commissionValue = (float) $commission->commission_value;
+            $amount = $this->calculateCommissionAmount($commissionType, $commissionValue, $amounts['net'], $line['quantity']);
+            if ($amount <= 0) {
+                continue;
+            }
+
+            ResourceEarningLine::create($this->earningPayload(
+                $appointment,
+                $line,
+                $inventory,
+                $type,
+                $resource,
+                'inventory_commission',
+                $commissionType,
+                $commissionValue,
+                $amount,
+                [...$amounts, 'base' => $amounts['net']],
+                "پورسانت اختصاصی انبار {$commissionValue}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}"
+            ));
+        }
+    }
+
+    private function earningPayload(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource, string $earningType, string $commissionType, float $commissionValue, float $amount, array $amounts, string $description): array
+    {
+        return [
+            'appointment_id' => $appointment->id,
+            'month' => $appointment->month,
+            'day_num' => $appointment->day_num,
+            'earned_at' => $appointment->created_at,
+            'resource_type' => $type,
+            'resource_id' => $resource->id,
+            'resource_name' => $resource->name,
+            'earning_type' => $earningType,
+            'inventory_id' => $inventory->id,
+            'inventory_name' => $inventory->name,
+            'service_name' => $line['name'],
+            'service_line_index' => $line['index'],
+            'is_addon' => $line['is_addon'],
+            'quantity' => $line['quantity'],
+            'gross_amount' => $amounts['gross'],
+            'discount_amount' => $amounts['discount'],
+            'net_amount' => $amounts['net'],
+            'material_cost' => $amounts['materials'],
+            'commission_base' => $amounts['base'],
+            'commission_type' => $commissionType,
+            'commission_value' => $commissionValue,
+            'amount' => round($amount),
+            'commission_after_materials' => (bool) ($resource->commission_after_materials ?? false),
+            'commission_customer_scope' => $resource->commission_customer_scope ?? 'both',
+            'appointment_new_customer' => (bool) $appointment->new_customer,
+            'calculation_snapshot' => [
+                'resource_bonus' => (float) ($resource->bonus ?? 0),
+                'resource_sales_bonus_enabled' => (bool) ($resource->sales_bonus_enabled ?? false),
+                'resource_sales_bonus_tiers' => $resource->sales_bonus_tiers ?? [],
+                'inventory_amount' => (float) ($inventory->amount ?? 0),
+                'inventory_material_price' => (float) ($inventory->price ?? 0),
+                'inventory_default_commission_type' => $inventory->default_commission_type,
+                'inventory_default_commission_value' => (float) $inventory->default_commission_value,
+            ],
+            'description' => $description,
+        ];
+    }
+
+    private function earningAmounts(array $line, Inventory $inventory, bool $afterMaterials): array
+    {
+        $gross = (float) ($inventory->amount ?? 0) * $line['quantity'];
+        $discount = min($line['discount'], $gross);
+        $net = max(0, $gross - $discount);
+        $materials = (float) ($inventory->price ?? 0) * $line['quantity'];
+        $base = $afterMaterials ? max(0, $net - $materials) : $net;
+
+        return compact('gross', 'discount', 'net', 'materials', 'base');
+    }
+
+    private function calculateCommissionAmount(string $type, float $value, float $base, float $quantity): float
+    {
+        return $type === 'fixed'
+            ? max(0, $value) * max(1, $quantity)
+            : max(0, $base) * max(0, $value) / 100;
+    }
+
+    private function commissionMatchesResource(InventoryCommission $commission, Doctor|Staff $resource): bool
+    {
+        if ($commission->recipient_id && (int) $commission->recipient_id === (int) $resource->id) {
+            return true;
+        }
+
+        return $this->resourceKey($commission->recipient_name) === $this->resourceKey($resource->name);
+    }
+
+    private function resourceReceivesCommission(Doctor|Staff $resource, bool $newCustomer): bool
+    {
+        return match ($resource->commission_customer_scope ?? 'both') {
+            'new' => $newCustomer,
+            'existing' => ! $newCustomer,
+            default => true,
+        };
+    }
+
+    private function syncMonthlySalesBonusLines(string $month): void
+    {
+        foreach ([['type' => 'doctor', 'model' => Doctor::class], ['type' => 'staff', 'model' => Staff::class]] as $target) {
+            $target['model']::query()->where('sales_bonus_enabled', true)->get()->each(function (Doctor|Staff $resource) use ($month, $target) {
+                $sales = (float) ResourceEarningLine::query()
+                    ->where('month', $month)
+                    ->where('resource_type', $target['type'])
+                    ->where('resource_id', $resource->id)
+                    ->whereIn('earning_type', ['base_commission', 'inventory_commission'])
+                    ->sum('net_amount');
+
+                $tier = collect($resource->sales_bonus_tiers ?? [])
+                    ->filter(fn ($item) => $sales >= (float) ($item['sales_from'] ?? 0))
+                    ->sortByDesc(fn ($item) => (float) ($item['sales_from'] ?? 0))
+                    ->first();
+
+                if (! $tier) {
+                    return;
+                }
+
+                ResourceEarningLine::create([
+                    'appointment_id' => null,
+                    'month' => $month,
+                    'earned_at' => now(),
+                    'resource_type' => $target['type'],
+                    'resource_id' => $resource->id,
+                    'resource_name' => $resource->name,
+                    'earning_type' => 'sales_bonus',
+                    'gross_amount' => $sales,
+                    'net_amount' => $sales,
+                    'commission_base' => $sales,
+                    'commission_type' => 'tier',
+                    'commission_value' => (float) ($tier['sales_from'] ?? 0),
+                    'amount' => (float) ($tier['salary_addition'] ?? 0),
+                    'commission_after_materials' => (bool) ($resource->commission_after_materials ?? false),
+                    'commission_customer_scope' => $resource->commission_customer_scope ?? 'both',
+                    'calculation_snapshot' => [
+                        'monthly_sales' => $sales,
+                        'matched_tier' => $tier,
+                        'all_tiers' => $resource->sales_bonus_tiers ?? [],
+                    ],
+                    'description' => 'پاداش پلکانی فروش ماهانه',
+                ]);
+            });
+        }
+    }
+
+    private function resourceKey(?string $name): string
+    {
+        return mb_strtolower(trim((string) $name));
+    }
+
     private function calculateReferralReward(array $appointment): array
     {
         $phone = trim((string) ($appointment['referrer_phone'] ?? ''));
@@ -490,38 +782,60 @@ class AppointmentController extends Controller
             $query->orWhere('phone', $request->phone);
         }
 
-        return response()->json(
-            $query
+        $columns = [
+            'id',
+            'month',
+            'day_num',
+            'lastname',
+            'phone',
+            'file_number',
+            'time',
+            'status',
+            'arrived_at',
+            'done',
+            'completed_at',
+            'source',
+            'services',
+            'amount',
+            'debt',
+            'payment_method',
+            'payment_account',
+            'payment_details',
+            'payment_link',
+            'payment_link_sent_count',
+            'payment_link_last_sent_at',
+            'referrer_phone',
+            'referral_score',
+            'discount',
+            'original_amount',
+            'description',
+            'doctor_note',
+            'created_at',
+        ];
+
+        if ($request->filled('per_page')) {
+            $perPage = min(50, max(5, (int) $request->integer('per_page', 15)));
+            $page = max(1, (int) $request->integer('page', 1));
+            $total = (clone $query)->count();
+            $items = $query
                 ->orderByDesc('created_at')
-                ->get([
-                    'id',
-                    'month',
-                    'day_num',
-                    'lastname',
-                    'phone',
-                    'file_number',
-                    'time',
-                    'status',
-                    'arrived_at',
-                    'done',
-                    'completed_at',
-                    'source',
-                    'services',
-                    'amount',
-                    'debt',
-                    'payment_method',
-                    'payment_account',
-                    'payment_link',
-                    'payment_link_sent_count',
-                    'payment_link_last_sent_at',
-                    'referrer_phone',
-                    'referral_score',
-                    'discount',
-                    'original_amount',
-                    'description',
-                    'doctor_note',
-                    'created_at',
-                ])
-        );
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get($columns);
+
+            return response()->json([
+                'data' => $this->hideAppointmentPhones($items, $request),
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'has_more' => ($page * $perPage) < $total,
+            ]);
+        }
+
+        $items = $query
+            ->orderByDesc('created_at')
+            ->get($columns);
+
+        return response()->json($this->hideAppointmentPhones($items, $request));
     }
 }

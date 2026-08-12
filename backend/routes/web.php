@@ -28,6 +28,7 @@ foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
                 Route::get('/tenants', [CentralTenantController::class, 'index']);
                 Route::post('/tenants', [CentralTenantController::class, 'store']);
                 Route::patch('/tenants/{tenant}', [CentralTenantController::class, 'update']);
+                Route::post('/tenants/{tenant}/demo-data', [CentralTenantController::class, 'seedDemoData']);
                 Route::post('/tenants/{tenant}/domains', [CentralTenantController::class, 'storeDomain']);
                 Route::delete('/tenants/{tenant}/domains/{domain}', [CentralTenantController::class, 'destroyDomain']);
                 Route::delete('/tenants/{tenant}', [CentralTenantController::class, 'destroy']);

@@ -127,6 +127,10 @@
               توضیحات
             </th>
 
+            <th class="center-title attachment-col">
+              عکس
+            </th>
+
           </tr>
         </thead>
 
@@ -302,6 +306,24 @@
 
             </td>
 
+            <!-- عکس -->
+            <td class="attachment-cell">
+              <input
+                :id="`bill-photo-${index}`"
+                class="bill-photo-input"
+                type="file"
+                accept="image/*"
+                @change="attachImage($event, row)"
+              />
+              <div v-if="row.imageData" class="bill-photo-preview">
+                <button type="button" class="bill-photo-thumb" title="مشاهده عکس" @click="previewImage(row)">
+                  <img :src="row.imageData" :alt="row.imageName || 'عکس هزینه'">
+                </button>
+                <button type="button" class="bill-photo-remove" title="حذف عکس" @click="removeImage(row)">×</button>
+              </div>
+              <label v-else class="bill-photo-add" :for="`bill-photo-${index}`">+ عکس</label>
+            </td>
+
           </tr>
 
         </tbody>
@@ -359,6 +381,14 @@
 
     </div>
 
+    <div v-if="previewPhoto" class="bill-photo-modal" @click.self="previewPhoto = null">
+      <section>
+        <button type="button" @click="previewPhoto = null">×</button>
+        <img :src="previewPhoto.data" :alt="previewPhoto.name || 'عکس هزینه'">
+        <span>{{ previewPhoto.name || 'عکس هزینه' }}</span>
+      </section>
+    </div>
+
   </div>
 </template>
 
@@ -381,6 +411,7 @@ export default {
       popupStyle: {},
 
       rowCount: 5,
+      previewPhoto: null,
 
       rows: Array.from({ length: 5 }, () => ({
         productName: '',
@@ -393,7 +424,9 @@ export default {
         paymentMethod: '',
         type: '',
         status: '',
-        description: ''
+        description: '',
+        imageData: '',
+        imageName: ''
       })),
 
       categoryOptions: [
@@ -401,7 +434,7 @@ export default {
         'اجاره',
         'مواد مصرفی',
         'تبلیغات',
-        'قبوض',
+        'هزینه‌ها',
         'آشپزخانه',
         'تعمیرات',
         'تجهیزات'
@@ -622,7 +655,9 @@ export default {
             paymentMethod: '',
             type: '',
             status: '',
-            description: ''
+            description: '',
+            imageData: '',
+            imageName: ''
           })
 
         }
@@ -652,8 +687,41 @@ export default {
 
       }
 
-    }
+    },
 
+    attachImage(event, row) {
+      const file = event.target.files?.[0]
+      event.target.value = ''
+      if (!file) return
+      if (!file.type.startsWith('image/')) {
+        alert('فقط فایل عکس قابل ثبت است')
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('حجم عکس باید کمتر از ۵ مگابایت باشد')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = () => {
+        row.imageData = String(reader.result || '')
+        row.imageName = file.name
+      }
+      reader.readAsDataURL(file)
+    },
+
+    removeImage(row) {
+      row.imageData = ''
+      row.imageName = ''
+    },
+
+    previewImage(row) {
+      if (!row.imageData) return
+      this.previewPhoto = {
+        data: row.imageData,
+        name: row.imageName
+      }
+    }
   },
 
   mounted() {
@@ -756,6 +824,123 @@ export default {
   min-height:34px;
   max-height:60px;
   resize:vertical;
+}
+
+.attachment-col {
+  width: 92px;
+}
+
+.attachment-cell {
+  position: relative;
+}
+
+.bill-photo-input {
+  display: none;
+}
+
+.bill-photo-add,
+.bill-photo-thumb,
+.bill-photo-remove {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.bill-photo-add {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px dashed #93c5fd;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.bill-photo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.bill-photo-thumb {
+  width: 42px;
+  height: 32px;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.bill-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.bill-photo-remove {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.bill-photo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, .6);
+}
+
+.bill-photo-modal section {
+  position: relative;
+  width: min(720px, 96vw);
+  max-height: 90vh;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 25px 70px rgba(15, 23, 42, .35);
+}
+
+.bill-photo-modal button {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.bill-photo-modal img {
+  max-width: 100%;
+  max-height: 76vh;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.bill-photo-modal span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .modern-table input:focus,

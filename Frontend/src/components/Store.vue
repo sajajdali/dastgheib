@@ -108,7 +108,7 @@
                 <span>پس از اتصال درگاه، پرداخت این پیش‌فاکتور از همین بخش انجام می‌شود.</span>
               </div>
               <button class="checkout-btn" type="button" :disabled="paying || !selectedItems.length" @click="payInvoice">
-                {{ paying ? "در حال انتقال..." : "ادامه به قوانین" }}
+                {{ paying ? "در حال انتقال..." : "خرید و سفارش" }}
               </button>
             </section>
 
@@ -162,48 +162,56 @@
               class="plugin-card"
               :class="{ selected: isSelected(item.key) }"
             >
-              <header>
-                <div class="plugin-icon" :style="{ '--accent': item.color }">
+              <div class="plugin-main">
+                <div v-if="item.image" class="plugin-image">
+                  <img :src="item.image" :alt="item.title">
+                </div>
+                <div v-else class="plugin-image plugin-image-fallback" :style="{ '--accent': item.color }">
                   <span>{{ item.icon }}</span>
                 </div>
-                <div>
-                  <h3>{{ item.title }}</h3>
-                  <small>{{ item.categoryLabel }}</small>
+                <div class="plugin-content">
+                  <header>
+                    <div>
+                      <h3>{{ item.title }}</h3>
+                      <small>{{ item.categoryLabel }}</small>
+                    </div>
+                    <button type="button" class="details-btn" @click="openDetails(item)">جزئیات</button>
+                  </header>
+                  <p>{{ item.description }}</p>
                 </div>
-              </header>
-
-              <p>{{ item.description }}</p>
-
-              <div class="plugin-meta">
-                <strong>{{ formatPrice(selectedPeriod(item).price) }}</strong>
-                <span>{{ isPurchased(item) ? "خریداری شده و فعال است" : selectedPeriod(item).label }}</span>
               </div>
 
-              <div v-if="!isPurchased(item) && item.periods?.length > 1" class="period-options">
-                <button
-                  v-for="period in item.periods"
-                  :key="`${item.key}-${period.key}`"
-                  type="button"
-                  :class="{ active: selectedPeriodKey(item) === period.key }"
-                  @click.stop="selectPeriod(item, period.key)"
-                >
-                  {{ period.label }}
-                </button>
-              </div>
+              <div class="plugin-actions">
+                <div class="plugin-meta">
+                  <strong>{{ formatPrice(selectedPeriod(item).price) }}</strong>
+                  <span>{{ isPurchased(item) ? "خریداری شده و فعال است" : selectedPeriod(item).label }}</span>
+                </div>
 
-              <footer>
-                <button type="button" class="details-btn" @click="openDetails(item)">جزئیات</button>
-                <span v-if="isPurchased(item)" class="purchased-badge">خریداری شده و فعال است</span>
-                <button
-                  v-else
-                  type="button"
-                  class="select-btn"
-                  :class="{ selected: isSelected(item.key) }"
-                  @click="toggleItem(item)"
-                >
-                  {{ isSelected(item.key) ? "حذف از سبد" : "افزودن به سبد" }}
-                </button>
-              </footer>
+                <div v-if="!isPurchased(item) && item.periods?.length > 1" class="period-options">
+                  <button
+                    v-for="period in item.periods"
+                    :key="`${item.key}-${period.key}`"
+                    type="button"
+                    :class="{ active: selectedPeriodKey(item) === period.key }"
+                    @click.stop="selectPeriod(item, period.key)"
+                  >
+                    {{ period.label }}
+                  </button>
+                </div>
+
+                <footer>
+                  <span v-if="isPurchased(item)" class="purchased-badge">خریداری شده و فعال است</span>
+                  <button
+                    v-else
+                    type="button"
+                    class="select-btn"
+                    :class="{ selected: isSelected(item.key) }"
+                    @click="toggleItem(item)"
+                  >
+                    {{ isSelected(item.key) ? "حذف از سبد" : "افزودن به سبد" }}
+                  </button>
+                </footer>
+              </div>
             </article>
           </div>
 
@@ -220,24 +228,33 @@
                 :key="item.key"
                 class="plugin-card coming-soon-card"
               >
-                <header>
-                  <div class="plugin-icon" :style="{ '--accent': item.color }">
+                <div class="plugin-main">
+                  <div v-if="item.image" class="plugin-image">
+                    <img :src="item.image" :alt="item.title">
+                  </div>
+                  <div v-else class="plugin-image plugin-image-fallback" :style="{ '--accent': item.color }">
                     <span>{{ item.icon }}</span>
                   </div>
-                  <div>
-                    <h3>{{ item.title }}</h3>
-                    <small>{{ item.categoryLabel }}</small>
+                  <div class="plugin-content">
+                    <header>
+                      <div>
+                        <h3>{{ item.title }}</h3>
+                        <small>{{ item.categoryLabel }}</small>
+                      </div>
+                      <button type="button" class="details-btn" @click="openDetails(item)">جزئیات</button>
+                    </header>
+                    <p>{{ item.description }}</p>
                   </div>
-                </header>
-                <p>{{ item.description }}</p>
-                <div class="plugin-meta">
-                  <strong>{{ formatPrice(selectedPeriod(item).price) }}</strong>
-                  <span>{{ selectedPeriod(item).label }}</span>
                 </div>
-                <footer>
-                  <button type="button" class="details-btn" @click="openDetails(item)">جزئیات</button>
-                  <span class="coming-soon-badge">فعلا قابل خرید نیست</span>
-                </footer>
+                <div class="plugin-actions">
+                  <div class="plugin-meta">
+                    <strong>{{ formatPrice(selectedPeriod(item).price) }}</strong>
+                    <span>{{ selectedPeriod(item).label }}</span>
+                  </div>
+                  <footer>
+                    <span class="coming-soon-badge">فعلا قابل خرید نیست</span>
+                  </footer>
+                </div>
               </article>
             </div>
           </section>
@@ -275,19 +292,28 @@
       <div v-if="detailsItem" class="store-modal" @click.self="detailsItem = null">
         <section>
           <button class="modal-close" type="button" @click="detailsItem = null">×</button>
-          <div class="plugin-icon modal-icon" :style="{ '--accent': detailsItem.color }">
-            <span>{{ detailsItem.icon }}</span>
+          <header class="modal-plugin-head">
+            <div v-if="detailsItem.image" class="modal-image">
+              <img :src="detailsItem.image" :alt="detailsItem.title">
+            </div>
+            <div v-else class="plugin-icon modal-icon" :style="{ '--accent': detailsItem.color }">
+              <span>{{ detailsItem.icon }}</span>
+            </div>
+            <div>
+              <small>{{ detailsItem.categoryLabel }}</small>
+              <h2>{{ detailsItem.title }}</h2>
+            </div>
+          </header>
+          <p class="modal-description">{{ detailsItem.longDescription }}</p>
+          <div class="modal-actions">
+            <div class="modal-price">
+              <span>قیمت</span>
+              <strong>{{ formatPrice(detailsItem.price) }}</strong>
+            </div>
+            <button type="button" class="select-btn" :disabled="isPurchased(detailsItem) || detailsItem.comingSoon" @click="toggleItem(detailsItem)">
+              {{ detailsItem.comingSoon ? "به زودی" : (isPurchased(detailsItem) ? "خریداری شده و فعال است" : (isSelected(detailsItem.key) ? "حذف از سبد" : "افزودن به سبد")) }}
+            </button>
           </div>
-          <small>{{ detailsItem.categoryLabel }}</small>
-          <h2>{{ detailsItem.title }}</h2>
-          <p>{{ detailsItem.longDescription }}</p>
-          <div class="modal-price">
-            <span>قیمت</span>
-            <strong>{{ formatPrice(detailsItem.price) }}</strong>
-          </div>
-          <button type="button" class="select-btn" :disabled="isPurchased(detailsItem) || detailsItem.comingSoon" @click="toggleItem(detailsItem)">
-            {{ detailsItem.comingSoon ? "به زودی" : (isPurchased(detailsItem) ? "خریداری شده و فعال است" : (isSelected(detailsItem.key) ? "حذف از سبد" : "افزودن به سبد")) }}
-          </button>
         </section>
       </div>
     </template>
@@ -576,6 +602,430 @@ export default {
 .invoice-page {
   align-content: start;
   padding-block: 10px;
+}
+
+.plugin-image {
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: #f8fafc;
+}
+
+.plugin-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  padding: 8px;
+}
+
+.plugin-image-fallback {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.plugin-image-fallback span {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.plugin-main {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.plugin-content {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+
+.plugin-content header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plugin-content .details-btn {
+  flex: 0 0 auto;
+  width: 94px;
+  height: 32px;
+  font-size: 11px;
+}
+
+.plugin-card {
+  gap: 11px;
+}
+
+.plugin-card p {
+  flex: initial;
+}
+
+.plugin-card footer {
+  justify-content: flex-end;
+}
+
+.plugin-card footer .select-btn,
+.plugin-card footer .purchased-badge,
+.plugin-card footer .coming-soon-badge {
+  flex: 0 1 230px;
+}
+
+@media (min-width: 1101px) {
+  .plugin-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plugin-card {
+    min-height: 218px;
+  }
+}
+
+@media (max-width: 680px) {
+  .plugin-main {
+    flex-direction: column;
+  }
+
+  .plugin-image {
+    width: 100%;
+    height: 150px;
+    flex-basis: auto;
+  }
+
+  .plugin-content header {
+    width: 100%;
+  }
+}
+
+.modal-image {
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: #f8fafc;
+}
+
+.modal-image img {
+  width: 100%;
+  max-height: 220px;
+  display: block;
+  object-fit: cover;
+}
+
+.store-page {
+  background: #f0f0f1;
+  color: #1d2327;
+}
+
+.store-hero {
+  border-color: #c3c4c7;
+  background: #fff;
+  box-shadow: none;
+}
+
+.store-layout {
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.store-toolbar {
+  border-color: #c3c4c7;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.store-tabs button {
+  border-radius: 0;
+  background: transparent;
+}
+
+.store-tabs button.active {
+  background: #2271b1;
+}
+
+.store-search input {
+  border-radius: 0;
+  border-color: #8c8f94;
+}
+
+.plugin-grid,
+.coming-soon-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px;
+}
+
+.plugin-card {
+  min-height: 205px !important;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 0;
+  padding: 0;
+  border: 1px solid #c3c4c7;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.plugin-card:hover {
+  border-color: #8c8f94;
+  transform: none;
+}
+
+.plugin-card.selected {
+  border-color: #72aee6;
+  background: #f6fbff;
+}
+
+.plugin-main {
+  min-height: 128px;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 14px 10px;
+}
+
+.plugin-image {
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  align-self: flex-start;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.plugin-image img {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  object-fit: contain;
+  object-position: top right;
+}
+
+.plugin-content {
+  gap: 8px;
+}
+
+.plugin-content header {
+  align-items: flex-start;
+}
+
+.plugin-card h3 {
+  color: #2271b1;
+  font-size: 15px;
+  font-weight: 1000;
+  line-height: 1.45;
+}
+
+.plugin-card small {
+  color: #646970;
+  font-size: 11px;
+}
+
+.plugin-card p {
+  color: #3c434a;
+  font-size: 12.5px;
+  line-height: 1.9;
+  margin-top: 2px;
+  max-width: 96%;
+}
+
+.plugin-content .details-btn,
+.details-btn {
+  width: auto;
+  height: 30px;
+  padding: 0 10px;
+  border-color: #2271b1;
+  border-radius: 3px;
+  background: #f6f7f7;
+  color: #2271b1;
+  font-size: 11px;
+}
+
+.plugin-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-top: 1px solid #dcdcde;
+  border-radius: 0;
+  background: #f6f7f7;
+}
+
+.plugin-meta {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0;
+  border-top: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.plugin-meta strong {
+  color: #1d2327;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.plugin-meta span {
+  color: #3c434a;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.period-options {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+  padding: 0;
+}
+
+.plugin-card footer {
+  min-width: 116px;
+  padding: 0;
+  justify-content: flex-end;
+}
+
+.select-btn,
+.purchased-badge,
+.coming-soon-badge {
+  width: 100%;
+  min-height: 32px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.select-btn {
+  background: #2271b1;
+}
+
+.select-btn.selected {
+  background: #646970;
+}
+
+.cart-panel {
+  border-color: #c3c4c7;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.modal-image {
+  width: 104px;
+  height: 104px;
+  flex: 0 0 104px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.modal-image img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  object-position: top right;
+}
+
+.modal-plugin-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #dcdcde;
+}
+
+.modal-plugin-head > div:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding-top: 7px;
+}
+
+.modal-plugin-head small {
+  color: #646970;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.store-modal h2 {
+  color: #2271b1;
+  font-size: 22px;
+  font-weight: 1000;
+  line-height: 1.45;
+}
+
+.modal-description {
+  padding: 12px 0 2px;
+  color: #2c3338;
+  font-size: 13px;
+  line-height: 2.05;
+  text-align: right;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 12px;
+  border-top: 1px solid #dcdcde;
+  background: #f6f7f7;
+}
+
+.modal-actions .select-btn {
+  height: 34px;
+}
+
+.modal-actions .modal-price {
+  padding: 0;
+  background: transparent;
+}
+
+@media (max-width: 560px) {
+  .modal-plugin-head {
+    align-items: center;
+  }
+
+  .modal-image {
+    width: 82px;
+    height: 82px;
+    flex-basis: 82px;
+  }
+
+  .modal-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .plugin-grid,
+  .coming-soon-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .plugin-actions {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .plugin-card footer {
+    min-width: 0;
+  }
 }
 
 .invoice-document {

@@ -415,6 +415,7 @@ export default {
           .map(item => [String(item.name).trim(), item]))
 
         ;(Array.isArray(appointments) ? appointments : [])
+          .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => String(appointment?.lastname || "").trim())
           .forEach((appointment) => {
             this.missingMaterialLines(appointment, inventoryByName).forEach((line, index) => {
@@ -610,6 +611,7 @@ export default {
           .map(item => [String(item.name).trim(), item]))
 
         ;(Array.isArray(appointments) ? appointments : [])
+          .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => String(appointment?.lastname || "").trim())
           .forEach((appointment) => {
             const missingLines = this.missingDoctorLines(appointment, inventoryByName, doctors)
@@ -706,6 +708,7 @@ export default {
         const people = new Set()
 
         ;(Array.isArray(appointments) ? appointments : [])
+          .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => this.appointmentHasPendingSms(appointment))
           .forEach((appointment, index) => {
             people.add(this.appointmentIdentity(appointment, index))
@@ -777,6 +780,7 @@ export default {
 
         ;(Array.isArray(appointments) ? appointments : [])
           .filter(appointment => this.isYesterdayAppointment(appointment))
+          .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => this.appointmentOutcomeIsUnresolved(appointment))
           .filter(appointment => String(appointment?.lastname || "").trim())
           .forEach((appointment) => {
@@ -830,6 +834,7 @@ export default {
         const appointments = await response.json()
 
         ;(Array.isArray(appointments) ? appointments : [])
+          .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => this.appointmentMissingDoneAfterArrival(appointment))
           .filter(appointment => String(appointment?.lastname || "").trim())
           .forEach((appointment) => {
@@ -952,6 +957,7 @@ export default {
 
         ;(Array.isArray(appointments) ? appointments : [])
           .filter(appointment => String(appointment.month || "") === previousMonth)
+          .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => String(appointment.done || "").trim() === "مشاوره")
           .forEach((appointment, index) => {
             const identity = String(appointment.phone || "").replace(/\D/g, "")
@@ -990,14 +996,26 @@ export default {
     },
 
     isMeaningfulAppointment(appointment) {
+      const hasService = Array.isArray(appointment?.services)
+        && appointment.services.some(service => [
+          service?.name,
+          service?.cc,
+          service?.doctor,
+          service?.consultant,
+          ...(Array.isArray(service?.addons) ? service.addons.map(addon => addon?.name || addon?.cc) : [])
+        ].some(value => String(value || "").trim()))
+
       return [
         appointment?.lastname,
+        appointment?.firstname,
         appointment?.phone,
         appointment?.file_number,
-        appointment?.time,
-        appointment?.status,
         appointment?.done,
-        appointment?.services?.length ? "service" : ""
+        appointment?.amount,
+        appointment?.debt,
+        appointment?.doctor,
+        appointment?.consultant,
+        hasService ? "service" : ""
       ].some(value => String(value || "").trim())
     },
 
@@ -1261,6 +1279,7 @@ export default {
         const doctorList = Array.isArray(doctors) ? doctors : []
 
         ;(Array.isArray(appointments) ? appointments : [])
+          .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => String(appointment?.lastname || "").trim())
           .filter(appointment => this.appointmentNeedsDoctor(appointment, doctorList))
           .forEach((appointment) => {

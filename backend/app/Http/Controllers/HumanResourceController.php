@@ -110,7 +110,16 @@ class HumanResourceController extends Controller
             '*.user_id' => ['nullable', 'integer', 'exists:users,id', 'distinct'],
             '*.name' => ['nullable', 'string', 'max:255'],
             '*.bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            '*.commission_customer_scope' => ['nullable', 'in:new,existing,both'],
+            '*.commission_after_materials' => ['nullable', 'boolean'],
+            '*.sales_bonus_enabled' => ['nullable', 'boolean'],
+            '*.sales_bonus_tiers' => ['nullable', 'array'],
             '*.salary' => ['nullable', 'numeric', 'min:0'],
+            '*.hourly_rate' => ['nullable', 'numeric', 'min:0'],
+            '*.overtime_hourly_rate' => ['nullable', 'numeric', 'min:0'],
+            '*.shortage_hourly_deduction' => ['nullable', 'numeric', 'min:0'],
+            '*.absence_deduction' => ['nullable', 'numeric', 'min:0'],
+            '*.allowed_shortage_hours' => ['nullable', 'numeric', 'min:0'],
             '*.available_days' => ['nullable', 'array'],
             '*.service_section_ids' => ['nullable', 'array'],
         ]);
@@ -157,7 +166,7 @@ class HumanResourceController extends Controller
         }
 
         if ($keptIds !== []) {
-            Doctor::whereNotIn('id', $keptIds)->delete();
+            Doctor::whereNotIn('id', $keptIds)->get()->each->delete();
         }
         });
 
@@ -222,7 +231,7 @@ public function saveStaff(Request $request)
             }
 
             if ($keptIds !== []) {
-                Staff::whereNotIn('id', $keptIds)->delete();
+                Staff::whereNotIn('id', $keptIds)->get()->each->delete();
             }
         });
 

@@ -25,7 +25,7 @@
               <img v-if="patient.avatar_url" :src="patient.avatar_url" alt="">
               <b v-else>{{ patientInitial(patient) }}</b>
             </span>
-            <span><strong>{{ patientName(patient) }}</strong><small>پرونده {{ patient.file_number || '-' }} · {{ patient.phone || '-' }}</small></span>
+            <span><strong>{{ patientName(patient) }}</strong><small>پرونده {{ patient.file_number || '-' }} · {{ displayPatientPhone(patient.phone) || '-' }}</small></span>
             <b>ساخت برنامه</b>
           </button>
         </div>
@@ -56,7 +56,7 @@
               <tr v-for="item in worklist" :key="item.patient_id">
                 <td><div class="beauty-flow-patient-cell"><span :class="['beauty-flow-avatar', `beauty-flow-avatar-${item.patient?.customer_level || 'silver'}`]"><img v-if="item.patient?.avatar_url" :src="item.patient.avatar_url" alt=""><b v-else>{{ patientInitial(item.patient) }}</b></span><span>{{ patientName(item.patient) }}</span></div></td>
                 <td>{{ item.patient?.file_number || '-' }}</td>
-                <td>{{ item.patient?.phone || '-' }}</td>
+                <td>{{ displayPatientPhone(item.patient?.phone) || '-' }}</td>
                 <td>{{ annotationCategory(item) }}</td>
                 <td>{{ annotationNoteSummary(item) }}</td>
                 <td>{{ formatDate(item.annotation_date || item.created_at) }}</td>
@@ -99,7 +99,7 @@
               </td>
               <td>{{ patient.last_name || '-' }}</td>
               <td>{{ patient.file_number || '-' }}</td>
-              <td>{{ patient.phone || '-' }}</td>
+              <td>{{ displayPatientPhone(patient.phone) || '-' }}</td>
               <td>
                 <span :class="['beauty-flow-level', `beauty-flow-level-${patient.customer_level || 'normal'}`]">
                   {{ customerLevelLabel(patient.customer_level) }}
@@ -138,7 +138,7 @@
               <b v-else>{{ patientInitial(activePatient) }}</b>
             </span>
             <strong>{{ patientName(activePatient) }}</strong>
-            <span>{{ activePatient.phone || '-' }}</span>
+            <span>{{ displayPatientPhone(activePatient.phone) || '-' }}</span>
             <span :class="['beauty-flow-level', `beauty-flow-level-${activePatient.customer_level || 'normal'}`]">
               {{ customerLevelLabel(activePatient.customer_level) }}
             </span>
@@ -181,6 +181,19 @@
             <label>توضیح</label>
             <textarea v-model.trim="draftPoint.note" rows="4" placeholder="توضیح پزشک"></textarea>
 
+            <div class="beauty-flow-voice-box">
+              <div>
+                <strong>ویس توضیح</strong>
+                <small>{{ draftVoiceBlob ? 'ویس آماده ثبت است' : 'به جای تایپ می‌توانید ویس ضبط کنید.' }}</small>
+              </div>
+              <div class="beauty-flow-voice-actions">
+                <button v-if="!voiceRecording" type="button" class="beauty-flow-light-btn" @click="startVoiceRecording">ضبط ویس</button>
+                <button v-else type="button" class="beauty-flow-recording-btn" @click="stopVoiceRecording">توقف ضبط</button>
+                <button v-if="draftVoiceBlob" type="button" class="beauty-flow-light-btn" @click="clearDraftVoice">حذف ویس</button>
+              </div>
+              <audio v-if="draftVoiceUrl" :src="draftVoiceUrl" controls></audio>
+            </div>
+
             <div class="beauty-flow-editor-actions">
               <button type="button" class="beauty-flow-light-btn" @click="draftPoint = null">لغو</button>
               <button type="button" :disabled="savingPoint" @click="savePoint">
@@ -205,6 +218,10 @@
             <p><b>ناحیه:</b> {{ selectedAnnotation.area || '-' }}</p>
             <p><b>مشکل:</b> {{ selectedAnnotation.problem || '-' }}</p>
             <p><b>توضیح:</b> {{ selectedAnnotation.note || '-' }}</p>
+            <div v-if="selectedAnnotation.voice_url" class="beauty-flow-voice-player">
+              <b>ویس:</b>
+              <audio :src="selectedAnnotation.voice_url" controls></audio>
+            </div>
             <p><b>تاریخ:</b> {{ formatDate(selectedAnnotation.annotation_date || selectedAnnotation.created_at) }}</p>
             <div class="beauty-flow-editor-actions">
               <button type="button" class="beauty-flow-light-btn" @click="selectedAnnotation = null">بستن</button>
@@ -271,9 +288,9 @@
                 @click.stop="selectedAnnotation = point; draftPoint = null"
               >
                 <strong>{{ annotationCategory(point) }}</strong>
-                <span>{{ annotationNoteSummary(point) }}</span>
+                <span>{{ point.voice_url ? 'دارای ویس' : annotationNoteSummary(point) }}</span>
                 <button
-                  v-if="hasMoreAnnotationText(point)"
+                  v-if="hasMoreAnnotationText(point) || point.voice_url"
                   type="button"
                   @click.stop="selectedAnnotation = point; draftPoint = null"
                 >
@@ -302,6 +319,10 @@ export default {
   name: 'Dermatracker',
   components: { DatePicker },
   props: {
+    permissions: {
+      type: Array,
+      default: () => []
+    },
     openPatientRequest: {
       type: Object,
       default: null
@@ -331,9 +352,20 @@ export default {
     draftPoint: null,
     selectedAnnotation: null,
     savingPoint: false,
+    voiceRecording: false,
+    voiceRecorder: null,
+    voiceChunks: [],
+    voiceStartedAt: 0,
+    draftVoiceBlob: null,
+    draftVoiceUrl: '',
+    draftVoiceDuration: 0,
     annotationFilters: { date_from: '', date_to: '' }
   }),
   computed: {
+    canViewPatientPhone() {
+      return this.permissions.includes('patients.view_phone')
+    },
+
     doneCount() {
       return this.annotations.filter(item => item.status === 'done').length
     },
@@ -354,7 +386,19 @@ export default {
     this.loadWorklist()
     if (this.openPatientRequest?.id) this.openRecord(this.openPatientRequest, this.openPatientRequest.mediaId || '')
   },
+  beforeUnmount() {
+    this.clearDraftVoice()
+  },
   methods: {
+    displayPatientPhone(value) {
+      const text = String(value || '').trim()
+      if (!text) return ''
+      if (this.canViewPatientPhone || text.includes('•') || text.includes('*')) return text
+      const digits = text.replace(/\D/g, '')
+      if (digits.length <= 4) return '••••'
+      return `${digits.slice(0, 3)}••••${digits.slice(-2)}`
+    },
+
     patientName(patient) {
       return [patient?.first_name, patient?.last_name].filter(Boolean).join(' ') || 'بیمار بدون نام'
     },
@@ -458,6 +502,7 @@ export default {
       this.selectedPhotoId = mediaId || ''
       this.draftPoint = null
       this.selectedAnnotation = null
+      this.clearDraftVoice()
       this.serviceHistory = []
       this.servicesExpanded = false
       await this.loadRecord()
@@ -539,21 +584,32 @@ export default {
         note: '',
         annotation_date: new Date().toISOString().slice(0, 10)
       }
+      this.clearDraftVoice()
     },
     async savePoint() {
       if (!this.activePatient?.id || !this.selectedPhoto?.id || !this.draftPoint) return
       this.savingPoint = true
       try {
+        const form = new FormData()
+        form.append('patient_media_id', this.selectedPhoto.id)
+        Object.entries(this.draftPoint).forEach(([key, value]) => {
+          form.append(key, value ?? '')
+        })
+        if (this.draftVoiceBlob) {
+          form.append('voice', this.draftVoiceBlob, `beauty-voice-${Date.now()}.webm`)
+          form.append('voice_duration', String(this.draftVoiceDuration || 0))
+        }
         const res = await fetch(`${API}/patients/${this.activePatient.id}/beauty/annotations`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ patient_media_id: this.selectedPhoto.id, ...this.draftPoint })
+          headers: { Accept: 'application/json' },
+          body: form
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.message || 'ثبت نقطه انجام نشد.')
         this.annotations.unshift(data)
         this.selectedAnnotation = data
         this.draftPoint = null
+        this.clearDraftVoice()
         this.loadWorklist()
       } catch (error) {
         this.searchError = error.message || 'ثبت نقطه انجام نشد.'
@@ -658,7 +714,59 @@ export default {
       this.annotationFilters = { date_from: '', date_to: '' }
       this.loadRecord()
     },
+    async startVoiceRecording() {
+      if (this.voiceRecording) return
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        this.searchError = 'مرورگر شما ضبط ویس را پشتیبانی نمی‌کند.'
+        return
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        this.voiceChunks = []
+        const recorder = new MediaRecorder(stream)
+        recorder.ondataavailable = event => {
+          if (event.data?.size) this.voiceChunks.push(event.data)
+        }
+        recorder.onstop = () => {
+          const blob = new Blob(this.voiceChunks, { type: recorder.mimeType || 'audio/webm' })
+          stream.getTracks().forEach(track => track.stop())
+          this.setDraftVoice(blob)
+        }
+        this.voiceRecorder = recorder
+        this.voiceStartedAt = Date.now()
+        this.voiceRecording = true
+        recorder.start()
+      } catch {
+        this.searchError = 'دسترسی به میکروفون داده نشد.'
+      }
+    },
+    stopVoiceRecording() {
+      if (!this.voiceRecorder || this.voiceRecorder.state === 'inactive') return
+      this.draftVoiceDuration = Math.max(1, Math.round((Date.now() - this.voiceStartedAt) / 1000))
+      this.voiceRecording = false
+      this.voiceRecorder.stop()
+      this.voiceRecorder = null
+    },
+    setDraftVoice(blob) {
+      if (this.draftVoiceUrl) URL.revokeObjectURL(this.draftVoiceUrl)
+      this.draftVoiceBlob = blob
+      this.draftVoiceUrl = URL.createObjectURL(blob)
+    },
+    clearDraftVoice() {
+      if (this.voiceRecorder && this.voiceRecorder.state !== 'inactive') {
+        this.voiceRecorder.stop()
+      }
+      this.voiceRecording = false
+      this.voiceRecorder = null
+      this.voiceChunks = []
+      this.voiceStartedAt = 0
+      this.draftVoiceBlob = null
+      this.draftVoiceDuration = 0
+      if (this.draftVoiceUrl) URL.revokeObjectURL(this.draftVoiceUrl)
+      this.draftVoiceUrl = ''
+    },
     closeRecord() {
+      this.clearDraftVoice()
       this.activePatient = null
       this.frontPhotos = []
       this.selectedPhoto = null
@@ -1291,6 +1399,45 @@ export default {
 .beauty-flow-point-note-done button {
   background: #dcfce7;
   color: #047857;
+}
+.beauty-flow-voice-box,
+.beauty-flow-voice-player {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.beauty-flow-voice-box > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+.beauty-flow-voice-box strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+.beauty-flow-voice-box small {
+  color: #64748b;
+  font-size: 10px;
+}
+.beauty-flow-voice-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.beauty-flow-recording-btn {
+  background: #dc2626 !important;
+  color: #fff !important;
+  animation: beautyVoicePulse 1.1s ease-in-out infinite;
+}
+.beauty-flow-voice-box audio,
+.beauty-flow-voice-player audio {
+  width: 100%;
+  height: 34px;
+}
+@keyframes beautyVoicePulse {
+  50% { box-shadow: 0 0 0 5px rgba(220, 38, 38, .14); }
 }
 @media (max-width: 1100px) {
   .beauty-flow-search-grid {

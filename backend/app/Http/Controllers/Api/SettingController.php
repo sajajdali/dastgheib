@@ -10,10 +10,12 @@ use App\Models\UserPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 use App\Services\CustomerLevelService;
+use App\Support\ActivityLogger;
 
 class SettingController extends Controller
 {
@@ -162,11 +164,24 @@ class SettingController extends Controller
             'users' => User::query()
                 ->with('roles:id,name')
                 ->orderBy('name')
-                ->get(['id', 'name', 'email', 'mobile', 'profile_photo_path', 'profile_thumbnail_path'])
+                ->get(array_values(array_filter([
+                    'id',
+                    'name',
+                    'email',
+                    'mobile',
+                    Schema::hasColumn('users', 'nickname') ? 'nickname' : null,
+                    Schema::hasColumn('users', 'gender') ? 'gender' : null,
+                    Schema::hasColumn('users', 'access_blocked') ? 'access_blocked' : null,
+                    'profile_photo_path',
+                    'profile_thumbnail_path',
+                ])))
                 ->map(fn (User $user) => [
                     'id' => $user->id,
                     'user' => $user->name,
+                    'nickname' => $user->nickname ?? '',
                     'mobile' => $user->mobile,
+                    'gender' => $user->gender ?? '',
+                    'access_blocked' => (bool) ($user->access_blocked ?? false),
                     'role_ids' => $user->roles->pluck('id')->values(),
                     'profile_photo_path' => $user->profile_photo_path,
                     'profile_thumbnail_path' => $user->profile_thumbnail_path,
@@ -209,8 +224,11 @@ class SettingController extends Controller
             'passwords' => ['sometimes', 'array'],
             'passwords.*.id' => ['nullable', 'integer', 'exists:users,id'],
             'passwords.*.user' => ['nullable', 'string', 'max:255'],
+            'passwords.*.nickname' => ['nullable', 'string', 'max:255'],
             'passwords.*.mobile' => ['nullable', 'string', 'max:20'],
             'passwords.*.pass' => ['nullable', 'string', 'min:4'],
+            'passwords.*.gender' => ['nullable', 'string', 'in:male,female'],
+            'passwords.*.access_blocked' => ['sometimes', 'boolean'],
             'passwords.*.role_ids' => ['sometimes', 'array'],
             'passwords.*.role_ids.*' => ['integer', 'exists:roles,id'],
         ], [
@@ -219,17 +237,24 @@ class SettingController extends Controller
             'passwords.*.id.exists' => 'کاربر انتخاب‌شده پیدا نشد.',
             'passwords.*.user.string' => 'نام کاربر باید متنی باشد.',
             'passwords.*.user.max' => 'نام کاربر نباید بیشتر از ۲۵۵ کاراکتر باشد.',
+            'passwords.*.nickname.string' => 'نام مستعار باید متنی باشد.',
+            'passwords.*.nickname.max' => 'نام مستعار نباید بیشتر از ۲۵۵ کاراکتر باشد.',
             'passwords.*.mobile.string' => 'شماره موبایل باید متنی باشد.',
             'passwords.*.mobile.max' => 'شماره موبایل نباید بیشتر از ۲۰ کاراکتر باشد.',
             'passwords.*.pass.string' => 'رمز عبور باید متنی باشد.',
             'passwords.*.pass.min' => 'رمز عبور باید حداقل ۴ کاراکتر باشد.',
+            'passwords.*.gender.in' => 'جنسیت انتخاب‌شده معتبر نیست.',
+            'passwords.*.access_blocked.boolean' => 'وضعیت بستن دسترسی معتبر نیست.',
             'passwords.*.role_ids.array' => 'نقش‌های کاربر باید به‌صورت فهرست انتخاب شوند.',
             'passwords.*.role_ids.*.integer' => 'نقش انتخاب‌شده معتبر نیست.',
             'passwords.*.role_ids.*.exists' => 'یکی از نقش‌های انتخاب‌شده پیدا نشد.',
         ], [
             'passwords.*.user' => 'نام کاربر',
+            'passwords.*.nickname' => 'نام مستعار',
             'passwords.*.mobile' => 'شماره موبایل',
             'passwords.*.pass' => 'رمز عبور',
+            'passwords.*.gender' => 'جنسیت',
+            'passwords.*.access_blocked' => 'بستن دسترسی',
             'passwords.*.role_ids' => 'نقش‌های کاربر',
         ]);
 
@@ -356,9 +381,28 @@ class SettingController extends Controller
                 throw \Illuminate\Validation\ValidationException::withMessages(['passwords.'.$index.'.pass' => 'برای کاربر جدید رمز عبور وارد کنید.']);
             }
 
+            $shouldBlockAccess = (bool) ($userData['access_blocked'] ?? false);
+            if ($shouldBlockAccess && $user->exists && $requestUserId = request()->user()?->id) {
+                if ((int) $user->id === (int) $requestUserId) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'passwords.'.$index.'.access_blocked' => 'نمی‌توانید دسترسی حساب کاربری خودتان را ببندید.',
+                    ]);
+                }
+            }
+
             $user->name = $name;
             $user->email ??= 'user-'.Str::uuid().'@clinic.local';
             $user->mobile = $mobile;
+            if (Schema::hasColumn('users', 'nickname')) {
+                $user->nickname = trim((string) ($userData['nickname'] ?? '')) ?: null;
+            }
+            if (Schema::hasColumn('users', 'gender')) {
+                $user->gender = $userData['gender'] ?? null;
+            }
+            $wasAccessBlocked = (bool) ($user->access_blocked ?? false);
+            if (Schema::hasColumn('users', 'access_blocked')) {
+                $user->access_blocked = $shouldBlockAccess;
+            }
             $user->profile_photo_path = $userData['profile_photo_path'] ?? $user->profile_photo_path;
             $user->profile_thumbnail_path = $userData['profile_thumbnail_path'] ?? $user->profile_thumbnail_path;
 
@@ -367,6 +411,10 @@ class SettingController extends Controller
             }
 
             $user->save();
+
+            if ($shouldBlockAccess && ! $wasAccessBlocked && Schema::hasTable('sessions')) {
+                DB::table('sessions')->where('user_id', $user->id)->delete();
+            }
 
             $roleIds = collect($userData['role_ids'] ?? [])
                 ->filter(fn ($id) => is_numeric($id))
@@ -423,6 +471,53 @@ class SettingController extends Controller
             'message' => 'عکس کاربر با موفقیت ذخیره شد.',
             'user' => $user->fresh(),
         ]);
+    }
+
+    public function destroyUser(Request $request, User $user)
+    {
+        if ($request->user()?->id === $user->id) {
+            return response()->json([
+                'message' => 'نمی‌توانید حساب کاربری خودتان را حذف کنید.',
+            ], 422);
+        }
+
+        if (User::query()->count() <= 1) {
+            return response()->json([
+                'message' => 'حداقل یک کاربر باید در سیستم باقی بماند.',
+            ], 422);
+        }
+
+        $deletedUser = [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'mobile' => $user->mobile,
+            'roles' => $user->roles()->pluck('name')->values()->all(),
+        ];
+
+        DB::transaction(function () use ($user, $deletedUser) {
+            ActivityLogger::manual(
+                'deleted',
+                'تعریف کاربر',
+                $user,
+                $deletedUser,
+                [],
+                ['deleted_user_name' => $user->name]
+            );
+
+            Storage::disk('public')->delete(array_filter([
+                $user->profile_photo_path,
+                $user->profile_thumbnail_path,
+            ]));
+
+            if (method_exists($user, 'tokens')) {
+                $user->tokens()->delete();
+            }
+
+            $user->delete();
+        });
+
+        return response()->json(['message' => 'کاربر حذف شد. نوبت‌ها و اطلاعات ثبت‌شده توسط این کاربر حذف نشدند.']);
     }
 
     public function saveSmsSettings(Request $request)

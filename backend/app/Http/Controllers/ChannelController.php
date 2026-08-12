@@ -35,7 +35,7 @@ class ChannelController extends Controller
         }
 
         // حذف کل کانال‌های قبلی (اگر می‌خواهید جایگزین شوند)
-        Channel::truncate();
+        Channel::query()->get()->each->delete();
 
         // درج داده‌های جدید
         foreach ($channelsData as $channel) {

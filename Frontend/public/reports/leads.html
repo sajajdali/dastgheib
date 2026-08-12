@@ -159,6 +159,19 @@ class Component extends DCLogic {
     return Boolean(date) && (date === this.gregorianToday() || date === this.jalaliToday());
   }
 
+  hasText(value) {
+    return String(value || '').trim().length > 0;
+  }
+
+  isRealAppointment(item) {
+    return [
+      item && item.firstname,
+      item && item.lastname,
+      item && item.phone,
+      item && item.file_number
+    ].some(value => this.hasText(value));
+  }
+
   readJson(key, fallback) {
     try {
       const value = JSON.parse(localStorage.getItem(key) || '');
@@ -208,12 +221,13 @@ class Component extends DCLogic {
 
   async loadAppointmentItems() {
     try {
-      const res = await fetch('/api/appointments', {headers: {Accept: 'application/json'}});
+      const res = await fetch('/api/appointments', {headers: {Accept: 'application/json'}, cache: 'no-store'});
       if (!res.ok) return;
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       const items = list
         .filter(item => this.isTodayDate(`${item.month}-${String(item.day_num || '').padStart(2, '0')}`) || this.isTodayDate(item.date))
+        .filter(item => this.isRealAppointment(item))
         .slice(0, 20)
         .map(item => ({
           p: 'r',

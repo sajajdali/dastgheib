@@ -29,6 +29,8 @@ use App\Http\Controllers\Api\AppointmentNoteController;
 use App\Http\Controllers\Api\AttendanceMonthController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\PersonalReportController;
+use App\Http\Controllers\Api\PayrollReportController;
+use App\Http\Controllers\Api\ActivityLogController;
 
 
 
@@ -41,6 +43,9 @@ use App\Http\Controllers\Api\PersonalReportController;
 //تنظیمات
 Route::middleware('auth')->group(function () {
 Route::get('/auth/user', [AuthController::class, 'user']);
+Route::put('/auth/user', [AuthController::class, 'updateUser']);
+Route::post('/auth/user/photo', [AuthController::class, 'uploadUserPhoto']);
+Route::delete('/auth/user/photo', [AuthController::class, 'deleteUserPhoto']);
 Route::get('/store/terms', [StoreCheckoutController::class, 'terms']);
 Route::post('/store/checkout', [StoreCheckoutController::class, 'checkout']);
 Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIndex']);
@@ -49,11 +54,13 @@ Route::get('/settings', [SettingController::class, 'index']);
 Route::post('/settings/internal', [SettingController::class, 'saveInternalSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/attendance-status', [SettingController::class, 'saveAttendanceStatus'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/users/{user}/photo', [SettingController::class, 'uploadUserPhoto'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::delete('/settings/users/{user}', [SettingController::class, 'destroyUser'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/sms', [SettingController::class, 'saveSmsSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/sms/completion', [CompletionSmsController::class, 'send']);
 Route::post('/sms/payment-link', [CompletionSmsController::class, 'sendPaymentLink']);
 Route::post('/sms/appointment', [CompletionSmsController::class, 'sendAppointment']);
 Route::post('/settings/access', [SettingController::class, 'saveAccessSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::get('/activity-logs', [ActivityLogController::class, 'index'])->middleware('permission:activity_logs.view');
 
 // نقش‌ها و دسترسی‌ها
 Route::get('/roles', [RoleController::class, 'index'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
@@ -110,6 +117,11 @@ Route::patch('/attendance/months/{attendanceMonth}', [AttendanceMonthController:
 Route::delete('/attendance/months/{attendanceMonth}', [AttendanceMonthController::class, 'destroy'])->middleware('permission:attendance.manage');
 Route::apiResource('tickets', TicketController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::get('/personal-report', [PersonalReportController::class, 'show']);
+Route::get('/payroll/resources', [PayrollReportController::class, 'resources'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
+Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
+Route::patch('/payroll/lines/{line}', [PayrollReportController::class, 'updateLine'])->middleware('permission:payroll.view|reports.financial');
+Route::post('/payroll/lines/{line}/restore', [PayrollReportController::class, 'restoreLine'])->middleware('permission:payroll.view|reports.financial');
+Route::delete('/payroll/lines/{line}', [PayrollReportController::class, 'destroyLine'])->middleware('permission:payroll.view|reports.financial');
 Route::get('/payment-options', [HumanResourceController::class, 'getPaymentOptions']);
 Route::post('/payment-options', [HumanResourceController::class, 'savePaymentOptions']);
 

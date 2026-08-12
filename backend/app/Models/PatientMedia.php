@@ -2,11 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class PatientMedia extends Model
 {
+    use Auditable;
+
+    public function activitySection(): string { return 'عکس‌ها'; }
+    public function activityLabel(): string { return $this->original_name ?: $this->file_name ?: 'رسانه #'.$this->getKey(); }
+
     protected $fillable = [
         'patient_id',
         'uploaded_by',

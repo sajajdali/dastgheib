@@ -368,34 +368,6 @@
             </th>
 
             <th
-              v-if="appointmentColumns.payment_method"
-              class="sticky-header payment-col resizable-th"
-              :style="{ width: columnWidths.paymentMethod + 'px' }"
-            >
-              روش پرداخت
-
-              <div
-                class="resize-handle"
-                @mousedown="startResize($event, 'paymentMethod')"
-                @dblclick.stop="autoFitColumn($event, 'paymentMethod')"
-              ></div>
-            </th>
-
-            <th
-              v-if="appointmentColumns.payment_account"
-              class="sticky-header payment-col resizable-th"
-              :style="{ width: columnWidths.paymentAccount + 'px' }"
-            >
-              حساب واریز
-
-              <div
-                class="resize-handle"
-                @mousedown="startResize($event, 'paymentAccount')"
-                @dblclick.stop="autoFitColumn($event, 'paymentAccount')"
-              ></div>
-            </th>
-
-            <th
               v-if="appointmentColumns.payment_link"
               class="sticky-header payment-link-col resizable-th"
               :style="{ width: columnWidths.paymentLink + 'px' }"
@@ -508,6 +480,7 @@
                   <button
                     class="mini-btn"
                     title="افزودن روز بعد"
+                    aria-label="افزودن روز بعد"
                     @click.stop="addNextDayAfter(day)"
                   >
                     +
@@ -594,8 +567,8 @@
                   <input
                     v-model="row.lastname"
                     :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
-                    title="برای باز کردن پرونده دوبار کلیک کنید"
-                    @dblclick.stop="openPatientProfileFromRow(row)"
+                    title="باز کردن پرونده"
+                    @click.stop="openPatientProfileFromRow(row)"
                     @input="autoSetAppointmentStatus(row)"
                   />
                 </div>
@@ -611,9 +584,17 @@
 
               <td :style="{ width: columnWidths.phone + 'px' }">
                 <input
+                  v-if="canViewPatientPhone"
                   v-model="row.phone"
                   @input="autoSetAppointmentStatus(row)"
                   @blur="fillPatientByPhone(row)"
+                />
+                <input
+                  v-else
+                  :value="displayPatientPhone(row.phone)"
+                  readonly
+                  class="masked-phone-input"
+                  title="نمایش شماره تماس برای این نقش غیرفعال است"
                 />
               </td>
 
@@ -764,45 +745,11 @@
                     @click.stop="openFinancialPanel(row)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5z"/><path d="M9 9h6M9 12h4"/></svg>
-                    <em v-if="patientDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0">پرداخت</em>
+                    <em v-if="patientDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row)">پرداخت</em>
                     <span v-if="patientDebtAmount(row) > 0">!</span>
                   </button>
                 </div>
 
-              </td>
-
-              <td
-                v-if="appointmentColumns.payment_method"
-                class="payment-col"
-                :style="{ width: columnWidths.paymentMethod + 'px' }"
-              >
-                <select v-model="row.paymentMethod">
-                  <option value="">-</option>
-                  <option
-                    v-for="method in paymentOptions.methods"
-                    :key="method"
-                    :value="method"
-                  >
-                    {{ method }}
-                  </option>
-                </select>
-              </td>
-
-              <td
-                v-if="appointmentColumns.payment_account"
-                class="payment-col"
-                :style="{ width: columnWidths.paymentAccount + 'px' }"
-              >
-                <select v-model="row.paymentAccount">
-                  <option value="">-</option>
-                  <option
-                    v-for="account in paymentOptions.accounts"
-                    :key="account"
-                    :value="account"
-                  >
-                    {{ account }}
-                  </option>
-                </select>
               </td>
 
               <td
@@ -1056,11 +1003,25 @@
               <td class="row-action-col">
                 <button
                   type="button"
+                  class="insert-appointment-row-btn"
+                  title="افزودن وقت بعد از این ساعت"
+                  aria-label="افزودن وقت بعد از این ساعت"
+                  @click.stop="insertRowAfter(day, row)"
+                >
+                  +
+                </button>
+
+                <button
+                  type="button"
                   class="row-tracking-btn"
                   title="گزارش زمان نوبت"
+                  aria-label="گزارش زمان نوبت"
                   @click.stop="openTrackingModal(day, row)"
                 >
-                  ⏱
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M12 8v5l3 2" />
+                  </svg>
                 </button>
 
                 <button
@@ -1140,7 +1101,7 @@
           <span>{{ timelineDayDate(day) }}</span>
           <small v-if="isToday(day)">امروز</small>
           <div class="timeline-day-actions">
-            <button type="button" title="افزودن روز بعد" @click.stop="addNextDayAfter(day)">+</button>
+            <button type="button" class="timeline-add-next-day-btn" title="افزودن روز بعد" aria-label="افزودن روز بعد" @click.stop="addNextDayAfter(day)">+</button>
             <button type="button" title="افزودن نوبت" @click.stop="openNewTimelineAppointment(day)">نوبت</button>
           </div>
         </aside>
@@ -1248,6 +1209,7 @@
                 input-class="timeline-modal-input"
                 popover-class="time-picker-popover"
                 append-to="body"
+                @open="raiseTimelineTimePicker"
                 @change="clearTimelineValidationError('time')"
               />
               <small v-if="timelineValidationErrors.time" class="timeline-error-text">{{ timelineValidationErrors.time }}</small>
@@ -1302,7 +1264,7 @@
                   <PatientAvatar :patient="patient" :level="normalizeCustomerLevel(patient.customer_level)" :size="44" />
                   <span class="timeline-patient-result-info">
                     <strong>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</strong>
-                    <small>پرونده {{ patient.file_number || '—' }} <b>•</b> {{ patient.phone || 'بدون موبایل' }}</small>
+                    <small>پرونده {{ patient.file_number || '—' }} <b>•</b> {{ displayPatientPhone(patient.phone) || 'بدون موبایل' }}</small>
                   </span>
                   <em :class="`level-${normalizeCustomerLevel(patient.customer_level)}`">{{ customerLevelLabel(patient.customer_level) }}</em>
                 </button>
@@ -1312,7 +1274,20 @@
 
             <label :class="{ 'timeline-field-error': timelineValidationErrors.phone }">
               شماره تماس
-              <input v-model="activeTimelineDraft.phone" type="text" @input="handleTimelinePhoneInput" @blur="fillPatientByPhone(activeTimelineDraft)">
+              <input
+                v-if="canViewPatientPhone"
+                v-model="activeTimelineDraft.phone"
+                type="text"
+                @input="handleTimelinePhoneInput"
+                @blur="fillPatientByPhone(activeTimelineDraft)"
+              >
+              <input
+                v-else
+                :value="displayPatientPhone(activeTimelineDraft.phone)"
+                type="text"
+                readonly
+                class="masked-phone-input"
+              >
               <small v-if="timelineValidationErrors.phone" class="timeline-error-text">{{ timelineValidationErrors.phone }}</small>
             </label>
 
@@ -1628,7 +1603,7 @@
           <div>
             <span>لینک پرداخت</span>
             <h3 id="payment-link-title">{{ activePaymentLinkRow?.lastname || 'مراجعه‌کننده' }}</h3>
-            <p>{{ activePaymentLinkRow?.phone || 'بدون شماره' }}</p>
+            <p>{{ displayPatientPhone(activePaymentLinkRow?.phone) || 'بدون شماره' }}</p>
           </div>
           <button type="button" title="بستن" @click="closePaymentLinkModal">×</button>
         </header>
@@ -1692,13 +1667,21 @@
                 </span>
               </header>
               <p v-if="message.message_type === 'text'">{{ message.message }}</p>
-              <audio v-else :src="message.audio_url" controls preload="metadata"></audio>
+              <audio v-else-if="message.message_type === 'audio'" :src="message.audio_url" controls preload="metadata"></audio>
+              <a v-else-if="message.message_type === 'image'" class="doctor-note-image-link" :href="message.image_url" target="_blank" rel="noopener">
+                <img :src="message.image_url" alt="تصویر نسخه یا پیوست پزشک">
+                <span v-if="message.message">{{ message.message }}</span>
+              </a>
             </div>
           </article>
         </div>
 
         <footer class="doctor-note-composer">
           <textarea ref="doctorNoteEditor" v-model="doctorNoteDraft" maxlength="20000" rows="2" placeholder="پیام بنویسید؛ Enter ارسال، Shift + Enter خط جدید" aria-label="پیام نوت پزشک" @keydown="handleDoctorNoteKeydown"></textarea>
+          <label class="doctor-note-image-upload" :class="{ disabled: doctorNoteSending }" title="آپلود عکس نسخه">
+            <input type="file" accept="image/*" :disabled="doctorNoteSending" @change="uploadDoctorNoteImage">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4z"/><path d="m8 14 2.5-3 2.5 3 2-2 3 4H6z"/><circle cx="16" cy="9" r="1.5"/></svg>
+          </label>
           <button type="button" class="doctor-note-record" :class="{ recording: doctorNoteRecording }" :disabled="doctorNoteSending" @click="toggleDoctorNoteRecording">
             {{ doctorNoteRecording ? `■ توقف ${formatRecordingTime(doctorNoteRecordingSeconds)}` : '🎙 ضبط ویس' }}
           </button>
@@ -1711,7 +1694,7 @@
 
     <div v-if="completionSmsModalOpen" class="completion-sms-overlay" @click.self="closeCompletionSmsModal">
       <section class="completion-sms-modal" @click.stop>
-        <header><div><span>پس از انجام درمان</span><h3>ارسال پیامک‌ها</h3><p>{{ activeCompletionSmsRow?.lastname || 'مراجعه‌کننده' }} — {{ activeCompletionSmsRow?.phone || 'بدون شماره' }}</p></div><button @click="closeCompletionSmsModal">×</button></header>
+        <header><div><span>پس از انجام درمان</span><h3>ارسال پیامک‌ها</h3><p>{{ activeCompletionSmsRow?.lastname || 'مراجعه‌کننده' }} — {{ displayPatientPhone(activeCompletionSmsRow?.phone) || 'بدون شماره' }}</p></div><button @click="closeCompletionSmsModal">×</button></header>
         <div class="completion-sms-list">
           <label v-for="option in completionSmsOptions" :key="option.key" :class="['completion-sms-card', { sent: completionSmsWasSent(option.key), failed: completionSmsErrors[option.key] }]">
             <input v-if="!completionSmsWasSent(option.key)" v-model="selectedCompletionSms" type="checkbox" :value="option.key">
@@ -1720,7 +1703,7 @@
             <span class="completion-sms-card-content"><strong>{{ option.title }}</strong><small>{{ option.description }}</small><em v-if="completionSmsWasSent(option.key)">ارسال شده</em><em v-else-if="completionSmsErrors[option.key]" class="error">{{ completionSmsErrors[option.key] }}</em></span>
           </label>
         </div>
-        <div v-if="activeCompletionSmsRow?.referrerPhone" class="completion-referral-info">معرف: {{ activeCompletionSmsRow.referrerPhone }} — مبلغ: {{ formatDisplayMoney(activeCompletionSmsRow.referralScore || 0) }} تومان</div>
+        <div v-if="activeCompletionSmsRow?.referrerPhone" class="completion-referral-info">معرف: {{ displayPatientPhone(activeCompletionSmsRow.referrerPhone) }} — مبلغ: {{ formatDisplayMoney(activeCompletionSmsRow.referralScore || 0) }} تومان</div>
         <footer><button class="completion-sms-cancel" @click="closeCompletionSmsModal">بعداً</button><button class="completion-sms-send" :disabled="completionSmsSending || !selectedCompletionSms.length" @click="sendSelectedCompletionSms">{{ completionSmsSending ? 'در حال ارسال...' : `ارسال ${selectedCompletionSms.length || ''} پیامک` }}</button></footer>
       </section>
     </div>
@@ -1842,7 +1825,7 @@
                 <td>{{ formatAuditDate(item.created_at) }}</td>
                 <td>{{ item.changed_by_name || 'نامشخص' }}</td>
                 <td>{{ item.patient_name || '-' }}</td>
-                <td>{{ item.file_number || item.phone || '-' }}</td>
+                <td>{{ item.file_number || displayPatientPhone(item.phone) || '-' }}</td>
                 <td :class="balanceAuditValueClass(item.old_debt)">{{ formatSignedDisplayMoney(item.old_debt) }}</td>
                 <td :class="balanceAuditValueClass(item.new_debt)">{{ formatSignedDisplayMoney(item.new_debt) }}</td>
               </tr>
@@ -1885,11 +1868,150 @@
           <input v-model="financialDepositDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialDepositDraft')">
           <small>بیعانه در کیف پول بیمار ذخیره و در جلسات بعد قابل استفاده است.</small>
         </label>
+        <div class="financial-payment-grid">
+          <label>
+            روش پرداخت
+            <select v-model="financialPaymentMethodDraft">
+              <option value="">انتخاب نشده</option>
+              <option v-for="method in paymentOptions.methods" :key="method" :value="method">{{ method }}</option>
+            </select>
+          </label>
+          <label>
+            حساب واریز
+            <select v-model="financialPaymentAccountDraft">
+              <option value="">انتخاب نشده</option>
+              <option v-for="account in paymentOptions.accounts" :key="account" :value="account">{{ account }}</option>
+            </select>
+          </label>
+          <label>
+            مبلغ نقدی
+            <input v-model="financialCashDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialCashDraft')">
+          </label>
+          <label>
+            مبلغ کارت / کارتخوان
+            <input v-model="financialCardDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialCardDraft')">
+          </label>
+        </div>
+        <button type="button" class="financial-advanced-toggle" :class="{ active: financialCheckOpen }" @click="financialCheckOpen = !financialCheckOpen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v10H4z"/><path d="M7 11h5M16 11h1M7 14h10"/></svg>
+          <span>جزئیات چک</span>
+          <b>{{ financialCheckOpen ? 'بستن' : 'باز کردن' }}</b>
+        </button>
+        <div v-if="financialCheckOpen" class="financial-check-grid">
+          <label>
+            مبلغ چک
+            <input v-model="financialCheckAmountDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialCheckAmountDraft')">
+          </label>
+          <label>
+            شماره چک
+            <input v-model.trim="financialCheckNumberDraft" type="text" placeholder="مثلا ۱۲۳۴۵۶">
+          </label>
+          <label>
+            تاریخ سررسید
+            <date-picker
+              v-model="financialCheckDueDateDraft"
+              format="YYYY-MM-DD"
+              display-format="jYYYY/jMM/jDD"
+              input-class="financial-date-input"
+              placeholder="انتخاب تاریخ"
+              auto-submit
+              color="#2563eb"
+            />
+          </label>
+        </div>
         <div v-if="!activeFinancialRow?.patientId" class="financial-patient-warning">برای ثبت بیعانه، ابتدا بیمار را از پرونده‌های موجود انتخاب کنید.</div>
         <footer>
           <button type="button" class="financial-cancel" @click="closeFinancialPanel">انصراف</button>
           <button type="button" class="financial-save" :disabled="financialSaving" @click="saveFinancialPanel">{{ financialSaving ? 'در حال ثبت...' : 'ثبت وضعیت مالی' }}</button>
         </footer>
+      </section>
+    </div>
+
+    <div v-if="patientProfileModalOpen" class="time-profile-overlay" @click.self="closePatientProfileModal">
+      <section class="time-profile-modal" role="dialog" aria-modal="true" aria-labelledby="time-profile-title">
+        <header>
+          <div class="time-profile-head">
+            <PatientAvatar
+              :src="patientProfilePhotoUrl(activePatientProfile)"
+              :patient="activePatientProfile"
+              :level="normalizeCustomerLevel(activePatientProfile?.customer_level)"
+              :size="58"
+            />
+            <div>
+              <small>پرونده مراجعه‌کننده</small>
+              <h3 id="time-profile-title">{{ patientProfileName(activePatientProfile) }}</h3>
+              <p>پرونده {{ activePatientProfile?.file_number || '-' }} · {{ displayPatientPhone(activePatientProfile?.phone) || '-' }}</p>
+            </div>
+          </div>
+          <button type="button" title="بستن" aria-label="بستن" @click="closePatientProfileModal">×</button>
+        </header>
+
+        <div v-if="patientProfileLoading" class="time-profile-loading">
+          <span class="btn-spinner dark"></span>
+          <b>در حال دریافت پرونده...</b>
+        </div>
+
+        <div v-else-if="patientProfileError" class="time-profile-error">{{ patientProfileError }}</div>
+
+        <div v-else-if="activePatientProfile" class="time-profile-body">
+          <div class="time-profile-stats">
+            <article><span>جنسیت</span><strong>{{ activePatientProfile.gender || '-' }}</strong></article>
+            <article><span>اعتبار</span><strong>{{ formatDisplayMoney(activePatientProfile.wallet_balance || 0) }}</strong></article>
+            <article :class="{ danger: Number(activePatientProfile.outstanding_debt || 0) > 0 }"><span>بدهکاری</span><strong>{{ formatDisplayMoney(activePatientProfile.outstanding_debt || 0) }}</strong></article>
+            <article><span>تعداد سوابق</span><strong>{{ patientProfileTotalAppointments.toLocaleString('fa-IR') }}</strong></article>
+          </div>
+
+          <div class="time-profile-notes">
+            <article>
+              <span>تیپ شخصیتی</span>
+              <p>{{ activePatientProfile.patient_history || '-' }}</p>
+            </article>
+            <article>
+              <span>سوابق پزشکی</span>
+              <p>{{ activePatientProfile.medical_history || '-' }}</p>
+            </article>
+          </div>
+
+          <section class="time-profile-history">
+            <div>
+              <h4>سوابق نوبت</h4>
+              <span>{{ patientProfileAppointments.length.toLocaleString('fa-IR') }} از {{ patientProfileTotalAppointments.toLocaleString('fa-IR') }} مورد</span>
+            </div>
+            <div v-if="patientProfileHistoryLoading && !patientProfileAppointments.length" class="time-profile-empty">در حال دریافت سوابق...</div>
+            <div v-else-if="!patientProfileAppointments.length" class="time-profile-empty">سابقه‌ای برای این پرونده ثبت نشده است.</div>
+            <table v-else>
+              <thead>
+                <tr>
+                  <th>تاریخ</th>
+                  <th>ساعت</th>
+                  <th>خدمات</th>
+                  <th>وضعیت</th>
+                  <th>مبلغ</th>
+                  <th>بدهی</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in patientProfileAppointments" :key="item.id">
+                  <td>{{ item.month || '-' }} / {{ item.day_num || '-' }}</td>
+                  <td>{{ item.time || '-' }}</td>
+                  <td>{{ profileServiceText(item) }}</td>
+                  <td>{{ item.status || '-' }}</td>
+                  <td>{{ formatDisplayMoney(item.amount || 0) }}</td>
+                  <td>{{ formatDisplayMoney(item.debt || 0) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <button
+              v-if="patientProfileHasMore"
+              type="button"
+              class="time-profile-more"
+              :disabled="patientProfileHistoryLoading"
+              @click="loadPatientProfileAppointments(patientProfileHistoryPage + 1)"
+            >
+              {{ patientProfileHistoryLoading ? 'در حال دریافت...' : 'نمایش بیشتر' }}
+            </button>
+          </section>
+        </div>
       </section>
     </div>
 
@@ -1971,6 +2093,17 @@ export default {
 
       months: ["1405-01"],
       avatarPreview: null,
+      patientProfileModalOpen: false,
+      patientProfileLoading: false,
+      patientProfileError: "",
+      activePatientProfile: null,
+      patientProfileAppointments: [],
+      patientProfileHistoryLoading: false,
+      patientProfileHistoryPage: 1,
+      patientProfileHistoryPerPage: 15,
+      patientProfileTotalAppointments: 0,
+      patientProfileHasMore: false,
+      patientProfileHistoryParams: "",
       currentMonth: 0,
 
       days: [],
@@ -2006,8 +2139,8 @@ export default {
         accounts: ["حساب اصلی"]
       },
       appointmentColumns: {
-        payment_method: true,
-        payment_account: true,
+        payment_method: false,
+        payment_account: false,
         payment_link: false,
         best_staff: false
       },
@@ -2040,6 +2173,9 @@ export default {
       doctorNoteRecordingTimer: null,
       doctorNoteAudioChunks: [],
       doctorNoteAudioStream: null,
+      doctorNoteUnreadSnapshot: new Set(),
+      doctorNoteUnreadInitialized: false,
+      doctorNoteBellLastPlayedAt: 0,
       trackingModalOpen: false,
       activeTrackingRow: null,
       trackingTimeEditorOpen: false,
@@ -2064,6 +2200,14 @@ export default {
       activeFinancialRow: null,
       financialDebtDraft: "",
       financialDepositDraft: "",
+      financialPaymentMethodDraft: "",
+      financialPaymentAccountDraft: "",
+      financialCashDraft: "",
+      financialCardDraft: "",
+      financialCheckOpen: false,
+      financialCheckAmountDraft: "",
+      financialCheckNumberDraft: "",
+      financialCheckDueDateDraft: "",
       financialSaving: false,
       dailyReportModalOpen: false,
       activeDailyReport: null,
@@ -2125,6 +2269,10 @@ export default {
   },
 
   computed: {
+    canViewPatientPhone() {
+      return this.permissions.includes("patients.view_phone");
+    },
+
     bestStaffOfMonth() {
       const counts = {};
       this.days.forEach(day => {
@@ -2204,8 +2352,6 @@ export default {
     },
     appointmentTableColspan() {
       return 16 +
-        (this.appointmentColumns.payment_method ? 1 : 0) +
-        (this.appointmentColumns.payment_account ? 1 : 0) +
         (this.appointmentColumns.payment_link ? 1 : 0);
     },
 
@@ -2263,6 +2409,40 @@ export default {
   },
 
   methods: {
+    displayPatientPhone(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      if (this.canViewPatientPhone || text.includes("•") || text.includes("*")) return text;
+      const digits = text.replace(/\D/g, "");
+      if (digits.length <= 4) return "••••";
+      return `${digits.slice(0, 3)}••••${digits.slice(-2)}`;
+    },
+
+    emptyPaymentDetails() {
+      return {
+        cash: 0,
+        card: 0,
+        check: {
+          amount: 0,
+          number: "",
+          dueDate: "",
+        },
+      };
+    },
+
+    normalizePaymentDetails(details = {}) {
+      const check = details?.check || {};
+      return {
+        cash: Math.max(0, this.moneyToNumber(details.cash || 0)),
+        card: Math.max(0, this.moneyToNumber(details.card || 0)),
+        check: {
+          amount: Math.max(0, this.moneyToNumber(check.amount || 0)),
+          number: String(check.number || ""),
+          dueDate: String(check.dueDate || check.due_date || ""),
+        },
+      };
+    },
+
     activateScheduleDay(day, smooth = true) {
       if (!day) return;
       this.days.forEach(item => {
@@ -2372,7 +2552,7 @@ export default {
       const hasPhone = String(row.phone || '').replace(/\D/g, '').length >= 10;
       if (hasName && hasPhone) row.status = 'وقت داده شد';
     },
-    openPatientProfileFromRow(row) {
+    async openPatientProfileFromRow(row) {
       const fileNumber = String(row?.fileNumber || "").trim();
       const phone = String(row?.phone || "").trim();
 
@@ -2387,33 +2567,121 @@ export default {
         return;
       }
 
-      this.$emit("open-patient-profile", {
-        file_number: fileNumber,
-        phone,
-        name: row?.lastname || ""
-      });
+      this.patientProfileModalOpen = true;
+      this.patientProfileLoading = true;
+      this.patientProfileError = "";
+      this.activePatientProfile = this.patientProfileFallbackFromRow(row);
+      this.patientProfileAppointments = [];
+      this.patientProfileHistoryPage = 1;
+      this.patientProfileTotalAppointments = 0;
+      this.patientProfileHasMore = false;
+      this.patientProfileHistoryParams = "";
+
+      try {
+        const params = new URLSearchParams();
+        if (fileNumber) params.append("file_number", fileNumber);
+        if (phone) params.append("phone", phone);
+
+        let patient = null;
+        try {
+          const { data: patients } = await axios.get(`/api/patients/search?${params.toString()}`);
+          patient = Array.isArray(patients) ? patients[0] : patients;
+        } catch (searchError) {
+          if (searchError.response?.status !== 403) throw searchError;
+        }
+
+        if (!patient) {
+          patient = this.activePatientProfile;
+        }
+
+        this.activePatientProfile = patient;
+        const historyParams = new URLSearchParams();
+        if (patient.file_number || fileNumber) historyParams.append("file_number", patient.file_number || fileNumber);
+        if (patient.phone || phone) historyParams.append("phone", patient.phone || phone);
+        this.patientProfileHistoryParams = historyParams.toString();
+        this.patientProfileLoading = false;
+        await this.loadPatientProfileAppointments(1);
+      } catch (error) {
+        console.error(error);
+        this.patientProfileError = "باز کردن پرونده انجام نشد.";
+      } finally {
+        this.patientProfileLoading = false;
+      }
+    },
+
+    async loadPatientProfileAppointments(page = 1) {
+      if (!this.patientProfileHistoryParams || this.patientProfileHistoryLoading) return;
+      this.patientProfileHistoryLoading = true;
+
+      try {
+        const params = new URLSearchParams(this.patientProfileHistoryParams);
+        params.set("page", String(page));
+        params.set("per_page", String(this.patientProfileHistoryPerPage));
+        const { data } = await axios.get(`/api/appointments/patient-history?${params.toString()}`);
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        this.patientProfileAppointments = page === 1
+          ? rows
+          : [...this.patientProfileAppointments, ...rows];
+        this.patientProfileHistoryPage = Number(data?.page || page);
+        this.patientProfileTotalAppointments = Number(data?.total || this.patientProfileAppointments.length);
+        this.patientProfileHasMore = Boolean(data?.has_more);
+      } catch (error) {
+        console.error(error);
+        if (!this.patientProfileAppointments.length) {
+          this.patientProfileError = "دریافت سوابق پرونده انجام نشد.";
+        }
+      } finally {
+        this.patientProfileHistoryLoading = false;
+      }
+    },
+
+    patientProfileFallbackFromRow(row) {
+      const [firstName, ...lastNameParts] = String(row?.lastname || "").trim().split(/\s+/).filter(Boolean);
+      return {
+        id: row?.patientId || null,
+        first_name: firstName || row?.lastname || "",
+        last_name: lastNameParts.join(" "),
+        name: row?.lastname || "",
+        phone: row?.phone || "",
+        file_number: row?.fileNumber || "",
+        gender: row?.gender || "",
+        profile_thumbnail_url: row?.profileThumbnailUrl || "",
+        profile_photo_url: row?.profilePhotoUrl || "",
+        avatar_url: row?.profileThumbnailUrl || row?.profilePhotoUrl || "",
+        wallet_balance: row?.walletBalance || 0,
+        outstanding_debt: row?.patientOutstandingDebt || 0,
+        customer_level: row?.customerLevel || "silver",
+        patient_history: "",
+        medical_history: "",
+      };
+    },
+
+    closePatientProfileModal() {
+      this.patientProfileModalOpen = false;
+      this.patientProfileLoading = false;
+      this.patientProfileError = "";
+      this.patientProfileHistoryLoading = false;
+    },
+
+    patientProfileName(patient) {
+      return [patient?.first_name, patient?.last_name].filter(Boolean).join(" ").trim() || patient?.name || "مراجعه‌کننده";
+    },
+
+    patientProfilePhotoUrl(patient) {
+      return patient?.avatar_url || patient?.profile_thumbnail_url || patient?.profile_photo_url || "";
+    },
+
+    profileServiceText(item) {
+      const services = Array.isArray(item?.services) ? item.services : [];
+      const names = services.flatMap(service => [
+        service?.name,
+        ...(Array.isArray(service?.addons) ? service.addons.map(addon => addon?.name) : [])
+      ]).filter(Boolean);
+      return names.join("، ") || "-";
     },
 
     isEmptyAppointmentRow(row) {
-      const services = (row?.services || []).some(service =>
-        service.name ||
-        service.doctor ||
-        service.consultant ||
-        (service.addons || []).some(addon => addon.name)
-      );
-
-      return ![
-        row?.lastname,
-        row?.phone,
-        row?.fileNumber,
-        row?.status,
-        row?.source,
-        row?.description,
-        row?.doctorNote,
-        row?.done,
-        row?.amount,
-        row?.debt
-      ].some(value => String(value || "").trim()) && !services;
+      return !this.rowHasAppointment(row);
     },
 
     openDailyReport(day) {
@@ -2640,6 +2908,23 @@ export default {
       this.activeTimelineFollowup = null;
       this.activeTimelineCreatedInModal = false;
       this.timelineValidationErrors = {};
+    },
+
+    raiseTimelineTimePicker(pickerVm = null) {
+      const raise = () => {
+        const picker = pickerVm?.$refs?.picker || document.querySelector("body > .vpd-wrapper:last-of-type") || document.querySelector(".vpd-wrapper");
+        if (!picker) return;
+        picker.classList.add("timeline-time-picker-layer");
+        picker.style.setProperty("z-index", "2147483006", "important");
+        picker.style.setProperty("position", "fixed", "important");
+        const container = picker.querySelector(".vpd-container");
+        if (container) {
+          container.style.setProperty("z-index", "2147483007", "important");
+        }
+      };
+      this.$nextTick(raise);
+      setTimeout(raise, 0);
+      setTimeout(raise, 50);
     },
 
     applyFollowupPrefillToDraft(draft, followup) {
@@ -2894,9 +3179,9 @@ export default {
         errors.lastname = "نام و نام خانوادگی بیمار را وارد کنید.";
       }
 
-      if (!phone) {
+      if (this.canViewPatientPhone && !phone) {
         errors.phone = "شماره تماس بیمار را وارد کنید.";
-      } else if ((draft.sendAppointmentSms || draft.sendInfoSms) && !/^09\d{9}$/.test(this.normalizePhoneDigits(phone))) {
+      } else if ((draft.sendAppointmentSms || draft.sendInfoSms) && this.canViewPatientPhone && !/^09\d{9}$/.test(this.normalizePhoneDigits(phone))) {
         errors.phone = "برای ارسال پیامک، شماره موبایل معتبر وارد کنید.";
       }
 
@@ -3062,6 +3347,10 @@ export default {
       const alreadySent = row.completionSmsStatuses || {};
       this.selectedCompletionSms = ['treatment_care','payment_link','welcome'].filter(type => !alreadySent[type]);
       if (row.referrerPhone && this.moneyToNumber(row.referralScore) > 0 && !alreadySent.referral_credit) this.selectedCompletionSms.unshift('referral_credit');
+      if (!this.canViewPatientPhone) {
+        this.selectedCompletionSms = [];
+        return;
+      }
       this.completionSmsModalOpen = true;
     },
 
@@ -3121,6 +3410,10 @@ export default {
     async sendSelectedCompletionSms() {
       const row = this.activeCompletionSmsRow;
       if (!row || !this.selectedCompletionSms.length) return;
+      if (!this.canViewPatientPhone) {
+        await Swal.fire({ icon:'info', title:'ارسال پیامک برای این نقش غیرفعال است' });
+        return;
+      }
       if (!row.phone) {
         await Swal.fire({ icon:'warning', title:'شماره موبایل وارد نشده است' });
         return;
@@ -3420,6 +3713,10 @@ export default {
     },
 
     openPaymentLinkModal(day, row) {
+      if (!this.canViewPatientPhone) {
+        Swal.fire({ icon: "info", title: "نمایش و ارسال شماره تماس برای این نقش غیرفعال است" });
+        return;
+      }
       this.ensurePaymentLink(day, row);
       this.activePaymentLinkRow = row;
       this.paymentLinkModalOpen = true;
@@ -3474,6 +3771,10 @@ export default {
     },
 
     async sendPaymentLinkSms(row) {
+      if (!this.canViewPatientPhone) {
+        await Swal.fire({ icon: "info", title: "ارسال پیامک برای این نقش غیرفعال است" });
+        return;
+      }
       this.paymentLinkSending = true;
 
       try {
@@ -3519,7 +3820,7 @@ export default {
           holidayTitle: event?.title || "",
           isHoliday: date.day() === 5 || event?.holiday === true,
           rows: [],
-          collapsed: false
+          collapsed: this.shouldCollapseScheduleDay(i)
         });
       }
     },
@@ -3602,7 +3903,7 @@ export default {
         holidayTitle: event?.title || "",
         isHoliday: date.day() === 5 || event?.holiday === true,
         rows: [],
-        collapsed: false
+        collapsed: this.shouldCollapseScheduleDay(dayNum)
       };
     },
 
@@ -3610,8 +3911,7 @@ export default {
       const { year, month } = this.parseJalaliMonth();
       const daysInMonth = moment.jDaysInMonth(year, month - 1);
       const activeDays = new Set(this.clinicSchedule.active_days || []);
-
-      this.days = [];
+      let changed = false;
 
       for (let i = 1; i <= daysInMonth; i++) {
         const date = moment(`${year}/${month}/${i}`, "jYYYY/jM/jD");
@@ -3622,14 +3922,30 @@ export default {
         const slots = this.generateClinicTimeSlots(dayKey);
         if (!slots.length) continue;
 
-        const day = this.createScheduleDay(i, date);
-        day.rows = slots.map(time => ({
-          ...this.createEmptyAppointmentRow(),
-          time
-        }));
+        let day = this.days.find(item => Number(item.dayNum) === i);
+        if (!day) {
+          day = this.createScheduleDay(i, date);
+          this.days.push(day);
+          changed = true;
+        }
 
-        this.days.push(day);
+        if (!Array.isArray(day.rows)) day.rows = [];
+
+        const existingTimes = new Set(day.rows.map(row => String(row.time || "").trim()).filter(Boolean));
+        slots.forEach(time => {
+          if (existingTimes.has(time)) return;
+          day.rows.push({
+            ...this.createEmptyAppointmentRow(),
+            time
+          });
+          changed = true;
+        });
+
+        this.sortDayRowsByTime(day);
       }
+
+      this.days.sort((a, b) => Number(a.dayNum) - Number(b.dayNum));
+      return changed;
     },
 
     
@@ -3707,6 +4023,7 @@ export default {
       this.isFetching = true;
 
       try {
+        const previousUnreadKeys = new Set(this.doctorNoteUnreadSnapshot || []);
         const res = await axios.get("/api/appointments");
 
         const month = this.months[this.currentMonth];
@@ -3729,7 +4046,7 @@ export default {
               holidayTitle: event?.title || "",
               isHoliday: date.day() === 5 || event?.holiday === true,
               rows: [],
-              collapsed: false
+              collapsed: this.shouldCollapseScheduleDay(Number(item.day_num))
             };
 
             this.days.push(day);
@@ -3787,6 +4104,7 @@ export default {
             patientOutstandingDebt: Number(item.patient_outstanding_debt || 0),
             paymentMethod: item.payment_method || "",
             paymentAccount: item.payment_account || "",
+            paymentDetails: this.normalizePaymentDetails(item.payment_details || {}),
             paymentLink: item.payment_link || "",
             paymentLinkSentCount: Number(item.payment_link_sent_count || 0),
             paymentLinkLastSentAt: item.payment_link_last_sent_at || "",
@@ -3807,8 +4125,21 @@ export default {
           });
         });
 
+        if (data.length === 0) {
+          this.generateClinicScheduleForCurrentMonth();
+        }
         this.days.forEach(day => this.sortDayRowsByTime(day));
         this.days.sort((a, b) => a.dayNum - b.dayNum);
+        const nextUnreadKeys = new Set();
+        this.days.forEach(day => {
+          day.rows.forEach(row => {
+            if (row.doctorNoteUnread) nextUnreadKeys.add(this.appointmentNoteKey(row));
+          });
+        });
+        const hasNewUnreadDoctorNote = [...nextUnreadKeys].some(key => !previousUnreadKeys.has(key));
+        if (this.doctorNoteUnreadInitialized && hasNewUnreadDoctorNote) this.playDoctorNoteBell();
+        this.doctorNoteUnreadSnapshot = nextUnreadKeys;
+        this.doctorNoteUnreadInitialized = true;
 
       } catch (e) {
         console.error(e);
@@ -4020,8 +4351,8 @@ export default {
       row[field] = `${isNegative ? "-" : ""}${Number(digits).toLocaleString()}`;
     },
 
-    saveData(delay = 1200) {
-      if (this.isFetching) return;
+    saveData(delay = 1200, force = false) {
+      if (this.isFetching && !force) return;
 
       clearTimeout(this.saveTimeout);
 
@@ -4139,6 +4470,9 @@ this.calculateFinalAmount(row)
                   payment_account:
                     row.paymentAccount,
 
+                  payment_details:
+                    this.normalizePaymentDetails(row.paymentDetails || {}),
+
                   payment_link:
                     row.paymentLink || null,
 
@@ -4251,6 +4585,7 @@ this.calculateFinalAmount(row)
         debt: "",
         paymentMethod: "",
         paymentAccount: "",
+        paymentDetails: this.emptyPaymentDetails(),
         paymentLink: "",
         paymentLinkSentCount: 0,
         paymentLinkLastSentAt: "",
@@ -4321,9 +4656,27 @@ this.calculateFinalAmount(row)
     financialTriggerTitle(row) {
       const debt = this.patientDebtAmount(row);
       const deposit = Number(row?.walletBalance || 0);
+      const payment = this.paymentDetailsSummary(row);
       if (debt > 0) return `هشدار بدهکاری: ${this.formatDisplayMoney(debt)} تومان`;
       if (deposit > 0) return `بیعانه موجود: ${this.formatDisplayMoney(deposit)} تومان`;
+      if (payment) return payment;
       return "ثبت بدهکاری یا بیعانه";
+    },
+
+    hasPaymentDetails(row) {
+      return Boolean(this.paymentDetailsSummary(row));
+    },
+
+    paymentDetailsSummary(row) {
+      const details = this.normalizePaymentDetails(row?.paymentDetails || {});
+      const parts = [];
+      if (details.cash > 0) parts.push(`نقدی ${this.formatDisplayMoney(details.cash)}`);
+      if (details.card > 0) parts.push(`کارت ${this.formatDisplayMoney(details.card)}`);
+      if (details.check.amount > 0 || details.check.number || details.check.dueDate) {
+        parts.push(`چک ${details.check.amount ? this.formatDisplayMoney(details.check.amount) : ""}`.trim());
+      }
+      if (row?.paymentMethod) parts.unshift(row.paymentMethod);
+      return parts.join("، ");
     },
 
     walletSettlementAmount(row) {
@@ -4390,6 +4743,15 @@ this.calculateFinalAmount(row)
         ? this.formatDisplayMoney(this.moneyToNumber(row.debt))
         : "";
       this.financialDepositDraft = "";
+      const details = this.normalizePaymentDetails(row?.paymentDetails || {});
+      this.financialPaymentMethodDraft = row?.paymentMethod || "";
+      this.financialPaymentAccountDraft = row?.paymentAccount || "";
+      this.financialCashDraft = details.cash ? this.formatDisplayMoney(details.cash) : "";
+      this.financialCardDraft = details.card ? this.formatDisplayMoney(details.card) : "";
+      this.financialCheckAmountDraft = details.check.amount ? this.formatDisplayMoney(details.check.amount) : "";
+      this.financialCheckNumberDraft = details.check.number || "";
+      this.financialCheckDueDateDraft = details.check.dueDate || "";
+      this.financialCheckOpen = Boolean(details.check.amount || details.check.number || details.check.dueDate);
       this.financialPanelOpen = true;
     },
 
@@ -4398,6 +4760,14 @@ this.calculateFinalAmount(row)
       this.activeFinancialRow = null;
       this.financialDebtDraft = "";
       this.financialDepositDraft = "";
+      this.financialPaymentMethodDraft = "";
+      this.financialPaymentAccountDraft = "";
+      this.financialCashDraft = "";
+      this.financialCardDraft = "";
+      this.financialCheckOpen = false;
+      this.financialCheckAmountDraft = "";
+      this.financialCheckNumberDraft = "";
+      this.financialCheckDueDateDraft = "";
     },
 
     formatFinancialDraft(field) {
@@ -4411,6 +4781,9 @@ this.calculateFinalAmount(row)
 
       const newDebt = Math.max(0, this.moneyToNumber(this.financialDebtDraft));
       const deposit = Math.max(0, this.moneyToNumber(this.financialDepositDraft));
+      const cash = Math.max(0, this.moneyToNumber(this.financialCashDraft));
+      const card = Math.max(0, this.moneyToNumber(this.financialCardDraft));
+      const checkAmount = Math.max(0, this.moneyToNumber(this.financialCheckAmountDraft));
       if (deposit > 0 && !row.patientId) {
         await Swal.fire({ icon: "warning", title: "پرونده بیمار مشخص نیست", text: "ابتدا بیمار را از پرونده‌های موجود انتخاب کنید." });
         return;
@@ -4422,6 +4795,17 @@ this.calculateFinalAmount(row)
         row.debt = newDebt ? this.formatDisplayMoney(newDebt) : "";
         row.patientOutstandingDebt = Math.max(0, Number(row.patientOutstandingDebt || 0) - previousDebt + newDebt);
         row.originalDebt = newDebt;
+        row.paymentMethod = this.financialPaymentMethodDraft;
+        row.paymentAccount = this.financialPaymentAccountDraft;
+        row.paymentDetails = this.normalizePaymentDetails({
+          cash,
+          card,
+          check: {
+            amount: checkAmount,
+            number: this.financialCheckNumberDraft,
+            dueDate: this.financialCheckDueDateDraft,
+          },
+        });
 
         if (deposit > 0) {
           const { data } = await axios.post(`/api/patients/${row.patientId}/wallet/deposit`, {
@@ -4507,6 +4891,16 @@ this.calculateFinalAmount(row)
         this.saveDoctorNote();
       }
     },
+    appendSentDoctorNoteMessage(data, fallbackText = '') {
+      this.doctorNoteMessages.push(data);
+      if (fallbackText || !String(this.activeDoctorNoteRow.doctorNote || '').trim()) {
+        this.activeDoctorNoteRow.doctorNote = fallbackText || data.message || '[پیوست]';
+      }
+      this.activeDoctorNoteRow.noteMessageCount = this.doctorNoteMessages.length;
+      if (data.requires_secretary_attention && !data.secretary_seen_at) this.activeDoctorNoteRow.doctorNoteUnread = true;
+      this.saveData();
+      this.scrollDoctorNoteChat();
+    },
     async saveDoctorNote() {
       const text = this.doctorNoteDraft.trim();
       if (!this.activeDoctorNoteRow || !text || this.doctorNoteSending) return;
@@ -4516,16 +4910,36 @@ this.calculateFinalAmount(row)
           appointment_key: this.appointmentNoteKey(),
           message_type: 'text', message: text
         });
-        this.doctorNoteMessages.push(data);
-        this.activeDoctorNoteRow.doctorNote = text;
-        this.activeDoctorNoteRow.noteMessageCount = this.doctorNoteMessages.length;
-        if (data.requires_secretary_attention && !data.secretary_seen_at) this.activeDoctorNoteRow.doctorNoteUnread = true;
+        this.appendSentDoctorNoteMessage(data, text);
         this.doctorNoteDraft = '';
-        this.saveData();
         this.$nextTick(() => this.$refs.doctorNoteEditor?.focus());
-        this.scrollDoctorNoteChat();
       } catch (error) {
         Swal.fire({ icon:'error', title:'خطا', text:error.response?.data?.message || 'ارسال یادداشت انجام نشد' });
+      } finally {
+        this.doctorNoteSending = false;
+      }
+    },
+
+    async uploadDoctorNoteImage(event) {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file || !this.activeDoctorNoteRow || this.doctorNoteSending) return;
+      if (!String(file.type || '').startsWith('image/')) {
+        Swal.fire({ icon:'warning', title:'فایل نامعتبر', text:'برای پیوست نسخه، فقط تصویر انتخاب کنید.' });
+        return;
+      }
+      const form = new FormData();
+      form.append('appointment_key', this.appointmentNoteKey());
+      form.append('message_type', 'image');
+      form.append('image', file);
+      if (this.doctorNoteDraft.trim()) form.append('message', this.doctorNoteDraft.trim());
+      this.doctorNoteSending = true;
+      try {
+        const { data } = await axios.post('/api/appointment-notes', form);
+        this.appendSentDoctorNoteMessage(data, '[تصویر نسخه]');
+        this.doctorNoteDraft = '';
+      } catch (error) {
+        Swal.fire({ icon:'error', title:'خطا در ارسال عکس', text:error.response?.data?.message || 'تصویر نسخه ذخیره نشد' });
       } finally {
         this.doctorNoteSending = false;
       }
@@ -4574,14 +4988,7 @@ this.calculateFinalAmount(row)
       this.doctorNoteSending = true;
       try {
         const { data } = await axios.post('/api/appointment-notes', form);
-        this.doctorNoteMessages.push(data);
-        if (!String(this.activeDoctorNoteRow.doctorNote || '').trim()) {
-          this.activeDoctorNoteRow.doctorNote = '[پیام صوتی]';
-        }
-        this.activeDoctorNoteRow.noteMessageCount = this.doctorNoteMessages.length;
-        if (data.requires_secretary_attention && !data.secretary_seen_at) this.activeDoctorNoteRow.doctorNoteUnread = true;
-        this.saveData();
-        this.scrollDoctorNoteChat();
+        this.appendSentDoctorNoteMessage(data, '[پیام صوتی]');
       } catch (error) {
         Swal.fire({ icon:'error', title:'خطا در ارسال ویس', text:error.response?.data?.message || 'فایل صوتی ذخیره نشد' });
       } finally {
@@ -4594,13 +5001,45 @@ this.calculateFinalAmount(row)
     scrollDoctorNoteChat() { this.$nextTick(() => { const el = this.$refs.doctorNoteChat; if (el) el.scrollTop = el.scrollHeight; }); },
     formatDoctorNoteTime(value) { return value ? new Date(value).toLocaleString('fa-IR', { dateStyle:'short', timeStyle:'short' }) : ''; },
     formatRecordingTime(seconds) { return `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`; },
+    playDoctorNoteBell() {
+      const now = Date.now();
+      if (now - this.doctorNoteBellLastPlayedAt < 3000) return;
+      this.doctorNoteBellLastPlayedAt = now;
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        const ctx = new AudioContextClass();
+        const playTone = (frequency, start, duration) => {
+          const oscillator = ctx.createOscillator();
+          const gain = ctx.createGain();
+          oscillator.type = 'sine';
+          oscillator.frequency.value = frequency;
+          gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+          gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + duration);
+          oscillator.connect(gain);
+          gain.connect(ctx.destination);
+          oscillator.start(ctx.currentTime + start);
+          oscillator.stop(ctx.currentTime + start + duration + 0.02);
+        };
+        playTone(880, 0, 0.16);
+        playTone(1175, 0.18, 0.2);
+        setTimeout(() => ctx.close?.(), 700);
+      } catch {
+        // Browser audio can be blocked before user interaction; the visual alert still works.
+      }
+    },
 
     async deleteDoctorNoteMessage(message) {
       if (!message?.can_delete || this.doctorNoteDeletingId) return;
       const result = await Swal.fire({
         icon: 'warning',
         title: 'حذف این پیام؟',
-        text: message.message_type === 'audio' ? 'پیام صوتی و فایل آن برای همیشه حذف می‌شود.' : 'این یادداشت برای همیشه از گفت‌وگو حذف می‌شود.',
+        text: message.message_type === 'audio'
+          ? 'پیام صوتی و فایل آن برای همیشه حذف می‌شود.'
+          : message.message_type === 'image'
+            ? 'تصویر پیوست‌شده برای همیشه حذف می‌شود.'
+            : 'این یادداشت برای همیشه از گفت‌وگو حذف می‌شود.',
         showCancelButton: true,
         confirmButtonText: 'بله، حذف شود',
         cancelButtonText: 'انصراف',
@@ -4646,9 +5085,18 @@ this.calculateFinalAmount(row)
 
     },
 
+    nextTimeForInsertedRow(row) {
+      const time = String(row?.time || "").trim();
+      if (!/^\d{1,2}:\d{2}$/.test(time)) return "";
+      const nextMinutes = this.timeSortValue(time) + this.appointmentMinuteStep;
+      if (!Number.isFinite(nextMinutes)) return "";
+      return this.timeFromMinutes(nextMinutes);
+    },
+
     insertRowAfter(day, row) {
       const index = day.rows.findIndex(item => item._rowId === row._rowId);
       const newRow = this.createEmptyAppointmentRow();
+      newRow.time = this.nextTimeForInsertedRow(row);
       day.rows.splice(index >= 0 ? index + 1 : day.rows.length, 0, newRow);
       this.$nextTick(() => {
         const element = document.getElementById(`row-${newRow._rowId}`);
@@ -4752,7 +5200,7 @@ this.calculateFinalAmount(row)
         holidayTitle: event?.title || "",
         isHoliday: date.day() === 5 || event?.holiday === true,
         rows: [],
-        collapsed: false
+        collapsed: this.shouldCollapseScheduleDay(n)
       };
 
       day.rows = this.createRowsForAddedDay(date);
@@ -5451,6 +5899,8 @@ smsColor(val) {
       if (this.months.length <= 1)
         return;
 
+      clearTimeout(this.saveTimeout);
+
       this.months.splice(this.currentMonth, 1);
 
       if (this.currentMonth > 0) {
@@ -5471,11 +5921,8 @@ smsColor(val) {
       this.currentMonth = this.months.indexOf(next);
 
       try {
-        this.isFetching = true;
         await this.fetchMonthEvents();
-        this.generateClinicScheduleForCurrentMonth();
-        this.isFetching = false;
-        this.saveData();
+        await this.fetchData();
       } finally {
         this.isFetching = false;
         this.$nextTick(() => {
@@ -5485,14 +5932,34 @@ smsColor(val) {
     },
 
     nextJalaliMonth() {
-      const sortedMonths = [...this.months].sort();
-      const lastMonthText = sortedMonths[sortedMonths.length - 1] || this.getCurrentJalaliMonth();
-      let [year, month] = lastMonthText.split("-").map(Number);
+      const currentMonthText = this.months[this.currentMonth] || this.getCurrentJalaliMonth();
+      const nextOfCurrent = this.shiftJalaliMonth(currentMonthText, 1);
 
-      month += 1;
+      if (!this.months.includes(nextOfCurrent)) {
+        return nextOfCurrent;
+      }
+
+      const sortedMonths = [...this.months].filter(month => /^\d{4}-\d{2}$/.test(String(month))).sort();
+      const lastMonthText = sortedMonths[sortedMonths.length - 1] || currentMonthText;
+
+      return this.shiftJalaliMonth(lastMonthText, 1);
+    },
+
+    shiftJalaliMonth(monthText, step = 1) {
+      let [year, month] = String(monthText || this.getCurrentJalaliMonth()).split("-").map(Number);
+
+      if (!Number.isFinite(year) || !Number.isFinite(month)) {
+        [year, month] = this.getCurrentJalaliMonth().split("-").map(Number);
+      }
+
+      month += step;
       if (month > 12) {
-        year += 1;
-        month = 1;
+        year += Math.floor((month - 1) / 12);
+        month = ((month - 1) % 12) + 1;
+      } else if (month < 1) {
+        const yearsBack = Math.ceil(Math.abs(month - 1) / 12);
+        year -= yearsBack;
+        month += yearsBack * 12;
       }
 
       return `${year}-${String(month).padStart(2, "0")}`;
@@ -5513,6 +5980,16 @@ smsColor(val) {
       const today = moment();
       const currentMonth = this.months[this.currentMonth] || '';
       return currentMonth === today.format('jYYYY-jMM') && Number(day?.dayNum) === Number(today.format('jD'));
+    },
+
+    shouldCollapseScheduleDay(dayNum) {
+      const today = moment();
+      const currentMonth = this.months[this.currentMonth] || '';
+      const isRealTodayInCurrentMonth =
+        currentMonth === today.format('jYYYY-jMM') &&
+        Number(dayNum) === Number(today.format('jD'));
+
+      return !isRealTodayInCurrentMonth;
     },
 
     getCurrentJalaliMonth() {
@@ -5594,7 +6071,7 @@ smsColor(val) {
 }
 
 .amount-finance-cell{display:flex;align-items:center;justify-content:center;gap:6px}.amount-finance-cell .auto-amount-input{min-width:0;flex:1}.finance-chat-trigger{position:relative;width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;padding:0;border:1px solid #bfdbfe;border-radius:50%;background:#eff6ff;color:#2563eb;box-shadow:0 5px 13px rgba(37,99,235,.13);transition:.16s}.finance-chat-trigger:hover{background:#dbeafe;transform:translateY(-1px)}.finance-chat-trigger svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.finance-chat-trigger>span{position:absolute;top:-6px;left:-5px;width:18px;height:18px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:1000;animation:debtorPulse 1.8s infinite}.finance-chat-trigger.danger{border-color:#fca5a5;background:#fee2e2;color:#dc2626;box-shadow:0 5px 15px rgba(220,38,38,.2)}.finance-chat-trigger.credit{border-color:#86efac;background:#dcfce7;color:#15803d}
-.financial-panel-overlay{position:fixed;inset:0;z-index:1000003;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.financial-panel{width:min(520px,96vw);box-sizing:border-box;padding:20px;border:1px solid rgba(255,255,255,.75);border-radius:23px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.34);direction:rtl}.financial-panel>header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}.financial-panel header small{color:#2563eb;font-size:10px;font-weight:900}.financial-panel h3{margin:4px 0;color:#0f172a}.financial-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:#f1f5f9;color:#64748b;font-size:23px}.financial-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.financial-summary article{display:grid;gap:4px;padding:13px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.financial-summary article.debt{border-color:#fecaca;background:#fff7f7}.financial-summary article.deposit{border-color:#bbf7d0;background:#f0fdf4}.financial-summary span{color:#64748b;font-size:10px;font-weight:900}.financial-summary strong{font-size:20px}.financial-summary .debt strong{color:#dc2626}.financial-summary .deposit strong{color:#15803d}.financial-summary small{color:#94a3b8;font-size:9px}.financial-panel>label{display:grid;gap:7px;margin-top:11px;color:#334155;font-size:12px;font-weight:900}.financial-panel>label input{height:43px;box-sizing:border-box;padding:0 12px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right}.financial-panel>label small{color:#64748b;font-size:9px;font-weight:600}.financial-patient-warning{margin-top:12px;padding:10px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:10px;font-weight:900}.financial-panel>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.financial-panel>footer button{height:40px;padding:0 16px;border-radius:11px;font-family:inherit;font-size:11px;font-weight:900}.financial-cancel{border:1px solid #e2e8f0;background:#f8fafc;color:#64748b}.financial-save{border:1px solid #2563eb;background:#2563eb;color:#fff;box-shadow:var(--ui-action-shadow)}@media(max-width:520px){.financial-summary{grid-template-columns:1fr}}
+.financial-panel-overlay{position:fixed;inset:0;z-index:1000003;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.financial-panel{width:min(620px,96vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:20px;border:1px solid rgba(255,255,255,.75);border-radius:23px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.34);direction:rtl}.financial-panel>header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}.financial-panel header small{color:#2563eb;font-size:10px;font-weight:900}.financial-panel h3{margin:4px 0;color:#0f172a}.financial-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:#f1f5f9;color:#64748b;font-size:23px}.financial-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.financial-summary article{display:grid;gap:4px;padding:13px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.financial-summary article.debt{border-color:#fecaca;background:#fff7f7}.financial-summary article.deposit{border-color:#bbf7d0;background:#f0fdf4}.financial-summary span{color:#64748b;font-size:10px;font-weight:900}.financial-summary strong{font-size:20px}.financial-summary .debt strong{color:#dc2626}.financial-summary .deposit strong{color:#15803d}.financial-summary small{color:#94a3b8;font-size:9px}.financial-panel>label,.financial-payment-grid label,.financial-check-grid label{display:grid;gap:7px;margin-top:11px;color:#334155;font-size:12px;font-weight:900}.financial-panel input,.financial-panel select{height:43px;box-sizing:border-box;padding:0 12px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right;font-family:inherit}.financial-panel>label small{color:#64748b;font-size:9px;font-weight:600}.financial-payment-grid,.financial-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;margin-top:6px}.financial-advanced-toggle{width:100%;height:42px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:13px;padding:0 12px;border:1px solid #dbeafe;border-radius:12px;background:#f8fbff;color:#2563eb;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.financial-advanced-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.financial-advanced-toggle span{margin-left:auto}.financial-advanced-toggle b{padding:4px 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:9px}.financial-advanced-toggle.active{border-color:#93c5fd;background:#eff6ff}.financial-check-grid{padding:10px;margin-top:8px;border:1px dashed #bfdbfe;border-radius:13px;background:#f8fbff}.financial-patient-warning{margin-top:12px;padding:10px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:10px;font-weight:900}.financial-panel>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.financial-panel>footer button{height:40px;padding:0 16px;border-radius:11px;font-family:inherit;font-size:11px;font-weight:900}.financial-cancel{border:1px solid #e2e8f0;background:#f8fafc;color:#64748b}.financial-save{border:1px solid #2563eb;background:#2563eb;color:#fff;box-shadow:var(--ui-action-shadow)}@media(max-width:520px){.financial-summary,.financial-payment-grid,.financial-check-grid{grid-template-columns:1fr}}
 .finance-chat-trigger.has-financial-balance{width:auto;min-width:76px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 9px;border-radius:10px}.finance-chat-trigger.has-financial-balance svg{width:15px;height:15px}.finance-chat-trigger>em{font-size:10px;font-style:normal;font-weight:1000;white-space:nowrap}.financial-wallet-settle{width:100%;display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 12px;margin:0 0 14px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;cursor:pointer;transition:.18s ease}.financial-wallet-settle:hover{border-color:#22c55e;transform:translateY(-1px);box-shadow:0 8px 20px rgba(34,197,94,.14)}.financial-wallet-settle span{font-size:12px;font-weight:1000}.financial-wallet-settle strong{font-size:14px}.financial-wallet-settle small{grid-column:1/-1;color:#15803d;font-size:9px}.financial-wallet-settle:disabled{opacity:.55;cursor:wait;transform:none}
 
 .appointment-view-switch {
@@ -5749,6 +6226,23 @@ smsColor(val) {
 
 .timeline-day-actions button:hover {
   background: #2563eb;
+  color: #fff;
+}
+
+.timeline-day-actions .timeline-add-next-day-btn {
+  width: 31px;
+  min-width: 31px;
+  padding: 0;
+  border-color: #86efac;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 18px;
+  font-weight: 1000;
+}
+
+.timeline-day-actions .timeline-add-next-day-btn:hover {
+  background: #22c55e;
   color: #fff;
 }
 
@@ -6230,13 +6724,16 @@ smsColor(val) {
   width: 100%;
   min-width: 0;
   min-height: 38px;
+  box-sizing: border-box;
+  padding: 0 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   background: #fff;
   color: #0f172a;
   font-family: inherit;
   font-size: 13px;
-  text-align: center;
+  direction: rtl;
+  text-align: right;
   outline: none;
 }
 
@@ -6284,6 +6781,11 @@ smsColor(val) {
 .timeline-patient-search-field{position:relative;z-index:30}.timeline-patient-results{position:absolute;z-index:200;top:calc(100% + 7px);right:0;left:0;max-height:310px;overflow:auto;padding:7px;border:1px solid #dbeafe;border-radius:14px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.2)}.timeline-patient-result{width:100%;display:flex;align-items:center;gap:11px;padding:9px;border:0;border-radius:11px;background:#fff;color:#0f172a;font-family:inherit;text-align:right;cursor:pointer}.timeline-patient-result:hover{background:#eff6ff}.timeline-patient-result-info{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}.timeline-patient-result-info strong{overflow:hidden;font-size:13px;font-weight:1000;text-overflow:ellipsis;white-space:nowrap}.timeline-patient-result-info small{color:#64748b;font-size:10px;font-weight:800}.timeline-patient-result-info small b{padding:0 3px;color:#cbd5e1}.timeline-patient-result em{flex:0 0 auto;padding:3px 7px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:9px;font-style:normal;font-weight:1000}.timeline-patient-result em.level-problematic{background:#fee2e2;color:#dc2626}.timeline-patient-result em.level-blue{background:#dbeafe;color:#2563eb}.timeline-patient-result em.level-gold{background:#fef3c7;color:#a16207}.timeline-patient-search-state{padding:18px;color:#64748b;font-size:12px;font-weight:800;text-align:center}
 .timeline-quick-team{display:grid;grid-template-columns:1.35fr 1fr;gap:14px;padding:18px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.timeline-quick-team label{min-width:0;display:flex;flex-direction:column;gap:8px;color:#334155;font-size:12px;font-weight:1000}.timeline-quick-team select{width:100%;height:42px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit}.timeline-sms-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.timeline-sms-options>label{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;cursor:pointer;transition:.18s}.timeline-sms-options>label:hover,.timeline-sms-options>label.active{border-color:#60a5fa;background:#eff6ff;box-shadow:0 5px 14px rgba(37,99,235,.08)}.timeline-sms-options input{width:18px!important;height:18px!important;flex:0 0 18px;accent-color:#2563eb}.timeline-sms-options span{display:flex;flex-direction:column;gap:3px}.timeline-sms-options b{color:#1e293b;font-size:12px}.timeline-sms-options small{color:#64748b;font-size:10px;font-weight:700}@media(max-width:700px){.timeline-quick-team,.timeline-sms-options{grid-template-columns:1fr}}
 .timeline-doctor-multiselect{position:relative;z-index:80;min-height:44px;color:#1e293b;font-family:inherit;font-size:12px;direction:rtl}.timeline-doctor-multiselect .multiselect__select{right:auto;left:1px;width:38px;height:42px}.timeline-doctor-multiselect .multiselect__tags{min-height:44px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px 5px 40px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right}.timeline-doctor-multiselect.multiselect--active .multiselect__tags{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}.timeline-doctor-multiselect .multiselect__tag{display:inline-flex;align-items:center;gap:6px;margin:0;padding:6px 9px 6px 27px;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:900;line-height:1.2}.timeline-doctor-multiselect .multiselect__tag-icon{right:auto;left:0;width:24px;border-radius:8px 0 0 8px}.timeline-doctor-multiselect .multiselect__tag-icon::after{color:#1d4ed8}.timeline-doctor-multiselect .multiselect__tag-icon:hover{background:#bfdbfe}.timeline-doctor-multiselect .multiselect__input,.timeline-doctor-multiselect .multiselect__placeholder{width:auto!important;min-width:150px!important;height:28px!important;min-height:28px!important;margin:0!important;padding:4px 2px!important;border:0!important;background:transparent!important;color:#64748b!important;font-family:inherit!important;font-size:11px!important;text-align:right!important;direction:rtl!important;box-shadow:none!important}.timeline-doctor-multiselect .multiselect__content-wrapper{top:calc(100% + 6px);max-height:230px!important;overflow:auto;border:1px solid #dbeafe;border-radius:11px;background:#fff;box-shadow:0 16px 38px rgba(15,23,42,.18);direction:rtl;text-align:right}.timeline-doctor-multiselect .multiselect__content{width:100%;padding:5px}.timeline-doctor-multiselect .multiselect__option{min-height:40px;padding:10px 12px;border-radius:8px;color:#334155;font-size:12px;font-weight:800;text-align:right}.timeline-doctor-multiselect .multiselect__option--highlight,.timeline-doctor-multiselect .multiselect__option--selected.multiselect__option--highlight{background:#eff6ff;color:#1d4ed8}.timeline-doctor-multiselect .multiselect__option--selected{background:#dbeafe;color:#1d4ed8;font-weight:1000}.timeline-doctor-multiselect .multiselect__option::after{left:10px;right:auto;background:transparent!important;color:inherit!important;font-size:10px}
+.timeline-doctor-multiselect .multiselect__tags{min-height:46px!important;display:flex!important;align-items:center!important;gap:6px!important;flex-wrap:wrap!important;padding:6px 10px 6px 42px!important;overflow:visible!important}
+.timeline-doctor-multiselect .multiselect__tags-wrap{display:flex!important;align-items:center!important;gap:6px!important;flex-wrap:wrap!important;min-width:0!important}
+.timeline-doctor-multiselect .multiselect__tag{position:relative!important;max-width:calc(100% - 8px)!important;margin:0!important;padding:7px 10px 7px 28px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;line-height:1.2!important}
+.timeline-doctor-multiselect .multiselect__input,.timeline-doctor-multiselect .multiselect__placeholder{position:static!important;width:auto!important;min-width:0!important;max-width:100%!important;height:26px!important;min-height:26px!important;margin:0!important;padding:3px 2px!important;line-height:20px!important;text-align:right!important;direction:rtl!important;box-shadow:none!important}
+.timeline-doctor-multiselect .multiselect__single{position:static!important;margin:0!important;text-align:right!important}
 
 .timeline-wide-field {
   display: flex;
@@ -6482,7 +6984,7 @@ smsColor(val) {
 .problematic-customer-row > td {
   background-color: #fff7f7;
 }
-.insert-appointment-row-btn{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;padding:0;border:1px solid #93c5fd;border-radius:7px;background:#eff6ff;color:#2563eb;font-family:inherit;font-size:17px;font-weight:900;line-height:1;cursor:pointer;transition:.16s ease}.insert-appointment-row-btn:hover{background:#2563eb;color:#fff;border-color:#2563eb;transform:scale(1.06)}
+.insert-appointment-row-btn{width:26px;height:26px;display:inline-grid;place-items:center;vertical-align:middle;margin-left:5px;padding:0;border:1px solid #93c5fd;border-radius:8px;background:#eff6ff;color:#2563eb;font-family:inherit;font-size:18px;font-weight:900;line-height:1;cursor:pointer;transition:.16s ease}.insert-appointment-row-btn:hover{background:#2563eb;color:#fff;border-color:#2563eb;transform:scale(1.04)}
 .debtor-row,.creditor-row{box-shadow:inset -4px 0 0 #dc2626}.debtor-row>td,.creditor-row>td{background-color:#fff7f7}.debtor-row .appointment-patient-name input,.creditor-row .appointment-patient-name input{color:#b91c1c!important;background:#fee2e2!important;border:1px solid #fca5a5!important;font-weight:900}.debtor-warning-icon,.creditor-warning-icon{width:20px;height:20px;flex:0 0 20px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#dc2626;color:#fff;font-size:12px;font-weight:1000;line-height:1;box-shadow:0 2px 7px rgba(220,38,38,.35);cursor:help;animation:debtorPulse 1.8s ease-in-out infinite}.creditor-warning-icon{font-size:10px}.debtor-balance-input,.creditor-balance-input{color:#b91c1c!important;background:#fee2e2!important;border:1px solid #fca5a5!important;font-weight:1000!important}@keyframes debtorPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.25)}50%{box-shadow:0 0 0 5px rgba(220,38,38,0)}}
 
 .appointment-patient-thumbnail,
@@ -6861,7 +7363,7 @@ smsColor(val) {
 .description-with-doctor-note{display:flex;align-items:center;gap:5px;width:100%}.description-with-doctor-note input{min-width:0;flex:1}.doctor-note-trigger{position:relative;width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;padding:0;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#64748b;cursor:pointer;transition:.18s ease}.doctor-note-trigger:hover{transform:translateY(-1px);border-color:#60a5fa;color:#2563eb;background:#eff6ff}.doctor-note-trigger.has-note{border-color:#22c55e;background:#dcfce7;color:#15803d;box-shadow:0 0 0 2px rgba(34,197,94,.12)}.doctor-note-icon{font-size:17px;font-weight:900}.doctor-note-check{position:absolute;left:-4px;top:-5px;width:14px;height:14px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#16a34a;color:#fff;font-size:8px;font-weight:900}
 .doctor-note-trigger.unread-note{border-color:#dc2626!important;background:#fee2e2!important;color:#b91c1c!important;box-shadow:0 0 0 3px rgba(220,38,38,.18),0 0 18px rgba(220,38,38,.3)!important;animation:doctorNoteUnreadPulse 1s ease-in-out infinite}.doctor-note-trigger.unread-note .doctor-note-check{background:#dc2626}.doctor-note-trigger.seen-note{border-color:#86efac;background:#dcfce7;color:#15803d}@keyframes doctorNoteUnreadPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 2px rgba(220,38,38,.14),0 0 8px rgba(220,38,38,.18)}50%{transform:scale(1.12);box-shadow:0 0 0 6px rgba(220,38,38,.08),0 0 22px rgba(220,38,38,.48)}}
 .doctor-note-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:24px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.doctor-note-modal{width:min(900px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.7);border-radius:24px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.35);direction:rtl}.doctor-note-modal-header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 17px;background:linear-gradient(135deg,#eff6ff,#f0fdf4);border-bottom:1px solid #e2e8f0}.doctor-note-modal-header h3{margin:3px 0 5px;color:#0f172a;font-size:22px}.doctor-note-modal-header p{margin:0;color:#64748b;font-size:13px}.doctor-note-eyebrow{color:#2563eb;font-size:11px;font-weight:900}.doctor-note-close{width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,255,255,.8);color:#475569;font-size:25px;cursor:pointer}.doctor-note-toolbar{display:flex;gap:7px;flex-wrap:wrap;padding:12px 22px;border-bottom:1px solid #e2e8f0;background:#fff}.doctor-note-toolbar button{padding:7px 11px;border:1px solid #dbeafe;border-radius:8px;background:#f8fbff;color:#334155;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}.doctor-note-toolbar button:hover{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.doctor-note-editor{width:auto;min-height:360px;margin:18px 22px;padding:18px;border:1px solid #cbd5e1;border-radius:15px;background:#fbfdff;color:#0f172a;font-family:inherit;font-size:15px;line-height:2.1;resize:vertical;outline:none}.doctor-note-editor:focus{border-color:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,.12);background:#fff}.doctor-note-footer{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 22px;border-top:1px solid #e2e8f0;background:#f8fafc}.doctor-note-meta{display:flex;flex-direction:column;color:#475569;font-size:12px}.doctor-note-meta small{color:#94a3b8}.doctor-note-actions{display:flex;gap:8px}.doctor-note-actions button{padding:10px 15px;border:0;border-radius:9px;font-family:inherit;font-weight:900;cursor:pointer}.doctor-note-save{background:#2563eb;color:#fff}.doctor-note-cancel{background:#e2e8f0;color:#334155}.doctor-note-clear{background:#fee2e2;color:#b91c1c}@media(max-width:700px){.doctor-note-overlay{padding:8px}.doctor-note-modal{max-height:97vh;border-radius:16px}.doctor-note-editor{min-height:280px;margin:12px}.doctor-note-footer{align-items:stretch;flex-direction:column}.doctor-note-actions{justify-content:stretch}.doctor-note-actions button{flex:1}}
-.doctor-note-patient-head{display:flex;align-items:center;gap:13px}.doctor-note-chat{min-height:270px;max-height:48vh;display:flex;flex-direction:column;gap:13px;padding:18px 22px;overflow:auto;background:linear-gradient(rgba(248,250,252,.94),rgba(241,245,249,.94)),radial-gradient(circle at 20% 20%,#dbeafe 0,transparent 35%)}.doctor-note-chat-empty{min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#94a3b8}.doctor-note-chat-empty b{color:#475569}.doctor-note-message{display:flex;align-items:flex-end;gap:9px;max-width:78%;align-self:flex-start;direction:rtl}.doctor-note-author-avatar{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;overflow:hidden;border:2px solid #fff;border-radius:50%;background:#dbeafe;color:#1d4ed8;box-shadow:0 3px 10px rgba(15,23,42,.14)}.doctor-note-author-avatar img{width:100%;height:100%;object-fit:cover}.doctor-note-bubble{min-width:170px;padding:10px 13px;border:1px solid #dbeafe;border-radius:16px 16px 5px 16px;background:#fff;box-shadow:0 5px 15px rgba(15,23,42,.07)}.doctor-note-bubble header{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:5px}.doctor-note-bubble header strong{color:#1d4ed8;font-size:11px}.doctor-note-bubble time{color:#94a3b8;font-size:9px}.doctor-note-bubble p{margin:0;color:#1e293b;font-size:13px;line-height:1.9;white-space:pre-wrap}.doctor-note-bubble audio{width:min(320px,55vw);height:38px}.doctor-note-composer{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:end;gap:9px;padding:13px 18px;border-top:1px solid #e2e8f0;background:#fff}.doctor-note-composer textarea{min-height:54px;max-height:130px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:13px;font-family:inherit;resize:vertical;outline:none}.doctor-note-composer textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.12)}.doctor-note-composer button{height:42px;padding:0 14px;border:0;border-radius:11px;font-family:inherit;font-weight:900;cursor:pointer}.doctor-note-record{background:#f1f5f9;color:#475569}.doctor-note-record.recording{background:#fee2e2;color:#dc2626;animation:doctorVoicePulse 1.2s infinite}.doctor-note-send{background:#2563eb;color:#fff}.doctor-note-composer button:disabled{opacity:.5;cursor:not-allowed}@keyframes doctorVoicePulse{50%{box-shadow:0 0 0 6px rgba(239,68,68,.12)}}@media(max-width:700px){.doctor-note-message{max-width:92%}.doctor-note-composer{grid-template-columns:1fr 1fr}.doctor-note-composer textarea{grid-column:1/-1}.doctor-note-patient-head .patient-avatar{--avatar-size:48px!important}}
+.doctor-note-patient-head{display:flex;align-items:center;gap:13px}.doctor-note-chat{min-height:270px;max-height:48vh;display:flex;flex-direction:column;gap:13px;padding:18px 22px;overflow:auto;background:linear-gradient(rgba(248,250,252,.94),rgba(241,245,249,.94)),radial-gradient(circle at 20% 20%,#dbeafe 0,transparent 35%)}.doctor-note-chat-empty{min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#94a3b8}.doctor-note-chat-empty b{color:#475569}.doctor-note-message{display:flex;align-items:flex-end;gap:9px;max-width:78%;align-self:flex-start;direction:rtl}.doctor-note-author-avatar{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;overflow:hidden;border:2px solid #fff;border-radius:50%;background:#dbeafe;color:#1d4ed8;box-shadow:0 3px 10px rgba(15,23,42,.14)}.doctor-note-author-avatar img{width:100%;height:100%;object-fit:cover}.doctor-note-bubble{min-width:170px;padding:10px 13px;border:1px solid #dbeafe;border-radius:16px 16px 5px 16px;background:#fff;box-shadow:0 5px 15px rgba(15,23,42,.07)}.doctor-note-bubble header{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:5px}.doctor-note-bubble header strong{color:#1d4ed8;font-size:11px}.doctor-note-bubble time{color:#94a3b8;font-size:9px}.doctor-note-bubble p{margin:0;color:#1e293b;font-size:13px;line-height:1.9;white-space:pre-wrap}.doctor-note-bubble audio{width:min(320px,55vw);height:38px}.doctor-note-image-link{display:grid;gap:7px;color:#1d4ed8;text-decoration:none}.doctor-note-image-link img{width:min(260px,58vw);max-height:260px;display:block;border-radius:12px;object-fit:cover;background:#e2e8f0}.doctor-note-image-link span{color:#334155;font-size:12px;font-weight:800;line-height:1.8}.doctor-note-composer{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:end;gap:9px;padding:13px 18px;border-top:1px solid #e2e8f0;background:#fff}.doctor-note-composer textarea{min-height:54px;max-height:130px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:13px;font-family:inherit;resize:vertical;outline:none}.doctor-note-composer textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.12)}.doctor-note-composer button,.doctor-note-image-upload{height:42px;display:inline-grid;place-items:center;padding:0 14px;border:0;border-radius:11px;font-family:inherit;font-weight:900;cursor:pointer}.doctor-note-image-upload{width:44px;padding:0;background:#eff6ff;color:#1d4ed8}.doctor-note-image-upload input{display:none}.doctor-note-image-upload svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.doctor-note-image-upload.disabled{opacity:.5;cursor:not-allowed}.doctor-note-record{background:#f1f5f9;color:#475569}.doctor-note-record.recording{background:#fee2e2;color:#dc2626;animation:doctorVoicePulse 1.2s infinite}.doctor-note-send{background:#2563eb;color:#fff}.doctor-note-composer button:disabled{opacity:.5;cursor:not-allowed}@keyframes doctorVoicePulse{50%{box-shadow:0 0 0 6px rgba(239,68,68,.12)}}@media(max-width:700px){.doctor-note-message{max-width:92%}.doctor-note-composer{grid-template-columns:1fr auto auto}.doctor-note-composer textarea{grid-column:1/-1}.doctor-note-patient-head .patient-avatar{--avatar-size:48px!important}}
 .doctor-note-message.own{align-self:flex-end}.doctor-note-message.own .doctor-note-bubble{border-color:#bfdbfe;background:#eff6ff;border-radius:16px 16px 16px 5px}.doctor-note-message-meta{display:flex;align-items:center;gap:7px}.doctor-note-delete{width:25px;height:25px;display:grid;place-items:center;padding:0!important;border:0;border-radius:7px;background:transparent;color:#94a3b8;font-size:12px;cursor:pointer}.doctor-note-delete:hover{background:#fee2e2;color:#dc2626}.doctor-note-delete:disabled{opacity:.45;cursor:wait}
 .section-filter{position:relative}.section-filter-toggle{height:38px;display:flex;align-items:center;gap:8px;padding:0 13px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-family:inherit;font-weight:800;cursor:pointer}.section-filter-toggle.active{color:#1d4ed8;border-color:#60a5fa;background:#eff6ff}.section-filter-toggle span{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#2563eb;color:#fff;font-size:11px}.section-filter-menu{position:absolute;right:0;top:44px;z-index:1000;width:250px;max-height:330px;overflow:auto;padding:10px;background:#fff;border:1px solid #dbeafe;border-radius:12px;box-shadow:0 14px 35px rgba(15,23,42,.18)}.section-filter-title{padding:4px 5px 9px;font-size:12px;font-weight:900;color:#334155;border-bottom:1px solid #eef2f7;margin-bottom:5px}.section-filter-menu label{display:flex;align-items:center;gap:8px;padding:8px 6px;border-radius:7px;cursor:pointer;font-size:13px}.section-filter-menu label:hover{background:#f8fafc}.section-filter-menu input{width:16px;height:16px;accent-color:#2563eb}.section-filter-empty{padding:14px 6px;color:#94a3b8;font-size:12px}.section-filter-clear{width:100%;margin-top:6px;padding:8px;border:0;border-radius:7px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-weight:800;cursor:pointer}
 
@@ -7060,9 +7562,9 @@ th.sticky-header.time-col {
 }
 
 .row-action-col {
-  width: 76px;
-  min-width: 76px;
-  max-width: 76px;
+  width: 108px;
+  min-width: 108px;
+  max-width: 108px;
   text-align: center !important;
 }
 
@@ -7071,24 +7573,34 @@ td.row-action-col {
 }
 
 .row-tracking-btn {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: inline-grid;
   place-items: center;
   vertical-align: middle;
   margin-left: 5px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: #f8fafc;
+  color: #64748b;
   cursor: pointer;
-  font-size: 14px;
   transition: .2s;
 }
 
+.row-tracking-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .row-tracking-btn:hover {
-  background: #2563eb;
-  color: #fff;
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #2563eb;
 }
 
 .row-delete-btn {
@@ -7973,12 +8485,25 @@ tr.data-row td {
 }
 
 .vpd-wrapper,
+.vpd-container,
+.vpd-main,
 .time-picker-popover {
-  z-index: 1000010 !important;
+  z-index: 2147483004 !important;
 }
 
-.vpd-wrapper .vpd-container {
-  z-index: 1000011 !important;
+.vpd-wrapper .vpd-container,
+.time-picker-popover .vpd-container {
+  z-index: 2147483005 !important;
+}
+
+.timeline-time-picker-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483006 !important;
+}
+
+.timeline-time-picker-layer .vpd-container {
+  z-index: 2147483007 !important;
 }
 
 .service-popup-meta {
@@ -8263,4 +8788,5 @@ td.st-arrived select {
 .appointment-timeline .timeline-card.is-empty,.appointment-timeline .timeline-add-card.is-empty{border-color:#cbd5e1!important;background:#e5e7eb!important;color:#64748b!important;box-shadow:none!important}
 .appointment-timeline .timeline-card.is-empty .timeline-card-empty span,.appointment-timeline .timeline-add-card.is-empty .timeline-card-empty span{background:#cbd5e1!important;color:#475569!important}
 .filter-btn{color:#111827!important}
+.time-profile-overlay{position:fixed;inset:0;z-index:1000004;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(5px);direction:rtl}.time-profile-modal{width:min(860px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.72);border-radius:22px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.34)}.time-profile-modal>header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid #e2e8f0;background:#f8fafc}.time-profile-head{min-width:0;display:flex;align-items:center;gap:12px}.time-profile-head div{min-width:0}.time-profile-head small{color:#2563eb;font-size:10px;font-weight:1000}.time-profile-head h3{margin:3px 0;color:#0f172a;font-size:20px}.time-profile-head p{margin:0;color:#64748b;font-size:11px;font-weight:800}.time-profile-modal>header>button{width:36px;height:36px;border:0;border-radius:11px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.time-profile-loading,.time-profile-error,.time-profile-empty{min-height:170px;display:grid;place-items:center;gap:8px;color:#64748b;font-size:13px;font-weight:900}.time-profile-error{color:#b91c1c}.time-profile-body{display:grid;gap:14px;padding:16px 18px;overflow:auto}.time-profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.time-profile-stats article{padding:12px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.time-profile-stats article.danger{border-color:#fecaca;background:#fff7f7}.time-profile-stats span,.time-profile-notes span{display:block;margin-bottom:5px;color:#64748b;font-size:10px;font-weight:1000}.time-profile-stats strong{color:#0f172a;font-size:16px}.time-profile-stats .danger strong{color:#dc2626}.time-profile-notes{display:grid;grid-template-columns:1fr 1fr;gap:10px}.time-profile-notes article{padding:12px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.time-profile-notes p{margin:0;color:#334155;font-size:12px;line-height:1.9;white-space:pre-wrap}.time-profile-history{display:grid;gap:10px}.time-profile-history>div:first-child{display:flex;align-items:center;justify-content:space-between}.time-profile-history h4{margin:0;color:#0f172a;font-size:15px}.time-profile-history>div:first-child span{color:#64748b;font-size:11px;font-weight:900}.time-profile-history table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid #e2e8f0;border-radius:14px;font-size:11px}.time-profile-history th,.time-profile-history td{padding:9px 10px;border-bottom:1px solid #e2e8f0;text-align:center}.time-profile-history th{background:#f8fafc;color:#475569;font-weight:1000}.time-profile-history td{color:#334155}.time-profile-history tr:last-child td{border-bottom:0}.time-profile-more{height:38px;justify-self:center;padding:0 18px;border:1px solid #bfdbfe;border-radius:11px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:11px;font-weight:1000;cursor:pointer}.time-profile-more:disabled{opacity:.6;cursor:wait}@media(max-width:700px){.time-profile-stats,.time-profile-notes{grid-template-columns:1fr}.time-profile-history{overflow:auto}.time-profile-history table{min-width:640px}}
 </style>

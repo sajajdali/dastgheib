@@ -180,18 +180,96 @@
 
         <div v-if="openAccordion === 'password'" class="accordion-body">
           <div v-for="(item, index) in passwords" :key="item.id || index" class="user-definition-card">
-            <div class="user-photo-row">
-              <label class="settings-user-avatar">
-                <img v-if="userAvatar(item)" :src="userAvatar(item)" alt="" />
-                <span v-else>{{ userInitial(item) }}</span>
-                <input type="file" accept="image/*" @change="uploadUserPhoto(item, index, $event)" />
-              </label>
-              <span>عکس کاربر</span>
+            <div class="user-definition-head">
+              <div class="user-photo-row">
+                <label class="settings-user-avatar">
+                  <img v-if="userAvatar(item)" :src="userAvatar(item)" alt="" />
+                  <span v-else>{{ userInitial(item) }}</span>
+                  <input type="file" accept="image/*" @change="uploadUserPhoto(item, index, $event)" />
+                </label>
+                <span>عکس کاربر</span>
+              </div>
+              <button
+                type="button"
+                class="user-delete-btn"
+                :disabled="deletingUserId === item.id || isCurrentUserRow(item)"
+                :title="isCurrentUserRow(item) ? 'حذف حساب کاربری خودتان مجاز نیست' : 'حذف کاربر'"
+                @click="deletePasswordUser(item, index)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16" />
+                  <path d="M9 7V5h6v2" />
+                  <path d="M7 7l1 13h8l1-13" />
+                  <path d="M10 11v5M14 11v5" />
+                </svg>
+              </button>
             </div>
-            <div class="row-box user-fields">
+            <div class="user-two-line-form">
               <input class="green-input" type="text" placeholder="نام کاربر" v-model="item.user" />
+              <input class="green-input" type="text" placeholder="نام مستعار" v-model="item.nickname" />
               <input class="green-input" type="text" placeholder="شماره موبایل" v-model="item.mobile" />
-              <input class="green-input" type="password" placeholder="رمز عبور (برای ویرایش خالی بماند)" v-model="item.pass" />
+              <div class="user-control-column">
+                <div class="gender-icon-picker" aria-label="انتخاب جنسیت">
+                  <button
+                    v-for="option in genderOptions"
+                    :key="option.value"
+                    type="button"
+                    :class="{ active: item.gender === option.value }"
+                    :title="option.label"
+                    @click="item.gender = item.gender === option.value ? '' : option.value"
+                  >
+                    <svg v-if="option.value === 'female'" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="8" r="4.2" />
+                      <path d="M12 12.2v7.3" />
+                      <path d="M8.7 16.5h6.6" />
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="9" cy="15" r="4.2" />
+                      <path d="M12 12 19 5" />
+                      <path d="M14.6 5H19v4.4" />
+                    </svg>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  class="access-lock-btn"
+                  :class="{ active: item.access_blocked }"
+                  :disabled="isCurrentUserRow(item)"
+                  :title="item.access_blocked ? 'باز کردن دسترسی' : 'بستن دسترسی'"
+                  @click="toggleAccessBlocked(item)"
+                >
+                  <svg v-if="item.access_blocked" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="5" y="10" width="14" height="10" rx="2" />
+                    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                    <path d="M12 14v2" />
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="5" y="10" width="14" height="10" rx="2" />
+                    <path d="M8 10V7a4 4 0 0 1 7-2.65" />
+                    <path d="M12 14v2" />
+                  </svg>
+                </button>
+              </div>
+              <div class="password-eye-field">
+                <input
+                  class="green-input"
+                  :type="item.showPassword ? 'text' : 'password'"
+                  placeholder="رمز عبور (برای ویرایش خالی بماند)"
+                  v-model="item.pass"
+                />
+                <button type="button" :title="item.showPassword ? 'مخفی کردن رمز' : 'نمایش رمز'" @click="item.showPassword = !item.showPassword">
+                  <svg v-if="!item.showPassword" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2.25 12s3.5-6.25 9.75-6.25S21.75 12 21.75 12 18.25 18.25 12 18.25 2.25 12 2.25 12Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 3l18 18" />
+                    <path d="M10.6 5.9A9.7 9.7 0 0 1 12 5.75c6.25 0 9.75 6.25 9.75 6.25a17.6 17.6 0 0 1-3.08 3.86" />
+                    <path d="M6.2 6.72C3.69 8.58 2.25 12 2.25 12S5.75 18.25 12 18.25c1.72 0 3.22-.47 4.48-1.13" />
+                    <path d="M9.88 9.88A3 3 0 0 0 14.12 14.12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <div class="user-role-title">نقش‌های کاربر</div>
@@ -218,8 +296,28 @@
           <div class="level-settings-columns">
             <section v-for="level in customerLevelColumns" :key="level.key" :class="['level-settings-card', level.key]">
               <h4>{{ level.label }}</h4>
-              <label>{{ customerLevelPeriodTitle(level.key, 'حداقل پرداخت') }}<input v-model.number="customerLevels[`${level.key}_min_period_amount`]" class="green-input" type="number" min="0"></label>
-              <label>{{ customerLevelPeriodTitle(level.key, 'حداکثر پرداخت') }}<input v-model.number="customerLevels[`${level.key}_max_period_amount`]" class="green-input" type="number" min="0"></label>
+              <label>
+                {{ customerLevelPeriodTitle(level.key, 'حداقل پرداخت') }}
+                <input
+                  :value="formatThousands(customerLevels[`${level.key}_min_period_amount`])"
+                  class="green-input"
+                  type="text"
+                  inputmode="numeric"
+                  dir="ltr"
+                  @input="setCustomerLevelAmount(`${level.key}_min_period_amount`, $event.target.value)"
+                >
+              </label>
+              <label>
+                {{ customerLevelPeriodTitle(level.key, 'حداکثر پرداخت') }}
+                <input
+                  :value="formatThousands(customerLevels[`${level.key}_max_period_amount`])"
+                  class="green-input"
+                  type="text"
+                  inputmode="numeric"
+                  dir="ltr"
+                  @input="setCustomerLevelAmount(`${level.key}_max_period_amount`, $event.target.value)"
+                >
+              </label>
               <label>{{ customerLevelPeriodTitle(level.key, 'حداقل مراجعه') }}<input v-model.number="customerLevels[`${level.key}_visit_count`]" class="green-input" type="number" min="0"></label>
               <label>
                 بازه مراجعه (ماه)
@@ -737,8 +835,12 @@ const company = ref({ name: "", about: "", logoFile: null, logoUrl: "" });
 const makePasswordRow = () => ({
   id: null,
   user: "",
+  nickname: "",
   mobile: "",
   pass: "",
+  gender: "",
+  access_blocked: false,
+  showPassword: false,
   role_ids: [],
   profile_photo_path: null,
   profile_thumbnail_path: null,
@@ -748,6 +850,22 @@ const makePasswordRow = () => ({
 });
 const passwords = ref([makePasswordRow()]);
 const roles = ref([]);
+const deletingUserId = ref(null);
+const genderOptions = [
+  { value: "female", label: "زن" },
+  { value: "male", label: "مرد" }
+];
+const normalizeDigits = (value) => String(value ?? "")
+  .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+  .replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+const plainNumber = (value) => {
+  const normalized = normalizeDigits(value).replace(/[^\d]/g, "");
+  return normalized ? Number(normalized) : 0;
+};
+const formatThousands = (value) => plainNumber(value).toLocaleString("en-US");
+const setCustomerLevelAmount = (key, value) => {
+  customerLevels.value[key] = plainNumber(value);
+};
 
 const satisfactionOptions = [
   { value: "excellent", label: "عالی" },
@@ -846,7 +964,7 @@ const accessSections = ref([
   { title: "زیبایار", permissions: ["کل زیبایار", "ایجاد برنامه زیبایی", "فیلتر تاریخ", "مشاهده پرونده"], people: [{ name: "", selected_permissions: [] }] },
   { title: "منابع", permissions: ["کل منابع", "پزشک", "پرسنل", "کانال ها"], people: [{ name: "", selected_permissions: [] }] },
   { title: "تیکت", permissions: ["کل تیکت", "افزودن تیکت", "تیکت های فعال", "تیکت های انجام شده", "تیکت های انجام نشده", "حذف تیکت"], people: [{ name: "", selected_permissions: [] }] },
-  { title: "قبوض", permissions: [" کل قبوض"], people: [{ name: "", selected_permissions: [] }] },
+  { title: "هزینه‌ها", permissions: [" کل هزینه‌ها"], people: [{ name: "", selected_permissions: [] }] },
   { title: "حضور غیاب", permissions: [" کل حضور غیاب", " افزودن پرسنل", " افزودن ماه", " تنظیمات ماه", " حذف ماه", " حذف مبلغ"], people: [{ name: "", selected_permissions: [] }] },
   { title: "تنظیمات", permissions: ["کل تنظیمات"], people: [{ name: "", selected_permissions: [] }] }
 ]);
@@ -863,6 +981,46 @@ const toggleAccordion = (name) => {
 
 const addPassword = () => { passwords.value.push(makePasswordRow()); };
 const removePassword = () => { if (passwords.value.length > 1) passwords.value.pop(); };
+const isCurrentUserRow = (item) => !!item?.id && Number(item.id) === Number(props.currentUser?.id);
+const toggleAccessBlocked = async (item) => {
+  if (isCurrentUserRow(item)) {
+    await Swal.fire({ icon: "warning", title: "مجاز نیست", text: "نمی‌توانید دسترسی حساب خودتان را ببندید." });
+    return;
+  }
+
+  if (item.access_blocked) {
+    item.access_blocked = false;
+    await saveInternalSettings(false);
+    await Swal.fire({ icon: "success", title: "دسترسی باز شد", timer: 1300, showConfirmButton: false });
+    return;
+  }
+
+  const result = await Swal.fire({
+    icon: "warning",
+    title: "آیا از بستن دسترسی کاربر اطمینان دارید؟",
+    text: "با بستن دسترسی، این کاربر امکان ورود به سیستم را ندارد و اگر وارد باشد از حساب خارج می‌شود.",
+    showCancelButton: true,
+    confirmButtonText: "بله، دسترسی بسته شود",
+    cancelButtonText: "انصراف",
+    confirmButtonColor: "#dc2626",
+    cancelButtonColor: "#64748b"
+  });
+
+  if (!result.isConfirmed) return;
+  item.access_blocked = true;
+  const saved = await saveInternalSettings(false);
+  if (saved) {
+    await Swal.fire({ icon: "success", title: "دسترسی بسته شد", timer: 1500, showConfirmButton: false });
+  } else {
+    item.access_blocked = false;
+  }
+};
+const customerLevelPayload = () => Object.fromEntries(
+  Object.entries(customerLevels.value).map(([key, value]) => [
+    key,
+    key.endsWith("_amount") ? plainNumber(value) : Number(value || 0)
+  ])
+);
 const customerLevelPeriodTitle = (levelKey, title) => {
   const months = Math.max(1, Number(customerLevels.value[`${levelKey}_visit_period_months`] || 3));
   return `${title} در ${months.toLocaleString("fa-IR")} ماه`;
@@ -1060,6 +1218,7 @@ const fetchSettings = async () => {
     if (data.profile_fields) profileFields.value = data.profile_fields;
     if (data.patient_required_fields) patientRequiredFields.value = { ...patientRequiredFields.value, ...data.patient_required_fields };
     if (data.customer_levels) customerLevels.value = { ...customerLevels.value, ...data.customer_levels };
+    customerLevels.value = customerLevelPayload();
     if (data.appointment_columns) appointmentColumns.value = { ...appointmentColumns.value, ...data.appointment_columns };
     attendanceEnabled.value = Boolean(data.attendance_enabled);
     if (data.clinic_schedule) {
@@ -1078,8 +1237,12 @@ const fetchSettings = async () => {
       passwords.value = data.users.map(u => ({
         id: u.id,
         user: u.user,
+        nickname: u.nickname || "",
         mobile: u.mobile || "",
         pass: "",
+        gender: u.gender || "",
+        access_blocked: Boolean(u.access_blocked),
+        showPassword: false,
         role_ids: [...(u.role_ids || [])],
         profile_photo_path: u.profile_photo_path || null,
         profile_thumbnail_path: u.profile_thumbnail_path || null,
@@ -1104,14 +1267,14 @@ const saveInternalSettings = async (showMessage = true) => {
     const payload = {
       profile_fields: profileFields.value,
       patient_required_fields: patientRequiredFields.value,
-      customer_levels: customerLevels.value,
+      customer_levels: customerLevelPayload(),
       appointment_columns: appointmentColumns.value,
       clinic_schedule: clinicSchedule.value,
       company: {
         name: company.value.name || "",
         about: company.value.about || ""
       },
-      passwords: passwords.value
+      passwords: passwords.value.map(({ showPassword, ...row }) => row)
     };
 
     const res = await fetch("/api/settings/internal", {
@@ -1144,6 +1307,58 @@ const saveInternalSettings = async (showMessage = true) => {
       Swal.fire({ icon: "error", title: "خطا", text: "ذخیره اطلاعات انجام نشد." });
     }
     return false;
+  }
+};
+
+const deletePasswordUser = async (item, index) => {
+  if (isCurrentUserRow(item)) {
+    await Swal.fire({ icon: "warning", title: "حذف مجاز نیست", text: "نمی‌توانید حساب کاربری خودتان را حذف کنید." });
+    return;
+  }
+
+  const userName = item.user?.trim() || "این کاربر";
+  const result = await Swal.fire({
+    icon: "warning",
+    title: `حذف ${userName}؟`,
+    html: "فقط دسترسی ورود این کاربر حذف می‌شود.<br>نوبت‌ها، پرونده‌ها، گزارش‌ها و اطلاعاتی که قبلاً ثبت کرده باقی می‌مانند.",
+    showCancelButton: true,
+    confirmButtonText: "بله، حذف شود",
+    cancelButtonText: "انصراف",
+    confirmButtonColor: "#dc2626",
+    cancelButtonColor: "#64748b"
+  });
+
+  if (!result.isConfirmed) return;
+
+  if (!item.id) {
+    if (passwords.value.length > 1) {
+      passwords.value.splice(index, 1);
+    } else {
+      passwords.value = [makePasswordRow()];
+    }
+    return;
+  }
+
+  deletingUserId.value = item.id;
+  try {
+    const response = await fetch(`/api/settings/users/${item.id}`, {
+      method: "DELETE",
+      headers: { "Accept": "application/json" }
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.message || "حذف کاربر انجام نشد.");
+    }
+
+    passwords.value.splice(index, 1);
+    if (!passwords.value.length) passwords.value = [makePasswordRow()];
+    await fetchSettings();
+    await Swal.fire({ icon: "success", title: "کاربر حذف شد", text: data.message, timer: 1800, showConfirmButton: false });
+  } catch (error) {
+    await Swal.fire({ icon: "error", title: "خطا", text: error.message || "حذف کاربر انجام نشد." });
+  } finally {
+    deletingUserId.value = null;
   }
 };
 
@@ -1350,11 +1565,31 @@ textarea{ min-height:120px; resize:none; }
 .compact-checks span{ white-space:nowrap; }
 .row-box{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .user-definition-card{ display:flex; flex-direction:column; gap:12px; padding:16px; border:1px solid #dcfce7; border-radius:18px; background:#fbfffc; }
+.user-definition-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .user-photo-row{ display:flex; align-items:center; justify-content:flex-start; gap:10px; color:#334155; font-size:13px; font-weight:800; }
 .settings-user-avatar{ width:58px; height:58px; border-radius:14px; border:1px solid #dbeafe; background:#eef5ff; color:#2563eb; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; font-weight:900; }
 .settings-user-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
 .settings-user-avatar input{ display:none; }
-.user-fields{ grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.user-delete-btn{ width:40px; height:40px; min-width:40px; display:grid; place-items:center; border:1px solid #fecaca; border-radius:12px; background:#fff7f7; color:#dc2626; padding:0; cursor:pointer; transition:0.2s; }
+.user-delete-btn svg{ width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.user-delete-btn:hover:not(:disabled){ background:#ffe4e6; transform:translateY(-1px); }
+.user-delete-btn:disabled{ cursor:not-allowed; opacity:0.55; transform:none; }
+.user-two-line-form{ display:grid; grid-template-columns:minmax(180px,1fr) 150px minmax(180px,1fr); gap:10px; align-items:center; }
+.user-two-line-form .green-input{ min-width:0; height:46px; border-radius:14px; padding:0 14px; }
+.password-eye-field{ grid-column:1; grid-row:2; position:relative; min-width:0; }
+.password-eye-field input{ width:100%; padding-left:42px; }
+.password-eye-field button{ position:absolute; top:50%; left:9px; transform:translateY(-50%); width:28px; height:28px; border:0; border-radius:9px; background:transparent; color:#2563eb; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+.password-eye-field button:hover{ background:rgba(37,99,235,.08); }
+.password-eye-field svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.user-control-column{ grid-column:2; grid-row:2; display:grid; grid-template-columns:1fr 42px; gap:8px; align-items:center; min-width:0; }
+.gender-icon-picker{ height:46px; box-sizing:border-box; display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:4px; border:1px solid #dbeafe; border-radius:14px; background:#f8fbff; }
+.gender-icon-picker button{ min-width:0; width:100%; height:36px; border:0; border-radius:11px; background:#fff; color:#64748b; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.2s; box-shadow:0 0 0 1px #e2e8f0 inset; }
+.gender-icon-picker button.active{ background:#2563eb; color:#fff; box-shadow:0 10px 22px rgba(37,99,235,.22); }
+.gender-icon-picker svg{ width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.access-lock-btn{ width:42px; height:42px; display:grid; place-items:center; border:1px solid #fecaca; border-radius:13px; background:#fff7f7; color:#dc2626; cursor:pointer; transition:.2s; }
+.access-lock-btn svg{ width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.access-lock-btn.active{ background:#dc2626; color:#fff; border-color:#dc2626; box-shadow:0 10px 22px rgba(220,38,38,.18); }
+.access-lock-btn:disabled{ opacity:.45; cursor:not-allowed; box-shadow:none; }
 .user-role-title{ color:#374151; font-size:13px; font-weight:800; }
 .user-role-picker{ display:flex; flex-wrap:wrap; gap:8px; }
 .user-role-picker label{ display:flex; align-items:center; gap:6px; padding:8px 11px; border:1px solid #dbeafe; border-radius:11px; background:#f8fbff; cursor:pointer; font-size:12px; }
@@ -1637,7 +1872,8 @@ textarea{ min-height:120px; resize:none; }
 .satisfaction-question-editor{cursor:grab}.satisfaction-question-editor.dragging{opacity:.55;border-color:#60a5fa;background:#eff6ff;cursor:grabbing}.drag-handle{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:16px;cursor:grab}.question-actions{display:flex;align-items:center;gap:6px}.question-actions button{background:#f1f5f9!important;color:#475569!important;font-size:14px!important}.question-actions button:last-child{background:#fee2e2!important;color:#dc2626!important;font-size:19px!important}
 .satisfaction-required-toggle{height:40px;align-self:end;justify-self:start;display:inline-flex!important;grid-template-columns:none!important;align-items:center;gap:8px;padding:0 10px!important;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:900;cursor:pointer;transition:border-color .18s ease,background-color .18s ease,color .18s ease,box-shadow .18s ease}.satisfaction-required-toggle input{position:absolute;opacity:0;pointer-events:none}.satisfaction-required-toggle .toggle-track{position:relative;width:30px;height:18px;flex:0 0 30px;border-radius:999px;background:#cbd5e1;transition:background-color .18s ease}.satisfaction-required-toggle .toggle-track i{position:absolute;top:3px;right:3px;width:12px;height:12px;border-radius:999px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.18);transition:transform .18s ease}.satisfaction-required-toggle b{line-height:1;color:inherit}.satisfaction-required-toggle.required{border-color:#bbf7d0;background:#f0fdf4;color:#15803d;box-shadow:0 8px 18px rgba(34,197,94,.08)}.satisfaction-required-toggle.required .toggle-track{background:#22c55e}.satisfaction-required-toggle.required .toggle-track i{transform:translateX(-12px)}.satisfaction-required-toggle:hover{border-color:#bfdbfe;background:#fff}
 
-@media(max-width:768px){ .top-tabs{ align-items:center; gap:6px; } .tab-btn{flex:0 0 auto;padding:7px 12px;text-align:center}.row-box,.user-fields,.template-fields,.lead-alert-options{ grid-template-columns:1fr; } .accordion{ width:100%; } .sms-provider-card,.sms-section-head,.lead-alert-head,.satisfaction-settings-head{ align-items:stretch; flex-direction:column; } .provider-field{ width:100%; }.payment-settings-wrapper,.satisfaction-settings-wrapper{padding:16px}.payment-settings-head{align-items:flex-start;flex-direction:column}.payment-settings-actions,.satisfaction-actions{align-items:stretch;flex-direction:column}.payment-settings-actions button,.satisfaction-actions button{width:100%}.lead-recipient-field>div{flex-direction:column}.lead-recipient-field button{height:42px}.satisfaction-builder,.satisfaction-question-editor{grid-template-columns:1fr}.satisfaction-preview{padding:14px}.satisfaction-actions span{margin-left:0} }
+@media(max-width:768px){ .top-tabs{ align-items:center; gap:6px; } .tab-btn{flex:0 0 auto;padding:7px 12px;text-align:center}.row-box,.user-two-line-form,.template-fields,.lead-alert-options{ grid-template-columns:1fr; } .password-eye-field,.user-control-column{ grid-column:auto; grid-row:auto; }.user-control-column{ grid-template-columns:1fr 42px; } .accordion{ width:100%; } .sms-provider-card,.sms-section-head,.lead-alert-head,.satisfaction-settings-head{ align-items:stretch; flex-direction:column; } .provider-field{ width:100%; }.payment-settings-wrapper,.satisfaction-settings-wrapper{padding:16px}.payment-settings-head{align-items:flex-start;flex-direction:column}.payment-settings-actions,.satisfaction-actions{align-items:stretch;flex-direction:column}.payment-settings-actions button,.satisfaction-actions button{width:100%}.lead-recipient-field>div{flex-direction:column}.lead-recipient-field button{height:42px}.satisfaction-builder,.satisfaction-question-editor{grid-template-columns:1fr}.satisfaction-preview{padding:14px}.satisfaction-actions span{margin-left:0} }
+@media(min-width:769px) and (max-width:1180px){ .user-two-line-form{ grid-template-columns:1fr 150px 1fr; }.password-eye-field{ grid-column:1; }.user-control-column{ grid-column:2; } }
 
 /* Unified settings actions */
 .tab-btn,

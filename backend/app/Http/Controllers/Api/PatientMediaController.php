@@ -369,7 +369,7 @@ class PatientMediaController extends Controller
             ->get(['id', 'path']);
 
         DB::transaction(function () use ($folder, $media) {
-            PatientMedia::query()->whereKey($media->pluck('id'))->delete();
+            PatientMedia::query()->whereKey($media->pluck('id'))->get()->each->delete();
             $folder->delete();
         });
 
@@ -419,13 +419,18 @@ class PatientMediaController extends Controller
     private function serviceGroups(): array
     {
         return Inventory::query()
-            ->with('section:id,name')
+            ->with('section:id,parent_id,level,name')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get(['id', 'section_id', 'name', 'service_tags'])
-            ->groupBy('section_id')
+            ->groupBy(function (Inventory $item) {
+                return (int) ($item->section?->level) > 2 && $item->section?->parent_id
+                    ? $item->section->parent_id
+                    : $item->section_id;
+            })
             ->map(function ($items, $sectionId) {
-                $sectionName = $items->first()?->section?->name ?: 'بدون بخش';
+                $section = InventorySection::query()->find($sectionId);
+                $sectionName = $section?->name ?: $items->first()?->section?->name ?: 'بدون بخش';
                 $tags = $items
                     ->flatMap(fn (Inventory $item) => collect($item->service_tags ?: []))
                     ->map(fn ($tag) => trim((string) $tag))
@@ -460,9 +465,10 @@ class PatientMediaController extends Controller
     private function mediaSections(): array
     {
         return InventorySection::query()
+            ->where('level', '<=', 2)
             ->orderBy('sort_order')
             ->orderBy('id')
-            ->get(['id', 'name'])
+            ->get(['id', 'parent_id', 'level', 'name'])
             ->all();
     }
 

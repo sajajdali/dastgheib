@@ -4,6 +4,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Patient;
 use App\Services\ShsmsService;
+use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -72,6 +73,12 @@ class CompletionSmsController extends Controller
                     'balance' => number_format($balance),
                     'link' => $link,
                 ]));
+                ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
+                    'type' => $type,
+                    'recipient' => $recipient,
+                    'patient_name' => $data['patient_name'] ?? '',
+                    'reference' => $data['reference'] ?? null,
+                ]);
                 if ($referrer) {
                     DB::transaction(function() use($referrer,$amount,$data) {
                         $description = 'referral-reward:'.$data['reference'];
@@ -80,7 +87,16 @@ class CompletionSmsController extends Controller
                     $balance = $referrer->fresh()->wallet_balance;
                 }
                 $results[$type] = ['success'=>true,'balance'=>$balance,'sent_at'=>now()->format('Y-m-d H:i:s')];
-            } catch (\Throwable $e) { $results[$type] = ['success'=>false,'message'=>$e->getMessage()]; }
+            } catch (\Throwable $e) {
+                ActivityLogger::manual('sms_failed', 'پیامک', null, [], [
+                    'type' => $type,
+                    'recipient' => $type === 'referral_credit' ? ($data['referrer_phone'] ?? '') : ($data['patient_phone'] ?? ''),
+                    'patient_name' => $data['patient_name'] ?? '',
+                    'reference' => $data['reference'] ?? null,
+                    'message' => $e->getMessage(),
+                ]);
+                $results[$type] = ['success'=>false,'message'=>$e->getMessage()];
+            }
         }
         return response()->json(['results'=>$results]);
     }
@@ -100,12 +116,24 @@ class CompletionSmsController extends Controller
                 'link' => $data['payment_link'],
                 'amount' => number_format((float) ($data['amount'] ?? 0)),
             ]));
+            ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
+                'type' => 'payment_link',
+                'recipient' => $data['patient_phone'],
+                'patient_name' => $data['patient_name'] ?? '',
+                'amount' => $data['amount'] ?? 0,
+            ]);
 
             return response()->json([
                 'success' => true,
                 'sent_at' => now()->format('Y-m-d H:i:s'),
             ]);
         } catch (\Throwable $e) {
+            ActivityLogger::manual('sms_failed', 'پیامک', null, [], [
+                'type' => 'payment_link',
+                'recipient' => $data['patient_phone'] ?? '',
+                'patient_name' => $data['patient_name'] ?? '',
+                'message' => $e->getMessage(),
+            ]);
             return response()->json(['message' => $e->getMessage()], 422);
         }
     }
@@ -133,8 +161,23 @@ class CompletionSmsController extends Controller
                     'consultant' => $data['consultant'] ?? '',
                     'clinic' => (string) AppSetting::getByKey('clinic_name', ''),
                 ]));
+                ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
+                    'type' => $type,
+                    'recipient' => $data['patient_phone'],
+                    'patient_name' => $data['patient_name'] ?? '',
+                    'date' => $data['date'] ?? '',
+                    'time' => $data['time'] ?? '',
+                ]);
                 $results[$type] = ['success'=>true, 'sent_at'=>now()->format('Y-m-d H:i:s')];
-            } catch (\Throwable $e) { $results[$type] = ['success'=>false, 'message'=>$e->getMessage()]; }
+            } catch (\Throwable $e) {
+                ActivityLogger::manual('sms_failed', 'پیامک', null, [], [
+                    'type' => $type,
+                    'recipient' => $data['patient_phone'] ?? '',
+                    'patient_name' => $data['patient_name'] ?? '',
+                    'message' => $e->getMessage(),
+                ]);
+                $results[$type] = ['success'=>false, 'message'=>$e->getMessage()];
+            }
         }
         return response()->json(['results'=>$results]);
     }

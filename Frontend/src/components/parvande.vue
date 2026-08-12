@@ -140,6 +140,13 @@
           placeholder="شماره تماس"
           @keydown.enter.prevent="performSearch"
         />
+        <input
+          v-if="activeProfileFields.national_id"
+          v-model.trim="search.national_id"
+          type="text"
+          placeholder="کد ملی"
+          @keydown.enter.prevent="performSearch"
+        />
 
         <button type="button" class="secondary-btn search-btn" :disabled="searchLoading" @click="performSearch">
           <span v-if="searchLoading" class="btn-spinner"></span>
@@ -297,6 +304,18 @@
                   <path d="M18.5 15.5c.5 1.6 1 2.1 2.5 2.5-1.5.5-2 1-2.5 2.5-.5-1.5-1-2-2.5-2.5 1.5-.4 2-1 2.5-2.5Z" />
                 </svg>
               </button>
+              <button
+                type="button"
+                class="profile-followup-action"
+                title="مشاهده پیگیری‌های این مراجعه‌کننده"
+                aria-label="مشاهده پیگیری‌های این مراجعه‌کننده"
+                @click="$emit('open-followups', activePatientProfile)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 5h16v10H8l-4 4V5Z" />
+                  <path d="M8 9h8M8 12h5" />
+                </svg>
+              </button>
             </div>
             <div v-if="canUseGallery && (latestProfilePhotosLoading || latestProfilePhotos.length)" class="profile-latest-photos">
               <button
@@ -333,7 +352,7 @@
             <div class="profile-info-row">
               <span class="profile-info-icon">☎</span>
               <b>شماره تماس</b>
-              <strong>{{ activePatientProfile.phone || '-' }}</strong>
+              <strong>{{ displayPatientPhone(activePatientProfile.phone) || '-' }}</strong>
             </div>
             <div class="profile-info-row">
               <span class="profile-info-icon">📅</span>
@@ -400,7 +419,7 @@
         <section class="profile-history-card">
           <div class="profile-card-title">
             <h3>سوابق خدمات</h3>
-            <span>{{ appointmentResults.length }} مورد</span>
+            <span>{{ filteredAppointmentResults.length }} / {{ appointmentResults.length }} مورد</span>
           </div>
 
           <div v-if="appointmentLoading" class="profile-loading-line">
@@ -409,31 +428,61 @@
           </div>
 
           <div v-else-if="appointmentResults.length" class="profile-table-wrap">
+            <div v-if="dueCheckRows.length" class="profile-check-alert">
+              <strong>هشدار چک</strong>
+              <span>{{ dueCheckRows.length }} چک سررسید گذشته، امروز یا فردا دارد.</span>
+            </div>
             <table class="profile-services-table">
               <thead>
                 <tr>
-                  <th>خدمات</th>
-                  <th>پزشک</th>
-                  <th>مشاور</th>
-                  <th>مبلغ</th>
-                  <th>وضعیت</th>
-                  <th>زمان آمدن</th>
-                  <th>کار انجام‌شده</th>
-                  <th>زمان انجام</th>
-                  <th>بدهکاری</th>
+                  <th v-for="column in appointmentFilterColumns" :key="column.key" :class="{ 'filtered-cell': isAppointmentFiltered(column.key) }">
+                    <div class="profile-filter-head">
+                      <span>{{ column.label }}</span>
+                      <button type="button" title="فیلتر" @click.stop="toggleAppointmentFilter(column.key)">⚙</button>
+                    </div>
+                    <div v-if="activeAppointmentFilter === column.key" class="profile-filter-menu" @click.stop>
+                      <label v-for="value in appointmentFilterValues(column.key)" :key="value">
+                        <input
+                          type="checkbox"
+                          :checked="selectedAppointmentFilters[column.key]?.includes(value)"
+                          @change="toggleAppointmentFilterValue(column.key, value)"
+                        >
+                        <span>{{ value }}</span>
+                      </label>
+                      <button v-if="isAppointmentFiltered(column.key)" type="button" @click="clearAppointmentFilter(column.key)">پاک کردن</button>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(item, index) in appointmentResults" :key="`profile-history-${item.id || index}`">
+                <tr
+                  v-for="(item, index) in filteredAppointmentResults"
+                  :key="`profile-history-${item.id || index}`"
+                  :class="{ 'profile-check-warning-row': appointmentCheckAlert(item) }"
+                >
                   <td>{{ formatServices(item.services) }}</td>
                   <td>{{ appointmentDoctors(item) }}</td>
                   <td>{{ appointmentConsultants(item) }}</td>
                   <td>{{ formatMoneyValue(item.amount) }}</td>
+                  <td>
+                    <span class="profile-payment-summary">{{ paymentSummary(item) }}</span>
+                    <span
+                      v-if="hasAppointmentCheck(item)"
+                      class="profile-check-icon"
+                      :class="{ urgent: appointmentCheckAlert(item) }"
+                      :title="appointmentCheckText(item)"
+                    >
+                      چک
+                    </span>
+                  </td>
                   <td>{{ item.status || '-' }}</td>
                   <td>{{ formatAppointmentTrackingTime(item.arrived_at) }}</td>
                   <td>{{ formatDoneWork(item) }}</td>
                   <td>{{ formatAppointmentTrackingTime(item.completed_at) }}</td>
                   <td>{{ formatDebtValue(item.debt) }}</td>
+                </tr>
+                <tr v-if="!filteredAppointmentResults.length">
+                  <td :colspan="appointmentFilterColumns.length" class="profile-empty-row">موردی با این فیلترها پیدا نشد.</td>
                 </tr>
               </tbody>
             </table>
@@ -517,7 +566,7 @@
               <td>{{ item.month || '-' }}</td>
               <td>{{ item.day_num || '-' }}</td>
               <td>{{ item.lastname || '-' }}</td>
-              <td>{{ item.phone || '-' }}</td>
+              <td>{{ displayPatientPhone(item.phone) || '-' }}</td>
               <td>{{ item.file_number || '-' }}</td>
               <td>{{ item.time || '-' }}</td>
               <td>{{ item.status || '-' }}</td>
@@ -560,7 +609,18 @@
           />
           <input v-model="editPatient.first_name" placeholder="نام" />
           <input v-model="editPatient.last_name" placeholder="نام خانوادگی" />
-          <input v-model="editPatient.phone" placeholder="شماره تماس" maxlength="11" />
+          <input
+            v-if="canViewPatientPhone"
+            v-model="editPatient.phone"
+            placeholder="شماره تماس"
+            maxlength="11"
+          />
+          <input
+            v-else
+            :value="displayPatientPhone(editPatient.phone)"
+            placeholder="شماره تماس"
+            readonly
+          />
           <input v-model="editPatient.file_number" placeholder="شماره پرونده" />
 
           <select v-model="editPatient.gender">
@@ -577,7 +637,8 @@
           <input v-if="activeProfileFields.father_name" v-model="editPatient.father_name" placeholder="نام پدر" />
           <input v-if="activeProfileFields.marriage_date" v-model="editPatient.marriage_date" placeholder="تاریخ ازدواج" />
           <input v-if="activeProfileFields.education" v-model="editPatient.education" placeholder="تحصیلات" />
-          <input v-if="activeProfileFields.second_phone" v-model="editPatient.second_phone" placeholder="شماره تماس دوم" maxlength="11" />
+          <input v-if="activeProfileFields.second_phone && canViewPatientPhone" v-model="editPatient.second_phone" placeholder="شماره تماس دوم" maxlength="11" />
+          <input v-else-if="activeProfileFields.second_phone" :value="displayPatientPhone(editPatient.second_phone)" placeholder="شماره تماس دوم" readonly />
 
           <textarea v-model="editPatient.patient_history" placeholder="تیپ شخصیتی"></textarea>
           <textarea v-model="editPatient.medical_history" placeholder="سوابق پزشکی"></textarea>
@@ -781,19 +842,34 @@
               <strong>ساخت فولدر بخش انبار</strong>
               <p>ابتدا بخش را انتخاب کنید؛ سپس تگ‌ها و اطلاعات مشترک تمام عکس‌ها را مشخص کنید.</p>
               <div class="service-folder-picker">
-                <span class="setup-step-title"><b>۱</b> انتخاب بخش</span>
-                <div class="section-choice-grid">
+                <div class="media-inventory-head">
+                  <strong>ساختار خدمات</strong>
+                  <span>{{ mediaLeafSections.length.toLocaleString('fa-IR') }} گروه</span>
+                </div>
+                <div class="media-inventory-tree">
                   <button
-                    v-for="service in mediaSections"
-                    :key="`folder-service-${service.id}`"
+                    v-for="node in mediaInventoryTreeNodes"
+                    :key="`media-section-${node.section.id}`"
                     type="button"
-                    class="service-folder-btn"
-                    :class="{ active: selectedMediaFolderService?.id === service.id }"
+                    class="media-tree-node"
+                    :class="{ active: selectedMediaTreeKey === mediaSectionKey(node.section), leaf: node.level === 2 }"
+                    :style="{ '--tree-depth': node.level - 1 }"
                     :disabled="mediaLoading"
-                    @click="selectMediaFolderService(service)"
+                    @click="selectMediaTreeNode(node.section)"
                   >
-                    {{ service.name }}
+                    <span
+                      class="media-tree-toggle"
+                      :class="{ open: isMediaSectionExpanded(node.section) }"
+                      @click.stop="toggleMediaSection(node.section)"
+                    ></span>
+                    <b>{{ node.section.name }}</b>
+                    <i></i>
+                    <em>{{ mediaTreeNodeCount(node.section).toLocaleString('fa-IR') }}</em>
                   </button>
+                </div>
+                <div v-if="mediaNeedsLeafSection" class="media-section-required">
+                  <strong>لطفا زیرشاخه را انتخاب کنید</strong>
+                  <span>برای ساخت فولدر و انتخاب تگ‌ها، یک زیرشاخه از انبار را انتخاب کنید.</span>
                 </div>
               </div>
 
@@ -1379,6 +1455,10 @@ export default {
   },
 
   props: {
+    permissions: {
+      type: Array,
+      default: () => []
+    },
     openPatientRequest: {
       type: Object,
       default: null
@@ -1433,7 +1513,8 @@ export default {
       search: {
         q: '',
         file_number: '',
-        phone: ''
+        phone: '',
+        national_id: ''
       },
 
       columnLabels: {
@@ -1492,6 +1573,19 @@ export default {
       ],
       appointmentResults: [],
       appointmentLoading: false,
+      activeAppointmentFilter: null,
+      selectedAppointmentFilters: {
+        services: [],
+        doctors: [],
+        consultants: [],
+        amount: [],
+        payment: [],
+        status: [],
+        arrived_at: [],
+        done: [],
+        completed_at: [],
+        debt: [],
+      },
       profileViewOpen: false,
       activePatientProfile: null,
       latestProfilePhotos: [],
@@ -1515,6 +1609,8 @@ export default {
       folderContextMenu: { visible: false, x: 0, y: 0, folder: null },
       mediaSections: [],
       mediaServiceGroups: [],
+      expandedMediaSectionKeys: [],
+      selectedMediaTreeKey: '',
       mediaLoading: false,
       showBeforeAfterCompare: false,
       beforeAfterCompareLoading: false,
@@ -1557,6 +1653,10 @@ export default {
   },
 
   computed: {
+    canViewPatientPhone() {
+      return this.permissions.includes("patients.view_phone");
+    },
+
     canUseGallery() {
       return this.featureEnabled('gallery')
     },
@@ -1678,6 +1778,41 @@ export default {
       return services.filter(service => this.normalizeMediaSearch(service.name).includes(query))
     },
 
+    mediaLeafSections() {
+      return (this.mediaSections || []).filter(section => Number(section.level || 2) === 2)
+    },
+
+    mediaNeedsLeafSection() {
+      return !this.selectedMediaFolderService
+    },
+
+    mediaInventoryTreeNodes() {
+      const nodes = []
+      const roots = this.mediaRootSections.length
+        ? this.mediaRootSections
+        : this.mediaLeafSections
+
+      const walk = (sections, level) => {
+        sections.forEach(section => {
+          const key = this.mediaSectionKey(section)
+          const children = this.mediaChildSections(key)
+          nodes.push({ section, level: Number(section.level || level), hasChildren: children.length > 0 })
+          if (children.length && this.isMediaSectionExpanded(section)) {
+            walk(children, Number(section.level || level) + 1)
+          }
+        })
+      }
+
+      walk(roots, 1)
+      return nodes
+    },
+
+    mediaRootSections() {
+      return (this.mediaSections || [])
+        .filter(section => Number(section.level || 2) === 1)
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || 0) - Number(b.id || 0))
+    },
+
     activePhotoAngle() {
       return this.facePhotoAngles.find(angle => angle.key === this.activePhotoAngleKey) || this.facePhotoAngles[3]
     },
@@ -1708,6 +1843,35 @@ export default {
       return this.appointmentResults.reduce((sum, item) => {
         return sum + this.numberValue(item.amount)
       }, 0)
+    },
+
+    appointmentFilterColumns() {
+      return [
+        { key: 'services', label: 'خدمات' },
+        { key: 'doctors', label: 'پزشک' },
+        { key: 'consultants', label: 'مشاور' },
+        { key: 'amount', label: 'مبلغ' },
+        { key: 'payment', label: 'پرداخت' },
+        { key: 'status', label: 'وضعیت' },
+        { key: 'arrived_at', label: 'زمان آمدن' },
+        { key: 'done', label: 'کار انجام‌شده' },
+        { key: 'completed_at', label: 'زمان انجام' },
+        { key: 'debt', label: 'بدهکاری' },
+      ]
+    },
+
+    filteredAppointmentResults() {
+      return (this.appointmentResults || []).filter(item => {
+        return this.appointmentFilterColumns.every(column => {
+          const selected = this.selectedAppointmentFilters[column.key] || []
+          if (!selected.length) return true
+          return selected.includes(this.appointmentFilterText(item, column.key))
+        })
+      })
+    },
+
+    dueCheckRows() {
+      return this.filteredAppointmentResults.filter(item => this.appointmentCheckAlert(item))
     },
 
     profileStats() {
@@ -1851,6 +2015,15 @@ export default {
   },
 
   methods: {
+    displayPatientPhone(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      if (this.canViewPatientPhone || text.includes("•") || text.includes("*")) return text;
+      const digits = text.replace(/\D/g, "");
+      if (digits.length <= 4) return "••••";
+      return `${digits.slice(0, 3)}••••${digits.slice(-2)}`;
+    },
+
     featureEnabled(feature) {
       if (!feature || !Array.isArray(this.enabledFeatures)) return true
       const aliases = {
@@ -2604,6 +2777,9 @@ export default {
         this.mediaItems = data.media || []
         this.mediaSections = data.sections || []
         this.mediaServiceGroups = data.service_groups || []
+        this.expandedMediaSectionKeys = this.mediaSections
+          .filter(section => Number(section.level || 2) < 2)
+          .map(section => this.mediaSectionKey(section))
         if (this.activePatientProfile?.id === this.activeMediaPatient.id && showAll) {
           this.latestProfilePhotos = (this.mediaItems || [])
             .filter(item => item.media_type === 'image' && item.url)
@@ -2621,6 +2797,7 @@ export default {
     openMediaFolder(folderId) {
       this.closeFolderContextMenu()
       this.selectedMediaFolderService = null
+      this.selectedMediaTreeKey = ''
       this.showAngleCommonSettings = false
       this.mediaShowAll = false
       this.loadPatientMedia(folderId, false)
@@ -2853,14 +3030,60 @@ export default {
     selectMediaFolderService(service) {
       if (!service?.id) return
       this.selectedMediaFolderService = service
+      this.selectedMediaTreeKey = this.mediaSectionKey(service)
       this.serviceTagSearch = ''
       this.mediaUpload.services = []
     },
 
     cancelMediaFolderService() {
       this.selectedMediaFolderService = null
+      this.selectedMediaTreeKey = ''
       this.serviceTagSearch = ''
       this.resetMediaUpload()
+    },
+
+    mediaSectionKey(section) {
+      return String(section?.id || '')
+    },
+
+    mediaChildSections(parentKey) {
+      return (this.mediaSections || [])
+        .filter(section => String(section.parent_id || '') === String(parentKey || ''))
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || 0) - Number(b.id || 0))
+    },
+
+    isMediaSectionExpanded(section) {
+      return this.expandedMediaSectionKeys.includes(this.mediaSectionKey(section))
+    },
+
+    toggleMediaSection(section) {
+      const key = this.mediaSectionKey(section)
+      if (!this.mediaChildSections(key).length) return
+      const index = this.expandedMediaSectionKeys.indexOf(key)
+      if (index >= 0) this.expandedMediaSectionKeys.splice(index, 1)
+      else this.expandedMediaSectionKeys.push(key)
+    },
+
+    mediaTreeNodeCount(section) {
+      const key = this.mediaSectionKey(section)
+      return Number(section?.level || 2) === 2
+        ? this.mediaServiceGroups.filter(group => Number(group.section_id) === Number(section.id)).flatMap(group => group.items || []).length
+        : this.mediaChildSections(key).length
+    },
+
+    selectMediaTreeNode(section) {
+      const key = this.mediaSectionKey(section)
+      this.selectedMediaTreeKey = key
+      if (this.mediaChildSections(key).length && !this.isMediaSectionExpanded(section)) {
+        this.expandedMediaSectionKeys.push(key)
+      }
+      if (Number(section.level || 2) !== 2) {
+        this.selectedMediaFolderService = null
+        this.serviceTagSearch = ''
+        this.mediaUpload.services = []
+        return
+      }
+      this.selectMediaFolderService(section)
     },
 
     selectAllVisibleMediaTags() {
@@ -3292,6 +3515,110 @@ export default {
         .join('، ')
     },
 
+    appointmentFilterText(item, key) {
+      const map = {
+        services: this.formatServices(item.services),
+        doctors: this.appointmentDoctors(item),
+        consultants: this.appointmentConsultants(item),
+        amount: this.formatMoneyValue(item.amount),
+        payment: this.paymentSummary(item),
+        status: item.status || '-',
+        arrived_at: this.formatAppointmentTrackingTime(item.arrived_at),
+        done: this.formatDoneWork(item),
+        completed_at: this.formatAppointmentTrackingTime(item.completed_at),
+        debt: this.formatDebtValue(item.debt),
+      }
+      return map[key] || '-'
+    },
+
+    appointmentFilterValues(key) {
+      return [...new Set((this.appointmentResults || []).map(item => this.appointmentFilterText(item, key)).filter(Boolean))]
+        .sort((a, b) => String(a).localeCompare(String(b), 'fa'))
+    },
+
+    toggleAppointmentFilter(key) {
+      this.activeAppointmentFilter = this.activeAppointmentFilter === key ? null : key
+    },
+
+    toggleAppointmentFilterValue(key, value) {
+      const list = this.selectedAppointmentFilters[key] || []
+      const index = list.indexOf(value)
+      if (index >= 0) list.splice(index, 1)
+      else list.push(value)
+      this.selectedAppointmentFilters[key] = list
+    },
+
+    clearAppointmentFilter(key) {
+      this.selectedAppointmentFilters[key] = []
+    },
+
+    isAppointmentFiltered(key) {
+      return Boolean(this.selectedAppointmentFilters[key]?.length)
+    },
+
+    paymentDetails(item) {
+      const details = item?.payment_details || item?.paymentDetails || {}
+      const check = details.check || {}
+      return {
+        cash: this.numberValue(details.cash),
+        card: this.numberValue(details.card),
+        check: {
+          amount: this.numberValue(check.amount),
+          number: String(check.number || ''),
+          dueDate: String(check.dueDate || check.due_date || ''),
+        },
+      }
+    },
+
+    paymentSummary(item) {
+      const details = this.paymentDetails(item)
+      const parts = []
+      if (item.payment_method) parts.push(item.payment_method)
+      if (item.payment_account) parts.push(item.payment_account)
+      if (details.cash > 0) parts.push(`نقدی ${this.formatMoneyValue(details.cash)}`)
+      if (details.card > 0) parts.push(`کارت ${this.formatMoneyValue(details.card)}`)
+      return parts.length ? parts.join('، ') : '-'
+    },
+
+    hasAppointmentCheck(item) {
+      const check = this.paymentDetails(item).check
+      return Boolean(check.amount || check.number || check.dueDate)
+    },
+
+    appointmentCheckText(item) {
+      const check = this.paymentDetails(item).check
+      if (!check.amount && !check.number && !check.dueDate) return ''
+      const parts = []
+      if (check.amount) parts.push(this.formatMoneyValue(check.amount))
+      if (check.number) parts.push(`شماره ${check.number}`)
+      if (check.dueDate) parts.push(`سررسید ${this.formatGregorianDateFa(check.dueDate)}`)
+      const alert = this.appointmentCheckAlert(item)
+      return alert ? `${alert} - ${parts.join('، ')}` : parts.join('، ')
+    },
+
+    appointmentCheckAlert(item) {
+      const dueDate = this.paymentDetails(item).check.dueDate
+      if (!dueDate) return ''
+      const today = new Date()
+      const todayIso = this.localIsoDate(today)
+      const tomorrow = this.localIsoDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1))
+      if (dueDate < todayIso) return 'سررسید گذشته'
+      if (dueDate === todayIso) return 'سررسید امروز'
+      if (dueDate === tomorrow) return 'سررسید فردا'
+      return ''
+    },
+
+    localIsoDate(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    },
+
+    formatGregorianDateFa(value) {
+      if (!value) return '-'
+      const date = new Date(`${value}T12:00:00`)
+      if (Number.isNaN(date.getTime())) return value
+      return new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
+    },
+
     formatMoneyValue(value) {
       if (value === 0) return '۰ تومان'
       if (!value) return '-'
@@ -3355,6 +3682,9 @@ export default {
       if (key === 'wallet_balance' || key === 'outstanding_debt') {
         return `${this.formatMoneyValue(value || 0)} تومان`
       }
+      if (key === 'phone' || key === 'second_phone') {
+        return this.displayPatientPhone(value) || '-'
+      }
       if (!value) return '-'
       if (key === 'created_at' || key === 'updated_at') {
         return moment(value).format('jYYYY/jMM/jDD')
@@ -3399,14 +3729,15 @@ export default {
           const createdSearch = {
             q: '',
             file_number: String(createdPatient.file_number || this.form.file_number || '').trim(),
-            phone: String(createdPatient.phone || this.form.phone || '').trim()
+            phone: String(createdPatient.phone || this.form.phone || '').trim(),
+            national_id: String(createdPatient.national_id || this.form.national_id || '').trim()
           }
 
           Swal.fire({ icon: 'success', title: 'موفق', text: 'پرونده با موفقیت ثبت شد', timer: 3000, showConfirmButton: false })
           this.resetForm()
           await this.fetchNextFileNumber()
           this.search = createdSearch
-          if (createdSearch.file_number || createdSearch.phone) {
+          if (createdSearch.file_number || createdSearch.phone || createdSearch.national_id) {
             await this.performSearch()
           } else {
             this.searchResults = [this.sanitizePatientSearchRow(createdPatient)]
@@ -3449,8 +3780,8 @@ export default {
       this.activePatientProfile = null
       this.profileViewOpen = false
 
-      if (!this.search.q && !this.search.file_number && !this.search.phone) {
-        Swal.fire({ icon: 'warning', title: 'اطلاعات ناقص', text: 'نام، شماره پرونده یا شماره تماس را وارد کنید', timer: 3000, showConfirmButton: false })
+      if (!this.search.q && !this.search.file_number && !this.search.phone && !this.search.national_id) {
+        Swal.fire({ icon: 'warning', title: 'اطلاعات ناقص', text: 'نام، شماره پرونده، شماره تماس یا کد ملی را وارد کنید', timer: 3000, showConfirmButton: false })
         return
       }
 
@@ -3462,6 +3793,7 @@ export default {
         if (this.search.q) params.append('q', this.search.q)
         if (this.search.file_number) params.append('file_number', this.search.file_number)
         if (this.search.phone) params.append('phone', this.search.phone)
+        if (this.search.national_id) params.append('national_id', this.search.national_id)
 
         const res = await fetch(`/api/patients/search?${params.toString()}`)
         const data = await res.json()
@@ -4338,6 +4670,7 @@ select:focus {
 }
 
 .profile-beauty-action,
+.profile-followup-action,
 .profile-gallery-action {
   width: 40px;
   min-width: 40px;
@@ -4354,6 +4687,7 @@ select:focus {
   transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
 }
 .profile-beauty-action svg,
+.profile-followup-action svg,
 .profile-gallery-action svg {
   width: 19px;
   height: 19px;
@@ -4364,12 +4698,14 @@ select:focus {
   stroke-linejoin: round;
 }
 .profile-beauty-action:hover,
+.profile-followup-action:hover,
 .profile-gallery-action:hover {
   border-color: #93c5fd;
   background: #dbeafe;
   transform: translateY(-1px);
 }
 .profile-beauty-action:focus-visible,
+.profile-followup-action:focus-visible,
 .profile-gallery-action:focus-visible {
   outline: 3px solid rgba(37, 99, 235, .2);
   outline-offset: 2px;
@@ -4717,22 +5053,121 @@ select:focus {
   overflow-x: auto;
 }
 
+.profile-check-alert {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profile-check-alert strong {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+}
+
 .profile-services-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 760px;
+  min-width: 1220px;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   overflow: hidden;
 }
 
 .profile-services-table th {
+  position: relative;
   background: #143b67;
   color: #fff;
-  padding: 14px 12px;
+  padding: 10px 9px;
   font-size: 13px;
   font-weight: 900;
+}
+
+.profile-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.profile-filter-head button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 6px;
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.profile-services-table th.filtered-cell {
+  background: #1d4ed8;
+}
+
+.profile-filter-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 8px;
+  width: 210px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, .2);
+}
+
+.profile-filter-menu label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profile-filter-menu label:hover {
+  background: #eff6ff;
+}
+
+.profile-filter-menu input {
+  width: 14px;
+  height: 14px;
+  accent-color: #2563eb;
+}
+
+.profile-filter-menu button {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px;
+  border: 0;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .profile-services-table td {
@@ -4742,6 +5177,46 @@ select:focus {
   border-left: 1px solid #f1f5f9;
   color: #334155;
   font-size: 13px;
+}
+
+.profile-check-warning-row td {
+  background: #fff1f2;
+  color: #7f1d1d;
+}
+
+.profile-payment-summary {
+  display: inline;
+}
+
+.profile-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  margin-right: 6px;
+  padding: 0 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 9px;
+  font-weight: 1000;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.profile-check-icon.urgent {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, .12), 0 8px 18px rgba(220, 38, 38, .22);
+}
+
+.profile-empty-row {
+  padding: 22px !important;
+  color: #64748b !important;
+  background: #f8fafc;
 }
 
 .profile-services-table tr:last-child td {
@@ -5648,12 +6123,14 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 
 .service-folder-picker {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 9px;
+  padding: 10px;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #f8fafc;
 }
+
+.media-inventory-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.media-inventory-head strong{color:#0f172a;font-size:12px;font-weight:1000}.media-inventory-head span{padding:3px 8px;border-radius:999px;background:#e2e8f0;color:#64748b;font-size:10px;font-weight:900}.media-inventory-tree{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow:auto;padding:3px}.media-tree-node{min-height:40px;display:flex;align-items:center;gap:7px;padding:0 9px;padding-right:calc(9px + (var(--tree-depth) * 14px));border:1px solid transparent;border-radius:10px;background:#fff;color:#334155;font-family:inherit;text-align:right;cursor:pointer;transition:.16s}.media-tree-node:hover{background:#f1f5f9}.media-tree-node.active{background:#eaf3ff;color:#1d4ed8}.media-tree-toggle{width:15px;height:15px;flex:0 0 15px;position:relative}.media-tree-toggle::before{content:"";position:absolute;inset:5px;border-top:4px solid #94a3b8;border-right:3px solid transparent;border-left:3px solid transparent;transition:.16s}.media-tree-toggle.open::before{transform:rotate(90deg)}.media-tree-node.leaf .media-tree-toggle::before{opacity:0}.media-tree-node b{min-width:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:1000}.media-tree-node i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#cbd5e1}.media-tree-node em{min-width:28px;height:28px;display:grid;place-items:center;margin-right:auto;border-radius:999px;background:#eef2f7;color:#64748b;font-size:11px;font-style:normal;font-weight:900}.media-section-required{display:grid;gap:5px;padding:12px;border:1px dashed #cbd5e1;border-radius:10px;background:#fff;color:#64748b;text-align:center}.media-section-required strong{color:#0f172a;font-size:12px}.media-section-required span{font-size:10px;line-height:1.8}
 
 .setup-step-title {
   display: flex;

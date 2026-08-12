@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class Doctor extends Model
 {
+    use Auditable;
+
+    public function activitySection(): string { return 'پزشکان'; }
+
     protected $fillable = [
         'name',
         'user_id',
