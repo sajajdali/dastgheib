@@ -34,6 +34,7 @@ class InventoryController extends Controller
             'doctors' => Doctor::query()->orderBy('name')->get(['id', 'name']),
             'staff' => Staff::query()->orderBy('name')->get(['id', 'name']),
             'users' => User::query()->orderBy('name')->get(['id', 'name', 'mobile']),
+            'service_tags' => app(HumanResourceController::class)->serviceTags(),
         ]);
     }
 
@@ -179,6 +180,10 @@ class InventoryController extends Controller
         return collect($tags)
             ->map(fn ($tag) => trim((string) $tag))
             ->filter()
+            ->filter(function (string $tag) {
+                $allowed = app(HumanResourceController::class)->serviceTags();
+                return in_array($tag, $allowed, true);
+            })
             ->unique()
             ->values()
             ->all();

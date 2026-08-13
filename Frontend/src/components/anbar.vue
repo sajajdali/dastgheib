@@ -239,14 +239,15 @@
                       {{ tag }}
                       <button type="button" title="حذف تگ" @click.stop="removeServiceTag(row, tagIndex)">×</button>
                     </span>
-                    <input
-                      v-model="row.tagDraft"
-                      type="text"
-                      placeholder="تگ + Enter"
-                      @keydown.enter.prevent="addServiceTag(row)"
-                      @keydown.tab="addServiceTag(row)"
-                      @blur="addServiceTag(row)"
-                    >
+                    <div class="service-tag-picker">
+                      <input
+                        v-model.trim="row.tagDraft"
+                        type="search"
+                        placeholder="جست‌وجو و انتخاب تگ"
+                        @focus="openServiceTagPicker(row, $event)"
+                        @input="openServiceTagPicker(row, $event)"
+                      >
+                    </div>
                   </div>
                 </td>
                 <td>
@@ -433,6 +434,26 @@
         </div>
       </div>
     </div>
+
+    <div v-if="tagPicker.row" class="service-tag-popover-backdrop" @mousedown="closeServiceTagPicker">
+      <div
+        class="service-tag-popover"
+        :style="{ top: `${tagPicker.top}px`, left: `${tagPicker.left}px` }"
+        @mousedown.stop
+      >
+        <button
+          v-for="tag in filteredServiceTagOptions(tagPicker.row)"
+          :key="`popover-option-${tag}`"
+          type="button"
+          @click="selectServiceTag(tagPicker.row, tag)"
+        >
+          {{ tag }}
+        </button>
+        <small v-if="!filteredServiceTagOptions(tagPicker.row).length">
+          تگی پیدا نشد. تگ‌ها را از بخش منابع ثبت کنید.
+        </small>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -448,6 +469,7 @@ export default {
   data() {
     return {
       sections: [],
+      serviceTagOptions: [],
       rows: [],
       doctors: [],
       staff: [],
@@ -460,6 +482,11 @@ export default {
       expandedSectionKeys: [],
       sectionIdRedirects: {},
       selectedRow: null,
+      tagPicker: {
+        row: null,
+        top: 0,
+        left: 0,
+      },
       showDefaultCommissionModal: false,
       defaultCommissionRow: null,
       defaultCommissionDraft: {
@@ -694,6 +721,9 @@ export default {
         this.doctors = contextRes.data.doctors || []
         this.staff = contextRes.data.staff || []
         this.users = contextRes.data.users || []
+        this.serviceTagOptions = Array.isArray(contextRes.data.service_tags)
+          ? contextRes.data.service_tags
+          : []
 
         const normalizedSections = this.normalizeInventorySections(contextRes.data.sections || [])
         this.sectionIdRedirects = normalizedSections.redirects
@@ -715,8 +745,16 @@ export default {
           .filter(section => Number(section.level || 1) < 2)
           .map(section => this.sectionKey(section))
 
+        const requestedSectionKey = this.consumeRequestedSectionKey()
         const restoredSection = this.sections.find(section => this.sectionKey(section) === previousSectionKey)
-        if (options.keepState && restoredSection) {
+        const requestedSection = requestedSectionKey
+          ? this.selectableSectionForKey(requestedSectionKey)
+          : null
+
+        if (requestedSection) {
+          this.selectHierarchyForLeaf(requestedSection)
+          this.inventoryView = "table"
+        } else if (options.keepState && restoredSection) {
           this.selectHierarchyForLeaf(restoredSection)
         } else {
           this.selectFirstLeaf()
@@ -745,6 +783,20 @@ export default {
           }
         }, 200)
       }
+    },
+
+    consumeRequestedSectionKey() {
+      const requestedId = localStorage.getItem("inventory-open-section-id")
+      if (!requestedId) return ""
+      localStorage.removeItem("inventory-open-section-id")
+      return this.resolveSectionKey(requestedId)
+    },
+
+    selectableSectionForKey(sectionKey) {
+      const section = this.sections.find(item => this.sectionKey(item) === String(sectionKey || ""))
+      if (!section) return null
+      if (Number(section.level || 1) === 2) return section
+      return this.childSections(this.sectionKey(section))[0] || null
     },
 
     normalizeInventorySections(sections = []) {
@@ -795,6 +847,7 @@ export default {
         name: item.name || "",
         serviceTags: Array.isArray(item.service_tags || item.serviceTags) ? [...(item.service_tags || item.serviceTags)] : [],
         tagDraft: "",
+        tagPickerOpen: false,
         amount: Number(item.amount) || 0,
         price: Number(item.price) || 0,
         count: Number(item.count) || 0,
@@ -974,6 +1027,7 @@ export default {
     },
 
     selectRoot(section) {
+      this.closeServiceTagPicker()
       this.activeRootKey = this.sectionKey(section)
       this.activeTreeKey = this.activeRootKey
       if (!this.expandedSectionKeys.includes(this.activeRootKey)) this.expandedSectionKeys.push(this.activeRootKey)
@@ -983,6 +1037,7 @@ export default {
     },
 
     selectSub(section) {
+      this.closeServiceTagPicker()
       this.activeSubKey = this.sectionKey(section)
       this.activeTreeKey = this.activeSubKey
       if (!this.expandedSectionKeys.includes(this.activeSubKey)) this.expandedSectionKeys.push(this.activeSubKey)
@@ -1109,6 +1164,7 @@ export default {
         name: "",
         serviceTags: [],
         tagDraft: "",
+        tagPickerOpen: false,
         amount: 0,
         price: 0,
         count: 0,
@@ -1126,6 +1182,7 @@ export default {
     },
 
     removeRow(row) {
+      this.closeServiceTagPicker()
       const index = this.rows.findIndex(item => item.localId === row.localId)
       if (index === -1) return
       this.rows.splice(index, 1)
@@ -1135,23 +1192,60 @@ export default {
     },
 
     selectRow(row) {
+      if (this.selectedRow?.localId !== row.localId) this.closeServiceTagPicker()
       this.selectedRow = row
       this.commissionPersonKey = ""
       this.commissionDraft = { type: "percent", value: 0 }
     },
 
     normalizedServiceTags(tags) {
+      const allowed = new Set((this.serviceTagOptions || []).map(tag => this.normalizeTagText(tag)))
       return Array.from(new Set((tags || [])
-        .flatMap(tag => String(tag || '').split(/[,،\n]+/u))
-        .map(tag => tag.trim())
-        .filter(Boolean)))
+        .map(tag => String(tag || '').trim())
+        .filter(Boolean)
+        .filter(tag => !allowed.size || allowed.has(this.normalizeTagText(tag)))))
     },
 
-    addServiceTag(row) {
-      const tags = this.normalizedServiceTags([...(row.serviceTags || []), row.tagDraft])
-      row.serviceTags = tags
+    normalizeTagText(value) {
+      return String(value || '')
+        .trim()
+        .replace(/[يى]/g, 'ی')
+        .replace(/ك/g, 'ک')
+        .replace(/\s+/g, ' ')
+    },
+
+    filteredServiceTagOptions(row) {
+      const selected = new Set((row.serviceTags || []).map(tag => this.normalizeTagText(tag)))
+      const query = this.normalizeTagText(row.tagDraft)
+      return (this.serviceTagOptions || [])
+        .filter(tag => !selected.has(this.normalizeTagText(tag)))
+        .filter(tag => !query || this.normalizeTagText(tag).includes(query))
+        .slice(0, 80)
+    },
+
+    openServiceTagPicker(row, event) {
+      const rect = event.currentTarget.getBoundingClientRect()
+      const width = Math.min(320, Math.max(240, rect.width))
+      const viewportPadding = 12
+      const left = Math.max(viewportPadding, Math.min(rect.left, window.innerWidth - width - viewportPadding))
+      const below = rect.bottom + 8
+      const top = below + 260 > window.innerHeight
+        ? Math.max(viewportPadding, rect.top - 252)
+        : below
+
+      this.tagPicker = { row, top, left }
+    },
+
+    selectServiceTag(row, tag) {
+      row.serviceTags = this.normalizedServiceTags([...(row.serviceTags || []), tag])
       row.tagDraft = ""
+      this.closeServiceTagPicker()
       this.queueSave()
+    },
+
+    closeServiceTagPicker() {
+      if (this.tagPicker.row) this.tagPicker.row.tagDraft = ""
+      this.tagPicker = { row: null, top: 0, left: 0 }
     },
 
     removeServiceTag(row, tagIndex) {
@@ -2050,7 +2144,7 @@ select:focus {
   white-space: nowrap;
 }
 
-.service-tags-editor button {
+.service-tags-editor > span button {
   width: 16px;
   height: 16px;
   display: grid;
@@ -2076,6 +2170,68 @@ select:focus {
 
 .service-tags-editor input:focus {
   box-shadow: none;
+}
+
+.service-tag-picker {
+  position: relative;
+  flex: 1 1 140px;
+  min-width: 120px;
+}
+
+.service-tag-picker input {
+  width: 100%;
+  min-width: 0;
+  text-align: right;
+}
+
+.service-tag-popover-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  background: transparent;
+}
+
+.service-tag-popover {
+  position: fixed;
+  z-index: 1001;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  max-height: 240px;
+  overflow: auto;
+  padding: 7px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, .2);
+}
+
+.service-tag-popover button {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.service-tag-popover button:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.service-tag-popover small {
+  display: block;
+  padding: 10px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.8;
+  text-align: center;
 }
 
 .check {

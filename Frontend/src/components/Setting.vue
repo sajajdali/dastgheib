@@ -1505,6 +1505,11 @@ const saveAccessSettings = async () => {
 };
 
 onMounted(() => {
+  const requestedSection = localStorage.getItem("settings-open-section");
+  if (requestedSection === "resources" && canViewResources.value) {
+    activeSection.value = "resources";
+    localStorage.removeItem("settings-open-section");
+  }
   fetchSettings();
   fetchPaymentOptions();
   loadSatisfactionSettings();

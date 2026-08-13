@@ -453,6 +453,8 @@ export default {
       ,uiMenuOpen: false
       ,legacyLeadsEnabled: false
       ,isCentralApp: centralDomains.includes(window.location.hostname.toLowerCase())
+      ,backGuardActive: false
+      ,allowBrowserBack: false
 
     };
 
@@ -468,6 +470,7 @@ export default {
       this.authLoading = false;
       return;
     }
+    this.installBrowserBackGuard();
     this.checkAuth();
 
     const saved = localStorage.getItem("darkMode");
@@ -488,6 +491,8 @@ export default {
     window.removeEventListener("app:auth-expired", this.handleAuthExpired);
     window.removeEventListener("app:attendance-status-changed", this.handleAttendanceStatusChanged);
     window.removeEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
+    window.removeEventListener("popstate", this.handleBrowserBack);
+    window.removeEventListener("beforeunload", this.handleBeforeUnload);
   },
 
   watch: {
@@ -627,6 +632,32 @@ export default {
   },
 
   methods: {
+    installBrowserBackGuard() {
+      if (this.backGuardActive) return;
+      this.backGuardActive = true;
+      window.history.replaceState({ appGuard: true }, "", window.location.href);
+      window.history.pushState({ appGuard: true }, "", window.location.href);
+      window.addEventListener("popstate", this.handleBrowserBack);
+      window.addEventListener("beforeunload", this.handleBeforeUnload);
+    },
+
+    handleBrowserBack() {
+      if (!this.user || this.allowBrowserBack) return;
+      const confirmed = window.confirm("مطمئنی می‌خواهی از سیستم خارج شوی یا صفحه را ترک کنی؟");
+      if (confirmed) {
+        this.allowBrowserBack = true;
+        window.history.back();
+        return;
+      }
+      window.history.pushState({ appGuard: true }, "", window.location.href);
+    },
+
+    handleBeforeUnload(event) {
+      if (!this.user || window.__intentionalLogout || this.allowBrowserBack) return;
+      event.preventDefault();
+      event.returnValue = "";
+    },
+
     openServiceStatusPage() {
       if (!this.isClinicManager) return;
       this.uiMenuOpen = false;

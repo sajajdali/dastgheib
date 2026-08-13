@@ -30,6 +30,7 @@
         </select>
 
         <date-picker
+          v-if="!showMediaModal"
           v-model="form.birth_date"
           format="jYYYY-jMM-jDD"
           display-format="jYYYY-jMM-jDD"
@@ -76,7 +77,7 @@
         />
 
         <date-picker
-          v-if="activeProfileFields.marriage_date"
+          v-if="activeProfileFields.marriage_date && !showMediaModal"
           v-model="form.marriage_date"
           format="jYYYY-jMM-jDD"
           display-format="jYYYY-jMM-jDD"
@@ -912,9 +913,10 @@
                       <input v-model="mediaUpload.services" type="checkbox" :value="tag">
                       <span>{{ tag.name }}</span>
                     </label>
-                    <small v-if="!filteredMediaServiceTags.length" class="angle-tags-empty">
-                      برای این بخش هنوز تگی در انبار ثبت نشده است.
-                    </small>
+                    <div v-if="!filteredMediaServiceTags.length" class="angle-tags-empty">
+                      <span>تگی هنوز وارد نشده</span>
+                      <button type="button" @click="openInventoryForTags"><b>+</b> تعریف تگ</button>
+                    </div>
                   </div>
 
                   <div class="shared-meta-grid">
@@ -1043,7 +1045,10 @@
                     <input v-model="mediaUpload.services" type="checkbox" :value="service">
                     <span>{{ service.name }}</span>
                   </label>
-                  <small v-if="!filteredMediaServiceTags.length" class="angle-tags-empty">خدمتی با این عبارت پیدا نشد.</small>
+                  <div v-if="!filteredMediaServiceTags.length" class="angle-tags-empty">
+                    <span>تگی هنوز وارد نشده</span>
+                    <button type="button" @click="openInventoryForTags"><b>+</b> تعریف تگ</button>
+                  </div>
                 </div>
                 </section>
 
@@ -2015,6 +2020,16 @@ export default {
   },
 
   methods: {
+    openInventoryForTags() {
+      const sectionId = this.selectedMediaFolderService?.id
+        || [...this.mediaBreadcrumbs].reverse().find(item => item.inventory_section_id)?.inventory_section_id
+      if (sectionId) {
+        localStorage.setItem('inventory-open-section-id', String(sectionId))
+      }
+      this.showMediaModal = false
+      this.$emit('open-page', 'Anbar')
+    },
+
     displayPatientPhone(value) {
       const text = String(value || "").trim();
       if (!text) return "";
@@ -2478,6 +2493,8 @@ export default {
 
     async openMediaModal(patient) {
       if (!this.canUseGallery) return
+      document.activeElement?.blur?.()
+      this.removeDetachedDatePickers()
       this.activeMediaPatient = patient
       this.currentMediaFolderId = null
       this.mediaBreadcrumbs = []
@@ -2500,6 +2517,12 @@ export default {
       this.showMediaModal = false
       this.activeMediaPatient = {}
       this.closeMediaEdit()
+    },
+
+    removeDetachedDatePickers() {
+      document
+        .querySelectorAll('body > .vpd-wrapper, body > .vpd-container, body > .vpd-main')
+        .forEach(element => element.remove())
     },
 
     patientInitials(patient = {}) {
@@ -5622,6 +5645,7 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 
 .media-overlay {
   align-items: stretch;
+  z-index: 2147483200;
 }
 
 .media-modal {
@@ -6786,7 +6810,52 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 }
 
 .angle-tag-options input { accent-color: #2563eb; }
-.angle-tags-empty { color: #94a3b8; padding: 8px; }
+.angle-tags-empty {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.angle-tags-empty span {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.angle-tags-empty button {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.angle-tags-empty button b {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.angle-tags-empty button:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
 
 .angle-common-meta {
   padding-top: 12px;

@@ -124,6 +124,8 @@ Route::post('/payroll/lines/{line}/restore', [PayrollReportController::class, 'r
 Route::delete('/payroll/lines/{line}', [PayrollReportController::class, 'destroyLine'])->middleware('permission:payroll.view|reports.financial');
 Route::get('/payment-options', [HumanResourceController::class, 'getPaymentOptions']);
 Route::post('/payment-options', [HumanResourceController::class, 'savePaymentOptions']);
+Route::get('/service-tags', [HumanResourceController::class, 'getServiceTags'])->middleware('permission:resources.view|inventory.view|appointments.view');
+Route::post('/service-tags', [HumanResourceController::class, 'saveServiceTags'])->middleware('permission:resources.view|inventory.update');
 
 // نوبت‌دهی
 Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->middleware('permission:appointments.view');

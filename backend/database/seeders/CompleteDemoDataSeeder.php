@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Http\Controllers\Api\AttendanceMonthController;
 use App\Http\Controllers\AppointmentController;
 use App\Models\Appointment;
+use App\Models\AppSetting;
 use App\Models\AttendanceMonth;
 use App\Models\Doctor;
 use App\Models\Inventory;
@@ -140,6 +141,11 @@ class CompleteDemoDataSeeder extends Seeder
 
     private function inventory(Doctor $doctorA, Doctor $doctorB, Staff $staffA, Staff $staffB): array
     {
+        AppSetting::updateOrCreate(
+            ['key' => 'service_tags'],
+            ['value' => json_encode(['بوتاکس پیشانی', 'بوتاکس دور چشم', 'ژل لب', 'فرم‌دهی لب', 'لیزر صورت', 'لیزر فول فیس'], JSON_UNESCAPED_UNICODE)]
+        );
+
         $beauty = InventorySection::query()->updateOrCreate(
             ['name' => 'زیبایی دمو'],
             ['parent_id' => null, 'level' => 1, 'sort_order' => 1]

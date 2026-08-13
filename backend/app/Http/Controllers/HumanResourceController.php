@@ -26,6 +26,11 @@ class HumanResourceController extends Controller
         ];
     }
 
+    private function serviceTagDefaults(): array
+    {
+        return ['بوتاکس پیشانی', 'بوتاکس دور چشم', 'ژل لب', 'فرم‌دهی لب', 'لیزر صورت', 'لیزر فول فیس'];
+    }
+
     private function paymentOptions(): array
     {
         $defaults = $this->paymentDefaults();
@@ -85,6 +90,41 @@ class HumanResourceController extends Controller
         }
 
         return response()->json($this->paymentOptions());
+    }
+
+    public function getServiceTags()
+    {
+        return response()->json([
+            'tags' => $this->serviceTags(),
+        ]);
+    }
+
+    public function saveServiceTags(Request $request)
+    {
+        $tags = collect($request->input('tags', []))
+            ->map(fn ($tag) => trim((string) $tag))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        AppSetting::updateOrCreate(
+            ['key' => 'service_tags'],
+            ['value' => json_encode($tags !== [] ? $tags : $this->serviceTagDefaults(), JSON_UNESCAPED_UNICODE)]
+        );
+
+        return response()->json([
+            'tags' => $this->serviceTags(),
+        ]);
+    }
+
+    public function serviceTags(): array
+    {
+        $stored = json_decode((string) AppSetting::getByKey('service_tags', '[]'), true);
+
+        return is_array($stored) && $stored !== []
+            ? array_values(array_filter(array_unique(array_map(fn ($tag) => trim((string) $tag), $stored))))
+            : $this->serviceTagDefaults();
     }
 
     public function getDoctors()

@@ -94,5 +94,5 @@ select {
 }
 /* Dialog feedback must remain visible above application modals. */
 .swal2-container {
-  z-index: 110000 !important;
+  z-index: 2147483300 !important;
 }
