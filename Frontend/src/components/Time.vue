@@ -567,7 +567,7 @@
                   <input
                     v-model="row.lastname"
                     :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
-                    title="باز کردن پرونده"
+                    :title="row.hasPatientFile ? 'باز کردن پرونده' : ''"
                     @click.stop="openPatientProfileFromRow(row)"
                     @input="autoSetAppointmentStatus(row)"
                   />
@@ -2552,61 +2552,23 @@ export default {
       const hasPhone = String(row.phone || '').replace(/\D/g, '').length >= 10;
       if (hasName && hasPhone) row.status = 'وقت داده شد';
     },
-    async openPatientProfileFromRow(row) {
+    openPatientProfileFromRow(row) {
+      // اطلاعات نوبت به‌تنهایی پرونده نیست. فقط برای بیماری که وجود
+      // پرونده‌اش از سمت API تأیید شده، اجازهٔ رفتن به پرونده را بده.
+      if (!row?.hasPatientFile) return;
+
       const fileNumber = String(row?.fileNumber || "").trim();
       const phone = String(row?.phone || "").trim();
 
       if (!fileNumber && !phone) {
-        Swal.fire({
-          icon: "warning",
-          title: "پرونده قابل باز شدن نیست",
-          text: "برای باز کردن پرونده، شماره پرونده یا شماره تماس بیمار لازم است.",
-          timer: 2200,
-          showConfirmButton: false
-        });
         return;
       }
 
-      this.patientProfileModalOpen = true;
-      this.patientProfileLoading = true;
-      this.patientProfileError = "";
-      this.activePatientProfile = this.patientProfileFallbackFromRow(row);
-      this.patientProfileAppointments = [];
-      this.patientProfileHistoryPage = 1;
-      this.patientProfileTotalAppointments = 0;
-      this.patientProfileHasMore = false;
-      this.patientProfileHistoryParams = "";
-
-      try {
-        const params = new URLSearchParams();
-        if (fileNumber) params.append("file_number", fileNumber);
-        if (phone) params.append("phone", phone);
-
-        let patient = null;
-        try {
-          const { data: patients } = await axios.get(`/api/patients/search?${params.toString()}`);
-          patient = Array.isArray(patients) ? patients[0] : patients;
-        } catch (searchError) {
-          if (searchError.response?.status !== 403) throw searchError;
-        }
-
-        if (!patient) {
-          patient = this.activePatientProfile;
-        }
-
-        this.activePatientProfile = patient;
-        const historyParams = new URLSearchParams();
-        if (patient.file_number || fileNumber) historyParams.append("file_number", patient.file_number || fileNumber);
-        if (patient.phone || phone) historyParams.append("phone", patient.phone || phone);
-        this.patientProfileHistoryParams = historyParams.toString();
-        this.patientProfileLoading = false;
-        await this.loadPatientProfileAppointments(1);
-      } catch (error) {
-        console.error(error);
-        this.patientProfileError = "باز کردن پرونده انجام نشد.";
-      } finally {
-        this.patientProfileLoading = false;
-      }
+      this.$emit("open-patient-profile", {
+        id: row.patientId || null,
+        file_number: fileNumber,
+        phone
+      });
     },
 
     async loadPatientProfileAppointments(page = 1) {
@@ -2945,6 +2907,7 @@ export default {
         followup.campaignTitle ? `کمپین: ${followup.campaignTitle}` : "",
         followup.campaignSource || followup.sourceName ? `منبع کمپین: ${followup.campaignSource || followup.sourceName}` : "",
         followup.contactDate ? `تاریخ تماس: ${followup.contactDate}` : "",
+        followup.contactTime ? `ساعت تماس: ${followup.contactTime}` : "",
         followup.followUpDate ? `تاریخ پیگیری: ${followup.followUpDate}` : "",
         followup.status ? `وضعیت پیگیری: ${followup.status}` : "",
         followup.interest ? `درجه تمایل: ${interestLabels[followup.interest] || followup.interest}` : "",
@@ -5131,11 +5094,11 @@ this.calculateFinalAmount(row)
     },
 
     addService(row) {
-      const allowedSections = this.normalizeServiceSectionIds(row?.serviceTypes);
+      const allowedSections = this.serviceSectionScopeIds(row?.serviceTypes);
       if (!allowedSections.length) return;
       row.services.push({
         name: "",
-        sectionId: allowedSections.length === 1 ? allowedSections[0] : "",
+        sectionId: this.defaultServiceSectionId(row),
         cc: "",
         doctor: "",
         consultant: "",
@@ -5556,6 +5519,33 @@ this.calculateFinalAmount(row)
       }).filter(Boolean);
     },
 
+    serviceSectionScopeIds(values) {
+      const selectedIds = this.normalizeServiceSectionIds(values).map(String);
+      const childrenByParent = new Map();
+      (this.serviceSections || []).forEach(section => {
+        const parentId = String(section?.parent_id || section?.parentId || '');
+        if (!parentId) return;
+        if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
+        childrenByParent.get(parentId).push(String(section.id));
+      });
+
+      const scopedIds = new Set();
+      const addWithChildren = sectionId => {
+        if (!sectionId || scopedIds.has(sectionId)) return;
+        scopedIds.add(sectionId);
+        (childrenByParent.get(sectionId) || []).forEach(addWithChildren);
+      };
+      selectedIds.forEach(addWithChildren);
+      return [...scopedIds];
+    },
+
+    defaultServiceSectionId(row) {
+      const selectedIds = this.normalizeServiceSectionIds(row?.serviceTypes);
+      if (selectedIds.length !== 1) return '';
+      const selectedId = String(selectedIds[0]);
+      return this.inventoryItems.some(item => String(item.section_id) === selectedId) ? selectedId : '';
+    },
+
     serviceTypeSummary(row) {
       const names = this.normalizeServiceSectionIds(row?.serviceTypes)
         .map(id => this.serviceSectionLabel(id)).filter(Boolean);
@@ -5572,9 +5562,9 @@ this.calculateFinalAmount(row)
 
     onRowServiceTypesChanged(row) {
       row.serviceTypes = this.normalizeServiceSectionIds(row.serviceTypes);
-      const allowed = new Set(row.serviceTypes.map(String));
+      const allowed = new Set(this.serviceSectionScopeIds(row.serviceTypes));
       (row.services || []).forEach(service => {
-        if (!service.sectionId && allowed.size === 1) service.sectionId = [...allowed][0];
+        if (!service.sectionId) service.sectionId = this.defaultServiceSectionId(row);
         if (service.sectionId && !allowed.has(String(service.sectionId))) {
           service.sectionId = '';
           service.name = '';
@@ -5590,11 +5580,14 @@ this.calculateFinalAmount(row)
     },
 
     serviceOptionsFor(service, row = null) {
-      const allowedSections = new Set(this.normalizeServiceSectionIds(row?.serviceTypes).map(String));
+      const allowedSections = new Set(this.serviceSectionScopeIds(row?.serviceTypes));
+      const serviceSections = service?.sectionId
+        ? new Set(this.serviceSectionScopeIds([service.sectionId]))
+        : null;
       return this.inventoryItems
         .filter(item => item.active !== false)
         .filter(item => allowedSections.size > 0 && allowedSections.has(String(item.section_id)))
-        .filter(item => !service.sectionId || String(item.section_id) === String(service.sectionId))
+        .filter(item => !serviceSections || serviceSections.has(String(item.section_id)))
         .map(item => item.name)
         .filter(Boolean);
     },
@@ -5885,11 +5878,11 @@ smsColor(val) {
 
     doctorsForService(row, service) {
       const selectedSections = service?.sectionId
-        ? [String(service.sectionId)]
-        : this.normalizeServiceSectionIds(row?.serviceTypes).map(String);
+        ? this.serviceSectionScopeIds([service.sectionId])
+        : this.serviceSectionScopeIds(row?.serviceTypes);
       if (!selectedSections.length) return [];
       return (this.doctors || []).filter(doctor => {
-        const doctorSections = (doctor.service_section_ids || []).map(String);
+        const doctorSections = this.serviceSectionScopeIds(doctor.service_section_ids);
         return doctorSections.some(sectionId => selectedSections.includes(sectionId));
       });
     },
@@ -7423,6 +7416,15 @@ smsColor(val) {
 
 .main-schedule-table tbody tr.data-row:hover > td {
   background-color: #f0f7ff !important;
+}
+
+/* وضعیت انجام‌شده باید هنگام عبور موس نیز سبز باقی بماند. */
+.main-schedule-table td.dn-yes,
+.main-schedule-table td.dn-yes select,
+.main-schedule-table tbody tr.data-row:hover > td.dn-yes,
+.main-schedule-table tbody tr.data-row:hover > td.dn-yes select {
+  background-color: #c8e6c9 !important;
+  color: #166534 !important;
 }
 
 .main-schedule-table th,

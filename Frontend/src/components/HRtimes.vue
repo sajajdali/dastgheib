@@ -490,7 +490,8 @@ const props = defineProps({
 const canManageAttendance = props.permissions.includes('attendance.manage')
   || (props.currentUser?.roles || []).some(role => /مدیر|admin/i.test(String(role)))
 const canClockAttendance = props.permissions.includes('attendance.clock')
-const attendanceEnabled = ref(false)
+// این صفحه فقط در صورت داشتن ماژول حضور و غیاب از منو در دسترس است.
+const attendanceEnabled = ref(true)
 const isLoading = ref(true)
 
 const staffs = ref([])
@@ -542,18 +543,15 @@ const visibleStaff = computed(() => visibleResources.value.filter(item => item.r
 async function loadResources() {
   isLoading.value = true
   try {
-    const [staffResponse, doctorResponse, settingsResponse, attendanceResponse] = await Promise.all([
+    const [staffResponse, doctorResponse, attendanceResponse] = await Promise.all([
       fetch('/api/staff', { headers: { Accept: 'application/json' } }),
       fetch('/api/doctors', { headers: { Accept: 'application/json' } }),
-      fetch('/api/settings', { headers: { Accept: 'application/json' } }),
       fetch('/api/attendance/months', { headers: { Accept: 'application/json' } })
     ])
     const staff = staffResponse.ok ? await staffResponse.json() : []
     const doctors = doctorResponse.ok ? await doctorResponse.json() : []
-    const settings = settingsResponse.ok ? await settingsResponse.json() : {}
     const attendanceData = attendanceResponse.ok ? await attendanceResponse.json() : { months: [] }
     const attendanceMonths = Array.isArray(attendanceData.months) ? attendanceData.months : []
-    attendanceEnabled.value = Boolean(settings.attendance_enabled)
     staffs.value = [
       ...staff.map(item => ({ ...item, resourceId: item.id, resourceType: 'staff', id: `staff-${item.id}` })),
       ...doctors.map(item => ({ ...item, resourceId: item.id, resourceType: 'doctor', id: `doctor-${item.id}` }))

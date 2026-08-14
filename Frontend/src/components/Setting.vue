@@ -73,18 +73,6 @@
     </div>
 
     <div v-if="canViewSettings && activeSection === 'internal'" class="content-wrapper">
-      <section v-if="isSuperAdmin" class="attendance-master-setting">
-        <div>
-          <span>دسترسی مدیر کل</span>
-          <h3>فعال‌سازی حضور و غیاب</h3>
-          <p>در حالت غیرفعال، این بخش از منوی تمام کاربران حذف می‌شود.</p>
-        </div>
-        <label class="active-switch">
-          <input v-model="attendanceEnabled" type="checkbox" :disabled="attendanceSaving" @change="saveAttendanceStatus">
-          <span>{{ attendanceEnabled ? 'فعال' : 'غیرفعال' }}</span>
-        </label>
-      </section>
-
       <div v-if="featureEnabled('patients')" class="accordion">
         <div class="accordion-header" @click="toggleAccordion('profile')">
           پرونده
@@ -738,8 +726,6 @@ const featureEnabled = (feature) => {
   const normalized = props.enabledFeatures.map(item => aliases[item] || item);
   return normalized.includes(feature);
 };
-const attendanceEnabled = ref(false);
-const attendanceSaving = ref(false);
 const SATISFACTION_SETTINGS_KEY = "satisfaction_form_settings_v1";
 
 const activeSection = ref(canViewSettings.value ? "internal" : "resources");
@@ -1220,7 +1206,6 @@ const fetchSettings = async () => {
     if (data.customer_levels) customerLevels.value = { ...customerLevels.value, ...data.customer_levels };
     customerLevels.value = customerLevelPayload();
     if (data.appointment_columns) appointmentColumns.value = { ...appointmentColumns.value, ...data.appointment_columns };
-    attendanceEnabled.value = Boolean(data.attendance_enabled);
     if (data.clinic_schedule) {
       clinicSchedule.value = {
         ...clinicSchedule.value,
@@ -1423,21 +1408,6 @@ const uploadUserPhoto = async (item, index, event) => {
   }
 };
 
-const saveAttendanceStatus = async () => {
-  if (!isSuperAdmin.value) return;
-  attendanceSaving.value = true;
-  try {
-    const { data } = await axios.post("/api/settings/attendance-status", { enabled: attendanceEnabled.value });
-    window.dispatchEvent(new CustomEvent("app:attendance-status-changed", { detail: { enabled: data.enabled } }));
-    await Swal.fire({ icon: "success", title: data.enabled ? "حضور و غیاب فعال شد" : "حضور و غیاب غیرفعال شد", timer: 1400, showConfirmButton: false });
-  } catch (error) {
-    attendanceEnabled.value = !attendanceEnabled.value;
-    await Swal.fire({ icon: "error", title: "تغییر انجام نشد", text: error.response?.data?.message || "فقط مدیر کل اجازه تغییر این تنظیم را دارد." });
-  } finally {
-    attendanceSaving.value = false;
-  }
-};
-
 const saveSmsSettings = async () => {
   const invalidTemplate = smsSettings.value.templates.find(
     template => !template.title.trim() || !template.content.trim()
@@ -1539,7 +1509,6 @@ onMounted(() => {
 .tab-btn{ min-height:36px; display:flex; align-items:center; justify-content:center; background:#eef5ff; color:#2563eb; padding:8px 15px; border-radius:11px; font-size:11px; font-weight:800; cursor:pointer; transition:0.3s; border:1px solid #dbeafe; }
 .tab-btn:hover{ transform:translateY(-2px); }
 .tab-btn.active{ background:#2563eb; color:white; box-shadow:0 6px 14px rgba(37,99,235,.2); }
-.attendance-master-setting{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px;padding:16px 18px;border:1px solid #bfdbfe;border-radius:16px;background:linear-gradient(135deg,#eff6ff,#f8fafc)}.attendance-master-setting>div>span{color:#2563eb;font-size:9px;font-weight:900}.attendance-master-setting h3{margin:4px 0;color:#1e3a8a;font-size:15px}.attendance-master-setting p{margin:0;color:#64748b;font-size:10px}
 .content-wrapper{ background:#eef5ff; border-radius:28px; padding:22px; display:flex; flex-direction:column; gap:18px; align-items:flex-end; }
 .roles-settings-wrapper{ width:100%; }
 .payment-settings-wrapper{width:100%;box-sizing:border-box;padding:24px;border:1px solid #dbeafe;border-radius:26px;background:linear-gradient(145deg,#f8fbff,#eef5ff);box-shadow:0 14px 38px rgba(37,99,235,.08)}

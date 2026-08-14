@@ -147,7 +147,7 @@
           <section class="beauty-flow-side-block">
             <label>عکس برنامه زیبایی</label>
             <select v-model="selectedPhotoId" @change="loadRecord">
-              <option v-for="photo in frontPhotos" :key="photo.id" :value="photo.id">
+              <option v-for="photo in photoNavigationPhotos" :key="photo.id" :value="photo.id">
                 {{ photoLabel(photo) }}
               </option>
             </select>
@@ -245,6 +245,7 @@
           <div v-else-if="!selectedPhoto" class="beauty-flow-photo-empty">
             <strong>عکسی برای برنامه زیبایی ثبت نشده است.</strong>
             <span>در پرونده بیمار یک عکس تمام‌رخ، نیم‌رخ، سایر یا شیپ بدن آپلود کنید.</span>
+            <button type="button" class="beauty-flow-add-photo-btn" @click="$emit('open-patient-media', activePatient)">درج عکس</button>
           </div>
 
           <template v-else>
@@ -252,6 +253,21 @@
               <div>
                 <h3>{{ selectedPhoto.photo_angle_label || 'تمام‌رخ' }}</h3>
                 <p>{{ selectedPhoto.comparison_stage === 'before' ? 'عکس قبل' : selectedPhoto.comparison_stage === 'after' ? 'عکس بعد' : 'عکس پرونده' }}</p>
+              </div>
+              <div v-if="photoNavigationPhotos.length > 1" class="beauty-flow-photo-navigation">
+                <button
+                  type="button"
+                  title="عکس قبلی"
+                  aria-label="عکس قبلی"
+                  @click.stop="selectAdjacentPhoto(-1)"
+                >→</button>
+                <span>{{ currentPhotoPosition }} از {{ photoNavigationPhotos.length }}</span>
+                <button
+                  type="button"
+                  title="عکس بعدی"
+                  aria-label="عکس بعدی"
+                  @click.stop="selectAdjacentPhoto(1)"
+                >←</button>
               </div>
               <div class="beauty-flow-point-count">
                 <span>{{ annotations.length }} نقطه</span>
@@ -369,6 +385,30 @@ export default {
     doneCount() {
       return this.annotations.filter(item => item.status === 'done').length
     },
+    photoNavigationPhotos() {
+      const angleOrder = {
+        front: 0,
+        right_three_quarter_30: 1,
+        right_three_quarter_60: 2,
+        right_profile: 3,
+        left_profile: 4,
+        left_three_quarter_60: 5,
+        left_three_quarter_30: 6,
+        other: 7,
+        body_shape: 8,
+      }
+      const stageOrder = { before: 0, after: 1 }
+
+      return [...this.frontPhotos].sort((first, second) => {
+        const byAngle = (angleOrder[first.photo_angle_key] ?? 99) - (angleOrder[second.photo_angle_key] ?? 99)
+        if (byAngle) return byAngle
+        return (stageOrder[first.comparison_stage] ?? 2) - (stageOrder[second.comparison_stage] ?? 2)
+      })
+    },
+    currentPhotoPosition() {
+      const index = this.photoNavigationPhotos.findIndex(photo => String(photo.id) === String(this.selectedPhotoId))
+      return index >= 0 ? index + 1 : 1
+    },
     visibleServiceHistory() {
       return this.servicesExpanded ? this.serviceHistory : this.serviceHistory.slice(0, 3)
     }
@@ -426,6 +466,16 @@ export default {
       const stage = photo.comparison_stage === 'before' ? 'قبل' : photo.comparison_stage === 'after' ? 'بعد' : 'پرونده'
       const date = photo.created_at ? new Date(photo.created_at).toLocaleDateString('fa-IR') : 'بدون تاریخ'
       return `${photo.photo_angle_label || 'سایر'} · ${stage} · ${date}`
+    },
+    async selectAdjacentPhoto(offset) {
+      const photos = this.photoNavigationPhotos
+      if (photos.length < 2) return
+
+      const currentIndex = photos.findIndex(photo => String(photo.id) === String(this.selectedPhotoId))
+      const startIndex = currentIndex >= 0 ? currentIndex : 0
+      const nextIndex = (startIndex + offset + photos.length) % photos.length
+      this.selectedPhotoId = photos[nextIndex].id
+      await this.loadRecord()
     },
     annotationFullText(point) {
       return [point?.area, point?.problem, point?.note].filter(Boolean).join(' - ') || 'بدون توضیح'
@@ -917,6 +967,33 @@ export default {
   opacity: .65;
   cursor: wait;
 }
+
+/* نتیجهٔ جست‌وجو یک کارت چندخطی است، نه دکمهٔ کوتاهِ عمومی صفحه. */
+.beauty-flow .beauty-flow-create-results > button {
+  height: auto;
+  min-height: 68px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  color: #172554;
+  border: 1px solid #e2e8f0;
+}
+
+.beauty-flow .beauty-flow-create-results > button:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.beauty-flow-create-results > button > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.beauty-flow-create-results > button > span:nth-child(2) strong,
+.beauty-flow-create-results > button > span:nth-child(2) small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .beauty-flow-error {
   margin: 12px 0 0;
   padding: 10px 12px;
@@ -1277,8 +1354,52 @@ export default {
   color: #94a3b8;
   font-size: 12px;
 }
+.beauty-flow-photo-empty .beauty-flow-add-photo-btn {
+  margin-top: 8px;
+  padding: 0 18px;
+  background: #2563eb;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .2);
+}
 .beauty-flow-photo-header {
   margin-bottom: 12px;
+}
+.beauty-flow-photo-navigation {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px;
+  border: 1px solid #dbeafe;
+  border-radius: 11px;
+  background: #f8fbff;
+  direction: rtl;
+}
+.beauty-flow-photo-navigation button {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px;
+  padding: 0 !important;
+  border: 1px solid #bfdbfe !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #2563eb !important;
+  font-family: inherit;
+  font-size: 18px !important;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+.beauty-flow-photo-navigation button:hover {
+  border-color: #2563eb !important;
+  background: #2563eb !important;
+  color: #fff !important;
+}
+.beauty-flow-photo-navigation span {
+  min-width: 44px;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
 }
 .beauty-flow-point-count {
   display: flex;

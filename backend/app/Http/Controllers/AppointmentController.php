@@ -6,9 +6,11 @@ use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\AppointmentBalanceAudit;
 use App\Models\AppointmentNoteMessage;
+use App\Models\ActivityLog;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Inventory;
+use App\Models\InventoryMovement;
 use App\Models\InventoryCommission;
 use App\Models\ResourceEarningLine;
 use App\Models\Staff;
@@ -130,6 +132,8 @@ class AppointmentController extends Controller
         // 🟢 بخش حیاتی: جلوگیری از پاک شدن کل دیتابیس
         DB::transaction(function () use ($month, $appointments, $request) {
             $desiredWalletSources = [];
+            $inventoryAppointmentPairs = [];
+            $matchedPreviousAppointmentIds = [];
             
             if ($month) {
                 // فقط و فقط نوبت‌های همین ماه پاک می‌شوند
@@ -206,6 +210,8 @@ class AppointmentController extends Controller
                     unset($appt['id']);
 
                     $created = Appointment::create($appt);
+                    $inventoryAppointmentPairs[] = ['previous' => $previousAppointment, 'current' => $created];
+                    if ($previousAppointment) $matchedPreviousAppointmentIds[] = $previousAppointment->id;
                     $this->recordBalanceAudit($request, $created, $previousAppointment);
                     $this->syncResourceEarningLines($created);
 
@@ -272,6 +278,10 @@ class AppointmentController extends Controller
 
                 $this->syncMonthlySalesBonusLines($month);
             }
+
+            $deletedAppointments = $existingAppointments
+                ->reject(fn (Appointment $appointment) => in_array($appointment->id, $matchedPreviousAppointmentIds, true));
+            $this->syncAppointmentInventoryStock($inventoryAppointmentPairs, $deletedAppointments);
 
             WalletTransaction::query()
                 ->whereNull('reversed_at')
@@ -423,6 +433,97 @@ class AppointmentController extends Controller
         $amount = (int) ($digits ?: 0);
 
         return $negative ? -$amount : $amount;
+    }
+
+    /**
+     * Reconciles stock against the difference between the old and newly saved
+     * appointments. Saving the scheduler rewrites a month, so applying an
+     * unconditional decrement here would consume the same service repeatedly.
+     */
+    private function syncAppointmentInventoryStock(array $pairs, $deletedAppointments): void
+    {
+        $movements = [];
+
+        foreach ($pairs as $pair) {
+            $previous = $this->inventoryUsageForServices($pair['previous']?->services ?? []);
+            $current = $this->inventoryUsageForServices($pair['current']?->services ?? []);
+            $names = array_unique([...array_keys($previous), ...array_keys($current)]);
+
+            foreach ($names as $name) {
+                $delta = ($previous[$name] ?? 0) - ($current[$name] ?? 0);
+                if (abs($delta) < 0.0001) continue;
+                $appointment = $delta < 0 ? $pair['current'] : $pair['previous'];
+                $movements[] = [
+                    'name' => $name,
+                    'quantity' => $delta,
+                    'appointment' => $appointment,
+                    'type' => $delta < 0 ? 'appointment_consumption' : 'appointment_reversal',
+                    'description' => $delta < 0
+                        ? "مصرف خدمت برای نوبت {$pair['current']->lastname} در {$pair['current']->month}/{$pair['current']->day_num}"
+                        : "برگشت مصرف پس از ویرایش نوبت {$appointment?->lastname}",
+                ];
+            }
+        }
+
+        foreach ($deletedAppointments as $appointment) {
+            foreach ($this->inventoryUsageForServices($appointment->services ?? []) as $name => $quantity) {
+                $movements[] = [
+                    'name' => $name,
+                    'quantity' => $quantity,
+                    'appointment' => $appointment,
+                    'type' => 'appointment_reversal',
+                    'description' => "برگشت مصرف پس از حذف نوبت {$appointment->lastname} در {$appointment->month}/{$appointment->day_num}",
+                ];
+            }
+        }
+
+        if ($movements === []) return;
+
+        $totals = [];
+        foreach ($movements as $movement) $totals[$movement['name']] = ($totals[$movement['name']] ?? 0) + $movement['quantity'];
+        $inventories = Inventory::query()->whereIn('name', array_keys($totals))->lockForUpdate()->get()->keyBy('name');
+
+        foreach ($totals as $name => $quantity) {
+            $inventory = $inventories->get($name);
+            if (! $inventory) continue;
+            if ((float) $inventory->stock + $quantity < -0.0001) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'inventory' => ["موجودی «{$name}» برای ثبت این خدمت کافی نیست."],
+                ]);
+            }
+        }
+
+        foreach ($totals as $name => $quantity) {
+            $inventory = $inventories->get($name);
+            if (! $inventory) continue;
+            $inventory->update(['stock' => max(0, (float) $inventory->stock + $quantity)]);
+        }
+
+        foreach ($movements as $movement) {
+            $inventory = $inventories->get($movement['name']);
+            if (! $inventory) continue;
+            InventoryMovement::create([
+                'inventory_id' => $inventory->id,
+                'inventory_name' => $inventory->name,
+                'quantity' => $movement['quantity'],
+                'type' => $movement['type'],
+                'appointment_id' => $movement['type'] === 'appointment_consumption' ? $movement['appointment']?->id : null,
+                'description' => $movement['description'],
+                'occurred_at' => now(),
+            ]);
+        }
+    }
+
+    private function inventoryUsageForServices(array $services): array
+    {
+        $usage = [];
+        foreach ($this->appointmentServiceLines($services) as $line) {
+            $name = trim((string) ($line['name'] ?? ''));
+            $quantity = max(0, (float) ($line['quantity'] ?? 0));
+            if ($name === '' || $quantity <= 0) continue;
+            $usage[$name] = ($usage[$name] ?? 0) + $quantity;
+        }
+        return $usage;
     }
 
     private function syncResourceEarningLines(Appointment $appointment): void
@@ -823,6 +924,8 @@ class AppointmentController extends Controller
                 ->take($perPage)
                 ->get($columns);
 
+            $items = $this->withPatientHistoryRegistrationMeta($items);
+
             return response()->json([
                 'data' => $this->hideAppointmentPhones($items, $request),
                 'total' => $total,
@@ -836,6 +939,34 @@ class AppointmentController extends Controller
             ->orderByDesc('created_at')
             ->get($columns);
 
+        $items = $this->withPatientHistoryRegistrationMeta($items);
+
         return response()->json($this->hideAppointmentPhones($items, $request));
+    }
+
+    /**
+     * اطلاعات ثبت اولیهٔ نوبت را فقط برای راهنمای hover سوابق برمی‌گرداند.
+     */
+    private function withPatientHistoryRegistrationMeta($appointments)
+    {
+        $appointmentIds = $appointments->pluck('id')->filter()->values();
+        if ($appointmentIds->isEmpty()) {
+            return $appointments;
+        }
+
+        $creationLogs = ActivityLog::query()
+            ->where('subject_type', Appointment::class)
+            ->where('event', 'created')
+            ->whereIn('subject_id', $appointmentIds)
+            ->orderBy('id')
+            ->get(['subject_id', 'user_name', 'created_at'])
+            ->unique('subject_id')
+            ->keyBy('subject_id');
+
+        return $appointments->each(function (Appointment $appointment) use ($creationLogs) {
+            $log = $creationLogs->get($appointment->id);
+            $appointment->setAttribute('registered_by', $log?->user_name ?: null);
+            $appointment->setAttribute('registered_at', $log?->created_at?->toDateTimeString() ?: $appointment->created_at?->toDateTimeString());
+        });
     }
 }

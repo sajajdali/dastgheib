@@ -17,7 +17,7 @@
           </datalist>
         </div>
         <select v-model="filters.gender"><option value="">جنسیت</option><option value="female">زن</option><option value="male">مرد</option></select>
-        <select v-model="filters.age_group"><option value="">سن</option><option value="young">جوان</option><option value="old">پیر</option></select>
+        <select v-model="filters.age_group"><option value="">سن براساس تاریخ تولد</option><option value="young">جوان (زیر ۴۰ سال)</option><option value="old">پیر (۴۰ سال و بیشتر)</option></select>
         <select v-model="filters.angle"><option value="">زاویه</option><option v-for="item in angles" :key="item.key" :value="item.key">{{ item.label }}</option></select>
         <select v-model="filters.featured"><option value="">نوع تصویر</option><option value="featured">★ برترین‌ها</option><option value="regular">معمولی</option></select>
       </div>
@@ -78,7 +78,13 @@
           <div class="viewer-facts"><span>{{ selected.angle_label }}</span><span>{{ selected.date || 'بدون تاریخ' }}</span></div>
         </div>
         <div v-if="selectedPatientAngles.length > 1" class="angle-view-nav">
-          <button type="button" @click="selectAdjacentAngle(-1)">زاویه قبلی</button>
+          <button
+            type="button"
+            class="angle-arrow"
+            title="زاویه قبلی"
+            aria-label="زاویه قبلی"
+            @click="selectAdjacentAngle(-1)"
+          >→</button>
           <div>
             <button
               v-for="item in selectedPatientAngles"
@@ -90,7 +96,13 @@
               {{ item.angle_label }}
             </button>
           </div>
-          <button type="button" @click="selectAdjacentAngle(1)">زاویه بعدی</button>
+          <button
+            type="button"
+            class="angle-arrow"
+            title="زاویه بعدی"
+            aria-label="زاویه بعدی"
+            @click="selectAdjacentAngle(1)"
+          >←</button>
         </div>
         <div class="viewer-tags"><span v-for="tag in selected.tags" :key="tag.id">{{ tag.name }}</span></div>
         <div class="before-after-grid">
@@ -132,14 +144,12 @@ export default {
       const patientId = this.selected.patient?.id
       const patientFile = this.selected.patient?.file_number
       const selectedDate = this.selected.date || ''
-      const selectedServiceId = this.selected.service?.id || ''
       const samePatient = this.comparisons.filter(item => {
         const patientMatches = patientId
           ? item.patient?.id === patientId
           : patientFile && item.patient?.file_number === patientFile
         const dateMatches = (item.date || '') === selectedDate
-        const serviceMatches = (item.service?.id || '') === selectedServiceId
-        return patientMatches && dateMatches && serviceMatches
+        return patientMatches && dateMatches
       })
       const angleOrder = new Map(this.angles.map((angle, index) => [angle.key, index]))
       return samePatient.sort((a, b) => {
@@ -230,6 +240,7 @@ export default {
 .angle-view-nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;margin:10px 0 8px;padding:8px;border:1px solid #dbeafe;border-radius:13px;background:#f8fbff}
 .angle-view-nav>button{height:32px;padding:0 10px;border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
 .angle-view-nav>button:hover{border-color:#60a5fa;background:#dbeafe}
+.angle-view-nav>button.angle-arrow{width:34px;padding:0;border-radius:9px;font-size:19px;line-height:1}
 .angle-view-nav>div{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
 .angle-view-nav>div button{flex:0 0 auto;height:28px;padding:0 9px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#64748b;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}
 .angle-view-nav>div button.active{border-color:#2563eb;background:#2563eb;color:#fff}

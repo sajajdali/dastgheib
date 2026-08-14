@@ -21,7 +21,9 @@ class AppointmentNoteController extends Controller
                 ->update(['secretary_seen_at' => now()]);
         }
         $messages = AppointmentNoteMessage::with('user:id,name,profile_photo_path,profile_thumbnail_path')
-            ->where('appointment_key', $data['appointment_key'])->oldest('id')->get();
+            ->where('appointment_key', $data['appointment_key'])
+            ->oldest('id')
+            ->get();
         return response()->json([
             'messages' => $messages->map(fn ($message) => $this->resource($message)),
             'has_unread_doctor_note' => $messages->contains(fn ($message) => $message->requires_secretary_attention && ! $message->secretary_seen_at),
@@ -32,7 +34,6 @@ class AppointmentNoteController extends Controller
     {
         $data = $request->validate([
             'appointment_key' => ['required', 'string', 'max:190'],
-            'appointment_id' => ['nullable', 'integer', 'exists:appointments,id'],
             'message_type' => ['required', 'in:text,audio,image'],
             'message' => ['nullable', 'string', 'max:20000', 'required_if:message_type,text'],
             'audio' => ['nullable', 'file', 'max:15360', 'required_if:message_type,audio'],

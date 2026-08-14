@@ -4,7 +4,6 @@
     <div class="tabs">
       <button :class="{ active: activeTab === 'doctor' }" @click="activeTab = 'doctor'">پزشک</button>
       <button :class="{ active: activeTab === 'staff' }" @click="activeTab = 'staff'">پرسنل</button>
-      <button :class="{ active: activeTab === 'serviceTags' }" @click="activeTab = 'serviceTags'">تگ‌های خدمات</button>
       <button :class="{ active: activeTab === 'channels' }" @click="activeTab = 'channels'">کانال‌ها</button>
     </div>
 
@@ -173,7 +172,9 @@
 
         <footer class="doctor-settings-modal-actions">
           <span>تغییرات به‌صورت خودکار ذخیره می‌شوند.</span>
-          <button type="button" @click="closeDoctorSettings">تأیید و بستن</button>
+          <button type="button" :disabled="savingDoctors" @click="saveDoctorSettingsAndClose">
+            {{ savingDoctors ? 'در حال ذخیره...' : 'تأیید و ذخیره' }}
+          </button>
         </footer>
       </section>
     </div>
@@ -233,42 +234,6 @@
           <CommissionRules v-model="staffRows[activeStaffIndex]" />
         </div>
         <footer class="doctor-settings-modal-actions"><span>تغییرات پس از بستن به‌صورت خودکار ذخیره می‌شوند.</span><button type="button" @click="closeStaffSettings">تأیید و بستن</button></footer>
-      </section>
-    </div>
-
-    <div v-if="activeTab === 'serviceTags'" class="tab-content resource-content service-tags-content">
-      <div class="doctor-table-heading">
-        <h2>تگ‌های خدمات</h2>
-        <p>این تگ‌ها در انبار قابل انتخاب هستند و ثبت دستی تگ در انبار غیرفعال است.</p>
-      </div>
-
-      <section class="service-tags-manager">
-        <form class="service-tag-add" @submit.prevent="addServiceTagOption">
-          <input v-model.trim="serviceTagDraft" type="text" placeholder="نام تگ جدید، مثلا بوتاکس پیشانی">
-          <button type="submit">افزودن تگ</button>
-        </form>
-
-        <div class="service-tag-toolbar">
-          <input v-model.trim="serviceTagSearch" type="search" placeholder="جست‌وجوی تگ‌ها...">
-          <span>{{ filteredServiceTags.length.toLocaleString('fa-IR') }} تگ</span>
-        </div>
-
-        <div class="service-tag-list">
-          <span v-for="tag in filteredServiceTags" :key="tag" class="service-tag-pill">
-            {{ tag }}
-            <button type="button" title="حذف تگ" @click="removeServiceTagOption(tag)">×</button>
-          </span>
-          <small v-if="!filteredServiceTags.length">تگی برای نمایش وجود ندارد.</small>
-        </div>
-
-        <div class="doctor-table-toolbar">
-          <span :class="{ dirty: serviceTagsDirty, success: serviceTagsMessage && !serviceTagsError, error: serviceTagsError }">
-            {{ serviceTagsMessage || (serviceTagsDirty ? 'تغییرات تگ‌ها ذخیره نشده است.' : 'تگ‌های خدمات به‌روز است.') }}
-          </span>
-          <button type="button" :disabled="savingServiceTags || !serviceTagsDirty" @click="saveServiceTags">
-            {{ savingServiceTags ? 'در حال ذخیره...' : 'ذخیره تگ‌ها' }}
-          </button>
-        </div>
       </section>
     </div>
 
@@ -365,13 +330,6 @@ export default {
     channelRows: [{
       name: '', icon: ''
     }],
-    serviceTags: [],
-    serviceTagDraft: '',
-    serviceTagSearch: '',
-    serviceTagsDirty: false,
-    savingServiceTags: false,
-    serviceTagsMessage: '',
-    serviceTagsError: false,
     channelIconOptions: ['📱','📷','🌐','🔍','📣','👥','💬','✉️','☎️','🎯','⭐','🤝','📍','🎬','▶️','🟢'],
     users: [],
     roles: [],
@@ -388,11 +346,6 @@ export default {
 },
   
   mounted() {
-    const requestedTab = localStorage.getItem('resources-open-tab');
-    if (requestedTab === 'serviceTags') {
-      this.activeTab = 'serviceTags';
-      localStorage.removeItem('resources-open-tab');
-    }
     this.fetchData();
   },
 
@@ -464,11 +417,6 @@ export default {
       return this.users.filter(user => !this.userHasAnyRole(user, this.excludedStaffRoleIds));
     },
 
-    filteredServiceTags() {
-      const search = this.normalizeServiceTag(this.serviceTagSearch);
-      if (!search) return this.serviceTags;
-      return this.serviceTags.filter(tag => this.normalizeServiceTag(tag).includes(search));
-    }
   },
 
   methods: {
@@ -502,6 +450,28 @@ export default {
 
     closeDoctorSettings() {
       this.activeDoctorIndex = null;
+    },
+
+    async saveDoctorSettingsAndClose() {
+      if (this.savingDoctors) return;
+
+      this.savingDoctors = true;
+      this.doctorsSaveMessage = '';
+      this.doctorsSaveError = false;
+
+      try {
+        const savedDoctors = await this.autoSaveDoctors();
+        if (!savedDoctors) throw new Error('ذخیره خدمات پزشک انجام نشد.');
+
+        this.doctorsDirty = false;
+        this.doctorsSaveMessage = 'خدمات پزشک با موفقیت ذخیره شد.';
+        this.closeDoctorSettings();
+      } catch (error) {
+        this.doctorsSaveError = true;
+        this.doctorsSaveMessage = error.message || 'ذخیره خدمات پزشک انجام نشد.';
+      } finally {
+        this.savingDoctors = false;
+      }
     },
     openStaffSettings(index) {
       this.activeStaffIndex = index;
@@ -581,10 +551,9 @@ export default {
     },
 
     async fetchResourceOptions() {
-      const [settingsResponse, inventoryResponse, serviceTagsResponse] = await Promise.all([
+      const [settingsResponse, inventoryResponse] = await Promise.all([
         fetch('/api/settings', { headers: { 'Accept': 'application/json' } }),
-        fetch('/api/inventory/context', { headers: { 'Accept': 'application/json' } }),
-        fetch('/api/service-tags', { headers: { 'Accept': 'application/json' } })
+        fetch('/api/inventory/context', { headers: { 'Accept': 'application/json' } })
       ]);
 
       if (settingsResponse.ok) {
@@ -596,12 +565,6 @@ export default {
       if (inventoryResponse.ok) {
         const inventoryData = await inventoryResponse.json();
         this.inventorySections = Array.isArray(inventoryData.sections) ? inventoryData.sections : [];
-      }
-
-      if (serviceTagsResponse.ok) {
-        const serviceTagsData = await serviceTagsResponse.json();
-        this.serviceTags = Array.isArray(serviceTagsData.tags) ? serviceTagsData.tags : [];
-        this.serviceTagsDirty = false;
       }
     },
 
@@ -685,58 +648,6 @@ export default {
     },
     removeChannelRow(index) {
       this.channelRows.splice(index, 1);
-    },
-
-    normalizeServiceTag(value) {
-      return String(value || '')
-        .trim()
-        .replace(/[يى]/g, 'ی')
-        .replace(/ك/g, 'ک')
-        .replace(/\s+/g, ' ');
-    },
-
-    addServiceTagOption() {
-      const tag = this.normalizeServiceTag(this.serviceTagDraft);
-      if (!tag) return;
-      if (!this.serviceTags.some(item => this.normalizeServiceTag(item) === tag)) {
-        this.serviceTags.push(tag);
-        this.serviceTags.sort((a, b) => a.localeCompare(b, 'fa'));
-        this.serviceTagsDirty = true;
-        this.serviceTagsMessage = '';
-        this.serviceTagsError = false;
-      }
-      this.serviceTagDraft = '';
-    },
-
-    removeServiceTagOption(tag) {
-      const normalized = this.normalizeServiceTag(tag);
-      this.serviceTags = this.serviceTags.filter(item => this.normalizeServiceTag(item) !== normalized);
-      this.serviceTagsDirty = true;
-      this.serviceTagsMessage = '';
-      this.serviceTagsError = false;
-    },
-
-    async saveServiceTags() {
-      this.savingServiceTags = true;
-      this.serviceTagsMessage = '';
-      this.serviceTagsError = false;
-      try {
-        const response = await fetch('/api/service-tags', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ tags: this.serviceTags })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'ذخیره تگ‌ها انجام نشد.');
-        this.serviceTags = Array.isArray(data.tags) ? data.tags : [];
-        this.serviceTagsDirty = false;
-        this.serviceTagsMessage = 'تگ‌های خدمات ذخیره شد.';
-      } catch (error) {
-        this.serviceTagsError = true;
-        this.serviceTagsMessage = error.message || 'ذخیره تگ‌ها انجام نشد.';
-      } finally {
-        this.savingServiceTags = false;
-      }
     },
 
     
@@ -2011,12 +1922,4 @@ input:focus {
 .channel-modal-preview{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #ddd6fe;border-radius:14px;background:#faf5ff}
 .channel-modal-preview span{width:48px;height:48px;display:grid;place-items:center;border-radius:13px;background:#7c3aed;color:#fff;font-size:23px}
 .channel-modal-preview strong{color:#4c1d95;font-size:13px}
-.service-tags-manager{display:grid;gap:14px;padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.06)}
-.service-tag-add,.service-tag-toolbar{display:flex;align-items:center;gap:10px}
-.service-tag-add input,.service-tag-toolbar input{width:100%;height:44px;padding:0 14px;border:1px solid #dbe3ed;border-radius:12px;background:#f8fafc;font-family:inherit;text-align:right}
-.service-tag-add button{height:44px;min-width:120px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer}
-.service-tag-toolbar span{min-width:72px;text-align:center;color:#64748b;font-size:11px;font-weight:900}
-.service-tag-list{display:flex;align-items:flex-start;align-content:flex-start;gap:8px;flex-wrap:wrap;min-height:160px;max-height:420px;overflow:auto;padding:12px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}
-.service-tag-pill{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:8px 10px;border:1px solid #bfdbfe;border-radius:999px;background:#eff6ff;color:#1e40af;font-size:12px;font-weight:900}
-.service-tag-pill button{width:20px;height:20px;border:0;border-radius:50%;background:#dbeafe;color:#1d4ed8;cursor:pointer;font-size:14px;line-height:1}
 @media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:180px;min-width:180px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}</style>

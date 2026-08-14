@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Inventory;
+use App\Http\Controllers\HumanResourceController;
 use App\Models\InventorySection;
 use App\Models\Patient;
 use App\Models\PatientMedia;
@@ -79,7 +79,7 @@ class PatientMediaController extends Controller
         $data = $request->validate([
             'type' => 'required|string|in:date,service',
             'date' => 'required_if:type,date|nullable|string|max:20|regex:/^[0-9۰-۹٠-٩]{4}[-\/][0-9۰-۹٠-٩]{2}[-\/][0-9۰-۹٠-٩]{2}$/u',
-            'section_id' => 'required_if:type,service|nullable|integer|exists:inventory_sections,id',
+            'section_id' => 'nullable|integer|exists:inventory_sections,id',
             'parent_id' => 'nullable|integer|exists:patient_media_folders,id',
         ]);
 
@@ -123,7 +123,7 @@ class PatientMediaController extends Controller
 
         if ($parent->parent_id !== null || ! in_array($parent->folder_type, [null, 'date'], true)) {
             return response()->json([
-                'message' => 'فولدر بخش را فقط داخل فولدر اصلی تاریخ می‌توان ساخت.',
+                'message' => 'فولدر تصاویر را فقط داخل فولدر اصلی تاریخ می‌توان ساخت.',
             ], 422);
         }
 
@@ -135,12 +135,15 @@ class PatientMediaController extends Controller
             ]);
         }
 
-        $section = InventorySection::query()->findOrFail($data['section_id']);
+        $section = ! empty($data['section_id'])
+            ? InventorySection::query()->findOrFail($data['section_id'])
+            : null;
+        $folderName = $section?->name ?: 'فایل‌های خدمات';
 
         $existingFolder = PatientMediaFolder::query()
             ->where('patient_id', $patient->id)
             ->where('parent_id', $parent->id)
-            ->where('name', $section->name)
+            ->where('name', $folderName)
             ->first();
 
         if ($existingFolder) {
@@ -157,10 +160,10 @@ class PatientMediaController extends Controller
         $folder = PatientMediaFolder::create([
             'patient_id' => $patient->id,
             'parent_id' => $parent->id,
-            'name' => $section->name,
+            'name' => $folderName,
             'folder_type' => 'service',
             'folder_date' => $parent->folder_date,
-            'inventory_section_id' => $section->id,
+            'inventory_section_id' => $section?->id,
         ]);
 
         foreach ([
@@ -174,7 +177,7 @@ class PatientMediaController extends Controller
                 'name' => $child['name'],
                 'folder_type' => $child['type'],
                 'folder_date' => $parent->folder_date,
-                'inventory_section_id' => $section->id,
+                'inventory_section_id' => $section?->id,
                 'sort_order' => $child['sort'],
             ]);
         }
@@ -190,7 +193,6 @@ class PatientMediaController extends Controller
             'folder_id' => 'nullable|integer|exists:patient_media_folders,id',
             'files' => 'required|array|min:1',
             'files.*' => 'file|max:51200|mimes:jpg,jpeg,png,webp,gif,heic,heif,mp4,mov,avi,webm',
-            'age_group' => 'nullable|string|max:20',
             'description' => 'nullable|string',
             'services' => 'nullable',
             'comparison_stage' => 'nullable|string|in:before,after',
@@ -244,7 +246,7 @@ class PatientMediaController extends Controller
                 'is_featured' => $request->boolean('is_featured'),
                 'usage_consent' => ! $request->has('usage_consent') || $request->boolean('usage_consent'),
                 'gender' => null,
-                'age_group' => $data['age_group'] ?? null,
+                'age_group' => null,
                 'description' => $data['description'] ?? null,
                 'services' => $services,
                 'comparison_stage' => $comparisonStage,
@@ -265,7 +267,6 @@ class PatientMediaController extends Controller
             'file' => 'nullable|file|max:51200|mimes:jpg,jpeg,png,webp,gif,heic,heif,mp4,mov,avi,webm',
             'is_featured' => 'nullable|boolean',
             'usage_consent' => 'nullable|boolean',
-            'age_group' => 'nullable|string|max:20',
             'description' => 'nullable|string',
             'services' => 'nullable',
             'comparison_stage' => 'nullable|string|in:before,after',
@@ -418,48 +419,30 @@ class PatientMediaController extends Controller
 
     private function serviceGroups(): array
     {
-        return Inventory::query()
-            ->with('section:id,parent_id,level,name')
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get(['id', 'section_id', 'name', 'service_tags'])
-            ->groupBy(function (Inventory $item) {
-                return (int) ($item->section?->level) > 2 && $item->section?->parent_id
-                    ? $item->section->parent_id
-                    : $item->section_id;
-            })
-            ->map(function ($items, $sectionId) {
-                $section = InventorySection::query()->find($sectionId);
-                $sectionName = $section?->name ?: $items->first()?->section?->name ?: 'بدون بخش';
-                $tags = $items
-                    ->flatMap(fn (Inventory $item) => collect($item->service_tags ?: []))
-                    ->map(fn ($tag) => trim((string) $tag))
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->map(function (string $tag) use ($sectionId, $sectionName) {
-                        $key = 'tag-'.sha1($sectionId.'|'.$tag);
-
-                        return [
-                            'id' => $key,
-                            'key' => $key,
-                            'name' => $tag,
-                            'section' => $sectionName,
-                            'section_id' => (int) $sectionId,
-                            'type' => 'service_tag',
-                        ];
-                    })
-                    ->all();
+        $tags = collect(app(HumanResourceController::class)->serviceTags())
+            ->map(fn ($tag) => trim((string) $tag))
+            ->filter()
+            ->unique()
+            ->values()
+            ->map(function (string $tag) {
+                $key = 'tag-'.sha1($tag);
 
                 return [
-                    'section' => $sectionName,
-                    'section_id' => (int) $sectionId,
-                    'items' => $tags,
+                    'id' => $key,
+                    'key' => $key,
+                    'name' => $tag,
+                    'section' => null,
+                    'section_id' => null,
+                    'type' => 'service_tag',
                 ];
             })
-            ->filter(fn (array $group) => count($group['items']) > 0)
-            ->values()
             ->all();
+
+        return count($tags) ? [[
+            'section' => 'تگ‌های خدمات',
+            'section_id' => null,
+            'items' => $tags,
+        ]] : [];
     }
 
     private function mediaSections(): array

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Doctor;
 use App\Models\Inventory;
 use App\Models\InventoryCommission;
+use App\Models\InventoryMovement;
 use App\Models\InventorySection;
 use App\Models\Staff;
 use App\Models\User;
@@ -82,6 +83,22 @@ class InventoryController extends Controller
                         ->whereKey($sectionIdMap[$key])
                         ->update(['parent_id' => $sectionIdMap[$parentKey]]);
                 }
+
+                // ذخیرهٔ ساختار انبار شناسهٔ بخش‌ها را بازسازی می‌کند؛
+                // اتصال پزشک به بخش خدمات را به شناسه‌های تازه منتقل کن.
+                Doctor::query()->get()->each(function (Doctor $doctor) use ($sectionIdMap) {
+                    $currentIds = is_array($doctor->service_section_ids) ? $doctor->service_section_ids : [];
+                    $remappedIds = collect($currentIds)
+                        ->map(fn ($id) => $sectionIdMap[(string) $id] ?? $id)
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    if ($remappedIds !== $currentIds) {
+                        $doctor->update(['service_section_ids' => $remappedIds]);
+                    }
+                });
             }
 
             foreach (array_values($items) as $index => $item) {
@@ -127,33 +144,74 @@ class InventoryController extends Controller
 
     public function adjustStock(Request $request)
     {
-        $name = $request->input('name');
-        $amount = (int) $request->input('amount', 0);
-
-        if (! $name || $amount === 0) {
-            return response()->json(['message' => 'نام کالا یا مقدار نامعتبر است'], 422);
-        }
-
-        $item = Inventory::where('name', $name)->first();
-
-        if (! $item) {
-            return response()->json(['message' => 'کالا در انبار یافت نشد'], 404);
-        }
-
-        $previousStock = (int) ($item->stock ?? 0);
-        $newStock = max($previousStock + $amount, 0);
-
-        $item->stock = $newStock;
-        $item->save();
-
-        return response()->json([
-            'message' => 'موجودی با موفقیت به روزرسانی شد',
-            'stock' => $newStock,
-            'depleted' => $previousStock > 0 && $newStock === 0,
-            'item' => $item,
+        $data = $request->validate([
+            'inventory_id' => ['nullable', 'integer'],
+            'name' => ['nullable', 'string'],
+            'direction' => ['required', 'in:increase,decrease'],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'description' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        return DB::transaction(function () use ($data) {
+            $item = ! empty($data['inventory_id'])
+                ? Inventory::query()->whereKey($data['inventory_id'])->lockForUpdate()->first()
+                : Inventory::query()->where('name', $data['name'] ?? '')->lockForUpdate()->first();
+
+            if (! $item) {
+                return response()->json(['message' => 'کالا در انبار یافت نشد'], 404);
+            }
+            $previousStock = (float) ($item->stock ?? 0);
+            $quantity = (float) $data['quantity'];
+            $change = $data['direction'] === 'increase' ? $quantity : -$quantity;
+
+            if ($change < 0 && $previousStock + $change < 0) {
+                return response()->json(['message' => 'موجودی فعلی برای این کاهش کافی نیست.'], 422);
+            }
+
+            $item->update(['stock' => $previousStock + $change]);
+            $movement = InventoryMovement::create([
+                'inventory_id' => $item->id,
+                'inventory_name' => $item->name,
+                'quantity' => $change,
+                'type' => $data['direction'] === 'increase' ? 'manual_increase' : 'manual_decrease',
+                'description' => $data['description'] ?: ($change > 0 ? 'افزایش دستی موجودی' : 'کاهش دستی موجودی'),
+                'occurred_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'گردش موجودی ثبت شد.',
+                'stock' => (float) $item->stock,
+                'item' => $item->fresh(),
+                'movement' => $movement,
+            ]);
+        });
     }
 
+    public function movements(Request $request, Inventory $inventory)
+    {
+        $data = $request->validate([
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        $query = InventoryMovement::query()
+            ->where(function ($query) use ($inventory) {
+                $query->where('inventory_id', $inventory->id)
+                    ->orWhere('inventory_name', $inventory->name);
+            });
+        if (! empty($data['date_from'])) $query->whereDate('occurred_at', '>=', $data['date_from']);
+        if (! empty($data['date_to'])) $query->whereDate('occurred_at', '<=', $data['date_to']);
+
+        return response()->json([
+            'current_stock' => (float) ($inventory->stock ?? 0),
+            'movements' => $query
+                ->latest('occurred_at')
+                ->latest('id')
+                ->limit($data['limit'] ?? 100)
+                ->get(),
+        ]);
+    }
     private function resolveSectionId($sectionKey, array $sectionIdMap): ?int
     {
         if (! $sectionKey) {

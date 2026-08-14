@@ -8,6 +8,7 @@ use App\Models\Patient;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Database\QueryException;
 use App\Services\CustomerLevelService;
 use App\Models\AppSetting;
 use App\Support\PatientPhoneVisibility;
@@ -17,15 +18,8 @@ class PatientController extends Controller
 {
     public function nextFileNumber()
     {
-        $lastFileNumber = Patient::whereNotNull('file_number')
-            ->where('file_number', '!=', '')
-            ->orderByRaw('CAST(file_number AS UNSIGNED) DESC')
-            ->value('file_number');
-
-        $next = ((int) $lastFileNumber) + 1;
-
         return response()->json([
-            'file_number' => (string) $next
+            'file_number' => $this->nextFileNumberValue()
         ]);
     }
 
@@ -58,12 +52,6 @@ class PatientController extends Controller
                 'max:30',
                 Rule::unique('patients', 'phone'),
             ],
-            'file_number' => [
-                $presence('file_number'),
-                'string',
-                'max:50',
-                Rule::unique('patients', 'file_number'),
-            ],
             'gender' => $presence('gender').'|string|max:20',
             'birth_date' => $presence('birth_date').'|string|max:20',
             'area' => $presence('area').'|string|max:255',
@@ -79,11 +67,24 @@ class PatientController extends Controller
             'second_phone' => $presence('second_phone').'|string|max:30',
             'address' => $presence('address').'|string',
         ], [
-            'file_number.unique' => 'شماره پرونده تکراری است',
             'phone.unique' => 'شماره موبایل تکراری است',
         ]);
 
-        $patient = Patient::create($data);
+        // شماره پرونده فقط در سرور صادر می‌شود تا قابل تغییر یا تکرار نباشد.
+        $patient = null;
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $data['file_number'] = $this->nextFileNumberValue();
+
+            try {
+                $patient = Patient::create($data);
+                break;
+            } catch (QueryException $exception) {
+                // در ثبت هم‌زمان، شمارهٔ تازه محاسبه و دوباره امتحان می‌شود.
+                if (! str_contains(strtolower($exception->getMessage()), 'file_number') || $attempt === 4) {
+                    throw $exception;
+                }
+            }
+        }
 
         return response()->json([
             'message' => 'پرونده با موفقیت ثبت شد',
@@ -232,7 +233,6 @@ class PatientController extends Controller
             'first_name'       => $request->first_name,
             'last_name'        => $request->last_name,
             'phone'            => $request->phone,
-            'file_number'      => $request->file_number,
             'gender'           => $request->gender,
             'birth_date'       => $request->birth_date,
             'area'             => $request->area,
@@ -252,6 +252,17 @@ class PatientController extends Controller
         return response()->json([
             'success' => true
         ]);
+    }
+
+    private function nextFileNumberValue(): string
+    {
+        $lastFileNumber = Patient::query()
+            ->whereNotNull('file_number')
+            ->where('file_number', '!=', '')
+            ->orderByRaw('CAST(file_number AS UNSIGNED) DESC')
+            ->value('file_number');
+
+        return (string) (((int) $lastFileNumber) + 1);
     }
 
     private function hidePatientPhones($patients, Request $request)

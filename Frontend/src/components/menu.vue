@@ -19,7 +19,7 @@
         <div class="menu-dot"></div>
         <span>{{ item.label }}</span>
         <span
-          v-if="notificationCounts[item.value] > 0"
+          v-if="item.value !== 'Vaghtdahi' && notificationCounts[item.value] > 0"
           class="notification-badge"
           :aria-label="`${notificationCounts[item.value]} مورد سررسید شده`"
         >
@@ -166,12 +166,12 @@ export default {
     },
 
     primaryItems() {
-      const primaryValues = ['Parvande', 'Vaghtdahi', 'dermatracker', 'Photos', 'Anbar', 'HRtimes']
+      const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Anbar', 'Ticket', 'HRtimes']
       return this.visibleItems.filter(item => primaryValues.includes(item.value))
     },
 
     overflowItems() {
-      const primaryValues = ['Parvande', 'Vaghtdahi', 'dermatracker', 'Photos', 'Anbar', 'HRtimes']
+      const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Anbar', 'Ticket', 'HRtimes']
       return this.visibleItems.filter(item => !primaryValues.includes(item.value))
     },
 
@@ -189,15 +189,23 @@ export default {
     this.notificationTimer = window.setInterval(this.refreshNotificationCounts, 60000)
     window.addEventListener('storage', this.refreshNotificationCounts)
     window.addEventListener('app:notifications-changed', this.refreshNotificationCounts)
+    document.addEventListener('pointerdown', this.closeOverflowOnOutsidePointer, true)
   },
 
   beforeUnmount() {
     window.clearInterval(this.notificationTimer)
     window.removeEventListener('storage', this.refreshNotificationCounts)
     window.removeEventListener('app:notifications-changed', this.refreshNotificationCounts)
+    document.removeEventListener('pointerdown', this.closeOverflowOnOutsidePointer, true)
   },
 
   methods: {
+    closeOverflowOnOutsidePointer(event) {
+      if (!this.overflowOpen) return
+
+      const overflowMenu = this.$el?.querySelector('.more-menu-item')
+      if (!overflowMenu?.contains(event.target)) this.overflowOpen = false
+    },
     select(val) {
       this.overflowOpen = false
       this.$emit('select', val)
@@ -276,21 +284,33 @@ export default {
         return []
       }
     },
+    normalizeFollowupDate(value) {
+      const date = this.normalizeDigits(value)
+      const parts = date.split('-').map(Number)
+      if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) return ''
+      return `${parts[0]}-${String(parts[1]).padStart(2, '0')}-${String(parts[2]).padStart(2, '0')}`
+    },
+    isPendingFollowup(row) {
+      const status = String(row?.status || '').trim()
+      return !row?.appointmentRegistered && !['پاسخ داد', 'اشتباه'].includes(status)
+    },
+    isActiveFollowupCampaign(campaign) {
+      return String(campaign?.campaignStatus || 'active').trim().toLowerCase() === 'active'
+    },
     countTodayFollowups() {
       const jalaliToday = this.jalaliToday()
       const gregorianToday = this.gregorianToday()
-      const people = new Set()
+      let count = 0
       this.readLocalArray('campaigns_flwup_v1').forEach(campaign => {
-        ;(Array.isArray(campaign.rows) ? campaign.rows : []).forEach((row, index) => {
-          const followUpDate = this.normalizeDigits(row.followUpDate)
+        if (!this.isActiveFollowupCampaign(campaign)) return
+        ;(Array.isArray(campaign.rows) ? campaign.rows : []).forEach(row => {
+          if (!this.isPendingFollowup(row)) return
+          const followUpDate = this.normalizeFollowupDate(row.followUpDate)
           if (followUpDate !== gregorianToday && followUpDate !== jalaliToday) return
-          const identity = String(row.phone || '').replace(/\D/g, '')
-            || String(row.fullName || '').trim()
-            || `${campaign.id || 'campaign'}-${row._localId || index}`
-          people.add(identity)
+          count += 1
         })
       })
-      return people.size
+      return count
     },
     countDelayedInterestFollowups() {
       const thresholdMs = 10 * 60 * 1000
@@ -907,7 +927,9 @@ export default {
     async refreshNotificationCounts() {
       const delayedInterestFollowups = this.countDelayedInterestFollowups()
       const uncalledCampaignLeadWarnings = this.countUncalledCampaignLeadWarnings()
-      this.notificationCounts.Peygiri = this.countTodayFollowups() + delayedInterestFollowups + uncalledCampaignLeadWarnings
+      // نشانِ پیگیری فقط تعداد پیگیری‌های واقعیِ سررسید امروز است؛
+      // هشدارهای دیگر صرفاً در اعلان کلی محاسبه می‌شوند.
+      this.notificationCounts.Peygiri = this.countTodayFollowups()
       this.notificationCounts.Ticket = await this.countTodayTickets()
       this.notificationCounts.Anbar = this.countInventoryZeroNotifications()
       this.notificationCounts.Gozaresh = await this.countHighCancellationWarning()
@@ -945,7 +967,9 @@ export default {
 .menu {
   position: sticky;
   top: 10px;
-  z-index: 900;
+  /* Keep the global navigation and its overflow menu above page-level
+     controls such as date pickers on every module. */
+  z-index: 2147482000;
   width: calc(100% - 58px);
   min-width: 0;
   margin: 0 0 0 58px;
@@ -1046,9 +1070,9 @@ export default {
 }
 
 .more-menu-item { overflow: visible; }
-.more-backdrop{position:fixed;inset:0;z-index:10040;border:0;background:transparent;cursor:default}
+.more-backdrop{position:fixed;inset:0;z-index:2147482001;border:0;background:transparent;cursor:default}
 .more-arrow{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;transition:transform 180ms ease}.more-arrow.open{transform:rotate(180deg)}
-.more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:10050;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
+.more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:2147482002;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
 .more-submenu button{min-height:36px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#475569;cursor:pointer;font-size:12px;font-weight:850;text-align:right}.more-submenu button:hover,.more-submenu button.active{background:#eff6ff;color:#2563eb}.more-submenu button b{min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border-radius:999px;background:#dc2626;color:#fff;font-size:10px}
 
 .notification-badge {

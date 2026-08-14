@@ -52,73 +52,124 @@
     </section>
 
     <section v-else-if="step === 'invoice'" class="invoice-page">
-      <section class="invoice-document">
-        <header class="invoice-head">
-          <div class="invoice-brand">
-            <span class="invoice-logo">ک</span>
-            <div>
-              <small>فروشگاه امکانات</small>
-              <strong>کلینیک‌یار</strong>
+      <section class="invoice-document store-invoice-sheet">
+        <section class="store-invoice-top">
+          <div class="store-invoice-brand">
+            <span class="store-invoice-city">تهران</span>
+            <span class="store-invoice-logo">کلینیک‌یار</span>
+          </div>
+          <div class="store-invoice-heading">
+            <div class="store-invoice-title">پیش‌فاکتور</div>
+            <div class="store-invoice-no"># {{ invoiceNumber }}</div>
+            <div class="store-invoice-status">
+              در انتظار پرداخت
+              <span>✓</span>
             </div>
           </div>
-          <div class="invoice-title-block">
-            <span>پیش‌فاکتور</span>
-            <h1>خرید امکانات سیستم</h1>
-          </div>
-        </header>
+        </section>
 
-        <div class="invoice-meta-grid">
-          <div><span>شماره پیش‌فاکتور</span><strong>{{ invoiceNumber }}</strong></div>
-          <div><span>تاریخ صدور</span><strong>{{ todayLabel }}</strong></div>
-          <div><span>وضعیت</span><strong class="invoice-status">در انتظار پرداخت</strong></div>
-        </div>
-
-        <section class="invoice-body">
-          <div class="invoice-items">
-            <div class="invoice-section-title">اقلام پیش‌فاکتور</div>
-            <article v-for="item in selectedItems" :key="item.key" class="invoice-item">
-              <div class="invoice-item-icon" :style="{ '--accent': item.color }">{{ item.icon }}</div>
-              <div>
-                <strong>{{ item.title }}</strong>
-                <small>{{ item.categoryLabel }} · {{ item.billing }}</small>
+        <section class="store-invoice-summary-row">
+          <div class="store-invoice-left-stack">
+            <div class="store-invoice-date-card">
+              <div class="store-invoice-date-item">
+                <div class="store-invoice-round-icon">□</div>
+                <div>
+                  <div class="store-invoice-small-label">تاریخ صورت‌حساب</div>
+                  <div class="store-invoice-date-val">{{ todayLabel }}</div>
+                </div>
               </div>
-              <span>{{ formatPrice(item.price) }}</span>
-            </article>
-          </div>
-
-          <aside class="invoice-side">
-            <div class="invoice-summary">
-              <div><span>تعداد اقلام</span><strong>{{ selectedItems.length.toLocaleString("fa-IR") }}</strong></div>
-              <div v-if="discountAmount" class="invoice-discount"><span>تخفیف</span><strong>{{ formatPrice(discountAmount) }}</strong></div>
-              <div class="invoice-total"><span>جمع کل قابل پرداخت</span><strong>{{ formatPrice(payableTotal) }}</strong></div>
+              <div class="store-invoice-divider"></div>
+              <div class="store-invoice-date-item">
+                <div class="store-invoice-round-icon">◷</div>
+                <div>
+                  <div class="store-invoice-small-label">مهلت پرداخت</div>
+                  <div class="store-invoice-date-val">{{ todayLabel }}</div>
+                </div>
+              </div>
             </div>
 
-            <form class="discount-box" @submit.prevent="applyDiscount">
-              <label>
-                کد تخفیف
-                <input v-model.trim="discountCode" type="text" placeholder="مثلا OFF10">
-              </label>
-              <button type="submit">اعمال کد</button>
-              <p v-if="discountMessage" :class="{ error: discountError }">{{ discountMessage }}</p>
-            </form>
-
-            <section class="payment-card">
-              <div>
-                <strong>پرداخت آنلاین</strong>
-                <span>پس از اتصال درگاه، پرداخت این پیش‌فاکتور از همین بخش انجام می‌شود.</span>
+            <div class="store-invoice-total-card">
+              <div class="store-invoice-paper">
+                <i></i><i></i><i></i>
+                <span>✓</span>
               </div>
-              <button class="checkout-btn" type="button" :disabled="paying || !selectedItems.length" @click="payInvoice">
-                {{ paying ? "در حال انتقال..." : "خرید و سفارش" }}
-              </button>
-            </section>
+              <div class="store-invoice-total-content">
+                <div class="store-invoice-total-title">جمع کل</div>
+                <div class="store-invoice-big-total">{{ formatPrice(payableTotal) }}</div>
+                <div class="store-invoice-stat"><span>مجموع پرداخت‌ها</span><span>۰ ریال</span></div>
+                <div class="store-invoice-stat"><strong>مانده قابل پرداخت</strong><strong>{{ formatPrice(payableTotal) }}</strong></div>
+              </div>
+            </div>
+          </div>
 
-            <button type="button" class="details-btn invoice-back" @click="step = 'catalog'">بازگشت به فروشگاه</button>
+          <aside class="store-invoice-customer">
+            <div class="store-invoice-customer-head">
+              <div class="store-invoice-avatar">ک</div>
+              <div>
+                <span>خریدار / سایت</span>
+                <strong>کلینیک‌یار</strong>
+              </div>
+            </div>
+            <div class="store-invoice-contact-card">
+              <div>
+                <span>نوع خرید</span>
+                <strong>امکانات سیستم</strong>
+                <i class="store-invoice-round-icon">▣</i>
+              </div>
+              <div>
+                <span>تعداد اقلام</span>
+                <strong>{{ selectedItems.length.toLocaleString("fa-IR") }}</strong>
+                <i class="store-invoice-round-icon">#</i>
+              </div>
+            </div>
           </aside>
         </section>
 
-        <section class="invoice-note">
-          <strong>توضیح</strong>
-          <span>بعد از پرداخت موفق، امکانات خریداری‌شده برای همین سایت فعال می‌شوند و در فروشگاه با وضعیت خریداری شده نمایش داده خواهند شد.</span>
+        <section class="store-invoice-section">
+          <table class="store-invoice-table">
+            <thead>
+              <tr><th>#</th><th class="item-name">محصول / خدمات</th><th>قیمت</th><th>مقدار</th><th>جمع کل</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, index) in selectedItems" :key="item.key">
+                <td>{{ (index + 1).toLocaleString("fa-IR") }}</td>
+                <td class="item-name"><strong>{{ item.title }}</strong><small>{{ item.categoryLabel }} · {{ item.billing }}</small></td>
+                <td>{{ formatPrice(item.price) }}</td>
+                <td>۱</td>
+                <td>{{ formatPrice(item.price) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="store-invoice-totals">
+          <div><span><i>▦</i>هزینه کل</span><strong>{{ formatPrice(totalPrice) }}</strong></div>
+          <div v-if="discountAmount"><span><i>٪</i>تخفیف</span><strong>{{ formatPrice(discountAmount) }}</strong></div>
+          <div><span><i>▣</i>جمع کل</span><strong>{{ formatPrice(payableTotal) }}</strong></div>
+          <div><span><i>▤</i>مجموع پرداخت‌ها</span><strong>۰ ریال</strong></div>
+          <div class="emph"><span><i>$</i>مانده قابل پرداخت</span><strong>{{ formatPrice(payableTotal) }}</strong></div>
+        </section>
+
+        <section class="store-invoice-actions">
+          <form class="discount-box" @submit.prevent="applyDiscount">
+            <label>
+              کد تخفیف
+              <input v-model.trim="discountCode" type="text" placeholder="مثلا OFF10">
+            </label>
+            <button type="submit">اعمال کد</button>
+            <p v-if="discountMessage" :class="{ error: discountError }">{{ discountMessage }}</p>
+          </form>
+
+          <div class="store-invoice-pay">
+            <div>
+              <strong>پرداخت آنلاین</strong>
+              <span>بعد از پرداخت موفق، امکانات خریداری‌شده برای همین سایت فعال می‌شوند.</span>
+            </div>
+            <button class="checkout-btn" type="button" :disabled="paying || !selectedItems.length" @click="payInvoice">
+              {{ paying ? "در حال انتقال..." : "خرید و سفارش" }}
+            </button>
+            <button type="button" class="details-btn invoice-back" @click="step = 'catalog'">بازگشت به فروشگاه</button>
+          </div>
         </section>
       </section>
     </section>
@@ -1131,4 +1182,8 @@ export default {
 .terms-body{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;padding:24px;background:#f8fbff}.terms-document{overflow:visible}.terms-text{min-height:420px;max-height:58vh;overflow:auto;padding:22px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.04)}.terms-text p{margin:0;white-space:pre-line;color:#334155;font-size:14px;font-weight:800;line-height:2.25}.terms-confirm{display:flex;align-items:flex-start;gap:10px;padding:14px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff;color:#1e40af;font-size:13px;font-weight:1000;line-height:1.9;cursor:pointer}.terms-confirm input{width:18px;height:18px;flex:0 0 18px;margin-top:4px;accent-color:#2563eb}.checkout-message{margin:0;padding:10px 12px;border-radius:10px;background:#dcfce7;color:#15803d;font-size:12px;font-weight:900;line-height:1.8}.checkout-message.error{background:#fee2e2;color:#b91c1c}
 
 @media(max-width:760px){.invoice-body,.terms-body{grid-template-columns:1fr;padding:14px}.invoice-head{gap:16px}.invoice-item{grid-template-columns:40px minmax(0,1fr)}.invoice-item>span{grid-column:2}.invoice-note{margin:0 14px 14px}.terms-text{max-height:none;min-height:320px}}
+
+.store-invoice-sheet{width:min(1000px,100%);margin:0 auto;padding:34px;border:1px solid #dce4e8;border-radius:22px;background:#fff;box-shadow:0 18px 55px rgba(34,58,73,.10),0 3px 12px rgba(34,58,73,.05);overflow:visible;color:#263746}.store-invoice-top{display:grid;grid-template-columns:1fr 1.05fr;gap:26px;align-items:start}.store-invoice-brand{display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:18px 10px 0}.store-invoice-city{margin-right:120px;color:#586873;font-size:15px;font-weight:800}.store-invoice-logo{min-width:205px;height:62px;display:grid;place-items:center;border:1px solid #dfe7eb;border-radius:16px;background:linear-gradient(135deg,#fff,#edf9f6);color:#007d72;font-size:23px;font-weight:1000}.store-invoice-heading{text-align:right}.store-invoice-title{margin:5px 0 10px;color:#263746;font-size:46px;font-weight:1000;line-height:1}.store-invoice-no{margin-bottom:22px;color:#556574;font-size:25px;font-weight:700;direction:ltr}.store-invoice-status{min-width:210px;display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:12px 16px 12px 20px;border-radius:16px;background:linear-gradient(90deg,#09a88f,#009c89);color:#fff;font-size:19px;font-weight:1000;box-shadow:0 7px 17px rgba(0,159,140,.18)}.store-invoice-status span{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#fff;color:#009f8c}.store-invoice-summary-row{display:grid;grid-template-columns:1.85fr 1fr;gap:24px;margin-top:28px}.store-invoice-left-stack{display:flex;flex-direction:column;gap:20px}.store-invoice-date-card{min-height:82px;display:grid;grid-template-columns:1fr 1px 1fr;align-items:center;padding:10px 18px;border:1px solid #dfe7eb;border-radius:18px;background:#fff}.store-invoice-divider{height:52px;background:#d9e2e6}.store-invoice-date-item{display:flex;align-items:center;justify-content:center;gap:14px}.store-invoice-round-icon{width:42px;height:42px;display:grid;place-items:center;flex:0 0 42px;border-radius:13px;background:#eff8f6;color:#009f8c;font-style:normal;font-weight:1000}.store-invoice-small-label{margin-bottom:5px;color:#72808a;font-size:13px;font-weight:800}.store-invoice-date-val{font-size:16px;font-weight:900}.store-invoice-total-card{min-height:250px;display:grid;grid-template-columns:1fr 1.25fr;gap:26px;padding:30px 32px;border-radius:18px;background:linear-gradient(135deg,#06776f 0%,#007d72 52%,#008c78 100%);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05),0 10px 25px rgba(0,111,105,.17);overflow:hidden}.store-invoice-paper{position:relative;align-self:center;justify-self:center;width:118px;height:155px;padding-top:54px;border-radius:9px;background:#fff;box-shadow:0 17px 30px rgba(0,0,0,.20)}.store-invoice-paper:after{content:"";position:absolute;left:0;top:0;border-top:30px solid #dbe5e8;border-right:30px solid transparent}.store-invoice-paper i{display:block;width:64px;height:7px;margin:0 auto 13px;border-radius:8px;background:#d8dfe2}.store-invoice-paper i:nth-child(3){width:45px}.store-invoice-paper span{position:absolute;right:17px;bottom:26px;width:44px;height:44px;display:grid;place-items:center;border-radius:50%;background:#5ed0ad;color:#fff;font-weight:1000;box-shadow:0 6px 14px rgba(0,0,0,.16)}.store-invoice-total-content{align-self:center}.store-invoice-total-title{margin-bottom:8px;font-size:14px;opacity:.86}.store-invoice-big-total{margin-bottom:22px;font-size:31px;font-weight:1000;white-space:nowrap}.store-invoice-stat{display:flex;justify-content:space-between;gap:20px;padding:14px 0;border-top:1px solid rgba(255,255,255,.18);font-size:14px}.store-invoice-stat strong{font-size:18px}.store-invoice-customer{display:flex;flex-direction:column;gap:16px}.store-invoice-customer-head{display:flex;align-items:center;gap:14px;padding:12px 0 5px}.store-invoice-avatar{width:54px;height:54px;display:grid;place-items:center;border-radius:50%;background:#f2f6f8;color:#536573;font-weight:1000}.store-invoice-customer-head span{color:#707d87;font-size:13px;font-weight:800}.store-invoice-customer-head strong{display:block;margin-top:5px;font-size:17px}.store-invoice-contact-card{border:1px solid #dfe7eb;border-radius:16px;padding:2px 20px 0;background:#fff}.store-invoice-contact-card>div{min-height:90px;display:grid;grid-template-columns:1fr 50px;align-items:center;border-bottom:1px solid #e0e7eb}.store-invoice-contact-card>div:last-child{border-bottom:0}.store-invoice-contact-card span{color:#6e7c87;font-size:13px;font-weight:800}.store-invoice-contact-card strong{display:block;margin-top:7px;font-size:18px}.store-invoice-section{margin-top:30px;border:1px solid #dfe7eb;border-radius:18px;overflow:hidden;background:#fff}.store-invoice-table{width:100%;border-collapse:collapse;font-size:14px}.store-invoice-table th{padding:20px 18px;border-bottom:1px solid #dfe7eb;color:#008f80;font-size:15px}.store-invoice-table td{padding:22px 18px;text-align:center;border-bottom:1px solid #edf1f3}.store-invoice-table tr:last-child td{border-bottom:0}.store-invoice-table th:first-child,.store-invoice-table td:first-child{width:62px}.store-invoice-table .item-name{text-align:right!important}.store-invoice-table small{display:block;margin-top:6px;color:#6f7d88;font-size:12px}.store-invoice-totals{margin-top:30px;border:1px solid #dfe7eb;border-radius:18px;overflow:hidden}.store-invoice-totals>div{display:grid;grid-template-columns:1fr 1fr;align-items:center;padding:16px 22px;border-bottom:1px dashed #dfe7ea}.store-invoice-totals>div:last-child{border-bottom:0}.store-invoice-totals span{display:flex;align-items:center;gap:12px;font-weight:800}.store-invoice-totals i{width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px;border-radius:50%;background:#e6f7f2;color:#079a87;font-style:normal}.store-invoice-totals strong{text-align:left;font-size:18px}.store-invoice-totals .emph{background:linear-gradient(90deg,#eefaf7,#f8fdfb);color:#087a6f}.store-invoice-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:18px;margin-top:30px;align-items:start}.store-invoice-pay{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;padding:14px;border:1px solid #dfe7eb;border-radius:16px;background:#fff}.store-invoice-pay strong,.store-invoice-pay span{display:block}.store-invoice-pay span{margin-top:5px;color:#6f7d88;font-size:12px;font-weight:800}.store-invoice-pay .checkout-btn{min-width:150px;background:linear-gradient(90deg,#079d89,#008b79)}.store-invoice-pay .invoice-back{width:auto;min-width:145px;border-color:#0e9a8a;color:#087d72}
+
+@media(max-width:760px){.store-invoice-sheet{padding:22px 16px;border-radius:0;border:0;box-shadow:none}.store-invoice-top,.store-invoice-summary-row,.store-invoice-total-card,.store-invoice-actions,.store-invoice-pay{grid-template-columns:1fr}.store-invoice-brand{order:2;align-items:center}.store-invoice-city{margin:0}.store-invoice-heading{text-align:center}.store-invoice-status{width:100%}.store-invoice-date-card{grid-template-columns:1fr}.store-invoice-divider{width:100%;height:1px;margin:5px 0}.store-invoice-date-item{padding:10px}.store-invoice-paper{display:none}.store-invoice-section{overflow:auto}.store-invoice-table{min-width:720px}.store-invoice-totals>div{grid-template-columns:1.2fr 1fr}.store-invoice-pay .checkout-btn,.store-invoice-pay .invoice-back{width:100%}}
 </style>

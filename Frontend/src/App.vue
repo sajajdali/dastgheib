@@ -1,7 +1,7 @@
 <template>
   <template v-if="isCentralApp">
     <CentralAdmin />
-    <a v-if="showLocalClinicShortcut" class="central-clinic-shortcut" href="http://clinic1.localhost:5175/">
+    <a v-if="showLocalClinicShortcut" class="central-clinic-shortcut" :href="localClinicUrl">
       ورود به محیط کلینیک
     </a>
   </template>
@@ -216,13 +216,14 @@
       <Gozaresh v-if="currentPage === 'Gozaresh'" :permissions="user.permissions || []" />
       <ActivityLogs v-if="currentPage === 'ActivityLogs'" :permissions="user.permissions || []" />
 
-      <Anbar v-if="currentPage === 'Anbar'" />
+      <Anbar ref="inventory" v-if="currentPage === 'Anbar'" />
 
       <Dermatracker
         v-if="currentPage === 'dermatracker'"
         :permissions="user.permissions || []"
         :open-patient-request="pendingBeautyRecordRequest"
         @back-to-patient-profile="openPatientProfileFromBeauty"
+        @open-patient-media="openPatientMediaFromBeauty"
       />
 
       <Ticket v-if="currentPage === 'Ticket'" :permissions="user.permissions || []" />
@@ -377,6 +378,7 @@ const centralDomains = (import.meta.env.VITE_CENTRAL_DOMAINS || "localhost,127.0
   .split(",")
   .map((domain) => domain.trim().toLowerCase())
   .filter(Boolean);
+const LAST_CLINIC_PAGE_KEY = "clinic:last-active-page:v1";
 
 export default {
 
@@ -449,7 +451,8 @@ export default {
       ,myReportError: ""
       ,reportMonth: ""
       ,pendingStoreModuleKey: ""
-      ,attendanceEnabled: false
+      // حضور و غیاب فقط بر اساس ماژول اشتراک مجموعه کنترل می‌شود.
+      ,attendanceEnabled: true
       ,uiMenuOpen: false
       ,legacyLeadsEnabled: false
       ,isCentralApp: centralDomains.includes(window.location.hostname.toLowerCase())
@@ -463,7 +466,6 @@ export default {
   mounted() {
 
     window.addEventListener("app:auth-expired", this.handleAuthExpired);
-    window.addEventListener("app:attendance-status-changed", this.handleAttendanceStatusChanged);
     window.addEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
     if (this.isCentralApp) {
       document.body.classList.add("central-host");
@@ -489,7 +491,6 @@ export default {
     stopPresence();
     document.body.classList.remove("central-host");
     window.removeEventListener("app:auth-expired", this.handleAuthExpired);
-    window.removeEventListener("app:attendance-status-changed", this.handleAttendanceStatusChanged);
     window.removeEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
     window.removeEventListener("popstate", this.handleBrowserBack);
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
@@ -513,6 +514,10 @@ export default {
 
       }
 
+    },
+
+    currentPage(newPage) {
+      this.rememberLastClinicPage(newPage);
     }
 
   },
@@ -520,6 +525,11 @@ export default {
   computed: {
     showLocalClinicShortcut() {
       return ["localhost", "127.0.0.1"].includes(window.location.hostname.toLowerCase());
+    },
+
+    localClinicUrl() {
+      const port = window.location.port ? `:${window.location.port}` : "";
+      return `${window.location.protocol}//clinic1.localhost${port}/`;
     },
 
     tenantEnabledFeatures() {
@@ -539,6 +549,10 @@ export default {
         store: 'online_store',
       };
       return features.map((feature) => aliases[feature] || feature);
+    },
+
+    attendanceModuleEnabled() {
+      return !Array.isArray(this.tenantEnabledFeatures) || this.tenantEnabledFeatures.includes('attendance');
     },
 
     isClinicManager() {
@@ -643,7 +657,10 @@ export default {
 
     handleBrowserBack() {
       if (!this.user || this.allowBrowserBack) return;
-      const confirmed = window.confirm("مطمئنی می‌خواهی از سیستم خارج شوی یا صفحه را ترک کنی؟");
+      const hasUnsavedInventoryChanges = this.currentPage === 'Anbar' && this.$refs.inventory?.hasUnsavedChanges;
+      const confirmed = window.confirm(hasUnsavedInventoryChanges
+        ? "تغییرات انبار ذخیره نشده است. مطمئنی می‌خواهی صفحه را ترک کنی؟"
+        : "مطمئنی می‌خواهی از سیستم خارج شوی یا صفحه را ترک کنی؟");
       if (confirmed) {
         this.allowBrowserBack = true;
         window.history.back();
@@ -719,6 +736,7 @@ export default {
         this.user = data.user;
         startPresence(this.user);
         await this.loadAttendanceStatus();
+        this.restoreLastClinicPage();
       } catch (error) {
         if (error.response?.status !== 401) {
           console.error("خطا در بررسی ورود", error);
@@ -737,14 +755,59 @@ export default {
       this.loadAttendanceStatus();
     },
 
-    async loadAttendanceStatus() {
+    lastClinicPageStorageKey() {
+      const host = window.location.hostname.toLowerCase();
+      return `${LAST_CLINIC_PAGE_KEY}:${host}:${this.user?.id || 'guest'}`;
+    },
+
+    rememberLastClinicPage(page) {
+      if (this.isCentralApp || !this.user) return;
       try {
-        const { data } = await axios.get("/api/settings");
-        this.attendanceEnabled = Boolean(data.attendance_enabled);
-        if (!this.attendanceEnabled && this.currentPage === "HRtimes") this.currentPage = null;
+        localStorage.setItem(this.lastClinicPageStorageKey(), page || '__home__');
       } catch {
-        this.attendanceEnabled = false;
+        // در صورت محدود بودن فضای مرورگر، نمایش صفحه مختل نشود.
       }
+    },
+
+    canRestoreClinicPage(page) {
+      if (!page || page === '__home__') return true;
+
+      const featureMap = {
+        Parvande: 'patients', Vaghtdahi: 'booking', Peygiri: 'followups',
+        dermatracker: 'beauty', Photos: 'gallery', Gozaresh: 'report',
+        Anbar: 'inventory', Ticket: 'tickets', Products: 'finder',
+        Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings'
+      };
+      const permissionMap = {
+        Parvande: 'patients.view', Photos: 'photos.view', Vaghtdahi: 'appointments.view',
+        Peygiri: 'followups.view', Gozaresh: 'reports.view', Anbar: 'inventory.view',
+        dermatracker: 'beauty.view', Ticket: 'tickets.view', Products: 'services.view',
+        Bills: 'bills.view', HRtimes: 'attendance.view', Payroll: 'payroll.view',
+        ActivityLogs: 'activity_logs.view'
+      };
+      const feature = featureMap[page];
+      if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return false;
+      if (page === 'Setting' || page === 'Store' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
+      if (page === 'HRtimes' && !this.attendanceEnabled) return false;
+      if (page === 'Payroll') return ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.user?.permissions?.includes(permission));
+      return !permissionMap[page] || this.user?.permissions?.includes(permissionMap[page]);
+    },
+
+    restoreLastClinicPage() {
+      if (this.isCentralApp || !this.user) return;
+      try {
+        const savedPage = localStorage.getItem(this.lastClinicPageStorageKey());
+        if (savedPage && savedPage !== '__home__' && this.canRestoreClinicPage(savedPage)) {
+          this.currentPage = savedPage;
+        }
+      } catch {
+        // نبودن دسترسی localStorage نباید جلوی ورود به سامانه را بگیرد.
+      }
+    },
+
+    async loadAttendanceStatus() {
+      this.attendanceEnabled = this.attendanceModuleEnabled;
+      if (!this.attendanceEnabled && this.currentPage === "HRtimes") this.currentPage = null;
     },
 
     async makeSquareWebp(file, size, quality, fileName) {
@@ -850,11 +913,6 @@ export default {
       }
     },
 
-    handleAttendanceStatusChanged(event) {
-      this.attendanceEnabled = Boolean(event.detail?.enabled);
-      if (!this.attendanceEnabled && this.currentPage === "HRtimes") this.currentPage = null;
-    },
-
     async handleAuthExpired() {
       if (this.authNoticeOpen || !this.user) return;
       this.authNoticeOpen = true;
@@ -899,7 +957,22 @@ export default {
 
     },
 
-    changePage(menuValue) {
+    async confirmLeavingInventory(nextPage) {
+      if (this.currentPage !== 'Anbar' || nextPage === 'Anbar' || !this.$refs.inventory?.hasUnsavedChanges) return true;
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'تغییرات انبار ذخیره نشده است',
+        text: 'اگر ادامه دهید، تغییرات ثبت‌نشده از بین می‌روند.',
+        showCancelButton: true,
+        confirmButtonText: 'خروج بدون ذخیره',
+        cancelButtonText: 'بازگشت و ذخیره',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#0f766e'
+      });
+      return result.isConfirmed;
+    },
+
+    async changePage(menuValue) {
       if (menuValue === "Notif") {
         menuValue = "Peygiri";
       }
@@ -924,7 +997,7 @@ export default {
       };
       const feature = featureMap[menuValue];
       if (menuValue === "Setting") {
-        if (this.isClinicManager) this.currentPage = menuValue;
+        if (this.isClinicManager && await this.confirmLeavingInventory(menuValue)) this.currentPage = menuValue;
         return;
       }
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return;
@@ -947,7 +1020,7 @@ export default {
       };
       const requiredPermission = permissionMap[menuValue];
       if (menuValue === "Payroll" && ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.user.permissions.includes(permission))) {
-        this.currentPage = menuValue;
+        if (await this.confirmLeavingInventory(menuValue)) this.currentPage = menuValue;
         return;
       }
       if (requiredPermission && !this.user.permissions.includes(requiredPermission)) return;
@@ -958,6 +1031,8 @@ export default {
       if (menuValue === "Vaghtdahi") {
         this.pendingAppointmentViewRequest = null;
       }
+
+      if (!await this.confirmLeavingInventory(menuValue)) return;
 
       this.currentPage = menuValue;
 
@@ -1068,6 +1143,16 @@ export default {
       if (!patient?.id) return;
       this.pendingPatientProfileRequest = {
         ...patient,
+        requestedAt: Date.now()
+      };
+      this.currentPage = "Parvande";
+    },
+
+    openPatientMediaFromBeauty(patient) {
+      if (!patient?.id) return;
+      this.pendingPatientProfileRequest = {
+        ...patient,
+        open_media: true,
         requestedAt: Date.now()
       };
       this.currentPage = "Parvande";

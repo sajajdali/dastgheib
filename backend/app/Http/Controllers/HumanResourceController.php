@@ -96,15 +96,20 @@ class HumanResourceController extends Controller
     {
         return response()->json([
             'tags' => $this->serviceTags(),
+            'tag_definitions' => $this->serviceTagDefinitions(),
         ]);
     }
 
     public function saveServiceTags(Request $request)
     {
         $tags = collect($request->input('tags', []))
-            ->map(fn ($tag) => trim((string) $tag))
+            ->map(function ($tag) {
+                $name = trim((string) (is_array($tag) ? ($tag['name'] ?? '') : $tag));
+                $smsTemplate = trim((string) (is_array($tag) ? ($tag['sms_template'] ?? '') : ''));
+                return $name === '' ? null : ['name' => $name, 'sms_template' => $smsTemplate];
+            })
             ->filter()
-            ->unique()
+            ->unique('name')
             ->values()
             ->all();
 
@@ -115,16 +120,33 @@ class HumanResourceController extends Controller
 
         return response()->json([
             'tags' => $this->serviceTags(),
+            'tag_definitions' => $this->serviceTagDefinitions(),
         ]);
     }
 
     public function serviceTags(): array
     {
+        return collect($this->serviceTagDefinitions())->pluck('name')->all();
+    }
+
+    public function serviceTagDefinitions(): array
+    {
         $stored = json_decode((string) AppSetting::getByKey('service_tags', '[]'), true);
 
-        return is_array($stored) && $stored !== []
-            ? array_values(array_filter(array_unique(array_map(fn ($tag) => trim((string) $tag), $stored))))
-            : $this->serviceTagDefaults();
+        $definitions = collect(is_array($stored) ? $stored : [])
+            ->map(function ($tag) {
+                $name = trim((string) (is_array($tag) ? ($tag['name'] ?? '') : $tag));
+                $smsTemplate = trim((string) (is_array($tag) ? ($tag['sms_template'] ?? '') : ''));
+                return $name === '' ? null : ['name' => $name, 'sms_template' => $smsTemplate];
+            })
+            ->filter()
+            ->unique('name')
+            ->values()
+            ->all();
+
+        return $definitions !== []
+            ? $definitions
+            : collect($this->serviceTagDefaults())->map(fn ($name) => ['name' => $name, 'sms_template' => ''])->all();
     }
 
     public function getDoctors()

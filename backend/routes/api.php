@@ -59,6 +59,7 @@ Route::post('/settings/sms', [SettingController::class, 'saveSmsSettings'])->mid
 Route::post('/sms/completion', [CompletionSmsController::class, 'send']);
 Route::post('/sms/payment-link', [CompletionSmsController::class, 'sendPaymentLink']);
 Route::post('/sms/appointment', [CompletionSmsController::class, 'sendAppointment']);
+Route::post('/sms/landing', [CompletionSmsController::class, 'sendLanding'])->middleware('permission:followups.view');
 Route::post('/settings/access', [SettingController::class, 'saveAccessSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/activity-logs', [ActivityLogController::class, 'index'])->middleware('permission:activity_logs.view');
 
@@ -124,7 +125,7 @@ Route::post('/payroll/lines/{line}/restore', [PayrollReportController::class, 'r
 Route::delete('/payroll/lines/{line}', [PayrollReportController::class, 'destroyLine'])->middleware('permission:payroll.view|reports.financial');
 Route::get('/payment-options', [HumanResourceController::class, 'getPaymentOptions']);
 Route::post('/payment-options', [HumanResourceController::class, 'savePaymentOptions']);
-Route::get('/service-tags', [HumanResourceController::class, 'getServiceTags'])->middleware('permission:resources.view|inventory.view|appointments.view');
+Route::get('/service-tags', [HumanResourceController::class, 'getServiceTags'])->middleware('permission:resources.view|inventory.view|appointments.view|followups.view');
 Route::post('/service-tags', [HumanResourceController::class, 'saveServiceTags'])->middleware('permission:resources.view|inventory.update');
 
 // نوبت‌دهی
@@ -140,6 +141,7 @@ Route::get('/inventory', [InventoryController::class, 'index'])->middleware('per
 Route::get('/inventory/context', [InventoryController::class, 'context'])->middleware('permission:inventory.view|appointments.view|resources.view');
 Route::post('/inventory', [InventoryController::class, 'store'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory/adjust-stock', [InventoryController::class, 'adjustStock'])->middleware('permission:inventory.update');
+Route::get('/inventory/{inventory}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');
 
 // تماس‌ها (FlwUp)
 Route::get('/contacts', [ContactController::class, 'index']);

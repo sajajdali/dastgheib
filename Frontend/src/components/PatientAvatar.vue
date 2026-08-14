@@ -38,7 +38,7 @@ const imageUrl = computed(() => props.src || (props.original
 const normalizedLevel = computed(() => ['problematic', 'blue', 'silver', 'gold'].includes(props.level || props.patient.customer_level)
   ? (props.level || props.patient.customer_level)
   : 'silver')
-const initials = computed(() => `${String(props.patient.first_name || '').trim().charAt(0)}${String(props.patient.last_name || '').trim().charAt(0)}`)
+const initials = computed(() => String(props.patient.first_name || '').trim().charAt(0))
 const avatarStyle = computed(() => ({ '--avatar-size': `${Number(props.size) || 50}px` }))
 
 watch(imageUrl, () => { failed.value = false })

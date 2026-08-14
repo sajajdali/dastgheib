@@ -1,5 +1,5 @@
 <template>
-  <div class="inventory-page">
+  <div class="inventory-page" :class="{ 'movement-page-active': inventoryView === 'movements' || inventoryView === 'service-tags' }">
     <section v-if="false" class="inventory-view-switch">
       <div class="inventory-view-title">
         <span>مدیریت انبار</span>
@@ -34,7 +34,7 @@
       </div>
     </section>
 
-    <aside class="section-panel">
+    <aside v-if="inventoryView !== 'movements' && inventoryView !== 'service-tags'" class="section-panel">
       <div class="inventory-structure-head">
         <button class="structure-add-root-btn" type="button" @click="addRootSection">
           <span>+</span>
@@ -85,8 +85,8 @@
       </button>
     </aside>
 
-    <main class="inventory-main" :class="{ 'chart-mode': inventoryView === 'chart' }">
-      <section class="inventory-toolbar">
+    <main class="inventory-main" :class="{ 'chart-mode': inventoryView === 'chart', 'movement-mode': inventoryView === 'movements', 'service-tags-mode': inventoryView === 'service-tags' }">
+      <section v-if="inventoryView !== 'movements' && inventoryView !== 'service-tags'" class="inventory-toolbar">
         <div class="inventory-search">
           <span class="search-icon" aria-hidden="true">⌕</span>
           <input
@@ -133,16 +133,31 @@
         </div>
 
         <div class="inventory-save-actions">
+          <button
+            class="global-commission-btn"
+            type="button"
+            title="تعریف پورسانت کلی برای همه انبار"
+            aria-label="تعریف پورسانت کلی برای همه انبار"
+            @click="openCommissionModal(null, 'all')"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15.4 14.9 8.6M9.5 9.5h.01M14.5 14.5h.01"/></svg>
+            <span>پورسانت کلی</span>
+          </button>
+          <button class="service-tags-page-btn" type="button" @click="openServiceTagsPage">
+            <span>🏷</span>
+            تگ‌های خدمات
+          </button>
           <span class="save-status" :class="saveState">
             {{ saveStatusText }}
           </span>
+          <span v-if="hasUnsavedChanges" class="save-reminder">برای ثبت تغییرات روی «ذخیره تغییرات» بزنید</span>
           <button
             class="save-inventory-btn"
             type="button"
             :disabled="isSaving || isFetching || !hasUnsavedChanges"
             @click="saveData(true)"
           >
-            {{ isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات' }}
+            {{ isSaving ? 'در حال ذخیره...' : hasUnsavedChanges ? 'ذخیره تغییرات' : 'تغییری برای ذخیره نیست' }}
           </button>
         </div>
       </section>
@@ -168,16 +183,17 @@
           >×</button>
         </div>
 
-        <div v-if="!needsCompletedHierarchy || searchQuery" class="panel-head">
+        <div v-if="!needsCompletedHierarchy || isRootSelection || searchQuery" class="panel-head">
           <div>
-            <h3>{{ searchQuery ? 'نتایج جست‌وجو در کل انبار' : inventoryTableTitle }}</h3>
-            <p>{{ searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : inventoryTableSubtitle }}</p>
+            <h3>{{ searchQuery ? 'نتایج جست‌وجو در کل انبار' : isRootSelection ? `گروه کلی ${activeSectionName}` : inventoryTableTitle }}</h3>
+            <p>{{ searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : isRootSelection ? 'پورسانت کلی، روی همه آیتم‌های زیرگروه‌های این گروه اعمال می‌شود.' : inventoryTableSubtitle }}</p>
           </div>
           <div class="panel-actions">
-            <button class="text-btn ghost" type="button" @click="openCommissionModal(selectedRow)">
-              ثبت پورسانت
+            <button class="text-btn ghost" type="button" @click="openCommissionModal(isRootSelection ? null : selectedRow, isRootSelection ? 'group' : 'section')">
+              {{ isRootSelection ? 'ثبت پورسانت کلی گروه' : 'ثبت پورسانت' }}
             </button>
             <button
+              v-if="!isRootSelection"
               class="text-btn primary"
               type="button"
               :disabled="needsCompletedHierarchy"
@@ -187,7 +203,12 @@
           </div>
         </div>
 
-        <div v-if="needsCompletedHierarchy && !searchQuery" class="inventory-branch-message">
+        <div v-if="isRootSelection && !searchQuery" class="inventory-branch-message">
+          <strong>گروه کلی انتخاب شده است</strong>
+          <span>برای همه آیتم‌های زیرگروه‌های «{{ activeSectionName }}» پورسانت کلی ثبت کنید.</span>
+        </div>
+
+        <div v-else-if="needsCompletedHierarchy && !searchQuery" class="inventory-branch-message">
           <strong>لطفا زیرشاخه را انتخاب کنید</strong>
           <span>برای نمایش یا ثبت آیتم‌ها، یک زیرشاخه از انبار را انتخاب کنید.</span>
         </div>
@@ -201,7 +222,6 @@
               <col>
               <col class="small-col">
               <col class="small-col">
-              <col class="small-col">
               <col class="commission-col">
               <col class="active-col">
               <col class="action-col">
@@ -212,7 +232,6 @@
                 <th>تگ‌های خدمات</th>
                 <th>هزینه</th>
                 <th>قیمت</th>
-                <th>تعداد</th>
                 <th>حداقل</th>
                 <th>موجودی</th>
                 <th>پورسانت کلی</th>
@@ -230,7 +249,7 @@
                 @click="selectRow(row)"
               >
                 <td>
-                  <input v-model="row.name" type="text" placeholder="مثلا سرنگ">
+                  <input v-model="row.name" type="text" placeholder="نام کالا">
                   <small v-if="searchQuery" class="row-section-name">{{ sectionNameForRow(row) }}</small>
                 </td>
                 <td>
@@ -264,14 +283,12 @@
                     @input="e => onMoneyInput(e, row, 'price')"
                   >
                 </td>
-                <td><input v-model.number="row.count" type="number"></td>
                 <td><input v-model.number="row.minStock" type="number" min="0"></td>
                 <td>
-                  <input
-                    v-model.number="row.stock"
-                    type="number"
-                    :class="stockClass(row.stock, row.minStock)"
-                  >
+                  <div class="stock-cell">
+                    <strong :class="stockClass(row.stock, row.minStock)">{{ Number(row.stock || 0).toLocaleString('fa-IR') }}</strong>
+                    <button type="button" title="افزایش یا کاهش موجودی" @click.stop="openStockMovement(row)">±</button>
+                  </div>
                 </td>
                 <td>
                   <button
@@ -291,7 +308,7 @@
               </tr>
 
               <tr v-if="displayedRows.length === 0">
-                <td colspan="10" class="empty-cell">
+                <td colspan="9" class="empty-cell">
                   {{ inventoryEmptyMessage }}
                 </td>
               </tr>
@@ -327,6 +344,50 @@
           <div v-if="chartData.length === 0" class="empty-state">موجودی فعالی برای نمایش وجود ندارد.</div>
         </div>
       </section>
+
+      <section v-if="inventoryView === 'movements'" class="movement-page">
+        <header class="panel-head">
+          <div><h3>گردش موجودی {{ movementList.row?.name }}</h3><p>افزایش‌ها و کاهش‌های این آیتم با تاریخ و علت ثبت شده‌اند.</p></div>
+          <button class="text-btn ghost" type="button" @click="closeMovementList">بازگشت به انبار</button>
+        </header>
+        <div class="movement-filters">
+          <label>
+            از تاریخ
+            <date-picker
+              v-model="movementList.dateFrom"
+              format="YYYY-MM-DD"
+              display-format="jYYYY/jMM/jDD"
+              input-class="movement-date-input"
+              placeholder="انتخاب تاریخ"
+              auto-submit
+              color="#2563eb"
+              popover-class="movement-date-picker-popover"
+              append-to="body"
+              @open="raiseMovementDatePicker"
+            />
+          </label>
+          <label>
+            تا تاریخ
+            <date-picker
+              v-model="movementList.dateTo"
+              format="YYYY-MM-DD"
+              display-format="jYYYY/jMM/jDD"
+              input-class="movement-date-input"
+              placeholder="انتخاب تاریخ"
+              auto-submit
+              color="#2563eb"
+              popover-class="movement-date-picker-popover"
+              append-to="body"
+              @open="raiseMovementDatePicker"
+            />
+          </label>
+          <button class="text-btn primary" type="button" @click="loadMovementList">اعمال فیلتر</button>
+        </div>
+        <div class="movement-summary"><article class="in">افزایش در بازه <strong>+{{ movementIncreaseTotal.toLocaleString('fa-IR') }}</strong></article><article class="out">کاهش در بازه <strong>{{ movementDecreaseTotal.toLocaleString('fa-IR') }}</strong></article><article>موجودی فعلی <strong>{{ Number(movementList.row?.stock || 0).toLocaleString('fa-IR') }}</strong></article></div>
+        <div class="movement-table-wrap"><table class="movement-table"><thead><tr><th>تاریخ</th><th>نوع</th><th>تعداد</th><th>علت / توضیحات</th></tr></thead><tbody><tr v-for="item in movementList.items" :key="item.id" :class="Number(item.quantity) < 0 ? 'out' : 'in'"><td>{{ formatMovementDate(item.occurred_at) }}</td><td>{{ Number(item.quantity) < 0 ? 'کاهش موجودی' : 'افزایش موجودی' }}</td><td><b>{{ Number(item.quantity) > 0 ? '+' : '' }}{{ Number(item.quantity).toLocaleString('fa-IR') }}</b></td><td>{{ item.description || '-' }}</td></tr><tr v-if="!movementList.loading && !movementList.items.length"><td colspan="4" class="empty-cell">گردشی در این بازه ثبت نشده است.</td></tr></tbody></table><p v-if="movementList.loading" class="movement-loading">در حال دریافت گردش‌ها...</p></div>
+      </section>
+
+      <ServiceTagsManager v-if="inventoryView === 'service-tags'" @back="closeServiceTagsPage" @saved="syncServiceTagOptions" />
     </main>
 
     <div v-if="showDefaultCommissionModal" class="modal-backdrop" @click.self="closeDefaultCommissionModal">
@@ -339,41 +400,7 @@
           <button class="modal-close" type="button" @click="closeDefaultCommissionModal">×</button>
         </div>
 
-        <div class="commission-level-tabs">
-          <button type="button" :class="{ active: bulkCommission.target === 'all' }" @click="bulkCommission.target = 'all'">کلی</button>
-          <button type="button" :class="{ active: bulkCommission.target === 'section' }" @click="bulkCommission.target = 'section'">بخش</button>
-          <button type="button" :class="{ active: bulkCommission.target === 'tag' }" @click="bulkCommission.target = 'tag'">زیر‌بخش</button>
-          <button type="button" :class="{ active: bulkCommission.target === 'item' }" :disabled="!selectedRow" @click="bulkCommission.target = 'item'">آیتم</button>
-        </div>
-
         <div class="modal-grid">
-          <label v-if="bulkCommission.target === 'section'">
-            بخش
-            <select v-model="bulkCommission.sectionKey">
-              <option v-for="section in sections" :key="sectionKey(section)" :value="sectionKey(section)">
-                {{ section.name }}
-              </option>
-            </select>
-          </label>
-
-          <label v-if="bulkCommission.target === 'tag'">
-            زیر‌بخش / تگ خدمات
-            <select v-model="bulkCommission.tag">
-              <option value="">انتخاب تگ</option>
-              <option v-for="tag in allServiceTags" :key="tag" :value="tag">{{ tag }}</option>
-            </select>
-          </label>
-
-          <label v-if="bulkCommission.target === 'item'">
-            آیتم
-            <select v-model="selectedRowLocalId">
-              <option value="">انتخاب آیتم</option>
-              <option v-for="row in rows" :key="row.localId" :value="row.localId">
-                {{ row.name || 'آیتم بدون نام' }} - {{ sectionNameForRow(row) }}
-              </option>
-            </select>
-          </label>
-
           <label>
             نوع واریز پاداش
             <select v-model="defaultCommissionDraft.type">
@@ -393,7 +420,7 @@
           <strong>{{ commissionLabel(defaultCommissionDraft.type, defaultCommissionDraft.value) }}</strong>
         </div>
 
-        <section v-if="selectedRow" class="person-commission-box">
+        <section v-if="selectedRow && bulkCommission.target === 'item'" class="person-commission-box">
           <div class="person-commission-head">
             <strong>پورسانت اختصاصی شخص</strong>
             <span>{{ selectedRow.name || 'آیتم انتخاب‌شده' }}</span>
@@ -430,9 +457,20 @@
 
         <div class="modal-actions">
           <button class="text-btn ghost" type="button" @click="closeDefaultCommissionModal">انصراف</button>
-          <button class="text-btn primary" type="button" :disabled="!commissionScopeRows.length" @click="saveDefaultCommissionModal">ثبت پورسانت</button>
+          <button class="text-btn primary" type="button" :disabled="!commissionScopeRows.length" @click="saveDefaultCommissionModal">{{ bulkCommission.target === 'group' ? 'ثبت پورسانت کلی گروه' : 'ثبت پورسانت' }}</button>
         </div>
       </div>
+    </div>
+
+    <div v-if="stockMovement.open" class="modal-backdrop" @click.self="closeStockMovement">
+      <section class="commission-modal stock-movement-modal" role="dialog" aria-modal="true">
+        <div class="modal-head"><div><h3>گردش موجودی</h3><p>{{ stockMovement.row?.name }}</p></div><button class="modal-close" type="button" @click="closeStockMovement">×</button></div>
+        <div class="stock-current">موجودی فعلی: <strong>{{ Number(stockMovement.row?.stock || 0).toLocaleString('fa-IR') }}</strong></div>
+        <div class="stock-direction"><button type="button" :class="{ active: stockMovement.direction === 'increase' }" @click="stockMovement.direction = 'increase'">افزایش موجودی</button><button type="button" :class="{ active: stockMovement.direction === 'decrease' }" @click="stockMovement.direction = 'decrease'">کاهش موجودی</button></div>
+        <div class="modal-grid"><label>تعداد<input v-model.number="stockMovement.quantity" type="number" min="0.001" step="0.001"></label><label>توضیحات<textarea v-model.trim="stockMovement.description" placeholder="مثلاً خرید جدید یا اصلاح شمارش"></textarea></label></div>
+        <div class="movement-history"><div class="movement-history-head"><strong>۴ گردش آخر</strong><button type="button" @click="openMovementList(stockMovement.row)">لیست کامل</button></div><p v-if="stockMovement.loading">در حال دریافت...</p><p v-else-if="!stockMovement.history.length">هنوز گردشی ثبت نشده است.</p><div v-for="movement in stockMovement.history.slice(0, 4)" :key="movement.id" :class="['movement-row', Number(movement.quantity) < 0 ? 'out' : 'in']"><b>{{ Number(movement.quantity) > 0 ? '+' : '' }}{{ Number(movement.quantity).toLocaleString('fa-IR') }}</b><span>{{ movement.description }}</span><time>{{ formatMovementDate(movement.occurred_at) }}</time></div></div>
+        <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeStockMovement">انصراف</button><button class="text-btn primary" :disabled="stockMovement.saving || !stockMovement.quantity" type="button" @click="saveStockMovement">{{ stockMovement.saving ? 'در حال ثبت...' : 'ثبت گردش' }}</button></div>
+      </section>
     </div>
 
     <div v-if="tagPicker.row" class="service-tag-popover-backdrop" @mousedown="closeServiceTagPicker">
@@ -450,7 +488,7 @@
           {{ tag }}
         </button>
         <small v-if="!filteredServiceTagOptions(tagPicker.row).length">
-          تگی پیدا نشد. تگ‌ها را از بخش منابع ثبت کنید.
+          تگی پیدا نشد. تگ‌ها را از صفحه «تگ‌های خدمات» در انبار ثبت کنید.
         </small>
       </div>
     </div>
@@ -459,12 +497,20 @@
 
 <script>
 import axios from "axios"
+import DatePicker from "vue3-persian-datetime-picker"
+import Swal from "sweetalert2"
+import ServiceTagsManager from "./ServiceTagsManager.vue"
 
 const API = "/api"
 const INVENTORY_ZERO_NOTIFICATIONS_KEY = "inventory_zero_stock_notifs_v1"
 
 export default {
   name: "InventoryTable",
+
+  components: {
+    DatePicker,
+    ServiceTagsManager,
+  },
 
   data() {
     return {
@@ -505,6 +551,17 @@ export default {
         type: "percent",
         value: 0
       },
+      stockMovement: {
+        open: false,
+        row: null,
+        direction: "increase",
+        quantity: null,
+        description: "",
+        history: [],
+        loading: false,
+        saving: false,
+      },
+      movementList: { row: null, items: [], dateFrom: "", dateTo: "", loading: false },
       searchQuery: "",
       isFetching: true,
       isSaving: false,
@@ -516,8 +573,22 @@ export default {
   },
 
   computed: {
+    movementIncreaseTotal() {
+      return this.movementList.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0)
+    },
+    movementDecreaseTotal() {
+      return this.movementList.items.reduce((sum, item) => sum + Math.min(0, Number(item.quantity || 0)), 0)
+    },
     activeSectionName() {
-      return this.activeSection?.name || "بخش انتخاب‌شده"
+      return this.activeSection?.name || this.activeRootSection?.name || "بخش انتخاب‌شده"
+    },
+
+    activeRootSection() {
+      return this.sections.find(section => this.sectionKey(section) === this.activeRootKey)
+    },
+
+    isRootSelection() {
+      return Boolean(this.activeRootKey && !this.activeSectionKey && this.activeTreeKey === this.activeRootKey)
     },
 
     needsCompletedHierarchy() {
@@ -632,6 +703,14 @@ export default {
     commissionScopeRows() {
       if (this.bulkCommission.target === "all") return this.rows
 
+      if (this.bulkCommission.target === "group") {
+        const groupKey = String(this.bulkCommission.sectionKey || this.activeRootKey || "")
+        const descendantSectionKeys = this.sections
+          .filter(section => String(section.parent_id || "") === groupKey)
+          .map(section => this.sectionKey(section))
+        return this.rows.filter(row => descendantSectionKeys.includes(this.rowSectionKey(row)))
+      }
+
       if (this.bulkCommission.target === "item") {
         return this.selectedRow ? [this.selectedRow] : []
       }
@@ -655,6 +734,10 @@ export default {
 
     commissionScopeSubtitle() {
       if (this.bulkCommission.target === "all") return "پورسانت کلی برای همه انبار"
+      if (this.bulkCommission.target === "group") {
+        const group = this.sections.find(item => this.sectionKey(item) === String(this.bulkCommission.sectionKey || this.activeRootKey))
+        return `پورسانت کلی همه آیتم‌های گروه ${group?.name || 'انتخاب‌شده'}`
+      }
       if (this.bulkCommission.target === "tag") return this.bulkCommission.tag ? `زیر‌بخش ${this.bulkCommission.tag}` : "یک زیر‌بخش را انتخاب کنید"
       if (this.bulkCommission.target === "item") return this.selectedRow ? this.selectedRow.name || "آیتم بدون نام" : "یک آیتم را انتخاب کنید"
       const section = this.sections.find(item => this.sectionKey(item) === String(this.bulkCommission.sectionKey || this.activeSectionKey))
@@ -703,10 +786,108 @@ export default {
   },
 
   mounted() {
+    if (localStorage.getItem('inventory-open-service-tags') === '1') {
+      localStorage.removeItem('inventory-open-service-tags')
+      this.inventoryView = 'service-tags'
+    }
     this.fetchData()
   },
 
   methods: {
+    async openStockMovement(row) {
+      if (!row?.id) {
+        await this.saveData(false)
+        await this.fetchData({ keepState: true })
+        row = this.rows.find(item => item.name === row?.name)
+        if (!row?.id) return
+      }
+      this.stockMovement = { open: true, row, direction: "increase", quantity: null, description: "", history: [], loading: true, saving: false }
+      try {
+        const { data } = await axios.get(`${API}/inventory/${row.id}/movements`)
+        this.stockMovement.history = data.movements || []
+        row.stock = Number(data.current_stock || 0)
+      } finally {
+        this.stockMovement.loading = false
+      }
+    },
+    closeStockMovement() {
+      if (!this.stockMovement.saving) this.stockMovement.open = false
+    },
+    async openMovementList(row) {
+      this.closeStockMovement()
+      this.movementList = { row, items: [], dateFrom: "", dateTo: "", loading: false }
+      this.inventoryView = 'movements'
+      await this.loadMovementList()
+    },
+    closeMovementList() {
+      if (this.movementList.loading) return
+      this.movementList = { row: null, items: [], dateFrom: "", dateTo: "", loading: false }
+      this.inventoryView = 'table'
+    },
+    openServiceTagsPage() {
+      this.closeServiceTagPicker()
+      this.inventoryView = 'service-tags'
+    },
+    closeServiceTagsPage() {
+      this.inventoryView = 'table'
+    },
+    syncServiceTagOptions(tags) {
+      this.serviceTagOptions = (tags || []).map(tag => String(tag?.name || '').trim()).filter(Boolean)
+    },
+    raiseMovementDatePicker(pickerVm = null) {
+      requestAnimationFrame(() => {
+        const picker = pickerVm?.$refs?.picker
+          || document.querySelector('body > .vpd-wrapper:last-of-type')
+          || document.querySelector('.movement-date-picker-popover')
+        if (!picker) return
+        picker.style.setProperty('z-index', '2147483006', 'important')
+        const container = picker.querySelector?.('.vpd-container')
+        if (container) container.style.setProperty('z-index', '2147483007', 'important')
+      })
+    },
+    async loadMovementList() {
+      if (!this.movementList.row?.id) return
+      this.movementList.loading = true
+      try {
+        const { data } = await axios.get(`${API}/inventory/${this.movementList.row.id}/movements`, { params: { date_from: this.movementList.dateFrom || undefined, date_to: this.movementList.dateTo || undefined, limit: 500 } })
+        this.movementList.items = data.movements || []
+        this.movementList.row.stock = Number(data.current_stock || 0)
+      } finally {
+        this.movementList.loading = false
+      }
+    },
+    async saveStockMovement() {
+      const movement = this.stockMovement
+      if (!movement.row?.id || !Number(movement.quantity) || movement.saving) return
+      movement.saving = true
+      try {
+        const { data } = await axios.post(`${API}/inventory/adjust-stock`, {
+          inventory_id: movement.row.id,
+          direction: movement.direction,
+          quantity: movement.quantity,
+          description: movement.description,
+        })
+        movement.row.stock = Number(data.stock || 0)
+        movement.history = [data.movement, ...movement.history]
+        movement.quantity = null
+        movement.description = ""
+        window.dispatchEvent(new CustomEvent("app:notifications-changed"))
+      } catch (error) {
+        Swal.fire({ icon: "error", title: "ثبت گردش انجام نشد", text: error.response?.data?.message || "موجودی قابل تغییر نیست." })
+      } finally {
+        movement.saving = false
+      }
+    },
+    formatMovementDate(value) {
+      if (!value) return '-'
+      return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(new Date(value))
+    },
     async fetchData(options = {}) {
       const previousSectionKey = this.activeSectionKey
       const previousSelectedName = this.selectedRow?.name || ""
@@ -1257,9 +1438,9 @@ export default {
       if (row) this.selectRow(row)
       const nextTarget = target || (row ? "item" : "section")
       this.bulkCommission.target = nextTarget
-      this.bulkCommission.sectionKey = this.activeSectionKey
+      this.bulkCommission.sectionKey = nextTarget === "group" ? this.activeRootKey : this.activeSectionKey
       if (nextTarget !== "tag") this.bulkCommission.tag = ""
-      this.defaultCommissionRow = row || this.selectedRow
+      this.defaultCommissionRow = row || (nextTarget === "group" ? this.commissionScopeRows[0] : this.selectedRow)
       this.defaultCommissionDraft = {
         type: this.defaultCommissionRow?.defaultCommissionType || this.bulkCommission.type || "percent",
         value: Number(this.defaultCommissionRow?.defaultCommissionValue ?? this.bulkCommission.value) || 0
@@ -1436,6 +1617,15 @@ export default {
 <style scoped>
 @import '@/scss/main.scss';
 
+/* تفکیک بصری گردش‌های افزایش و کاهش */
+.movement-table tr.in td { background: #f0fdf4; }
+.movement-table tr.out td { background: #fff5f5; }
+.movement-table tr.in td:first-child { box-shadow: inset -4px 0 0 #86efac; }
+.movement-table tr.out td:first-child { box-shadow: inset -4px 0 0 #fca5a5; }
+
+.stock-cell{display:flex;align-items:center;justify-content:center;gap:7px}.stock-cell strong{min-width:34px;text-align:center}.stock-cell button{width:28px;height:28px;border:0;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-size:18px;font-weight:900;cursor:pointer}.stock-movement-modal{width:min(570px,94vw)}.stock-current{margin:14px 0;padding:13px;border-radius:11px;background:#eff6ff;color:#1e40af;font-size:13px}.stock-current strong{font-size:19px}.stock-direction{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}.stock-direction button{height:40px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#475569;font-family:inherit;font-weight:800;cursor:pointer}.stock-direction button.active{border-color:#2563eb;background:#2563eb;color:#fff}.stock-movement-modal textarea{min-height:66px;padding:9px;resize:vertical}.movement-history{display:grid;gap:8px;margin-top:18px}.movement-history>strong{color:#334155;font-size:13px}.movement-history>p{margin:0;color:#94a3b8;font-size:12px}.movement-row{display:grid;grid-template-columns:58px 1fr auto;gap:8px;align-items:center;padding:9px;border-radius:9px;background:#f8fafc;font-size:11px}.movement-row.in b{color:#15803d}.movement-row.out b{color:#dc2626}.movement-row span{color:#475569}.movement-row time{color:#94a3b8;font-size:10px}
+.movement-history-head{display:flex;align-items:center;justify-content:space-between}.movement-history-head button{border:0;background:transparent;color:#2563eb;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.movement-page{display:grid;gap:16px;padding:18px;border:1px solid #dbeafe;border-radius:18px;background:#fff}.movement-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:14px;border-radius:13px;background:#f8fafc}.movement-filters label{display:grid;gap:5px;color:#64748b;font-size:11px;font-weight:800}.movement-filters input{height:37px;border:1px solid #cbd5e1;border-radius:8px;padding:0 9px;font-family:inherit}.movement-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.movement-summary article{display:grid;gap:5px;padding:14px;border:1px solid #e2e8f0;border-radius:12px;color:#64748b;font-size:11px}.movement-summary strong{font-size:20px;color:#0f172a}.movement-summary .in{border-color:#bbf7d0;background:#f0fdf4}.movement-summary .in strong{color:#15803d}.movement-summary .out{border-color:#fecaca;background:#fff7f7}.movement-summary .out strong{color:#dc2626}.movement-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}.movement-table{width:100%;border-collapse:collapse}.movement-table th,.movement-table td{padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:12px}.movement-table th{background:#f8fafc;color:#475569}.movement-table tr.in b{color:#15803d}.movement-table tr.out b{color:#dc2626}.movement-loading{padding:14px;color:#64748b;font-size:12px}@media(max-width:700px){.movement-summary{grid-template-columns:1fr}.movement-table{min-width:620px}}
+
 .inventory-page {
   display: grid;
   grid-template-columns: minmax(420px, 520px) minmax(0, 1fr);
@@ -1446,6 +1636,43 @@ export default {
   width: 100%;
   box-sizing: border-box;
   color: #172033;
+}
+
+.inventory-page.movement-page-active {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.inventory-main.movement-mode {
+  width: 100%;
+}
+
+.inventory-main.service-tags-mode {
+  width: 100%;
+}
+
+.movement-page .panel-head {
+  align-items: center;
+}
+
+::v-deep(.movement-filters .vpd-input-group) {
+  width: 190px;
+}
+
+::v-deep(.movement-date-input) {
+  width: 100% !important;
+  height: 37px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 0 9px !important;
+  background: #fff !important;
+  color: #334155 !important;
+  font-family: inherit !important;
+  text-align: right !important;
+}
+
+:global(.movement-date-picker-popover),
+:global(.movement-date-picker-popover .vpd-container) {
+  z-index: 2147483006 !important;
 }
 
 .inventory-view-switch {
@@ -1642,6 +1869,54 @@ export default {
   border-top: 1px solid #edf2f7;
 }
 
+.global-commission-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.global-commission-btn:hover {
+  border-color: #60a5fa;
+  background: #dbeafe;
+}
+
+.global-commission-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.service-tags-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #c4b5fd;
+  border-radius: 10px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.service-tags-page-btn:hover { background: #ede9fe; border-color: #a78bfa; }
+
 .save-status {
   min-width: 112px;
   border-radius: 999px;
@@ -1670,6 +1945,13 @@ export default {
   color: #15803d;
 }
 
+.save-reminder {
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .save-inventory-btn {
   border: 0;
   border-radius: 11px;
@@ -1682,6 +1964,14 @@ export default {
   font-weight: 900;
   box-shadow: 0 10px 22px rgba(22, 163, 74, .2);
   white-space: nowrap;
+}
+
+.save-inventory-btn:not(:disabled) {
+  animation: inventory-save-attention 1.7s ease-in-out infinite;
+}
+
+@keyframes inventory-save-attention {
+  50% { box-shadow: 0 0 0 5px rgba(22, 163, 74, .13), 0 10px 22px rgba(22, 163, 74, .25); }
 }
 
 .save-inventory-btn:disabled {
@@ -2119,52 +2409,63 @@ select:focus {
 }
 
 .service-tags-editor {
-  min-height: 40px;
+  min-height: 54px;
   display: flex;
+  align-content: flex-start;
   align-items: center;
   flex-wrap: wrap;
-  gap: 5px;
-  padding: 6px;
-  border: 1px solid #cbd8e8;
-  border-radius: 6px;
-  background: #fff;
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid #d8e3f3;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #fbfdff, #f1f6ff);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+  transition: border-color .18s ease, box-shadow .18s ease;
 }
 
+.service-tags-editor:focus-within{border-color:#7aa7f8;box-shadow:0 0 0 3px rgba(37,99,235,.10),inset 0 1px 0 #fff}
 .service-tags-editor span {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   max-width: 100%;
-  padding: 3px 7px;
+  padding: 5px 7px 5px 9px;
   border-radius: 999px;
-  background: #eef6ff;
-  color: #1d4ed8;
-  font-size: 11px;
+  border:1px solid #d9e7ff;
+  background: linear-gradient(135deg,#fff,#eaf3ff);
+  color: #1e4fbf;
+  font-size: 10px;
   font-weight: 900;
   white-space: nowrap;
+  box-shadow:0 2px 5px rgba(37,99,235,.08);
 }
 
 .service-tags-editor > span button {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: #d7e7ff;
+  color: #2563eb;
   cursor: pointer;
   font-family: inherit;
   line-height: 1;
 }
+.service-tags-editor > span button:hover{background:#fee2e2;color:#dc2626}
 
 .service-tags-editor input {
   flex: 1 1 86px;
   min-width: 80px;
-  min-height: 24px;
-  padding: 2px 4px;
-  border: 0;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px dashed #b8cbea;
+  border-radius: 8px;
+  background:rgba(255,255,255,.82);
+  color:#475569;
+  font-size:10px;
   box-shadow: none;
 }
 
@@ -2174,8 +2475,8 @@ select:focus {
 
 .service-tag-picker {
   position: relative;
-  flex: 1 1 140px;
-  min-width: 120px;
+  flex: 1 1 154px;
+  min-width: 140px;
 }
 
 .service-tag-picker input {

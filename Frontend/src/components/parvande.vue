@@ -12,8 +12,20 @@
       </div>
 
       <div class="create-grid">
-        <input v-model="form.first_name" type="text" placeholder="نام *" />
-        <input v-model="form.last_name" type="text" placeholder="نام خانوادگی *" />
+        <input
+          v-model="form.first_name"
+          name="patient_first_name"
+          type="text"
+          autocomplete="given-name"
+          placeholder="نام *"
+        />
+        <input
+          v-model="form.last_name"
+          name="patient_last_name"
+          type="text"
+          autocomplete="family-name"
+          placeholder="نام خانوادگی *"
+        />
         
         <input 
           v-model="form.phone" 
@@ -21,7 +33,15 @@
           placeholder="شماره تماس * (۱۱ رقم)" 
           maxlength="11"
         />
-        <input v-model="form.file_number" type="text" placeholder="شماره پرونده *" />
+        <input
+          v-model="form.file_number"
+          type="text"
+          name="patient_file_number"
+          autocomplete="off"
+          placeholder="شماره پرونده (خودکار) *"
+          readonly
+          required
+        />
 
         <select v-model="form.gender">
           <option value="" disabled>جنسیت *</option>
@@ -460,6 +480,7 @@
                   v-for="(item, index) in filteredAppointmentResults"
                   :key="`profile-history-${item.id || index}`"
                   :class="{ 'profile-check-warning-row': appointmentCheckAlert(item) }"
+                  :title="appointmentRegistrationTooltip(item)"
                 >
                   <td>{{ formatServices(item.services) }}</td>
                   <td>{{ appointmentDoctors(item) }}</td>
@@ -608,8 +629,8 @@
             :show-labels="false"
             @select="selectEditCity"
           />
-          <input v-model="editPatient.first_name" placeholder="نام" />
-          <input v-model="editPatient.last_name" placeholder="نام خانوادگی" />
+          <input v-model="editPatient.first_name" name="edit_patient_first_name" autocomplete="given-name" placeholder="نام" />
+          <input v-model="editPatient.last_name" name="edit_patient_last_name" autocomplete="family-name" placeholder="نام خانوادگی" />
           <input
             v-if="canViewPatientPhone"
             v-model="editPatient.phone"
@@ -622,7 +643,7 @@
             placeholder="شماره تماس"
             readonly
           />
-          <input v-model="editPatient.file_number" placeholder="شماره پرونده" />
+          <input v-model="editPatient.file_number" placeholder="شماره پرونده" readonly />
 
           <select v-model="editPatient.gender">
             <option value="">انتخاب جنسیت</option>
@@ -840,47 +861,14 @@
             </div>
 
             <div v-else-if="mediaFolderLevel === 'date'" class="folder-create service-folder-create">
-              <strong>ساخت فولدر بخش انبار</strong>
-              <p>ابتدا بخش را انتخاب کنید؛ سپس تگ‌ها و اطلاعات مشترک تمام عکس‌ها را مشخص کنید.</p>
-              <div class="service-folder-picker">
-                <div class="media-inventory-head">
-                  <strong>ساختار خدمات</strong>
-                  <span>{{ mediaLeafSections.length.toLocaleString('fa-IR') }} گروه</span>
-                </div>
-                <div class="media-inventory-tree">
-                  <button
-                    v-for="node in mediaInventoryTreeNodes"
-                    :key="`media-section-${node.section.id}`"
-                    type="button"
-                    class="media-tree-node"
-                    :class="{ active: selectedMediaTreeKey === mediaSectionKey(node.section), leaf: node.level === 2 }"
-                    :style="{ '--tree-depth': node.level - 1 }"
-                    :disabled="mediaLoading"
-                    @click="selectMediaTreeNode(node.section)"
-                  >
-                    <span
-                      class="media-tree-toggle"
-                      :class="{ open: isMediaSectionExpanded(node.section) }"
-                      @click.stop="toggleMediaSection(node.section)"
-                    ></span>
-                    <b>{{ node.section.name }}</b>
-                    <i></i>
-                    <em>{{ mediaTreeNodeCount(node.section).toLocaleString('fa-IR') }}</em>
-                  </button>
-                </div>
-                <div v-if="mediaNeedsLeafSection" class="media-section-required">
-                  <strong>لطفا زیرشاخه را انتخاب کنید</strong>
-                  <span>برای ساخت فولدر و انتخاب تگ‌ها، یک زیرشاخه از انبار را انتخاب کنید.</span>
-                </div>
-              </div>
-
-                <div v-if="selectedMediaFolderService" class="shared-upload-setup">
+              <strong>انتخاب تگ‌های خدمات</strong>
+              <p>تگ‌های موردنظر را انتخاب کنید؛ این تگ‌ها برای همه عکس‌ها و ویدئوهای این تاریخ ثبت می‌شوند.</p>
+                <div class="shared-upload-setup">
                   <div class="shared-upload-head">
                     <div>
-                      <strong>تنظیمات مشترک {{ selectedMediaFolderService.name }}</strong>
+                      <strong>تنظیمات مشترک فایل‌ها</strong>
                       <small>این اطلاعات و تگ‌ها روی همه عکس‌ها و ویدئوهایی که در ادامه آپلود می‌کنید اعمال می‌شود.</small>
                     </div>
-                    <button type="button" class="shared-setup-close" @click="cancelMediaFolderService">×</button>
                   </div>
 
                   <div class="angle-tags-head shared-tags-head">
@@ -920,11 +908,6 @@
                   </div>
 
                   <div class="shared-meta-grid">
-                    <select v-model="mediaUpload.age_group">
-                      <option value="">سن (اختیاری)</option>
-                      <option value="young">جوان</option>
-                      <option value="old">پیر</option>
-                    </select>
                     <textarea v-model="mediaUpload.description" placeholder="توضیحات مشترک همه عکس‌ها"></textarea>
                   </div>
                   <label class="feature-check no-consent-check">
@@ -936,36 +919,22 @@
                     type="button"
                     class="primary-btn shared-setup-submit"
                     :disabled="mediaLoading || !mediaUpload.services.length"
-                    @click="createMediaServiceFolder(selectedMediaFolderService)"
+                    @click="createMediaServiceFolder()"
                   >
                     ساخت فولدر و ادامه آپلود
                   </button>
                   <small v-if="!mediaUpload.services.length" class="shared-tags-required">حداقل یک تگ انتخاب کنید.</small>
                 </div>
-
-                <div v-if="!mediaSections.length" class="empty-sections-guide">
-                  <small>هنوز بخش‌بندی انبار ثبت نشده است. اول به بخش‌های انبار بروید و بخش‌ها را ایجاد کنید.</small>
-                  <button type="button" class="secondary-btn" @click="$emit('open-page', 'Anbar')">
-                    رفتن به بخش‌بندی انبار
-                  </button>
-                </div>
             </div>
 
             <div v-else-if="!isComparisonPhotoFolder" class="folder-create guided-folder-note">
               <strong>ساخت فولدر دستی غیرفعال است</strong>
-              <p>ساخت فولدر فقط از مسیر تاریخ و خدمات انجام می‌شود.</p>
+              <p>ساخت فولدر فقط از مسیر تاریخ و انتخاب تگ‌ها انجام می‌شود.</p>
             </div>
 
             <div v-if="canUploadInCurrentFolder && !isComparisonPhotoFolder" class="upload-card">
               <label>آپلود عکس یا ویدیو</label>
               <input type="file" multiple accept="image/*,video/*" @change="handleMediaFiles">
-              <div class="media-meta-grid">
-                <select v-model="mediaUpload.age_group">
-                  <option value="">سن</option>
-                  <option value="young">جوان</option>
-                  <option value="old">پیر</option>
-                </select>
-              </div>
               <textarea v-model="mediaUpload.description" placeholder="توضیحات مشترک همه فایل‌ها"></textarea>
               <label class="feature-check no-consent-check">
                 <input type="checkbox" v-model="mediaUpload.no_usage_consent">
@@ -1022,7 +991,6 @@
                     <strong>تنظیمات مشترک عکس‌ها و ویدئوها</strong>
                     <small v-if="mediaUpload.services.length">
                       {{ mediaUpload.services.length }} تگ انتخاب شده
-                      <template v-if="mediaUpload.age_group"> · {{ mediaUpload.age_group === 'young' ? 'جوان' : 'پیر' }}</template>
                       <template v-if="mediaUpload.no_usage_consent"> · عدم رضایت استفاده از تصاویر</template>
                     </small>
                     <small v-else class="settings-needed">برای آپلود، تنظیمات را تکمیل کنید</small>
@@ -1056,11 +1024,6 @@
                   <strong>اطلاعات مشترک همه فایل‌ها</strong>
                   <small>این موارد را یک‌بار تنظیم کنید؛ برای تمام فایل‌های قبل، بعد و ویدئو ثبت می‌شوند.</small>
                   <div class="shared-meta-grid">
-                    <select v-model="mediaUpload.age_group">
-                      <option value="">سن (اختیاری)</option>
-                      <option value="young">جوان</option>
-                      <option value="old">پیر</option>
-                    </select>
                     <textarea v-model="mediaUpload.description" placeholder="توضیحات مشترک همه عکس‌ها"></textarea>
                   </div>
                   <div class="angle-common-checks">
@@ -1222,7 +1185,6 @@
                   <span v-if="mediaComparisonLabel(item)" class="media-angle-badge">
                     {{ mediaComparisonLabel(item) }}
                   </span>
-                  <span>{{ mediaLabel(item.age_group) }}</span>
                   <p>{{ item.description || 'بدون توضیح' }}</p>
                   <small>{{ formatMediaServices(item.services) }}</small>
                   <small class="media-audit">
@@ -1368,11 +1330,6 @@
             </label>
 
             <div class="media-meta-grid">
-              <select v-model="editMediaForm.age_group">
-                <option value="">سن</option>
-                <option value="young">جوان</option>
-                <option value="old">پیر</option>
-              </select>
               <select v-model="editMediaForm.comparison_stage">
                 <option value="">مرحله مقایسه</option>
                 <option value="before">قبل</option>
@@ -1649,7 +1606,6 @@ export default {
       showAngleCommonSettings: false,
       serviceTagSearch: '',
       mediaUpload: {
-        age_group: '',
         description: '',
         no_usage_consent: false,
         services: []
@@ -1773,12 +1729,7 @@ export default {
 
     filteredMediaServiceTags() {
       const query = this.normalizeMediaSearch(this.serviceTagSearch)
-      const sectionId = this.selectedMediaFolderService?.id
-        || [...this.mediaBreadcrumbs].reverse().find(item => item.inventory_section_id)?.inventory_section_id
-      const groups = sectionId
-        ? this.mediaServiceGroups.filter(group => Number(group.section_id) === Number(sectionId))
-        : this.mediaServiceGroups
-      const services = groups.flatMap(group => group.items || [])
+      const services = this.mediaServiceGroups.flatMap(group => group.items || [])
       if (!query) return services
       return services.filter(service => this.normalizeMediaSearch(service.name).includes(query))
     },
@@ -1992,7 +1943,6 @@ export default {
           item.media_type,
           item.comparison_stage,
           item.photo_angle_label,
-          this.mediaLabel(item.age_group),
           services,
           item.uploaded_by_name,
           this.formatMediaDate(item.created_at)
@@ -2021,11 +1971,7 @@ export default {
 
   methods: {
     openInventoryForTags() {
-      const sectionId = this.selectedMediaFolderService?.id
-        || [...this.mediaBreadcrumbs].reverse().find(item => item.inventory_section_id)?.inventory_section_id
-      if (sectionId) {
-        localStorage.setItem('inventory-open-section-id', String(sectionId))
-      }
+      localStorage.setItem('inventory-open-service-tags', '1')
       this.showMediaModal = false
       this.$emit('open-page', 'Anbar')
     },
@@ -2292,6 +2238,10 @@ export default {
 
         if (rows.length) {
           this.openPatientProfile(rows[0])
+          if (request?.open_media) {
+            await this.$nextTick()
+            await this.openMediaModal(rows[0])
+          }
         } else {
           Swal.fire({
             icon: 'warning',
@@ -2363,6 +2313,16 @@ export default {
 
       const parsed = moment(value)
       return parsed.isValid() ? parsed.format('HH:mm') : String(value).slice(11, 16) || '-'
+    },
+
+    appointmentRegistrationTooltip(item) {
+      const recordedBy = String(item?.registered_by || '').trim() || 'نامشخص'
+      const recordedAt = moment(item?.registered_at || item?.created_at)
+      const dateTime = recordedAt.isValid()
+        ? recordedAt.format('jYYYY/jMM/jDD ساعت HH:mm')
+        : 'زمان ثبت نامشخص'
+
+      return `ثبت‌شده توسط: ${recordedBy}\nتاریخ و ساعت ثبت: ${dateTime}`
     },
 
     appointmentDoctors(item) {
@@ -2722,7 +2682,6 @@ export default {
     },
     resetMediaUpload() {
       this.mediaUpload = {
-        age_group: '',
         description: '',
         no_usage_consent: false,
         services: []
@@ -3015,8 +2974,8 @@ export default {
       }
     },
 
-    async createMediaServiceFolder(service) {
-      if (!service?.id || !this.currentMediaFolderId || !this.activeMediaPatient.id) return
+    async createMediaServiceFolder() {
+      if (!this.currentMediaFolderId || !this.activeMediaPatient.id) return
       if (!this.mediaUpload.services.length) {
         Swal.fire({ icon: 'warning', title: 'تگ انتخاب نشده', text: 'قبل از ادامه، حداقل یک تگ برای عکس‌ها انتخاب کنید.' })
         return
@@ -3029,7 +2988,6 @@ export default {
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
             type: 'service',
-            section_id: service.id,
             parent_id: this.currentMediaFolderId
           })
         })
@@ -3145,7 +3103,6 @@ export default {
     },
 
     appendMediaUploadMetadata(formData) {
-      formData.append('age_group', this.mediaUpload.age_group || '')
       formData.append('description', this.mediaUpload.description || '')
       formData.append('usage_consent', this.mediaUpload.no_usage_consent ? '0' : '1')
       formData.append('services', JSON.stringify(this.mediaUpload.services || []))
@@ -3254,7 +3211,6 @@ export default {
       this.editMediaFile = null
       this.editMediaForm = {
         ...item,
-        age_group: item.age_group || '',
         description: item.description || '',
         is_featured: !!item.is_featured,
         no_usage_consent: item.usage_consent === false,
@@ -3293,7 +3249,6 @@ export default {
         const formData = new FormData()
         formData.append('_method', 'PATCH')
         if (this.editMediaFile) formData.append('file', this.editMediaFile)
-        formData.append('age_group', this.editMediaForm.age_group || '')
         formData.append('description', this.editMediaForm.description || '')
         formData.append('is_featured', this.editMediaForm.is_featured ? '1' : '0')
         formData.append('usage_consent', this.editMediaForm.no_usage_consent ? '0' : '1')
@@ -3386,15 +3341,6 @@ export default {
       } finally {
         item.deleteLoading = false
       }
-    },
-
-    mediaLabel(value) {
-      return {
-        female: 'زن',
-        male: 'مرد',
-        young: 'جوان',
-        old: 'پیر'
-      }[value] || ''
     },
 
     formatMediaServices(services = []) {
@@ -3716,7 +3662,8 @@ export default {
     },
 
     async submitForm() {
-      const missingFields = Object.entries(this.patientRequiredFields)
+      const requiredFields = { ...this.patientRequiredFields, file_number: true }
+      const missingFields = Object.entries(requiredFields)
         .filter(([field, required]) => required && !String(this.form[field] ?? '').trim())
         .map(([field]) => this.columnLabels[field] || field)
       if (missingFields.length) {
@@ -3731,10 +3678,6 @@ export default {
 
       try {
         const duplicate = await this.checkDuplicatePatient()
-        if(duplicate.file_number_exists){
-          Swal.fire({ icon: 'error', title: 'شماره پرونده تکراری', text: 'این شماره پرونده قبلاً ثبت شده است', timer: 3000, showConfirmButton: false })
-          return
-        }
         if(duplicate.phone_exists){
           Swal.fire({ icon: 'error', title: 'شماره موبایل تکراری', text: 'این شماره موبایل قبلاً ثبت شده است', timer: 3000, showConfirmButton: false })
           return
@@ -3788,7 +3731,6 @@ export default {
 
     async checkDuplicatePatient(){
       const params = new URLSearchParams()
-      if(this.form.file_number) params.append('file_number', this.form.file_number)
       if(this.form.phone) params.append('phone', this.form.phone)
 
       const res = await fetch(`/api/patients/check-duplicate?${params.toString()}`)
@@ -5689,7 +5631,9 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 
 .profile-crop-overlay {
   position: fixed;
-  z-index: 10010;
+  /* This picker opens from the media gallery, so it must sit above the
+     gallery overlay rather than behind it. */
+  z-index: 2147483201;
   inset: 0;
   display: grid;
   place-items: center;

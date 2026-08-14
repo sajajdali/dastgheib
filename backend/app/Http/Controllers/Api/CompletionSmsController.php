@@ -182,6 +182,48 @@ class CompletionSmsController extends Controller
         return response()->json(['results'=>$results]);
     }
 
+    public function sendLanding(Request $request)
+    {
+        $data = $request->validate([
+            'tags' => ['required', 'array', 'min:1'],
+            'tags.*' => ['string', 'max:255'],
+            'patient_phone' => ['required', 'string', 'max:30'],
+            'patient_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $definitions = collect(json_decode((string) AppSetting::getByKey('service_tags', '[]'), true))
+            ->mapWithKeys(function ($tag) {
+                $name = trim((string) (is_array($tag) ? ($tag['name'] ?? '') : $tag));
+                return $name === '' ? [] : [$name => trim((string) (is_array($tag) ? ($tag['sms_template'] ?? '') : ''))];
+            });
+
+        $results = [];
+        foreach (array_values(array_unique($data['tags'])) as $tag) {
+            try {
+                $template = $definitions->get($tag, '');
+                if ($template === '') throw new \RuntimeException("برای تگ «{$tag}» نام الگوی پیامک تعریف نشده است.");
+
+                $this->sendTemplateSms($data['patient_phone'], $template, [
+                    $data['patient_name'] ?? '',
+                    (string) AppSetting::getByKey('clinic_name', ''),
+                ]);
+                ActivityLogger::manual('sms_sent', 'پیگیری', null, [], [
+                    'type' => 'landing', 'tag' => $tag, 'recipient' => $data['patient_phone'],
+                    'patient_name' => $data['patient_name'] ?? '',
+                ]);
+                $results[$tag] = ['success' => true, 'sent_at' => now()->format('Y-m-d H:i:s')];
+            } catch (\Throwable $e) {
+                ActivityLogger::manual('sms_failed', 'پیگیری', null, [], [
+                    'type' => 'landing', 'tag' => $tag, 'recipient' => $data['patient_phone'],
+                    'patient_name' => $data['patient_name'] ?? '', 'message' => $e->getMessage(),
+                ]);
+                $results[$tag] = ['success' => false, 'message' => $e->getMessage()];
+            }
+        }
+
+        return response()->json(['results' => $results]);
+    }
+
     private function paramsFor(string $type, array $values): array
     {
         return match($type) {

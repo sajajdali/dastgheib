@@ -323,7 +323,6 @@
             <input
               v-model="newCampaign.title"
               type="text"
-              placeholder="مثلا تبلیغ اینستاگرام"
             />
           </div>
 
@@ -361,18 +360,19 @@
             <small v-if="newCampaign.banners.length" class="field-hint">{{ newCampaign.banners.length.toLocaleString('fa-IR') }} بنر انتخاب شده</small>
           </div>
 
-          <div class="field">
-            <label>تاریخ</label>
+          <div class="field" :class="{ 'field-invalid': campaignDateError }">
+            <label>تاریخ <b class="required-mark">*</b></label>
             <date-picker
             v-model="newCampaign.date"
             format="YYYY-MM-DD"
             display-format="jYYYY/jMM/jDD"
-           input-class="date-input"
+           :input-class="campaignDateError ? 'date-input date-input-invalid' : 'date-input'"
            placeholder="تاریخ را انتخاب کنید"
            auto-submit
            @input="setNewCampaignDate"
            @change="setNewCampaignDate"
           />
+            <small v-if="campaignDateError" class="field-error" role="alert">{{ campaignDateError }}</small>
           </div>
 
           <div class="field">
@@ -489,7 +489,7 @@
             </div>
 
             <div class="table-scroll">
-              <table class="contacts-table" :style="{ tableLayout: 'fixed' }">
+              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1180px' }">
                 <thead>
                   <tr>
                     <!-- کمپین -->
@@ -517,7 +517,7 @@
 
                     <!-- تاریخ تماس -->
                    <th class="center resizable" :style="{ width: colWidths.contactDate + 'px' }">
-                    <div class="th-content">تاریخ تماس</div>
+                    <div class="th-content">تاریخ و ساعت تماس</div>
                        <div class="resizer" @mousedown.stop.prevent="initResize($event, 'contactDate')" @dblclick.stop="autoFitFollowupColumn('contactDate')"></div>
                    </th>
 
@@ -868,7 +868,7 @@
             </div>
 
             <div class="table-scroll">
-              <table class="contacts-table" :style="{ tableLayout: 'fixed' }">
+              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1180px' }">
                 <thead>
                   <tr>
                     <!-- نام -->
@@ -890,7 +890,7 @@
 
                     <!-- تاریخ پیگیری -->
                     <th class="center resizable" :style="{ width: colWidths.contactDate + 'px' }">
-                      <div class="th-content">تاریخ تماس</div>
+                      <div class="th-content">تاریخ و ساعت تماس</div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'contactDate')" @dblclick.stop="autoFitFollowupColumn('contactDate')"></div>
                     </th>
 
@@ -1033,7 +1033,7 @@
                       <div class="campaign-patient-cell">
                         <img v-if="patientAvatar(row)" :src="patientAvatar(row)" class="campaign-patient-avatar" alt="" />
                         <span v-else class="campaign-patient-avatar fallback">{{ patientInitial(row) }}</span>
-                        <input v-model="row.fullName" />
+                        <input v-model="row.fullName" @input="onFollowupNameInput(row)" />
                       </div>
                     </td>
                     <td>
@@ -1070,15 +1070,7 @@
                         <b>{{ Math.max(0, followupHistoryRows(row).length - 1) }}</b>
                       </button>
                     </td>
-                    <td>
-  <DatePicker
-    v-model="row.contactDate"
-    format="YYYY-MM-DD"
-    display-format="jYYYY/jMM/jDD"
-    input-class="table-date-input"
-    placeholder="تاریخ تماس"
-  />
-</td>
+                    <td><div style="display:grid;grid-template-columns:minmax(0,1fr) 40px;align-items:center;gap:3px"><DatePicker v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" /><span style="display:grid;place-items:center;height:36px;border-radius:6px;background:#f1f5f9;color:#475569;font-size:9px;font-weight:900;direction:ltr">{{ row.contactTime || '--:--' }}</span></div></td>
                     <td>
   <DatePicker
     v-model="row.followUpDate"
@@ -1145,7 +1137,7 @@
                     </td>
 
                     <td class="landing-multi-cell" @click.stop>
-                      <button type="button" class="landing-multi-trigger" :class="{ active: landingSmsValues(row).length }" @click="toggleLandingMenu(row, $event)">
+                      <button type="button" class="landing-multi-trigger" :class="{ active: landingSmsValues(row).length }" @click="openLandingSmsModal(row)">
                         <span>{{ landingSmsValues(row).length ? `${landingSmsValues(row).length} لندینگ انتخاب شد` : 'انتخاب لندینگ‌ها' }}</span>
                         <b>⌄</b>
                       </button>
@@ -1156,12 +1148,17 @@
                           :style="landingMenuStyle"
                           @click.stop
                         >
-                          <div class="landing-multi-title">ارسال هم‌زمان لندینگ‌ها</div>
-                          <label v-for="item in landingSmsOptions" :key="item" :class="{ selected: landingSmsValues(row).includes(item) }">
-                            <input type="checkbox" :checked="landingSmsValues(row).includes(item)" @change="toggleLandingSms(row, item)">
-                            <span>{{ item }}</span>
-                            <i v-if="landingSmsValues(row).includes(item)">✓</i>
-                          </label>
+                          <div class="landing-multi-title">تگ‌های تعریف‌شده خدمات</div>
+                          <div v-if="landingSmsLoading" class="landing-multi-empty">در حال دریافت تگ‌ها...</div>
+                          <div v-else-if="landingSmsLoadError" class="landing-multi-empty">{{ landingSmsLoadError }}</div>
+                          <template v-else>
+                            <label v-for="item in landingSmsOptions" :key="item" :class="{ selected: landingSmsValues(row).includes(item) }">
+                              <input type="checkbox" :checked="landingSmsValues(row).includes(item)" @change="toggleLandingSms(row, item)">
+                              <span>{{ item }}</span>
+                              <i v-if="landingSmsValues(row).includes(item)">✓</i>
+                            </label>
+                          </template>
+                          <div v-if="!landingSmsLoading && !landingSmsLoadError && !landingSmsOptions.length" class="landing-multi-empty">هنوز تگی در بخش منابع تعریف نشده است.</div>
                           <button v-if="landingSmsValues(row).length" type="button" class="landing-clear-btn" @click="row.landingSms = []">پاک کردن انتخاب‌ها</button>
                         </div>
                       </teleport>
@@ -1218,6 +1215,22 @@
         </div>
 
       </div>
+    </div>
+
+    <div v-if="landingSmsModalOpen" class="landing-sms-modal-overlay" @click.self="closeLandingSmsModal">
+      <section class="landing-sms-modal" role="dialog" aria-modal="true">
+        <header><div><small>ارسال پیامک لندینگ</small><h3>{{ activeLandingSmsRow?.fullName || 'مخاطب' }}</h3><p>{{ displayPatientPhone(activeLandingSmsRow?.phone) || 'شماره تماس وارد نشده' }}</p></div><button type="button" @click="closeLandingSmsModal">×</button></header>
+        <div class="landing-sms-list">
+          <label v-for="tag in landingSmsOptions" :key="landingTagName(tag)" :class="{ selected: landingSmsDraft.includes(landingTagName(tag)), sent: landingSmsWasSent(activeLandingSmsRow, landingTagName(tag)) }">
+            <input type="checkbox" :value="landingTagName(tag)" v-model="landingSmsDraft">
+            <span><b>{{ landingTagName(tag) }}</b><small>{{ tag.sms_template ? `الگو: ${tag.sms_template}` : 'الگوی پیامک تعریف نشده' }}</small></span>
+            <i v-if="landingSmsWasSent(activeLandingSmsRow, landingTagName(tag))">✓</i>
+          </label>
+          <p v-if="!landingSmsOptions.length" class="landing-sms-empty">تگی برای ارسال وجود ندارد.</p>
+        </div>
+        <p v-if="landingSmsSendError" class="landing-sms-error">{{ landingSmsSendError }}</p>
+        <footer><button type="button" class="landing-sms-cancel" @click="closeLandingSmsModal">بستن</button><button type="button" class="landing-sms-send" :disabled="landingSmsSending || !landingSmsDraft.length" @click="sendLandingSms">{{ landingSmsSending ? 'در حال ارسال...' : 'ارسال انتخاب‌شده' }}</button></footer>
+      </section>
     </div>
 
     <div v-if="historyModalOpen" class="history-modal-overlay" @click.self="closeFollowupHistory">
@@ -1402,6 +1415,11 @@ export default {
       activeFilter: null,
       activeLandingRowId: null,
       landingMenuStyle: {},
+      landingSmsModalOpen: false,
+      activeLandingSmsRow: null,
+      landingSmsDraft: [],
+      landingSmsSending: false,
+      landingSmsSendError: '',
       historyModalOpen: false,
       activeHistoryRow: null,
 
@@ -1410,12 +1428,11 @@ export default {
       channelsLoading: false,
       channelsLoadError: "",
       campaignFormError: "",
+      campaignDateError: "",
       bannerGalleryCampaignId: null,
-      landingSmsOptions: [
-  "پیامک شماره 1",
-  "پیامک شماره 2",
-  "پیامک شماره 3",
-],
+      landingSmsOptions: [],
+      landingSmsLoading: false,
+      landingSmsLoadError: "",
 
       selectedFilters: {
         gender: [],
@@ -1430,7 +1447,7 @@ export default {
         fullName: 136,
         phone: 104,
         history: 72,
-        contactDate: 96,
+        contactDate: 154,
         followUpDate: 96,
         gender: 64,
         consultant: 104,
@@ -1577,23 +1594,23 @@ export default {
     },
 
     todayFollowups() {
-      const today = this.getTodayString();
-
-      return this.campaigns.flatMap((campaign) =>
-        campaign.rows
-          .filter((r) => r.followUpDate === today)
+      return this.campaigns
+        .filter((campaign) => this.isActiveFollowupCampaign(campaign))
+        .flatMap((campaign) =>
+          campaign.rows
+          .filter((r) => this.isDueForFollowupToday(r))
           .map((r) => ({
             ...r,
             campaignId: campaign.id,
             campaignTitle: campaign.title,
           }))
-      );
+        );
     },
 
     activeTodayRows() {
       if (!this.activeCampaign) return [];
-      const today = this.getTodayString();
-      return this.activeCampaign.rows.filter((r) => r.followUpDate === today);
+      if (!this.isActiveFollowupCampaign(this.activeCampaign)) return [];
+      return this.activeCampaign.rows.filter((r) => this.isDueForFollowupToday(r));
     },
     followupHistory() {
       return this.activeHistoryRow ? this.followupHistoryRows(this.activeHistoryRow) : [];
@@ -1615,6 +1632,7 @@ export default {
   mounted() {
     this.loadStaff();
     this.loadChannels();
+    this.loadLandingSmsTags();
     this.loadCampaignsFromLocal();
     this.applyAppointmentResult(this.appointmentResult);
     if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
@@ -1739,8 +1757,21 @@ export default {
     applyAppointmentResult(result) {
       const followup = result?.followup;
       if (!followup?.campaignId || !followup?.rowId) return;
-      const campaign = this.campaigns.find(item => String(item.id) === String(followup.campaignId));
-      const row = campaign?.rows?.find(item => String(item._localId) === String(followup.rowId));
+      let campaign = this.campaigns.find(item => String(item.id) === String(followup.campaignId));
+      let row = campaign?.rows?.find(item => String(item._localId) === String(followup.rowId));
+      // برای ردیف‌های قدیمی که شناسهٔ محلی‌شان هنگام بارگذاری دوباره ساخته شده است.
+      if (!row) {
+        const phone = this.normalizePhoneLookup(followup.phone || result.phone);
+        const name = this.normalizeFollowupLookup(followup.fullName || result.patientName);
+        for (const candidate of this.campaigns) {
+          const match = (candidate.rows || []).find(item => {
+            const rowPhone = this.normalizePhoneLookup(item.phone);
+            const rowName = this.normalizeFollowupLookup(item.fullName);
+            return (phone && rowPhone === phone) || (name && rowName === name);
+          });
+          if (match) { campaign = candidate; row = match; break; }
+        }
+      }
       if (!row) return;
       row.appointmentRegistered = true;
       row.appointmentDate = result.date || "";
@@ -1953,8 +1984,8 @@ export default {
       campaign.campaignStatus = this.isCampaignArchived(campaign) ? 'active' : 'archived';
     },
     campaignCpl(campaign) {
-      const appointments = this.getAppointmentCount(campaign);
-      return appointments ? Math.round(this.moneyToNumber(campaign.cost) / appointments) : "";
+      const leads = this.getLeadCount(campaign);
+      return leads ? Math.round(this.moneyToNumber(campaign.cost) / leads) : "";
     },
 
     async openCreateCampaignModal() {
@@ -2053,7 +2084,7 @@ export default {
     },
 
     autoFitFollowupColumn(key) {
-      const fixed = { contactDate:108, followUpDate:108, gender:72, interest:88, landingSms:145, appointment:122, history:76 };
+      const fixed = { contactDate:154, followUpDate:120, gender:72, interest:88, landingSms:145, appointment:122, history:76 };
       if (fixed[key]) {
         this.colWidths[key] = fixed[key];
         return;
@@ -2091,6 +2122,7 @@ export default {
 
     createCampaign() {
       this.campaignFormError = "";
+      this.campaignDateError = "";
 
       const title = String(this.newCampaign.title || "").trim();
       if (!title) {
@@ -2099,7 +2131,8 @@ export default {
       }
 
       if (!this.newCampaign.date) {
-        this.campaignFormError = "تاریخ کمپین را انتخاب کنید.";
+        this.campaignDateError = "تاریخ کمپین الزامی است؛ لطفاً تاریخ را انتخاب کنید.";
+        this.campaignFormError = "برای ایجاد کمپین، تاریخ را انتخاب کنید.";
         return;
       }
 
@@ -2133,6 +2166,7 @@ export default {
       };
 
       this.campaignFormError = "";
+      this.campaignDateError = "";
       this.showCampaignModal = false;
     },
 
@@ -2192,6 +2226,7 @@ export default {
           fullName: row.fullName || "",
           phone: row.phone || "",
           contactDate: row.contactDate || "",
+          contactTime: row.contactTime || "",
           followUpDate: row.followUpDate || "",
           gender: row.gender || "",
           source: row.source || campaignSource,
@@ -2207,7 +2242,6 @@ export default {
         },
       };
       this.$emit("open-appointments-timeline", payload);
-      window.dispatchEvent(new CustomEvent("app:open-appointments-timeline", { detail: payload }));
       this.closeCampaignModal();
     },
 
@@ -2223,12 +2257,22 @@ export default {
   }
 },
 
+    onFollowupNameInput(row) {
+      if (!String(row?.fullName || '').trim()) return;
+      if (!row.contactDate) row.contactDate = this.getTodayString();
+      if (!row.contactTime) {
+        const now = new Date();
+        row.contactTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      }
+    },
+
     createEmptyRow() {
       return {
         _localId: `new-${Date.now()}-${Math.random()}`,
         fullName: "",
         phone: "",
         contactDate: "",
+        contactTime: "",
         followUpDate: "",
         gender: "",
         consultant: "",
@@ -2236,6 +2280,7 @@ export default {
         source: "",
         status: "",
         landingSms: [],
+        landingSmsSent: {},
         appointmentRegistered: false,
         appointmentDate: "",
         appointmentTime: "",
@@ -2290,6 +2335,47 @@ export default {
 
     landingSmsText(value) {
       return this.landingSmsValues(value).join('، ');
+    },
+
+    landingTagName(tag) {
+      return String(typeof tag === 'object' ? tag?.name : tag || '').trim();
+    },
+
+    openLandingSmsModal(row) {
+      this.activeLandingSmsRow = row;
+      this.landingSmsDraft = this.landingSmsValues(row);
+      this.landingSmsSendError = '';
+      this.landingSmsModalOpen = true;
+    },
+
+    closeLandingSmsModal() {
+      this.landingSmsModalOpen = false;
+      this.activeLandingSmsRow = null;
+      this.landingSmsDraft = [];
+    },
+
+    landingSmsWasSent(row, tag) {
+      return Boolean(row?.landingSmsSent?.[tag]);
+    },
+
+    async sendLandingSms() {
+      const row = this.activeLandingSmsRow;
+      if (!row?.phone) { this.landingSmsSendError = 'شماره تماس مخاطب وارد نشده است.'; return; }
+      this.landingSmsSending = true;
+      this.landingSmsSendError = '';
+      row.landingSms = [...this.landingSmsDraft];
+      try {
+        const { data } = await axios.post('/api/sms/landing', { tags: this.landingSmsDraft, patient_phone: row.phone, patient_name: row.fullName || '' });
+        row.landingSmsSent = { ...(row.landingSmsSent || {}) };
+        const failures = [];
+        Object.entries(data?.results || {}).forEach(([tag, result]) => {
+          if (result?.success) row.landingSmsSent[tag] = result.sent_at || new Date().toISOString();
+          else failures.push(result?.message || `ارسال «${tag}» انجام نشد.`);
+        });
+        if (failures.length) this.landingSmsSendError = failures.join(' ');
+      } catch (error) {
+        this.landingSmsSendError = error.response?.data?.message || 'ارسال پیامک انجام نشد.';
+      } finally { this.landingSmsSending = false; }
     },
 
     toggleLandingMenu(row, event) {
@@ -2437,8 +2523,18 @@ export default {
     },
 
     hasTodayFollowups(campaign) {
-      const today = this.getTodayString();
-      return campaign.rows.some((r) => r.followUpDate === today);
+      return this.isActiveFollowupCampaign(campaign)
+        && campaign.rows.some((r) => this.isDueForFollowupToday(r));
+    },
+
+    isActiveFollowupCampaign(campaign) {
+      return String(campaign?.campaignStatus || 'active').trim().toLowerCase() === 'active';
+    },
+
+    isDueForFollowupToday(row) {
+      const status = normalizeStatus(row?.status || '');
+      const isPending = !row?.appointmentRegistered && !['پاسخ داد', 'اشتباه'].includes(status);
+      return isPending && this.normalizeDateValue(row?.followUpDate) === this.getTodayString();
     },
 
     percent(value, total) {
@@ -2517,7 +2613,10 @@ export default {
 
     setNewCampaignDate(value) {
       const normalized = this.normalizeDateValue(value);
-      if (normalized) this.newCampaign.date = normalized;
+      if (normalized) {
+        this.newCampaign.date = normalized;
+        this.campaignDateError = "";
+      }
     },
 
     formatDateFa(dateStr) {
@@ -2577,6 +2676,7 @@ export default {
                 fullName: r.fullName ?? "",
                 phone: r.phone ?? "",
                 contactDate: r.contactDate ?? "",
+                contactTime: r.contactTime ?? "",
                 followUpDate: r.followUpDate ?? "",
                 gender: r.gender ?? "",
                 consultant: r.consultant ?? "",
@@ -2586,6 +2686,7 @@ export default {
                 landingSms: Array.isArray(r.landingSms)
                   ? r.landingSms.filter(Boolean)
                   : String(r.landingSms || '').split('،').map(item => item.trim()).filter(Boolean),
+                landingSmsSent: r.landingSmsSent && typeof r.landingSmsSent === 'object' ? r.landingSmsSent : {},
                 interest: normalizeInterest(r.interest ?? ""),
                 reason: r.reason ?? "",
                 appointmentRegistered: Boolean(r.appointmentRegistered),
@@ -2641,6 +2742,25 @@ export default {
         console.error("Channels load error", e);
       } finally {
         this.channelsLoading = false;
+      }
+    },
+
+    async loadLandingSmsTags() {
+      this.landingSmsLoading = true;
+      this.landingSmsLoadError = "";
+
+      try {
+        const res = await axios.get("/api/service-tags");
+        const definitions = Array.isArray(res.data?.tag_definitions)
+          ? res.data.tag_definitions
+          : (Array.isArray(res.data?.tags) ? res.data.tags.map(name => ({ name, sms_template: '' })) : []);
+        this.landingSmsOptions = definitions.filter(tag => this.landingTagName(tag));
+      } catch (error) {
+        this.landingSmsOptions = [];
+        this.landingSmsLoadError = "دریافت تگ‌ها انجام نشد.";
+        console.error("Service tags load error", error);
+      } finally {
+        this.landingSmsLoading = false;
       }
     },
   },
@@ -3929,6 +4049,15 @@ export default {
   background: #fff;
 }
 
+.date-input-invalid,
+.date-input-invalid:focus {
+  border-color: #ef4444 !important;
+  background: #fff7f7 !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
+}
+
+.required-mark { color: #dc2626; }
+
 /* popup calendar */
 
 .vpd-container {
@@ -4015,6 +4144,7 @@ export default {
 }
 .report-filter-tabs{display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:6px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.report-filter-tabs button{height:40px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#64748b;font-family:inherit;font-weight:900;cursor:pointer}.report-filter-tabs button.active{background:#2563eb;color:#fff;box-shadow:0 7px 18px rgba(37,99,235,.2)}.report-filter-tabs>span{margin-right:auto;padding:5px 10px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:11px;font-weight:900}.report-filter-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.report-filter-group{min-width:0;display:flex;flex-direction:column;gap:8px}.report-filter-group.wide{grid-column:span 2}.report-filter-group>b{color:#334155;font-size:12px}.report-filter-group>input,.report-cost-range input{height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;outline:none}.report-filter-group>input:focus,.report-cost-range input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.report-filter-chips{display:flex;gap:6px;flex-wrap:wrap}.report-filter-chips label{display:flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #dbe3ed;border-radius:999px;background:#fff;color:#475569;font-size:10px;font-weight:900;cursor:pointer}.report-filter-chips label.selected{border-color:#60a5fa;background:#dbeafe;color:#1d4ed8}.report-filter-chips input{display:none}.report-cost-range>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-filter-actions{display:flex;justify-content:flex-end;padding:8px 0}.report-filter-actions button{padding:8px 13px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7;color:#b91c1c;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.filtered-campaign-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-height:52vh;overflow:auto;padding:5px}.filtered-campaign-results article{padding:15px;border:1px solid #e2e8f0;border-radius:15px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);cursor:pointer;transition:.18s}.filtered-campaign-results article:hover{transform:translateY(-2px);border-color:#93c5fd;box-shadow:0 12px 25px rgba(15,23,42,.1)}.filtered-campaign-results header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.filtered-campaign-results header strong{overflow:hidden;color:#0f172a;text-overflow:ellipsis;white-space:nowrap}.filtered-campaign-results header span{padding:4px 7px;border-radius:999px;font-size:9px;font-weight:900}.filtered-campaign-results article>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filtered-campaign-results article>div span{display:flex;justify-content:space-between;padding:7px;border-radius:8px;background:#f8fafc;color:#64748b;font-size:10px}.filtered-campaign-results article>div b{color:#1e293b}@media(max-width:900px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr 1fr}}@media(max-width:640px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr}.report-filter-group.wide{grid-column:auto}.report-filter-tabs button{padding:0 10px}.report-filter-tabs>span{display:none}}
 .landing-multi-cell{position:relative;overflow:visible!important}.landing-multi-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer}.landing-multi-trigger.active{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.landing-multi-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.landing-multi-menu{position:absolute;z-index:500;top:calc(100% + 5px);right:4px;width:230px;padding:8px;border:1px solid #dbeafe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2)}.landing-multi-menu-floating{position:fixed!important;z-index:1000005!important;max-height:min(320px,calc(100vh - 24px));overflow:auto}.landing-multi-title{padding:5px 7px 9px;border-bottom:1px solid #eef2f7;color:#334155;font-size:11px;font-weight:1000}.landing-multi-menu label{display:flex;align-items:center;gap:8px;padding:9px 7px;border-radius:8px;color:#475569;font-size:11px;font-weight:800;cursor:pointer}.landing-multi-menu label:hover,.landing-multi-menu label.selected{background:#eff6ff;color:#1d4ed8}.landing-multi-menu input{width:16px!important;height:16px!important;accent-color:#2563eb}.landing-multi-menu label span{flex:1}.landing-multi-menu label i{color:#16a34a;font-style:normal;font-weight:1000}.landing-clear-btn{width:100%;margin-top:5px;padding:8px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
+.landing-multi-empty{padding:13px 7px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}
 
 /* Compact responsive follow-up header */
 .flwup-root{width:100%;max-width:100%;min-width:0;padding:clamp(12px,1.5vw,24px);overflow-x:hidden}
@@ -4098,4 +4228,4 @@ export default {
 .history-description{margin-top:10px!important;padding:10px;border-radius:10px;background:#f8fafc;color:#334155!important;font-size:12px!important;line-height:1.9!important;white-space:pre-wrap}
 @media(max-width:760px){.history-card dl{grid-template-columns:1fr 1fr}.history-modal>header{padding:15px}.history-timeline{padding:14px}.history-modal h3{font-size:18px}}
 @media(max-width:480px){.history-card dl{grid-template-columns:1fr}}
-@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}</style>
+.landing-sms-modal-overlay{position:fixed;inset:0;z-index:1000010;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.landing-sms-modal{width:min(520px,96vw);overflow:hidden;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.landing-sms-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.landing-sms-modal header small{color:#2563eb;font-size:11px;font-weight:900}.landing-sms-modal h3{margin:4px 0;font-size:18px}.landing-sms-modal p{margin:0;color:#64748b;font-size:11px}.landing-sms-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.landing-sms-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding:16px}.landing-sms-list label{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:11px;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer}.landing-sms-list label.selected{border-color:#93c5fd;background:#eff6ff}.landing-sms-list label.sent{border-color:#86efac;background:#f0fdf4}.landing-sms-list input{width:17px;height:17px;accent-color:#2563eb}.landing-sms-list span{display:grid;gap:3px}.landing-sms-list b{font-size:12px}.landing-sms-list small{color:#64748b;font-size:10px}.landing-sms-list i{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-weight:1000}.landing-sms-empty{padding:20px;text-align:center}.landing-sms-error{margin:0 16px 12px!important;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c!important}.landing-sms-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #e2e8f0}.landing-sms-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.landing-sms-cancel{background:#e2e8f0;color:#475569}.landing-sms-send{background:#2563eb;color:#fff}.landing-sms-send:disabled{opacity:.55;cursor:wait}@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}</style>
