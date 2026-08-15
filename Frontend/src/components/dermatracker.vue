@@ -446,7 +446,7 @@ export default {
       return this.patientName(patient).trim().slice(0, 1) || 'ب'
     },
     customerLevelLabel(level) {
-      return { problematic: 'مشتری دردسرساز', blue: 'آبی', silver: 'نقره‌ای', gold: 'طلایی' }[level] || 'عادی'
+      return { problematic: 'مشتری دردسرساز', blue: 'آبی', silver: 'نقره‌ای', gold: 'طلایی (CIP)' }[level] || 'عادی'
     },
     statusLabel(status) {
       return status === 'done' ? 'انجام شده' : 'در انتظار'

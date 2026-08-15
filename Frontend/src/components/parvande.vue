@@ -1527,8 +1527,8 @@ export default {
           class: 'is-blue'
         },
         {
-          value: 'cip',
-          label: 'مشتری CIP',
+          value: 'gold',
+          label: 'مشتری طلایی (CIP)',
           description: 'مشتری ویژه و با اولویت بالاتر در پیگیری‌ها.',
           class: 'is-cip'
         }
@@ -2075,7 +2075,7 @@ export default {
     },
 
     customerLevelLabel(value) {
-      const automaticLabels = { blue: 'مشتری آبی', silver: 'مشتری نقره‌ای', gold: 'مشتری طلایی' }
+      const automaticLabels = { blue: 'مشتری آبی', silver: 'مشتری نقره‌ای', gold: 'مشتری طلایی (CIP)' }
       if (automaticLabels[value]) return automaticLabels[value]
       const option = this.customerLevelOptions.find(item => item.value === value)
       return option ? option.label : 'بدون سطح'

@@ -71,6 +71,8 @@ class PatientController extends Controller
         ]);
 
         // شماره پرونده فقط در سرور صادر می‌شود تا قابل تغییر یا تکرار نباشد.
+        // هر پرونده تازه از سطح عادی/نقره‌ای شروع می‌کند.
+        $data['customer_level'] = 'silver';
         $patient = null;
         for ($attempt = 0; $attempt < 5; $attempt++) {
             $data['file_number'] = $this->nextFileNumberValue();

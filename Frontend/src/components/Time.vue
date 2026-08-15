@@ -556,8 +556,8 @@
                     :level="row.customerLevel"
                     :size="24"
                     clickable
-                    title="باز کردن پرونده"
-                    @mouseenter="showAvatarPreview($event, row.profilePhotoUrl || row.profileThumbnailUrl)"
+                    title="مشاهده خلاصه پرونده"
+                    @mouseenter="showAvatarPreview($event, row.profilePhotoUrl || row.profileThumbnailUrl, row.customerLevel)"
                     @mouseleave="hideAvatarPreview"
                     @click.stop="openPatientProfileFromRow(row)"
                   />
@@ -567,8 +567,8 @@
                   <input
                     v-model="row.lastname"
                     :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
-                    :title="row.hasPatientFile ? 'باز کردن پرونده' : ''"
-                    @click.stop="openPatientProfileFromRow(row)"
+                    :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
+                    @click.stop
                     @input="autoSetAppointmentStatus(row)"
                   />
                 </div>
@@ -1134,7 +1134,7 @@
               <div v-if="!isEmptyAppointmentRow(row)" class="timeline-card-body">
                 <div
                   class="timeline-avatar-hitbox"
-                  @mouseenter="showAvatarPreview($event, row.profilePhotoUrl || row.profileThumbnailUrl)"
+                  @mouseenter="showAvatarPreview($event, row.profilePhotoUrl || row.profileThumbnailUrl, row.customerLevel)"
                   @mouseleave="hideAvatarPreview"
                   @click.stop="openPatientProfileFromRow(row)"
                 >
@@ -1144,10 +1144,10 @@
                     :patient="{ first_name: row.lastname }"
                     :size="48"
                     clickable
-                    title="باز کردن پرونده"
+                    title="مشاهده خلاصه پرونده"
                   />
                 </div>
-                <strong title="باز کردن پرونده" @click.stop="openPatientProfileFromRow(row)">{{ timelinePatientName(row) }}</strong>
+                <strong title="مشاهده خلاصه پرونده" @click.stop="openPatientProfileFromRow(row)">{{ timelinePatientName(row) }}</strong>
                 <em class="timeline-status-label">{{ row.status || 'نوبت ثبت‌شده' }}</em>
                 <span>{{ timelineServiceText(row) }}</span>
                 <small>{{ timelineCareTeam(row) }}</small>
@@ -1544,7 +1544,7 @@
             </button>
           </article>
           <article v-if="trackingReport.hasCompleted">
-            <small>زمان انجام‌شدن</small>
+            <small>زمان انجام کار</small>
             <button type="button" class="tracking-time-value" @click="openTrackingTimeEditor('completedAt')">
               {{ trackingReport.completedTime }}
             </button>
@@ -1951,15 +1951,25 @@
           <b>در حال دریافت پرونده...</b>
         </div>
 
-        <div v-else-if="patientProfileError" class="time-profile-error">{{ patientProfileError }}</div>
+        <div v-if="patientProfileError" class="time-profile-error">{{ patientProfileError }}</div>
 
-        <div v-else-if="activePatientProfile" class="time-profile-body">
+        <div v-if="!patientProfileLoading && activePatientProfile" class="time-profile-body">
           <div class="time-profile-stats">
             <article><span>جنسیت</span><strong>{{ activePatientProfile.gender || '-' }}</strong></article>
             <article><span>اعتبار</span><strong>{{ formatDisplayMoney(activePatientProfile.wallet_balance || 0) }}</strong></article>
             <article :class="{ danger: Number(activePatientProfile.outstanding_debt || 0) > 0 }"><span>بدهکاری</span><strong>{{ formatDisplayMoney(activePatientProfile.outstanding_debt || 0) }}</strong></article>
             <article><span>تعداد سوابق</span><strong>{{ patientProfileTotalAppointments.toLocaleString('fa-IR') }}</strong></article>
           </div>
+
+          <section class="time-profile-details">
+            <div class="time-profile-section-head"><h4>اطلاعات پرونده</h4><span>مشخصات ثبت‌شده مراجعه‌کننده</span></div>
+            <div class="time-profile-details-grid">
+              <article v-for="item in patientProfileDetails" :key="item.label">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </article>
+            </div>
+          </section>
 
           <div class="time-profile-notes">
             <article>
@@ -1971,6 +1981,15 @@
               <p>{{ activePatientProfile.medical_history || '-' }}</p>
             </article>
           </div>
+
+          <section v-if="patientProfileMediaLoading || patientProfilePhotos.length" class="time-profile-media">
+            <div class="time-profile-section-head"><h4>عکس‌های پرونده</h4><span>{{ patientProfileMediaLoading ? 'در حال دریافت...' : `${patientProfilePhotos.length.toLocaleString('fa-IR')} عکس` }}</span></div>
+            <div v-if="patientProfilePhotos.length" class="time-profile-photo-list">
+              <a v-for="photo in patientProfilePhotos" :key="photo.id" :href="photo.url" target="_blank" rel="noopener" :title="photo.original_name || 'عکس پرونده'">
+                <img :src="photo.url" :alt="photo.original_name || 'عکس پرونده'">
+              </a>
+            </div>
+          </section>
 
           <section class="time-profile-history">
             <div>
@@ -1985,9 +2004,13 @@
                   <th>تاریخ</th>
                   <th>ساعت</th>
                   <th>خدمات</th>
+                  <th>پزشک / مشاور</th>
+                  <th>پرداخت</th>
                   <th>وضعیت</th>
+                  <th>انجام کار</th>
                   <th>مبلغ</th>
                   <th>بدهی</th>
+                  <th>توضیحات</th>
                 </tr>
               </thead>
               <tbody>
@@ -1995,9 +2018,13 @@
                   <td>{{ item.month || '-' }} / {{ item.day_num || '-' }}</td>
                   <td>{{ item.time || '-' }}</td>
                   <td>{{ profileServiceText(item) }}</td>
+                  <td>{{ profileAppointmentTeam(item) }}</td>
+                  <td>{{ item.payment_method || '-' }}</td>
                   <td>{{ item.status || '-' }}</td>
+                  <td>{{ item.done || '-' }}</td>
                   <td>{{ formatDisplayMoney(item.amount || 0) }}</td>
                   <td>{{ formatDisplayMoney(item.debt || 0) }}</td>
+                  <td>{{ item.description || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -2051,7 +2078,7 @@
       <Transition name="avatar-preview">
         <div
           v-if="avatarPreview"
-          class="appointment-avatar-preview"
+          :class="['appointment-avatar-preview', `level-${avatarPreview.level}`]"
           :style="{ left: avatarPreview.left + 'px', top: avatarPreview.top + 'px' }"
         >
           <img :src="avatarPreview.url" alt="پیش‌نمایش عکس بیمار">
@@ -2104,6 +2131,8 @@ export default {
       patientProfileTotalAppointments: 0,
       patientProfileHasMore: false,
       patientProfileHistoryParams: "",
+      patientProfileMedia: [],
+      patientProfileMediaLoading: false,
       currentMonth: 0,
 
       days: [],
@@ -2234,6 +2263,9 @@ export default {
       showDoneFilter: false,
 
       saveTimeout: null,
+      saveInProgress: false,
+      saveQueued: false,
+      draftRevision: 0,
       isFetching: true,
       generatingNewMonth: false,
 
@@ -2271,6 +2303,31 @@ export default {
   computed: {
     canViewPatientPhone() {
       return this.permissions.includes("patients.view_phone");
+    },
+
+    patientProfileDetails() {
+      const patient = this.activePatientProfile || {};
+      const details = [
+        { label: "سطح مشتری", value: this.customerLevelLabel(patient.customer_level) },
+        { label: "شماره تماس", value: this.displayPatientPhone(patient.phone) },
+        { label: "شماره تماس دوم", value: this.displayPatientPhone(patient.second_phone) },
+        { label: "تاریخ تولد", value: this.formatPatientProfileDate(patient.birth_date) },
+        { label: "کد ملی", value: patient.national_id },
+        { label: "نام پدر", value: patient.father_name },
+        { label: "تاریخ ازدواج", value: this.formatPatientProfileDate(patient.marriage_date) },
+        { label: "تحصیلات", value: patient.education },
+        { label: "شهر", value: patient.city },
+        { label: "محدوده سکونت", value: patient.area },
+        { label: "وضعیت مالی", value: patient.financial_status },
+        { label: "آدرس", value: patient.address },
+      ];
+
+      return details.filter(item => String(item.value || "").trim());
+    },
+
+    patientProfilePhotos() {
+      return this.patientProfileMedia
+        .filter(item => item?.media_type === "image" && item?.url);
     },
 
     bestStaffOfMonth() {
@@ -2346,7 +2403,9 @@ export default {
     },
 
     sortedServiceSections() {
-      return [...(this.serviceSections || [])].sort((a, b) =>
+      // در نوبت دهی «بخش» فقط دسته های اصلی انبار است. زیرشاخه ها
+      // محل تعریف خدمات هستند و نباید به عنوان بخش مستقل انتخاب شوند.
+      return (this.serviceSections || []).filter(section => !String(section?.parent_id || section?.parentId || '').trim()).sort((a, b) =>
         String(a?.name || '').localeCompare(String(b?.name || ''), 'fa', { sensitivity: 'base' })
       );
     },
@@ -2406,6 +2465,7 @@ export default {
 
   beforeUnmount() {
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
+    this.persistPendingDraft();
   },
 
   methods: {
@@ -2517,7 +2577,7 @@ export default {
       this.$nextTick(() => this.openNewTimelineAppointment(day));
     },
 
-    showAvatarPreview(event, url) {
+    showAvatarPreview(event, url, level = 'silver') {
       if (!url) return;
       const rect = event.currentTarget.getBoundingClientRect();
       const size = 116;
@@ -2525,7 +2585,7 @@ export default {
       let left = rect.left - size - gap;
       if (left < 10) left = Math.min(window.innerWidth - size - 10, rect.right + gap);
       const top = Math.max(10, Math.min(window.innerHeight - size - 10, rect.top + (rect.height - size) / 2));
-      this.avatarPreview = { url, left, top };
+      this.avatarPreview = { url, left, top, level: this.normalizeCustomerLevel(level) };
     },
     hideAvatarPreview() {
       this.avatarPreview = null;
@@ -2552,9 +2612,9 @@ export default {
       const hasPhone = String(row.phone || '').replace(/\D/g, '').length >= 10;
       if (hasName && hasPhone) row.status = 'وقت داده شد';
     },
-    openPatientProfileFromRow(row) {
+    async openPatientProfileFromRow(row) {
       // اطلاعات نوبت به‌تنهایی پرونده نیست. فقط برای بیماری که وجود
-      // پرونده‌اش از سمت API تأیید شده، اجازهٔ رفتن به پرونده را بده.
+      // پرونده‌اش از سمت API تأیید شده، جزئیات را در همین صفحه نشان بده.
       if (!row?.hasPatientFile) return;
 
       const fileNumber = String(row?.fileNumber || "").trim();
@@ -2564,11 +2624,40 @@ export default {
         return;
       }
 
-      this.$emit("open-patient-profile", {
-        id: row.patientId || null,
-        file_number: fileNumber,
-        phone
-      });
+      this.hideAvatarPreview();
+      this.patientProfileModalOpen = true;
+      this.patientProfileLoading = true;
+      this.patientProfileError = "";
+      this.activePatientProfile = this.patientProfileFallbackFromRow(row);
+      this.patientProfileAppointments = [];
+      this.patientProfileHistoryPage = 1;
+      this.patientProfileTotalAppointments = 0;
+      this.patientProfileHasMore = false;
+      this.patientProfileMedia = [];
+
+      const historyParams = new URLSearchParams();
+      if (fileNumber) historyParams.set("file_number", fileNumber);
+      if (phone) historyParams.set("phone", phone);
+      this.patientProfileHistoryParams = historyParams.toString();
+
+      try {
+        const { data } = await axios.get("/api/patients/search", {
+          params: fileNumber ? { file_number: fileNumber } : { phone }
+        });
+        const patient = Array.isArray(data) ? data[0] : null;
+        if (patient) {
+          this.activePatientProfile = patient;
+        }
+      } catch (error) {
+        // اطلاعات موجود در ردیف نوبت همچنان در modal نمایش داده می‌شود.
+        console.error(error);
+      }
+
+      await Promise.all([
+        this.loadPatientProfileAppointments(),
+        this.loadPatientProfileMedia(this.activePatientProfile?.id || row.patientId)
+      ]);
+      this.patientProfileLoading = false;
     },
 
     async loadPatientProfileAppointments(page = 1) {
@@ -2594,6 +2683,19 @@ export default {
         }
       } finally {
         this.patientProfileHistoryLoading = false;
+      }
+    },
+
+    async loadPatientProfileMedia(patientId) {
+      if (!patientId) return;
+      this.patientProfileMediaLoading = true;
+      try {
+        const { data } = await axios.get(`/api/patients/${patientId}/media`, { params: { all: 1 } });
+        this.patientProfileMedia = Array.isArray(data?.media) ? data.media : [];
+      } catch (error) {
+        console.error(error);
+      } finally {
+        this.patientProfileMediaLoading = false;
       }
     },
 
@@ -2633,6 +2735,12 @@ export default {
       return patient?.avatar_url || patient?.profile_thumbnail_url || patient?.profile_photo_url || "";
     },
 
+    formatPatientProfileDate(value) {
+      if (!value) return "-";
+      const normalized = String(value).trim();
+      return normalized.replace(/-/g, "/");
+    },
+
     profileServiceText(item) {
       const services = Array.isArray(item?.services) ? item.services : [];
       const names = services.flatMap(service => [
@@ -2640,6 +2748,13 @@ export default {
         ...(Array.isArray(service?.addons) ? service.addons.map(addon => addon?.name) : [])
       ]).filter(Boolean);
       return names.join("، ") || "-";
+    },
+
+    profileAppointmentTeam(item) {
+      const names = (Array.isArray(item?.services) ? item.services : [])
+        .flatMap(service => [service?.doctor, service?.consultant])
+        .filter(Boolean);
+      return [...new Set(names)].join("، ") || "-";
     },
 
     isEmptyAppointmentRow(row) {
@@ -2813,7 +2928,7 @@ export default {
       }
       draft.services = draft.services.map(service => ({
         name: service.name || "",
-        sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name),
+        sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name, draft),
         cc: service.cc || "",
         doctor: service.doctor || "",
         consultant: service.consultant || "",
@@ -3056,7 +3171,7 @@ export default {
     },
 
     customerLevelLabel(level) {
-      return ({ problematic: 'دردسرساز', blue: 'آبی', silver: 'نقره‌ای', gold: 'طلایی' })[this.normalizeCustomerLevel(level)];
+      return ({ problematic: 'دردسرساز', blue: 'آبی', silver: 'نقره‌ای', gold: 'طلایی (CIP)' })[this.normalizeCustomerLevel(level)];
     },
 
     applyPatientToAppointment(row, patient) {
@@ -3292,17 +3407,26 @@ export default {
 
     onStatusChanged(row) {
       const status = String(row.status || "").trim();
-      if ((status === "آمد" || status === "Ø¢Ù…Ø¯") && !row.arrivedAt) {
+      if (this.isArrivedAppointmentStatus(status) && !row.arrivedAt) {
         row.arrivedAt = this.currentDatabaseDateTime();
       }
+      if (!this.isArrivedAppointmentStatus(status)) {
+        row.arrivedAt = "";
+      }
+      this.saveData(0);
     },
 
     async onDoneChanged(row) {
       const done = String(row.done || '').trim();
-      if (done !== 'انجام شد' && done !== 'Ø§Ù†Ø¬Ø§Ù… Ø´Ø¯') return;
+      if (!this.isCompletedAppointmentDone(done)) {
+        row.completedAt = "";
+        this.saveData(0);
+        return;
+      }
       if (!row.completedAt) {
         row.completedAt = this.currentDatabaseDateTime();
       }
+      this.saveData(0);
       const appointmentDay = this.days.find(day => (day.rows || []).includes(row));
       if (appointmentDay) this.ensurePaymentLink(appointmentDay, row);
       this.activeCompletionSmsRow = row;
@@ -3461,7 +3585,7 @@ export default {
 
       const labels = {
         arrivedAt: "زمان آمدن",
-        completedAt: "زمان انجام‌شدن"
+        completedAt: "زمان انجام کار"
       };
 
       if (!labels[field]) return;
@@ -3513,6 +3637,21 @@ export default {
           icon: "warning",
           title: "ساعت معتبر نیست",
           text: "ساعت را با فرمت درست انتخاب کنید."
+        });
+        return;
+      }
+
+      const arrived = field === "arrivedAt"
+        ? this.parseTrackingMoment(nextValue)
+        : this.parseTrackingMoment(row.arrivedAt);
+      const completed = field === "completedAt"
+        ? this.parseTrackingMoment(nextValue)
+        : this.parseTrackingMoment(row.completedAt);
+      if (arrived && completed && completed.isBefore(arrived)) {
+        await Swal.fire({
+          icon: "warning",
+          title: "ترتیب زمان‌ها درست نیست",
+          text: "زمان انجام کار نمی‌تواند قبل از زمان آمدن باشد."
         });
         return;
       }
@@ -3571,6 +3710,14 @@ export default {
       return `${sign}${parts.join(" و ")}`;
     },
 
+    isArrivedAppointmentStatus(status) {
+      return ["آمد", "Ø¢Ù…Ø¯"].includes(String(status || "").trim());
+    },
+
+    isCompletedAppointmentDone(done) {
+      return ["انجام شد", "Ø§Ù†Ø¬Ø§Ù… Ø´Ø¯"].includes(String(done || "").trim());
+    },
+
     calculateTrackingFinancialRow(row) {
       const financial = {
         totalAmount: 0,
@@ -3621,15 +3768,19 @@ export default {
     buildTrackingReport(day, row) {
       const report = this.emptyTrackingReport();
       const scheduled = this.appointmentMomentForRow(day, row);
-      const arrived = this.parseTrackingMoment(row?.arrivedAt);
-      const completed = this.parseTrackingMoment(row?.completedAt);
+      const arrived = this.isArrivedAppointmentStatus(row?.status)
+        ? this.parseTrackingMoment(row?.arrivedAt)
+        : null;
+      const completed = this.isCompletedAppointmentDone(row?.done)
+        ? this.parseTrackingMoment(row?.completedAt)
+        : null;
       report.financial = this.calculateTrackingFinancialRow(row);
 
       report.scheduledTime = scheduled ? scheduled.format("HH:mm") : (row?.time || "-");
       report.hasArrived = Boolean(arrived);
       report.hasCompleted = Boolean(completed);
-      report.arrivedTime = this.formatTrackingMoment(row?.arrivedAt);
-      report.completedTime = this.formatTrackingMoment(row?.completedAt);
+      report.arrivedTime = arrived ? arrived.format("HH:mm") : "-";
+      report.completedTime = completed ? completed.format("HH:mm") : "-";
 
       if (scheduled && arrived) {
         report.hasDelay = true;
@@ -3641,7 +3792,7 @@ export default {
           : "بدون تأخیر";
       }
 
-      if (arrived && completed) {
+      if (arrived && completed && !completed.isBefore(arrived)) {
         report.hasVisitDuration = true;
         report.visitDurationMinutes = completed.diff(arrived, "minutes");
         report.visitDurationText = this.formatTrackingDuration(report.visitDurationMinutes);
@@ -4109,7 +4260,9 @@ export default {
         this.days = [];
       }
 
+      const restoredDraft = this.restorePendingDraft();
       this.isFetching = false;
+      if (restoredDraft) this.saveData(0);
     },
 
     updateRowAmounts(row) {
@@ -4272,6 +4425,60 @@ export default {
         Number(val || 0).toLocaleString();
     },
 
+    pendingDraftKey(month = this.months[this.currentMonth]) {
+      return `appointment-pending-draft:${month || 'unknown'}`;
+    },
+
+    persistPendingDraft() {
+      if (this.isFetching) return;
+
+      const month = this.months[this.currentMonth];
+      if (!month) return;
+
+      try {
+        localStorage.setItem(this.pendingDraftKey(month), JSON.stringify({
+          version: this.draftRevision,
+          savedAt: Date.now(),
+          days: this.days
+        }));
+      } catch (error) {
+        // Local storage can be unavailable or full; saving to the API still continues.
+        console.warn('ذخیره نسخه موقت نوبت‌ها انجام نشد.', error);
+      }
+    },
+
+    restorePendingDraft() {
+      const month = this.months[this.currentMonth];
+      if (!month) return false;
+
+      try {
+        const draft = JSON.parse(localStorage.getItem(this.pendingDraftKey(month)) || 'null');
+        if (!Array.isArray(draft?.days)) return false;
+
+        this.days = draft.days;
+        this.draftRevision = Number(draft.version || 0);
+        this.days.forEach(day => {
+          day.id ||= this._idCounter++;
+          (day.rows || []).forEach(row => {
+            row._rowId ||= `row-${this._rowCounter++}`;
+            row.paymentDetails = this.normalizePaymentDetails(row.paymentDetails || {});
+            row.services = Array.isArray(row.services) && row.services.length
+              ? row.services
+              : this.createEmptyAppointmentRow().services;
+          });
+        });
+        return true;
+      } catch (error) {
+        console.warn('بازیابی نسخه موقت نوبت‌ها انجام نشد.', error);
+        return false;
+      }
+    },
+
+    clearPendingDraft(month = this.months[this.currentMonth]) {
+      if (!month) return;
+      localStorage.removeItem(this.pendingDraftKey(month));
+    },
+
     commissionAppliesToCustomer(resource, row) {
       if (!resource) return false;
       const scope = resource.commission_customer_scope || "both";
@@ -4318,11 +4525,23 @@ export default {
       if (this.isFetching && !force) return;
 
       clearTimeout(this.saveTimeout);
+      this.persistPendingDraft();
 
       this.saveTimeout =
         setTimeout(async () => {
 
+          // ارسال هم‌زمانِ یک ماه می‌تواند باعث بازنویسی‌های متداخل شود.
+          // تغییر جدید را پس از پایان درخواست فعلی، یک‌بار دیگر ذخیره می‌کنیم.
+          if (this.saveInProgress) {
+            this.saveQueued = true;
+            return;
+          }
+
+          this.saveInProgress = true;
+
           try {
+
+            const draftRevisionAtRequest = this.draftRevision;
 
             const month =
               this.months[this.currentMonth];
@@ -4480,7 +4699,7 @@ this.calculateFinalAmount(row)
                   services:
                     row.services.map(s => ({
                       name: s.name || "",
-                      section_id: s.sectionId || this.sectionIdForService(s.name) || null,
+                      section_id: s.sectionId || this.sectionIdForService(s.name, row) || null,
                       cc: s.cc || "",
                       doctor: s.doctor || "",
                       consultant: s.consultant || "",
@@ -4502,6 +4721,10 @@ this.calculateFinalAmount(row)
               }
             );
 
+            if (this.draftRevision === draftRevisionAtRequest) {
+              this.clearPendingDraft(month);
+            }
+
           } catch (e) {
 
             console.error(e);
@@ -4513,6 +4736,13 @@ this.calculateFinalAmount(row)
               title: "خطا",
               text: "ذخیره انجام نشد"
             });
+
+          } finally {
+            this.saveInProgress = false;
+            if (this.saveQueued) {
+              this.saveQueued = false;
+              this.saveData(0);
+            }
 
           }
 
@@ -5501,9 +5731,13 @@ this.calculateFinalAmount(row)
       return this.inventoryItems.filter(item => item.active !== false && String(item.section_id) === String(service.sectionId)).map(item => item.name).filter(name => name && name !== service.name && !selected.has(name));
     },
 
-    sectionIdForService(serviceName) {
+    sectionIdForService(serviceName, row = null) {
       if (!serviceName) return "";
-      return this.inventoryItems.find(item => item.name === serviceName)?.section_id || "";
+      const allowedSectionIds = new Set(this.serviceSectionScopeIds(row?.serviceTypes));
+      return this.inventoryItems.find(item =>
+        item.name === serviceName &&
+        (!allowedSectionIds.size || allowedSectionIds.has(String(item.section_id)))
+      )?.section_id || "";
     },
 
     serviceSectionLabel(sectionId) {
@@ -5511,12 +5745,22 @@ this.calculateFinalAmount(row)
     },
 
     normalizeServiceSectionIds(values) {
-      return (Array.isArray(values) ? values : []).map(value => {
+      return [...new Set((Array.isArray(values) ? values : []).map(value => {
         const direct = this.serviceSections.find(section => String(section.id) === String(value));
-        if (direct) return String(direct.id);
-        const byName = this.serviceSections.find(section => String(section.name).trim() === String(value).trim());
-        return byName ? String(byName.id) : null;
-      }).filter(Boolean);
+        const candidate = direct || this.serviceSections.find(section => String(section.name).trim() === String(value).trim());
+        if (!candidate) return null;
+
+        // نوبت های قدیمی ممکن است شناسهٔ زیرشاخه را ذخیره کرده باشند.
+        // آن را به ریشهٔ خودش تبدیل می کنیم تا انتخاب بخش و خدمات همیشه
+        // با ساختار جدید یکسان باشد.
+        let root = candidate;
+        const visited = new Set();
+        while ((root?.parent_id || root?.parentId) && !visited.has(String(root.id))) {
+          visited.add(String(root.id));
+          root = this.serviceSections.find(section => String(section.id) === String(root.parent_id || root.parentId));
+        }
+        if (root) return String(root.id);
+      }).filter(Boolean))];
     },
 
     serviceSectionScopeIds(values) {
@@ -5530,12 +5774,19 @@ this.calculateFinalAmount(row)
       });
 
       const scopedIds = new Set();
-      const addWithChildren = sectionId => {
-        if (!sectionId || scopedIds.has(sectionId)) return;
-        scopedIds.add(sectionId);
-        (childrenByParent.get(sectionId) || []).forEach(addWithChildren);
+      const addChildren = sectionId => {
+        (childrenByParent.get(sectionId) || []).forEach(childId => {
+          if (scopedIds.has(childId)) return;
+          scopedIds.add(childId);
+          addChildren(childId);
+        });
       };
-      selectedIds.forEach(addWithChildren);
+      selectedIds.forEach(sectionId => {
+        // برای سازگاری با انبارهای قدیمی که خدمت را مستقیماً روی بخش
+        // اصلی ثبت کرده اند، همان بخش فقط در صورت نداشتن زیرشاخه مجاز است.
+        if (!(childrenByParent.get(sectionId) || []).length) scopedIds.add(sectionId);
+        addChildren(sectionId);
+      });
       return [...scopedIds];
     },
 
@@ -5605,7 +5856,7 @@ this.calculateFinalAmount(row)
 
     onServiceNameChanged(service, row) {
       this.$nextTick(() => {
-        const sectionId = this.sectionIdForService(service.name);
+        const sectionId = this.sectionIdForService(service.name, row);
         if (sectionId && String(service.sectionId || "") !== String(sectionId)) {
           service.sectionId = sectionId;
           service.addons = [];
@@ -5717,8 +5968,10 @@ this.calculateFinalAmount(row)
           this.selectedDone.includes(row.done);
 
         const sectionOk = !this.selectedServiceSections.length || (row.services || []).some(service => {
-          const sectionId = service.sectionId || this.sectionIdForService(service.name);
-          return this.selectedServiceSections.some(selected => String(selected) === String(sectionId));
+          const sectionId = service.sectionId || this.sectionIdForService(service.name, row);
+          return this.selectedServiceSections.some(selected =>
+            this.serviceSectionScopeIds([selected]).includes(String(sectionId))
+          );
         });
 
         return statusOk && sourceOk && doneOk && sectionOk;
@@ -6016,6 +6269,10 @@ smsColor(val) {
     days: {
 
       handler() {
+        if (!this.isFetching) {
+          this.draftRevision++;
+          this.persistPendingDraft();
+        }
         this.saveData();
       },
 
@@ -6939,18 +7196,24 @@ smsColor(val) {
 }
 
 .appointment-avatar-preview {
+  --avatar-preview-color: #94a3b8;
+  --avatar-preview-ring: rgba(148, 163, 184, .18);
   position: fixed;
   z-index: 2147483000;
   width: 116px;
   height: 116px;
   padding: 5px;
   pointer-events: none;
-  border: 1px solid rgba(147, 197, 253, .9);
+  border: 1px solid var(--avatar-preview-color);
   border-radius: 50%;
   background: rgba(255, 255, 255, .98);
-  box-shadow: 0 0 0 5px rgba(37, 99, 235, .16), 0 18px 45px rgba(15, 23, 42, .35);
+  box-shadow: 0 0 0 5px var(--avatar-preview-ring), 0 18px 45px rgba(15, 23, 42, .35);
   backdrop-filter: blur(8px);
 }
+
+.appointment-avatar-preview.level-problematic { --avatar-preview-color: #dc2626; --avatar-preview-ring: rgba(220, 38, 38, .18); }
+.appointment-avatar-preview.level-blue { --avatar-preview-color: #3b82f6; --avatar-preview-ring: rgba(59, 130, 246, .18); }
+.appointment-avatar-preview.level-gold { --avatar-preview-color: #d4a72c; --avatar-preview-ring: rgba(212, 167, 44, .2); }
 
 .appointment-avatar-preview img {
   width: 100%;
@@ -8791,4 +9054,7 @@ td.st-arrived select {
 .appointment-timeline .timeline-card.is-empty .timeline-card-empty span,.appointment-timeline .timeline-add-card.is-empty .timeline-card-empty span{background:#cbd5e1!important;color:#475569!important}
 .filter-btn{color:#111827!important}
 .time-profile-overlay{position:fixed;inset:0;z-index:1000004;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(5px);direction:rtl}.time-profile-modal{width:min(860px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.72);border-radius:22px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.34)}.time-profile-modal>header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid #e2e8f0;background:#f8fafc}.time-profile-head{min-width:0;display:flex;align-items:center;gap:12px}.time-profile-head div{min-width:0}.time-profile-head small{color:#2563eb;font-size:10px;font-weight:1000}.time-profile-head h3{margin:3px 0;color:#0f172a;font-size:20px}.time-profile-head p{margin:0;color:#64748b;font-size:11px;font-weight:800}.time-profile-modal>header>button{width:36px;height:36px;border:0;border-radius:11px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.time-profile-loading,.time-profile-error,.time-profile-empty{min-height:170px;display:grid;place-items:center;gap:8px;color:#64748b;font-size:13px;font-weight:900}.time-profile-error{color:#b91c1c}.time-profile-body{display:grid;gap:14px;padding:16px 18px;overflow:auto}.time-profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.time-profile-stats article{padding:12px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.time-profile-stats article.danger{border-color:#fecaca;background:#fff7f7}.time-profile-stats span,.time-profile-notes span{display:block;margin-bottom:5px;color:#64748b;font-size:10px;font-weight:1000}.time-profile-stats strong{color:#0f172a;font-size:16px}.time-profile-stats .danger strong{color:#dc2626}.time-profile-notes{display:grid;grid-template-columns:1fr 1fr;gap:10px}.time-profile-notes article{padding:12px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.time-profile-notes p{margin:0;color:#334155;font-size:12px;line-height:1.9;white-space:pre-wrap}.time-profile-history{display:grid;gap:10px}.time-profile-history>div:first-child{display:flex;align-items:center;justify-content:space-between}.time-profile-history h4{margin:0;color:#0f172a;font-size:15px}.time-profile-history>div:first-child span{color:#64748b;font-size:11px;font-weight:900}.time-profile-history table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid #e2e8f0;border-radius:14px;font-size:11px}.time-profile-history th,.time-profile-history td{padding:9px 10px;border-bottom:1px solid #e2e8f0;text-align:center}.time-profile-history th{background:#f8fafc;color:#475569;font-weight:1000}.time-profile-history td{color:#334155}.time-profile-history tr:last-child td{border-bottom:0}.time-profile-more{height:38px;justify-self:center;padding:0 18px;border:1px solid #bfdbfe;border-radius:11px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:11px;font-weight:1000;cursor:pointer}.time-profile-more:disabled{opacity:.6;cursor:wait}@media(max-width:700px){.time-profile-stats,.time-profile-notes{grid-template-columns:1fr}.time-profile-history{overflow:auto}.time-profile-history table{min-width:640px}}
+.time-profile-modal{width:min(1040px,96vw)}
+.time-profile-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}.time-profile-section-head h4{margin:0;color:#0f172a;font-size:15px}.time-profile-section-head span{color:#64748b;font-size:10px;font-weight:800}.time-profile-details{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.time-profile-details-grid article{min-width:0;padding:9px 10px;border:1px solid #edf2f7;border-radius:10px;background:#f8fafc}.time-profile-details-grid span{display:block;margin-bottom:4px;color:#64748b;font-size:9px;font-weight:900}.time-profile-details-grid strong{display:block;overflow:hidden;color:#334155;font-size:11px;font-weight:900;line-height:1.7;text-overflow:ellipsis;white-space:nowrap}.time-profile-details-grid article:has(span:first-child:last-child){display:none}.time-profile-media{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-photo-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.time-profile-photo-list a{display:block;aspect-ratio:1;overflow:hidden;border:1px solid #e2e8f0;border-radius:10px;background:#f1f5f9}.time-profile-photo-list img{width:100%;height:100%;object-fit:cover;transition:transform .18s ease}.time-profile-photo-list a:hover img{transform:scale(1.06)}@media(max-width:700px){.time-profile-details-grid{grid-template-columns:1fr 1fr}.time-profile-photo-list{grid-template-columns:repeat(3,minmax(0,1fr))}.time-profile-details-grid strong{white-space:normal}.time-profile-modal{width:min(100%,96vw)}}
+.time-profile-history{overflow:auto}.time-profile-history table{min-width:960px}
 </style>

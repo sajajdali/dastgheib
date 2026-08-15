@@ -12,7 +12,16 @@ class ShsmsService
         $template = config('shsms.text_template') ?: config('services.shsms.text_template');
 
         if (! $template) {
-            throw new \RuntimeException('قالب پیش‌فرض SHSMS تنظیم نشده است. مقدار SHSMS_TEXT_TEMPLATE را در env وارد کنید.');
+            if ($this->isSandbox()) {
+                Log::info('SHSMS sandbox text message', [
+                    'receptor' => $recipient,
+                    'message' => $message,
+                ]);
+
+                return;
+            }
+
+            throw new \RuntimeException('ارسال پیامک در حال حاضر ممکن نیست.');
         }
 
         $this->sendTemplate($recipient, $template, [$message]);
@@ -20,10 +29,6 @@ class ShsmsService
 
     public function sendTemplate(string $recipient, string $template, array $params = []): void
     {
-        if (! config('services.shsms.endpoint') || ! config('services.shsms.token')) {
-            throw new \RuntimeException('اتصال SHSMS تنظیم نشده است. مقادیر SHSMS_ENDPOINT و SHSMS_API_TOKEN را در env وارد کنید.');
-        }
-
         $query = [
             'receptor' => $recipient,
             'template' => $template,
@@ -33,14 +38,24 @@ class ShsmsService
             $query['param'][] = $parameter;
         }
 
-        if (config('services.shsms.sandbox') || config('shsms.sandbox')) {
-            Log::info('SHSMS sandbox', $query);
+        // در محیط آزمایشی هیچ اتصال بیرونی لازم نیست؛ پیام فقط در log ثبت می‌شود.
+        if ($this->isSandbox()) {
+            Log::info('SHSMS sandbox template message', $query);
             return;
+        }
+
+        if (! config('services.shsms.endpoint') || ! config('services.shsms.token')) {
+            throw new \RuntimeException('ارسال پیامک در حال حاضر ممکن نیست.');
         }
 
         Http::withToken(config('services.shsms.token'))
             ->acceptJson()
             ->get(config('services.shsms.endpoint'), $query)
             ->throw();
+    }
+
+    private function isSandbox(): bool
+    {
+        return (bool) config('services.shsms.sandbox') || (bool) config('shsms.sandbox');
     }
 }

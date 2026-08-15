@@ -63,7 +63,8 @@ class CustomerLevelService
         $usedAppointments = $appointments->filter(fn (Appointment $item) => $this->hasUsedService($item))->values();
 
         if ($usedAppointments->isEmpty()) {
-            return 'blue';
+            // پرونده تازه، تا پیش از استفاده از خدمت، مشتری عادی/نقره‌ای است.
+            return 'silver';
         }
 
         foreach (['gold', 'silver', 'blue'] as $level) {
@@ -72,7 +73,7 @@ class CustomerLevelService
             }
         }
 
-        return 'blue';
+        return 'silver';
     }
 
     private function matchesLevel(Collection $appointments, array $settings, string $level): bool
