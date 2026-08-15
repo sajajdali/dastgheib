@@ -129,8 +129,28 @@ class AppointmentController extends Controller
             $month = $appointments[0]['month'];
         }
 
-        // 🟢 بخش حیاتی: جلوگیری از پاک شدن کل دیتابیس
-        DB::transaction(function () use ($month, $appointments, $request) {
+        if (! $month) {
+            return response()->json(['message' => 'ماه نوبت‌ها مشخص نشده است.'], 422);
+        }
+
+        // یک ردیف ممکن است به‌دلیل retry مرورگر یا دوبار کلیک در payload تکرار شود.
+        // قبل از بازنویسی ماه، فقط نخستین نمونه از هر نوبت منطقی را نگه می‌داریم.
+        $appointments = collect(is_array($appointments) ? $appointments : [])
+            ->filter(fn ($appointment) => is_array($appointment))
+            ->unique(fn (array $appointment) => $this->incomingAppointmentKey($appointment, $month))
+            ->values()
+            ->all();
+
+        // ذخیره این صفحه کل ماه را بازنویسی می‌کند؛ درخواست‌های هم‌زمان نباید با هم تداخل کنند.
+        $lockName = "appointments-month:{$month}";
+        $lock = DB::selectOne('SELECT GET_LOCK(?, 10) AS acquired', [$lockName]);
+        if (! ((int) ($lock->acquired ?? 0))) {
+            return response()->json(['message' => 'ذخیره نوبت‌ها در حال انجام است؛ چند لحظه دیگر دوباره تلاش کنید.'], 423);
+        }
+
+        try {
+            // 🟢 بخش حیاتی: جلوگیری از پاک شدن کل دیتابیس
+            DB::transaction(function () use ($month, $appointments, $request) {
             $desiredWalletSources = [];
             $inventoryAppointmentPairs = [];
             $matchedPreviousAppointmentIds = [];
@@ -293,7 +313,10 @@ class AppointmentController extends Controller
                 ->lockForUpdate()
                 ->get()
                 ->each(fn (WalletTransaction $transaction) => $this->reverseWalletTransaction($request, $transaction, 'حذف نوبت یا خدمت مرتبط'));
-        });
+            });
+        } finally {
+            DB::select('SELECT RELEASE_LOCK(?)', [$lockName]);
+        }
 
         return response()->json(['message' => 'تغییرات این ماه با موفقیت ثبت شد']);
     }
@@ -375,6 +398,20 @@ class AppointmentController extends Controller
             $appointment['file_number'] ?? '',
             $appointment['phone'] ?? '',
             $appointment['time'] ?? '',
+        ]);
+    }
+
+    private function incomingAppointmentKey(array $appointment, string $month): string
+    {
+        return implode('|', [
+            // شناسه را وارد کلید نمی‌کنیم تا تکرارهای از قبل ثبت‌شده با
+            // شناسه‌های متفاوت نیز در اولین ذخیره بعدی پاک‌سازی شوند.
+            $month,
+            $appointment['day_num'] ?? '',
+            trim((string) ($appointment['file_number'] ?? '')),
+            trim((string) ($appointment['phone'] ?? '')),
+            trim((string) ($appointment['lastname'] ?? '')),
+            trim((string) ($appointment['time'] ?? '')),
         ]);
     }
 
