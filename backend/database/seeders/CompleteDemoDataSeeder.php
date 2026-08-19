@@ -22,7 +22,7 @@ use Spatie\Permission\Models\Role;
 
 class CompleteDemoDataSeeder extends Seeder
 {
-    private array $months = ['1405-05', '1405-06'];
+    private array $months = ['1405-05'];
 
     public function run(): void
     {
@@ -51,20 +51,35 @@ class CompleteDemoDataSeeder extends Seeder
         $role->syncPermissions(Permission::query()->pluck('name')->all());
 
         $admin = User::query()->updateOrCreate(
-            ['mobile' => '09120000000'],
-            ['name' => 'مدیر دمو', 'password' => Hash::make('12345678')]
+            ['mobile' => '09121236686'],
+            [
+                'name' => 'مدیر کل',
+                'nickname' => 'مدیریت کلینیک',
+                'gender' => 'female',
+                'email' => 'manager@clinic.local',
+                'password' => Hash::make('09121236686'),
+                'profile_photo_path' => 'users/showcase/clinic-manager.webp',
+                'profile_thumbnail_path' => 'users/showcase/clinic-manager-thumb.webp',
+            ]
         );
         $admin->assignRole($role);
 
         foreach ([
-            ['name' => 'اپراتور پذیرش دمو', 'mobile' => '09120000001'],
-            ['name' => 'کارشناس فروش دمو', 'mobile' => '09120000002'],
-            ['name' => 'حسابدار دمو', 'mobile' => '09120000003'],
+            ['name' => 'دکتر نازنین رضایی', 'nickname' => 'متخصص پوست و مو', 'gender' => 'female', 'mobile' => '09121234571', 'email' => 'dr.rezaei@clinic.local', 'photo' => 'reception-coordinator'],
+            ['name' => 'دکتر آرمان کاویانی', 'nickname' => 'پزشک زیبایی', 'gender' => 'male', 'mobile' => '09121234572', 'email' => 'dr.kaviani@clinic.local', 'photo' => 'finance-specialist'],
         ] as $user) {
             User::query()->updateOrCreate(
                 ['mobile' => $user['mobile']],
-                ['name' => $user['name'], 'password' => Hash::make('12345678')]
-            )->givePermissionTo(['appointments.view', 'patients.view', 'payroll.view']);
+                [
+                    'name' => $user['name'],
+                    'nickname' => $user['nickname'],
+                    'gender' => $user['gender'],
+                    'email' => $user['email'],
+                    'password' => Hash::make('09121236686'),
+                    'profile_photo_path' => 'users/showcase/'.$user['photo'].'.webp',
+                    'profile_thumbnail_path' => 'users/showcase/'.$user['photo'].'-thumb.webp',
+                ]
+            )->givePermissionTo(['appointments.view', 'appointments.update', 'patients.view', 'patients.view_phone', 'reports.doctors', 'payroll.view']);
         }
 
         return $admin;
@@ -73,8 +88,9 @@ class CompleteDemoDataSeeder extends Seeder
     private function resources(): array
     {
         $doctorA = Doctor::query()->updateOrCreate(
-            ['name' => 'دکتر نازنین رضایی دمو'],
+            ['name' => 'دکتر نازنین رضایی'],
             [
+                'user_id' => User::query()->where('mobile', '09121234571')->value('id'),
                 'bonus' => 14,
                 'commission_customer_scope' => 'both',
                 'commission_after_materials' => true,
@@ -89,8 +105,9 @@ class CompleteDemoDataSeeder extends Seeder
         );
 
         $doctorB = Doctor::query()->updateOrCreate(
-            ['name' => 'دکتر آرمان کاویانی دمو'],
+            ['name' => 'دکتر آرمان کاویانی'],
             [
+                'user_id' => User::query()->where('mobile', '09121234572')->value('id'),
                 'bonus' => 11,
                 'commission_customer_scope' => 'new',
                 'commission_after_materials' => false,
@@ -105,8 +122,9 @@ class CompleteDemoDataSeeder extends Seeder
         );
 
         $staffA = Staff::query()->updateOrCreate(
-            ['name' => 'سارا احمدی دمو'],
+            ['name' => 'نگار شریفی'],
             [
+                'user_id' => null,
                 'bonus' => 5,
                 'commission_customer_scope' => 'both',
                 'commission_after_materials' => false,
@@ -121,8 +139,9 @@ class CompleteDemoDataSeeder extends Seeder
         );
 
         $staffB = Staff::query()->updateOrCreate(
-            ['name' => 'مریم صالحی دمو'],
+            ['name' => 'امیرحسین نادری'],
             [
+                'user_id' => null,
                 'bonus' => 4,
                 'commission_customer_scope' => 'existing',
                 'commission_after_materials' => false,
@@ -143,36 +162,54 @@ class CompleteDemoDataSeeder extends Seeder
     {
         AppSetting::updateOrCreate(
             ['key' => 'service_tags'],
-            ['value' => json_encode(['بوتاکس پیشانی', 'بوتاکس دور چشم', 'ژل لب', 'فرم‌دهی لب', 'لیزر صورت', 'لیزر فول فیس'], JSON_UNESCAPED_UNICODE)]
+            ['value' => json_encode(['بوتاکس پیشانی', 'بوتاکس دور چشم', 'ژل لب', 'فرم‌دهی لب', 'لیزر صورت', 'لیزر فول فیس', 'مزوتراپی', 'جوان‌سازی'], JSON_UNESCAPED_UNICODE)]
         );
 
-        $beauty = InventorySection::query()->updateOrCreate(
-            ['name' => 'زیبایی دمو'],
+        AppSetting::updateOrCreate(
+            ['key' => 'customer_level_settings'],
+            ['value' => json_encode([
+                'blue_min_period_amount' => 1, 'blue_max_period_amount' => 11999999, 'blue_visit_count' => 1, 'blue_visit_period_months' => 3,
+                'silver_min_period_amount' => 12000000, 'silver_max_period_amount' => 29999999, 'silver_visit_count' => 3, 'silver_visit_period_months' => 3,
+                'gold_min_period_amount' => 30000000, 'gold_max_period_amount' => 0, 'gold_visit_count' => 6, 'gold_visit_period_months' => 3,
+            ], JSON_UNESCAPED_UNICODE)]
+        );
+
+        $injection = InventorySection::query()->updateOrCreate(
+            ['name' => 'انبار مواد تزریقی'],
             ['parent_id' => null, 'level' => 1, 'sort_order' => 1]
         );
-        $injection = InventorySection::query()->updateOrCreate(
-            ['name' => 'تزریقات دمو'],
-            ['parent_id' => $beauty->id, 'level' => 2, 'sort_order' => 1]
-        );
         $laser = InventorySection::query()->updateOrCreate(
-            ['name' => 'لیزر دمو'],
-            ['parent_id' => $beauty->id, 'level' => 2, 'sort_order' => 2]
+            ['name' => 'انبار لیزر و مراقبت پوست'],
+            ['parent_id' => null, 'level' => 1, 'sort_order' => 2]
         );
 
         $items = [
             'botox' => Inventory::query()->updateOrCreate(
-                ['name' => 'بوتاکس مصپورت دمو'],
+                ['name' => 'بوتاکس مصپورت ۵۰۰ واحدی'],
                 ['section_id' => $injection->id, 'service_tags' => ['بوتاکس پیشانی', 'بوتاکس دور چشم'], 'amount' => 3600000, 'price' => 950000, 'stock' => 24, 'min_stock' => 5, 'active' => true, 'default_commission_type' => 'percent', 'default_commission_value' => 12]
             ),
             'gel' => Inventory::query()->updateOrCreate(
-                ['name' => 'ژل لب دمو'],
+                ['name' => 'فیلر هیالورونیک اسید ۱ سی‌سی'],
                 ['section_id' => $injection->id, 'service_tags' => ['ژل لب', 'فرم‌دهی لب'], 'amount' => 5200000, 'price' => 1800000, 'stock' => 14, 'min_stock' => 3, 'active' => true, 'default_commission_type' => 'fixed', 'default_commission_value' => 350000]
             ),
             'laserFace' => Inventory::query()->updateOrCreate(
-                ['name' => 'لیزر صورت دمو'],
+                ['name' => 'کارتریج لیزر جوان‌سازی صورت'],
                 ['section_id' => $laser->id, 'service_tags' => ['لیزر صورت', 'لیزر فول فیس'], 'amount' => 1900000, 'price' => 320000, 'stock' => 60, 'min_stock' => 10, 'active' => true, 'default_commission_type' => 'percent', 'default_commission_value' => 8]
             ),
         ];
+
+        Inventory::query()->updateOrCreate(
+            ['name' => 'کوکتل مزوتراپی روشن‌کننده'],
+            ['section_id' => $injection->id, 'service_tags' => ['مزوتراپی', 'جوان‌سازی'], 'amount' => 4200000, 'price' => 1350000, 'stock' => 18, 'min_stock' => 4, 'active' => true, 'default_commission_type' => 'percent', 'default_commission_value' => 10]
+        );
+        Inventory::query()->updateOrCreate(
+            ['name' => 'سرسوزن مزوتراپی ۳۲G'],
+            ['section_id' => $injection->id, 'service_tags' => ['مزوتراپی'], 'amount' => 280000, 'price' => 85000, 'stock' => 75, 'min_stock' => 20, 'active' => true, 'default_commission_type' => 'fixed', 'default_commission_value' => 0]
+        );
+        Inventory::query()->updateOrCreate(
+            ['name' => 'ژل خنک‌کننده لیزر'],
+            ['section_id' => $laser->id, 'service_tags' => ['لیزر صورت', 'لیزر فول فیس'], 'amount' => 650000, 'price' => 210000, 'stock' => 28, 'min_stock' => 6, 'active' => true, 'default_commission_type' => 'fixed', 'default_commission_value' => 0]
+        );
 
         $items['botox']->commissions()->updateOrCreate(['recipient_type' => 'doctor', 'recipient_id' => $doctorA->id], ['recipient_name' => $doctorA->name, 'commission_type' => 'percent', 'commission_value' => 22]);
         $items['gel']->commissions()->updateOrCreate(['recipient_type' => 'doctor', 'recipient_id' => $doctorB->id], ['recipient_name' => $doctorB->name, 'commission_type' => 'fixed', 'commission_value' => 500000]);
@@ -185,12 +222,14 @@ class CompleteDemoDataSeeder extends Seeder
     private function patients(User $admin): array
     {
         $rows = [
-            ['first_name' => 'آوا', 'last_name' => 'کریمی', 'phone' => '09121110001', 'file_number' => 'DEMO-1001', 'gender' => 'زن', 'financial_status' => 'عالی', 'customer_level' => 'gold', 'city' => 'تهران'],
-            ['first_name' => 'نیلوفر', 'last_name' => 'محمدی', 'phone' => '09121110002', 'file_number' => 'DEMO-1002', 'gender' => 'زن', 'financial_status' => 'خوب', 'customer_level' => 'blue', 'city' => 'تهران'],
-            ['first_name' => 'مهسا', 'last_name' => 'احمدی', 'phone' => '09121110003', 'file_number' => 'DEMO-1003', 'gender' => 'زن', 'financial_status' => 'متوسط', 'customer_level' => 'bronze', 'city' => 'کرج'],
-            ['first_name' => 'سامان', 'last_name' => 'راد', 'phone' => '09121110004', 'file_number' => 'DEMO-1004', 'gender' => 'مرد', 'financial_status' => 'خوب', 'customer_level' => 'gold', 'city' => 'تهران'],
-            ['first_name' => 'ترانه', 'last_name' => 'ملکی', 'phone' => '09121110005', 'file_number' => 'DEMO-1005', 'gender' => 'زن', 'financial_status' => 'ضعیف', 'customer_level' => 'bronze', 'city' => 'قم'],
-            ['first_name' => 'رها', 'last_name' => 'نوری', 'phone' => '09121110006', 'file_number' => 'DEMO-1006', 'gender' => 'زن', 'financial_status' => 'عالی', 'customer_level' => 'blue', 'city' => 'تهران'],
+            ['first_name' => 'آوا', 'last_name' => 'کریمی', 'phone' => '09121110001', 'file_number' => 'SK-1001', 'gender' => 'زن', 'financial_status' => 'عالی', 'customer_level' => 'gold', 'city' => 'تهران'],
+            ['first_name' => 'نیلوفر', 'last_name' => 'محمدی', 'phone' => '09121110002', 'file_number' => 'SK-1002', 'gender' => 'زن', 'financial_status' => 'عالی', 'customer_level' => 'gold', 'city' => 'تهران'],
+            ['first_name' => 'مهسا', 'last_name' => 'احمدی', 'phone' => '09121110003', 'file_number' => 'SK-1003', 'gender' => 'زن', 'financial_status' => 'خوب', 'customer_level' => 'silver', 'city' => 'کرج'],
+            ['first_name' => 'سامان', 'last_name' => 'راد', 'phone' => '09121110004', 'file_number' => 'SK-1004', 'gender' => 'مرد', 'financial_status' => 'خوب', 'customer_level' => 'silver', 'city' => 'تهران'],
+            ['first_name' => 'ترانه', 'last_name' => 'ملکی', 'phone' => '09121110005', 'file_number' => 'SK-1005', 'gender' => 'زن', 'financial_status' => 'خوب', 'customer_level' => 'silver', 'city' => 'قم'],
+            ['first_name' => 'رها', 'last_name' => 'نوری', 'phone' => '09121110006', 'file_number' => 'SK-1006', 'gender' => 'زن', 'financial_status' => 'متوسط', 'customer_level' => 'blue', 'city' => 'تهران'],
+            ['first_name' => 'شایان', 'last_name' => 'فرهمند', 'phone' => '09121110007', 'file_number' => 'SK-1007', 'gender' => 'مرد', 'financial_status' => 'متوسط', 'customer_level' => 'blue', 'city' => 'کرج'],
+            ['first_name' => 'یلدا', 'last_name' => 'مرادی', 'phone' => '09121110008', 'file_number' => 'SK-1008', 'gender' => 'زن', 'financial_status' => 'متوسط', 'customer_level' => 'blue', 'city' => 'تهران'],
         ];
 
         return collect($rows)->map(function (array $row, int $index) use ($admin) {
@@ -200,14 +239,14 @@ class CompleteDemoDataSeeder extends Seeder
                     ...$row,
                     'birth_date' => '137'.($index + 1).'/0'.(($index % 8) + 1).'/15',
                     'national_id' => '00100'.str_pad((string) $index, 5, '0', STR_PAD_LEFT),
-                    'patient_history' => 'پرونده تستی کامل برای نمایش نسخه دمو',
+                    'patient_history' => 'مراجعه جهت دریافت خدمات تخصصی پوست و زیبایی',
                     'medical_history' => $index % 2 ? 'حساسیت دارویی ندارد' : 'سابقه تزریق زیبایی',
                 ]
             );
 
             WalletTransaction::query()->updateOrCreate(
-                ['patient_id' => $patient->id, 'source_type' => 'demo_seed', 'source_key' => 'initial-'.$patient->file_number],
-                ['type' => 'deposit', 'amount' => 500000 * ($index + 1), 'description' => 'شارژ اولیه دمو', 'created_by' => $admin->id, 'metadata' => ['demo' => true]]
+                ['patient_id' => $patient->id, 'source_type' => 'customer_club', 'source_key' => 'opening-'.$patient->file_number],
+                ['type' => 'deposit', 'amount' => 500000 * ($index + 1), 'description' => 'اعتبار باشگاه مشتریان', 'created_by' => $admin->id, 'metadata' => ['source' => 'customer_club']]
             );
 
             return $patient;
@@ -216,9 +255,10 @@ class CompleteDemoDataSeeder extends Seeder
 
     private function appointments(array $patients, array $inventory, Doctor $doctorA, Doctor $doctorB, Staff $staffA, Staff $staffB): void
     {
+        $patientSchedule = [0, 1, 0, 2, 1, 3, 0, 4, 1, 2, 0, 3, 1, 4, 0, 2, 1, 3, 5, 0, 6, 1, 7, 4];
         foreach ($this->months as $monthIndex => $month) {
-            foreach (range(1, 12) as $day) {
-                $patient = $patients[($day + $monthIndex) % count($patients)];
+            foreach (range(1, 24) as $day) {
+                $patient = $patients[$patientSchedule[$day - 1]];
                 $primary = $day % 3 === 0 ? $inventory['gel'] : $inventory['botox'];
                 $secondary = $inventory['laserFace'];
                 $doctor = $day % 3 === 0 ? $doctorB : $doctorA;
@@ -238,7 +278,7 @@ class CompleteDemoDataSeeder extends Seeder
                         'done' => 'done',
                         'doctor' => $doctor->name,
                         'consultant' => $consultant->name,
-                        'source' => 'دمو کامل',
+                        'source' => ['اینستاگرام', 'معرفی پزشک', 'مراجعه مجدد', 'معرفی دوستان'][$day % 4],
                         'new_customer' => $day % 2 === 1,
                         'services' => [
                             ['name' => $primary->name, 'cc' => 1, 'discount' => $discount, 'doctor' => $doctor->name, 'consultant' => $consultant->name],
@@ -249,7 +289,7 @@ class CompleteDemoDataSeeder extends Seeder
                         'amount' => $paid,
                         'debt' => max(0, $amount - $paid),
                         'payment_method' => $day % 6 === 0 ? 'چک' : ($day % 2 === 0 ? 'کارتخوان' : 'نقدی'),
-                        'payment_account' => $day % 2 === 0 ? 'حساب ملت دمو' : 'صندوق نقدی دمو',
+                        'payment_account' => $day % 2 === 0 ? 'کارتخوان بانک ملت' : 'صندوق پذیرش',
                         'payment_details' => [
                             'cash' => $day % 2 ? $paid : 0,
                             'card' => $day % 2 ? 0 : $paid,
@@ -302,7 +342,7 @@ class CompleteDemoDataSeeder extends Seeder
         $syncAppointment = new \ReflectionMethod($appointmentController, 'syncResourceEarningLines');
         Appointment::query()
             ->whereIn('month', $this->months)
-            ->where('source', 'دمو کامل')
+            ->whereIn('file_number', ['SK-1001', 'SK-1002', 'SK-1003', 'SK-1004', 'SK-1005', 'SK-1006', 'SK-1007', 'SK-1008'])
             ->get()
             ->each(fn (Appointment $appointment) => $syncAppointment->invoke($appointmentController, $appointment));
 
@@ -316,7 +356,7 @@ class CompleteDemoDataSeeder extends Seeder
         $syncAttendance = new \ReflectionMethod($attendanceController, 'syncAttendanceEarningLines');
         AttendanceMonth::query()
             ->whereIn('year', [1405])
-            ->whereIn('month', [5, 6])
+            ->whereIn('month', [5])
             ->get()
             ->each(fn (AttendanceMonth $month) => $syncAttendance->invoke($attendanceController, $month));
     }
