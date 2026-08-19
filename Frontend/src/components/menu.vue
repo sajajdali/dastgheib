@@ -19,7 +19,7 @@
         <div class="menu-dot"></div>
         <span>{{ item.label }}</span>
         <span
-          v-if="item.value !== 'Vaghtdahi' && notificationCounts[item.value] > 0"
+          v-if="item.value !== 'Vaghtdahi' && item.value !== 'Photos' && notificationCounts[item.value] > 0"
           class="notification-badge"
           :aria-label="`${notificationCounts[item.value]} مورد سررسید شده`"
         >
@@ -105,7 +105,7 @@ export default {
 
   data() {
     return {
-      notificationCounts: { Peygiri: 0, dermatracker: 0, Ticket: 0, Notif: 0, Anbar: 0, Vaghtdahi: 0, HRtimes: 0, Payroll: 0, Gozaresh: 0, ActivityLogs: 0, Photos: 0 },
+      notificationCounts: { Peygiri: 0, dermatracker: 0, Ticket: 0, Notif: 0, Anbar: 0, Vaghtdahi: 0, HRtimes: 0, Payroll: 0, Gozaresh: 0, ActivityLogs: 0 },
       notificationTimer: null,
       overflowOpen: false,
       permissionMap: {
@@ -166,12 +166,12 @@ export default {
     },
 
     primaryItems() {
-      const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Anbar', 'Ticket', 'HRtimes']
+      const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Gozaresh', 'Anbar', 'Ticket']
       return this.visibleItems.filter(item => primaryValues.includes(item.value))
     },
 
     overflowItems() {
-      const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Anbar', 'Ticket', 'HRtimes']
+      const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Gozaresh', 'Anbar', 'Ticket']
       return this.visibleItems.filter(item => !primaryValues.includes(item.value))
     },
 
@@ -792,89 +792,6 @@ export default {
         return 0
       }
     },
-    appointmentServiceNames(appointment) {
-      return (Array.isArray(appointment?.services) ? appointment.services : [])
-        .flatMap(service => [
-          service?.name,
-          ...(Array.isArray(service?.addons) ? service.addons.map(addon => addon?.name) : [])
-        ])
-        .map(name => String(name || '').trim())
-        .filter(Boolean)
-    },
-    normalizeServiceName(value) {
-      return String(value || '')
-        .toLowerCase()
-        .replace(/[ي]/g, 'ی')
-        .replace(/[ك]/g, 'ک')
-        .replace(/\s+/g, ' ')
-        .trim()
-    },
-    mediaServiceNames(media) {
-      let services = media?.services || []
-      if (typeof services === 'string') {
-        try { services = JSON.parse(services) } catch { services = [] }
-      }
-      if (!Array.isArray(services)) return []
-      return services
-        .flatMap(service => [service?.section, service?.name, service?.service, service?.title, typeof service === 'string' ? service : ''])
-        .map(name => String(name || '').trim())
-        .filter(Boolean)
-    },
-    mediaIsPhoto(media) {
-      return String(media?.media_type || '').trim() === 'image' || String(media?.mime_type || '').startsWith('image/')
-    },
-    mediaMatchesService(media, serviceName) {
-      const wanted = this.normalizeServiceName(serviceName)
-      if (!wanted) return false
-      return this.mediaServiceNames(media)
-        .map(name => this.normalizeServiceName(name))
-        .some(name => name === wanted)
-    },
-    missingPhotoAlertCountForAppointment(appointment, media) {
-      const photos = (Array.isArray(media) ? media : []).filter(item => this.mediaIsPhoto(item))
-      const beforePhotos = photos.filter(item => String(item?.comparison_stage || '').trim() === 'before')
-      if (!beforePhotos.length) return 1
-
-      return this.appointmentServiceNames(appointment)
-        .filter((serviceName, index, list) => list.indexOf(serviceName) === index)
-        .filter(serviceName => !photos.some(item =>
-          String(item?.comparison_stage || '').trim() === 'after' && this.mediaMatchesService(item, serviceName)
-        ))
-        .length
-    },
-    async countMissingPhotoAlerts() {
-      try {
-        const response = await fetch(`${API}/appointments`, { headers: { Accept: 'application/json' } })
-        if (!response.ok) return this.notificationCounts.Photos
-        const appointments = await response.json()
-        const arrivedAppointments = (Array.isArray(appointments) ? appointments : [])
-          .filter(appointment => String(appointment?.status || '').trim() === 'آمد')
-          .filter(appointment => appointment?.patient_id)
-          .filter(appointment => String(appointment?.lastname || '').trim())
-
-        const mediaCache = new Map()
-        let count = 0
-
-        for (const appointment of arrivedAppointments) {
-          const patientId = appointment.patient_id
-          if (!mediaCache.has(patientId)) {
-            const mediaResponse = await fetch(`${API}/patients/${patientId}/media?all=1`, { headers: { Accept: 'application/json' } })
-            if (!mediaResponse.ok) {
-              mediaCache.set(patientId, [])
-            } else {
-              const data = await mediaResponse.json()
-              mediaCache.set(patientId, Array.isArray(data.media) ? data.media : [])
-            }
-          }
-
-          count += this.missingPhotoAlertCountForAppointment(appointment, mediaCache.get(patientId))
-        }
-
-        return count
-      } catch {
-        return this.notificationCounts.Photos
-      }
-    },
     isCanceledAppointment(appointment) {
       return String(appointment?.status || '').trim() === 'کنسل شد'
     },
@@ -934,7 +851,6 @@ export default {
       this.notificationCounts.Anbar = this.countInventoryZeroNotifications()
       this.notificationCounts.Gozaresh = await this.countHighCancellationWarning()
       this.notificationCounts.HRtimes = await this.countMissingAttendanceExits()
-      this.notificationCounts.Photos = await this.countMissingPhotoAlerts()
       this.notificationCounts.Vaghtdahi = await this.countTodayAppointmentSummary()
       this.notificationCounts.Vaghtdahi += await this.countTodayVipAppointmentWarning()
       this.notificationCounts.Vaghtdahi += await this.countMissingMaterialAppointments()
@@ -949,7 +865,7 @@ export default {
       const unconvertedAppointmentsPreviousMonth = await this.countUnconvertedAppointmentsPreviousMonth()
       this.notificationCounts.Vaghtdahi += unconvertedAppointmentsPreviousMonth
       this.notificationCounts.Vaghtdahi += await this.countPreviousMonthCancellationWarning()
-      this.notificationCounts.Notif = this.notificationCounts.Anbar + this.notificationCounts.Ticket + this.notificationCounts.Vaghtdahi + this.notificationCounts.HRtimes + this.notificationCounts.Gozaresh + this.notificationCounts.Photos + delayedInterestFollowups + uncalledCampaignLeadWarnings
+      this.notificationCounts.Notif = this.notificationCounts.Anbar + this.notificationCounts.Ticket + this.notificationCounts.Vaghtdahi + this.notificationCounts.HRtimes + this.notificationCounts.Gozaresh + delayedInterestFollowups + uncalledCampaignLeadWarnings
       this.notificationCounts.dermatracker = await this.countTodayBeautyPatients()
       this.notificationCounts.Notif += this.notificationCounts.dermatracker
       this.notificationCounts.Notif += await this.countUpcomingBirthdays()

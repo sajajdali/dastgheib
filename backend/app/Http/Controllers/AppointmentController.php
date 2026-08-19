@@ -360,6 +360,69 @@ class AppointmentController extends Controller
         );
     }
 
+    public function payPatientDebt(Request $request, Patient $patient)
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:1'],
+            'payment_method' => ['nullable', 'string', 'max:100'],
+            'payment_account' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $result = DB::transaction(function () use ($request, $patient, $data) {
+            $remaining = (int) $data['amount'];
+            $appointments = Appointment::query()
+                ->where(function ($query) use ($patient) {
+                    if ($patient->file_number) $query->where('file_number', $patient->file_number);
+                    if ($patient->phone) $query->{$patient->file_number ? 'orWhere' : 'where'}('phone', $patient->phone);
+                })
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->filter(fn (Appointment $appointment) => $this->signedMoneyToInteger($appointment->debt) > 0);
+
+            $outstanding = $appointments->sum(fn (Appointment $appointment) => $this->signedMoneyToInteger($appointment->debt));
+            if ($remaining > $outstanding) {
+                abort(422, 'مبلغ پرداختی نباید از مانده بدهی بیشتر باشد.');
+            }
+
+            $updated = [];
+            foreach ($appointments as $appointment) {
+                if ($remaining <= 0) break;
+                $before = clone $appointment;
+                $debt = $this->signedMoneyToInteger($appointment->debt);
+                $paid = min($debt, $remaining);
+                $details = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+                $details['debt_payments'] = array_merge($details['debt_payments'] ?? [], [[
+                    'amount' => $paid,
+                    'method' => $data['payment_method'] ?? null,
+                    'account' => $data['payment_account'] ?? null,
+                    'paid_at' => now()->toDateTimeString(),
+                ]]);
+                $appointment->update([
+                    'debt' => $debt - $paid,
+                    'payment_method' => $data['payment_method'] ?? $appointment->payment_method,
+                    'payment_account' => $data['payment_account'] ?? $appointment->payment_account,
+                    'payment_details' => $details,
+                ]);
+                $this->recordBalanceAudit($request, $appointment, $before);
+                $updated[] = [
+                    'id' => $appointment->id,
+                    'debt' => $debt - $paid,
+                    'payment_details' => $details,
+                ];
+                $remaining -= $paid;
+            }
+
+            return $updated;
+        });
+
+        return response()->json([
+            'message' => 'پرداخت بدهی با موفقیت ثبت شد.',
+            'appointments' => $result,
+            'outstanding_debt' => $patient->fresh()->outstanding_debt,
+        ]);
+    }
+
     private function recordBalanceAudit(Request $request, Appointment $appointment, ?Appointment $previousAppointment): void
     {
         $oldDebt = $this->signedMoneyToInteger($previousAppointment?->debt);

@@ -49,6 +49,13 @@ class SettingController extends Controller
         ];
     }
 
+    private function projectOwnerId(): ?int
+    {
+        $ownerId = (int) AppSetting::getByKey('project_owner_user_id', 0);
+
+        return $ownerId > 0 ? $ownerId : null;
+    }
+
     // ۱. دریافت تمام تنظیمات صفحه به صورت یکجا برای لود اولیه فرانت‌آند
     public function index()
     {
@@ -125,6 +132,8 @@ class SettingController extends Controller
             'daily_financial' => true,
         ], is_array($leadAlerts) ? $leadAlerts : []);
 
+        $projectOwnerId = $this->projectOwnerId();
+
         return response()->json([
             // تنظیمات داخلی
             'sms' => [
@@ -182,6 +191,7 @@ class SettingController extends Controller
                     'mobile' => $user->mobile,
                     'gender' => $user->gender ?? '',
                     'access_blocked' => (bool) ($user->access_blocked ?? false),
+                    'is_project_owner' => (int) $user->id === $projectOwnerId,
                     'role_ids' => $user->roles->pluck('id')->values(),
                     'profile_photo_path' => $user->profile_photo_path,
                     'profile_thumbnail_path' => $user->profile_thumbnail_path,
@@ -227,8 +237,10 @@ class SettingController extends Controller
             'passwords.*.nickname' => ['nullable', 'string', 'max:255'],
             'passwords.*.mobile' => ['nullable', 'string', 'max:20'],
             'passwords.*.pass' => ['nullable', 'string', 'min:4'],
+            'passwords.*.custom_password' => ['sometimes', 'boolean'],
             'passwords.*.gender' => ['nullable', 'string', 'in:male,female'],
             'passwords.*.access_blocked' => ['sometimes', 'boolean'],
+            'passwords.*.is_project_owner' => ['sometimes', 'boolean'],
             'passwords.*.role_ids' => ['sometimes', 'array'],
             'passwords.*.role_ids.*' => ['integer', 'exists:roles,id'],
         ], [
@@ -243,8 +255,10 @@ class SettingController extends Controller
             'passwords.*.mobile.max' => 'شماره موبایل نباید بیشتر از ۲۰ کاراکتر باشد.',
             'passwords.*.pass.string' => 'رمز عبور باید متنی باشد.',
             'passwords.*.pass.min' => 'رمز عبور باید حداقل ۴ کاراکتر باشد.',
+            'passwords.*.custom_password.boolean' => 'وضعیت رمز عبور دلخواه معتبر نیست.',
             'passwords.*.gender.in' => 'جنسیت انتخاب‌شده معتبر نیست.',
             'passwords.*.access_blocked.boolean' => 'وضعیت بستن دسترسی معتبر نیست.',
+            'passwords.*.is_project_owner.boolean' => 'وضعیت مالک پروژه معتبر نیست.',
             'passwords.*.role_ids.array' => 'نقش‌های کاربر باید به‌صورت فهرست انتخاب شوند.',
             'passwords.*.role_ids.*.integer' => 'نقش انتخاب‌شده معتبر نیست.',
             'passwords.*.role_ids.*.exists' => 'یکی از نقش‌های انتخاب‌شده پیدا نشد.',
@@ -253,8 +267,10 @@ class SettingController extends Controller
             'passwords.*.nickname' => 'نام مستعار',
             'passwords.*.mobile' => 'شماره موبایل',
             'passwords.*.pass' => 'رمز عبور',
+            'passwords.*.custom_password' => 'رمز عبور دلخواه',
             'passwords.*.gender' => 'جنسیت',
             'passwords.*.access_blocked' => 'بستن دسترسی',
+            'passwords.*.is_project_owner' => 'مالک پروژه',
             'passwords.*.role_ids' => 'نقش‌های کاربر',
         ]);
 
@@ -266,7 +282,7 @@ class SettingController extends Controller
                 'customer_levels.blue_visit_period_months' => ['required', 'integer', 'min:1', 'max:60'],
                 'customer_levels.silver_min_period_amount' => ['required', 'numeric', 'min:0'],
                 'customer_levels.silver_max_period_amount' => ['required', 'numeric', 'min:0'],
-                'customer_levels.silver_visit_count' => ['required', 'integer', 'min:1'],
+                'customer_levels.silver_visit_count' => ['required', 'integer', 'min:0'],
                 'customer_levels.silver_visit_period_months' => ['required', 'integer', 'min:1', 'max:60'],
                 'customer_levels.gold_min_period_amount' => ['required', 'numeric', 'min:0'],
                 'customer_levels.gold_max_period_amount' => ['required', 'numeric', 'min:0'],
@@ -344,12 +360,19 @@ class SettingController extends Controller
 
         // ۳. مدیریت کاربران
         DB::transaction(function () use ($validatedUsers) {
+        $projectOwnerId = $this->projectOwnerId();
+        $firstSavedUserId = null;
         foreach ($validatedUsers['passwords'] ?? [] as $index => $userData) {
             if (empty($userData['user'])) continue;
 
             $user = ! empty($userData['id'])
                 ? User::findOrFail($userData['id'])
                 : new User();
+
+            // مالک پروژه فقط در زمان ایجاد نخستین کاربر تعیین می‌شود و از این بخش قابل تغییر نیست.
+            if ($projectOwnerId && $user->exists && (int) $user->id === $projectOwnerId) {
+                continue;
+            }
 
             $name = trim($userData['user']);
             $duplicateNameUser = User::query()
@@ -377,11 +400,20 @@ class SettingController extends Controller
                 ]);
             }
 
-            if (! $user->exists && empty($userData['pass'])) {
-                throw \Illuminate\Validation\ValidationException::withMessages(['passwords.'.$index.'.pass' => 'برای کاربر جدید رمز عبور وارد کنید.']);
+            $usesCustomPassword = (bool) ($userData['custom_password'] ?? false);
+            if ($usesCustomPassword && ! $user->exists && empty($userData['pass'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['passwords.'.$index.'.pass' => 'برای کاربر جدید رمز عبور دلخواه وارد کنید.']);
+            }
+            if (! $user->exists && ! $usesCustomPassword && empty($mobile)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['passwords.'.$index.'.mobile' => 'برای استفاده از شماره موبایل به‌عنوان رمز عبور، شماره موبایل را وارد کنید.']);
             }
 
             $shouldBlockAccess = (bool) ($userData['access_blocked'] ?? false);
+            if ($shouldBlockAccess && $projectOwnerId && (int) $user->id === $projectOwnerId) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'passwords.'.$index.'.access_blocked' => 'نمی‌توانید دسترسی مالک پروژه را ببندید.',
+                ]);
+            }
             if ($shouldBlockAccess && $user->exists && $requestUserId = request()->user()?->id) {
                 if ((int) $user->id === (int) $requestUserId) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
@@ -406,11 +438,15 @@ class SettingController extends Controller
             $user->profile_photo_path = $userData['profile_photo_path'] ?? $user->profile_photo_path;
             $user->profile_thumbnail_path = $userData['profile_thumbnail_path'] ?? $user->profile_thumbnail_path;
 
-            if (!empty($userData['pass'])) {
+            if (! $user->exists && ! $usesCustomPassword) {
+                $user->password = Hash::make($mobile);
+            } elseif ($usesCustomPassword && !empty($userData['pass'])) {
                 $user->password = Hash::make($userData['pass']);
             }
 
             $user->save();
+
+            $firstSavedUserId ??= $user->id;
 
             if ($shouldBlockAccess && ! $wasAccessBlocked && Schema::hasTable('sessions')) {
                 DB::table('sessions')->where('user_id', $user->id)->delete();
@@ -421,6 +457,13 @@ class SettingController extends Controller
                 ->values();
             $roles = Role::query()->where('guard_name', 'web')->whereIn('id', $roleIds)->get();
             $user->syncRoles($roles);
+        }
+
+        $ownerId = $projectOwnerId ?? $firstSavedUserId;
+        if ($ownerId) {
+            $owner = User::findOrFail($ownerId);
+            $owner->assignRole('مدیر سیستم');
+            AppSetting::updateOrCreate(['key' => 'project_owner_user_id'], ['value' => (string) $owner->id]);
         }
         });
 
@@ -475,6 +518,12 @@ class SettingController extends Controller
 
     public function destroyUser(Request $request, User $user)
     {
+        if ((int) $user->id === $this->projectOwnerId()) {
+            return response()->json([
+                'message' => 'نمی‌توانید حساب مالک پروژه را حذف کنید.',
+            ], 422);
+        }
+
         if ($request->user()?->id === $user->id) {
             return response()->json([
                 'message' => 'نمی‌توانید حساب کاربری خودتان را حذف کنید.',
@@ -596,15 +645,29 @@ class SettingController extends Controller
         foreach ($request->input('passwords', []) as $userData) {
             if (empty($userData['user'])) continue;
 
-            $user = User::updateOrCreate(
-                ['name' => $userData['user']],
-                ['email' => $userData['user'] . '@system.com']
-            );
+            $user = ! empty($userData['id'])
+                ? User::findOrFail($userData['id'])
+                : User::firstOrNew(
+                    ['name' => $userData['user']],
+                    ['email' => $userData['user'] . '@system.com']
+                );
 
-            if (!empty($userData['pass'])) {
-                $user->password = Hash::make($userData['pass']);
-                $user->save();
+            if ($this->projectOwnerId() && $user->exists && (int) $user->id === $this->projectOwnerId()) {
+                continue;
             }
+
+            $mobile = trim((string) ($userData['mobile'] ?? '')) ?: null;
+            if ($mobile) {
+                $user->mobile = $mobile;
+            }
+
+            if (! $user->exists && ! ($userData['custom_password'] ?? false) && $mobile) {
+                $user->password = Hash::make($mobile);
+            } elseif (($userData['custom_password'] ?? false) && !empty($userData['pass'])) {
+                $user->password = Hash::make($userData['pass']);
+            }
+
+            $user->save();
         }
 
         // مدیریت بخش دسترسی پرسنل به تفکیک ماژول‌ها

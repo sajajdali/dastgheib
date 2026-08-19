@@ -186,11 +186,11 @@ class CompleteDemoDataSeeder extends Seeder
     {
         $rows = [
             ['first_name' => 'آوا', 'last_name' => 'کریمی', 'phone' => '09121110001', 'file_number' => 'DEMO-1001', 'gender' => 'زن', 'financial_status' => 'عالی', 'customer_level' => 'gold', 'city' => 'تهران'],
-            ['first_name' => 'نیلوفر', 'last_name' => 'محمدی', 'phone' => '09121110002', 'file_number' => 'DEMO-1002', 'gender' => 'زن', 'financial_status' => 'خوب', 'customer_level' => 'silver', 'city' => 'تهران'],
+            ['first_name' => 'نیلوفر', 'last_name' => 'محمدی', 'phone' => '09121110002', 'file_number' => 'DEMO-1002', 'gender' => 'زن', 'financial_status' => 'خوب', 'customer_level' => 'blue', 'city' => 'تهران'],
             ['first_name' => 'مهسا', 'last_name' => 'احمدی', 'phone' => '09121110003', 'file_number' => 'DEMO-1003', 'gender' => 'زن', 'financial_status' => 'متوسط', 'customer_level' => 'bronze', 'city' => 'کرج'],
             ['first_name' => 'سامان', 'last_name' => 'راد', 'phone' => '09121110004', 'file_number' => 'DEMO-1004', 'gender' => 'مرد', 'financial_status' => 'خوب', 'customer_level' => 'gold', 'city' => 'تهران'],
             ['first_name' => 'ترانه', 'last_name' => 'ملکی', 'phone' => '09121110005', 'file_number' => 'DEMO-1005', 'gender' => 'زن', 'financial_status' => 'ضعیف', 'customer_level' => 'bronze', 'city' => 'قم'],
-            ['first_name' => 'رها', 'last_name' => 'نوری', 'phone' => '09121110006', 'file_number' => 'DEMO-1006', 'gender' => 'زن', 'financial_status' => 'عالی', 'customer_level' => 'silver', 'city' => 'تهران'],
+            ['first_name' => 'رها', 'last_name' => 'نوری', 'phone' => '09121110006', 'file_number' => 'DEMO-1006', 'gender' => 'زن', 'financial_status' => 'عالی', 'customer_level' => 'blue', 'city' => 'تهران'],
         ];
 
         return collect($rows)->map(function (array $row, int $index) use ($admin) {

@@ -10,13 +10,13 @@ use Illuminate\Support\Collection;
 class CustomerLevelService
 {
     public const DEFAULTS = [
-        'blue_min_period_amount' => 0,
-        'blue_max_period_amount' => 0,
-        'blue_visit_count' => 1,
+        'blue_min_period_amount' => 10000000,
+        'blue_max_period_amount' => 30000000,
+        'blue_visit_count' => 2,
         'blue_visit_period_months' => 3,
-        'silver_min_period_amount' => 10000000,
-        'silver_max_period_amount' => 30000000,
-        'silver_visit_count' => 2,
+        'silver_min_period_amount' => 0,
+        'silver_max_period_amount' => 0,
+        'silver_visit_count' => 0,
         'silver_visit_period_months' => 3,
         'gold_min_period_amount' => 100000000,
         'gold_max_period_amount' => 200000000,
@@ -67,7 +67,7 @@ class CustomerLevelService
             return 'silver';
         }
 
-        foreach (['gold', 'silver', 'blue'] as $level) {
+        foreach (['gold', 'blue', 'silver'] as $level) {
             if ($this->matchesLevel($usedAppointments, $settings, $level)) {
                 return $level;
             }

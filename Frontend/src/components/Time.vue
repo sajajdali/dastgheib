@@ -211,7 +211,7 @@
               </div>
             </th>
 
-            <th class="sticky-header service-type-col resizable-th" :class="{ 'filtered-header': selectedServiceSections.length > 0 }" :style="{ width: columnWidths.serviceType + 'px' }">
+            <th class="sticky-header service-type-col resizable-th" :class="{ 'filtered-header': selectedServiceSections.length > 0 }" :style="{ width: columnWidths.serviceType + 'px', minWidth: columnWidths.serviceType + 'px', maxWidth: columnWidths.serviceType + 'px' }">
               <div class="header-with-filter service-section-header-filter">
                 <span>بخش</span>
                 <button type="button" class="filter-btn service-section-filter-dot" :class="{ active: selectedServiceSections.length }" title="فیلتر بر اساس بخش خدمات" aria-label="فیلتر بر اساس بخش خدمات" @click.stop="toggleServiceSectionFilter"><span v-if="selectedServiceSections.length">{{ selectedServiceSections.length }}</span></button>
@@ -561,7 +561,9 @@
                     @mouseleave="hideAvatarPreview"
                     @click.stop="openPatientProfileFromRow(row)"
                   />
-                  <span v-else-if="row.lastname" class="no-patient-file" title="برای این شخص پرونده تشکیل نشده است">×</span>
+                  <span v-else-if="row.lastname" class="no-patient-file" title="برای این شخص پرونده تشکیل نشده است" aria-label="پرونده تشکیل نشده">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.75h9.2L19 8.55v11.7H5z"/><path d="M14 3.75v5h5"/><path d="M8.5 14.5h7M8.5 17.5h4.5"/></svg>
+                  </span>
                   <span v-if="isDebtor(row)" class="debtor-warning-icon" :title="`هشدار بدهکاری: ${formatDisplayMoney(patientDebtAmount(row))} تومان`">!</span>
                   <span v-if="isCreditor(row)" class="creditor-warning-icon" :title="`طلبکار: ${formatDisplayMoney(Math.abs(appointmentBalanceAmount(row)))} تومان`">ط</span>
                   <input
@@ -648,7 +650,7 @@
                 </select>
               </td>
 
-              <td class="service-type-col" :style="{ width: columnWidths.serviceType + 'px' }" @click.stop>
+              <td class="service-type-col" :style="{ width: columnWidths.serviceType + 'px', minWidth: columnWidths.serviceType + 'px', maxWidth: columnWidths.serviceType + 'px' }" @click.stop>
                 <details class="service-type-picker" @toggle="onServiceTypePickerToggle($event)">
                   <summary :title="serviceTypeSummary(row)">
                     {{ serviceTypeSummary(row) }}
@@ -1848,6 +1850,10 @@
           <article class="debt"><span>بدهکاری کل</span><strong>{{ formatDisplayMoney(patientDebtAmount(activeFinancialRow)) }}</strong><small>تومان</small></article>
           <article class="deposit"><span>بیعانه / اعتبار</span><strong>{{ formatDisplayMoney(activeFinancialRow?.walletBalance || 0) }}</strong><small>تومان</small></article>
         </div>
+        <button v-if="patientDebtAmount(activeFinancialRow) > 0" type="button" class="financial-debt-payment" :disabled="financialSaving" @click="registerDebtPayment">
+          ثبت پرداخت بدهی
+          <small>مانده: {{ formatDisplayMoney(patientDebtAmount(activeFinancialRow)) }} تومان</small>
+        </button>
         <button
           v-if="walletSettlementAmount(activeFinancialRow) > 0"
           type="button"
@@ -2143,6 +2149,7 @@ export default {
       allCollapsed: false,
       activeServicePopup: null,
       highlightedRowId: null,
+      highlightedRowTimer: null,
       timelineModalOpen: false,
       activeTimelineDay: null,
       activeTimelineRow: null,
@@ -2465,6 +2472,7 @@ export default {
 
   beforeUnmount() {
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
+    clearTimeout(this.highlightedRowTimer);
     this.persistPendingDraft();
   },
 
@@ -2500,6 +2508,9 @@ export default {
           number: String(check.number || ""),
           dueDate: String(check.dueDate || check.due_date || ""),
         },
+        // تاریخچه پرداخت بدهی در سمت سرور ثبت می‌شود؛ هنگام ذخیره دوباره
+        // نوبت نباید این تاریخچه ناخواسته حذف شود.
+        debt_payments: Array.isArray(details?.debt_payments) ? details.debt_payments : [],
       };
     },
 
@@ -2568,6 +2579,7 @@ export default {
         localStorage.setItem("schedule_current_month", this.currentMonth);
         await this.fetchMonthEvents();
         await this.fetchData();
+        this.syncAllDaysCollapsedState();
       }
 
       const day = this.ensureScheduleDay(selectedDate);
@@ -2577,7 +2589,7 @@ export default {
       this.$nextTick(() => this.openNewTimelineAppointment(day));
     },
 
-    showAvatarPreview(event, url, level = 'silver') {
+    showAvatarPreview(event, url, level = 'blue') {
       if (!url) return;
       const rect = event.currentTarget.getBoundingClientRect();
       const size = 116;
@@ -2903,7 +2915,7 @@ export default {
 
       this.appointmentView = "table";
       day.collapsed = false;
-      this.highlightedRowId = row._rowId;
+      this.flashRowHighlight(row._rowId);
 
       this.$nextTick(() => {
         const element = document.getElementById(`row-${row._rowId}`);
@@ -3111,7 +3123,7 @@ export default {
       this.activeTimelineRow._rowId = this.activeTimelineRow._rowId || this.activeTimelineDraft._rowId;
 
       this.sortDayRowsByTime(this.activeTimelineDay);
-      this.highlightedRowId = this.activeTimelineRow._rowId;
+      this.flashRowHighlight(this.activeTimelineRow._rowId);
       this.saveData();
       const followupResult = this.activeTimelineFollowup
         ? {
@@ -4930,6 +4942,49 @@ this.calculateFinalAmount(row)
       }
     },
 
+    async registerDebtPayment() {
+      const row = this.activeFinancialRow;
+      const outstanding = this.patientDebtAmount(row);
+      if (!row?.patientId || outstanding <= 0 || this.financialSaving) return;
+
+      const { value: form } = await Swal.fire({
+        title: 'ثبت پرداخت بدهی',
+        html: `<p style="margin:0 0 12px;color:#64748b;font-size:13px">مانده بدهی: <b>${this.formatDisplayMoney(outstanding)} تومان</b></p><input id="debt-payment-amount" class="swal2-input" inputmode="numeric" placeholder="مبلغ پرداختی"><select id="debt-payment-method" class="swal2-select"><option value="">روش پرداخت</option>${this.paymentOptions.methods.map(item => `<option>${item}</option>`).join('')}</select><select id="debt-payment-account" class="swal2-select"><option value="">حساب واریز</option>${this.paymentOptions.accounts.map(item => `<option>${item}</option>`).join('')}</select>`,
+        showCancelButton: true,
+        confirmButtonText: 'ثبت پرداخت',
+        cancelButtonText: 'انصراف',
+        confirmButtonColor: '#16a34a',
+        preConfirm: () => {
+          const amount = this.moneyToNumber(document.getElementById('debt-payment-amount')?.value);
+          if (!amount || amount > outstanding) return Swal.showValidationMessage('مبلغی بین ۱ تا مانده بدهی وارد کنید.');
+          return { amount, payment_method: document.getElementById('debt-payment-method')?.value || '', payment_account: document.getElementById('debt-payment-account')?.value || '' };
+        }
+      });
+      if (!form) return;
+
+      this.financialSaving = true;
+      try {
+        const { data } = await axios.post(`/api/patients/${row.patientId}/debt-payment`, form);
+        const debts = new Map((data.appointments || []).map(item => [Number(item.id), item]));
+        this.days.forEach(day => day.rows.forEach(item => {
+          if (!debts.has(Number(item.appointmentId))) return;
+          const updated = debts.get(Number(item.appointmentId));
+          const debt = Number(updated.debt || 0);
+          item.debt = debt ? this.formatDisplayMoney(debt) : '';
+          item.originalDebt = debt;
+          item.paymentDetails = this.normalizePaymentDetails(updated.payment_details || item.paymentDetails || {});
+          item.patientOutstandingDebt = Number(data.outstanding_debt || 0);
+        }));
+        row.patientOutstandingDebt = Number(data.outstanding_debt || 0);
+        this.financialDebtDraft = this.moneyToNumber(row.debt) ? this.formatDisplayMoney(this.moneyToNumber(row.debt)) : '';
+        await Swal.fire({ icon: 'success', title: 'پرداخت ثبت شد', text: `مانده بدهی: ${this.formatDisplayMoney(data.outstanding_debt || 0)} تومان`, timer: 1700, showConfirmButton: false });
+      } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'ثبت پرداخت انجام نشد', text: error.response?.data?.message || 'خطا در ثبت پرداخت بدهی' });
+      } finally {
+        this.financialSaving = false;
+      }
+    },
+
     openFinancialPanel(row) {
       this.activeFinancialRow = row;
       this.financialDebtDraft = this.moneyToNumber(row?.debt)
@@ -4991,6 +5046,7 @@ this.calculateFinalAmount(row)
         row.paymentMethod = this.financialPaymentMethodDraft;
         row.paymentAccount = this.financialPaymentAccountDraft;
         row.paymentDetails = this.normalizePaymentDetails({
+          ...row.paymentDetails,
           cash,
           card,
           check: {
@@ -5440,6 +5496,7 @@ this.calculateFinalAmount(row)
 
     toggleDay(day) {
       day.collapsed = !day.collapsed;
+      this.syncAllDaysCollapsedState();
     },
 
     toggleAllDays() {
@@ -5454,6 +5511,10 @@ this.calculateFinalAmount(row)
 
     },
 
+    syncAllDaysCollapsedState() {
+      this.allCollapsed = this.days.length > 0 && this.days.every(day => day.collapsed);
+    },
+
     closeAllPopupsAndFilters() {
 
       this.activeServicePopup = null;
@@ -5465,6 +5526,14 @@ this.calculateFinalAmount(row)
       this.showDoneFilter = false;
       this.showServiceSectionFilter = false;
       document.querySelectorAll('.service-type-picker[open]').forEach(details => { details.open = false; });
+    },
+
+    flashRowHighlight(rowId, duration = 1300) {
+      clearTimeout(this.highlightedRowTimer);
+      this.highlightedRowId = rowId;
+      this.highlightedRowTimer = setTimeout(() => {
+        if (this.highlightedRowId === rowId) this.highlightedRowId = null;
+      }, duration);
     },
 
     handleAppointmentOutsideClick(event) {
@@ -5553,7 +5622,7 @@ this.calculateFinalAmount(row)
       if (!foundRow) return;
 
       foundDay.collapsed = false;
-      this.highlightedRowId = foundRow._rowId;
+      this.flashRowHighlight(foundRow._rowId);
 
       this.$nextTick(() => {
         const el = document.getElementById('row-' + foundRow._rowId);
@@ -5801,7 +5870,9 @@ this.calculateFinalAmount(row)
       const names = this.normalizeServiceSectionIds(row?.serviceTypes)
         .map(id => this.serviceSectionLabel(id)).filter(Boolean);
       if (!names.length) return 'انتخاب چند بخش';
-      return names.length <= 2 ? names.join('، ') : `${names.length} بخش انتخاب شده`;
+      // نام دو بخش می‌توانست از عرض ستون بیشتر شود و کل ردیف را جابه‌جا کند.
+      // نامِ یک بخش خواناست؛ از دو بخش به بعد خلاصهٔ ثابت نمایش می‌دهیم.
+      return names.length === 1 ? names[0] : `${names.length} بخش انتخاب شده`;
     },
 
     serviceSectionOptionsForRow(row) {
@@ -5989,8 +6060,6 @@ this.calculateFinalAmount(row)
     },
 
     statusColor(status) {
-      console.log("status=", status);
-
       const s = (status || "").trim();
 
       switch (s) {
@@ -7781,7 +7850,7 @@ th.sticky-header.time-col {
   min-width: 90px;
 }
 
-.no-patient-file{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border:2px solid #ef4444;border-radius:6px;background:#fff1f2;color:#dc2626;font-size:20px;font-weight:900;line-height:1}
+.no-patient-file{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#94a3b8}.no-patient-file svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .service-type-picker{position:relative;min-width:0}.service-type-picker summary{display:block;overflow:hidden;list-style:none;cursor:pointer;border:1px solid #cbd5e1;border-radius:7px;background:#fff;padding:7px 5px;color:#334155;font-size:12px;white-space:nowrap;text-overflow:ellipsis}.service-type-picker summary::-webkit-details-marker{display:none}.service-type-options{position:absolute;z-index:80;top:calc(100% + 5px);right:0;width:220px;max-height:240px;overflow:auto;padding:8px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;box-shadow:0 12px 30px rgba(15,23,42,.18)}.service-type-options label{display:flex;align-items:center;gap:7px;padding:6px;border-radius:6px;cursor:pointer;text-align:right}.service-type-options label:hover{background:#f1f5f9}.service-type-options input{width:16px!important;height:16px!important;accent-color:#2563eb}.service-type-options small{display:block;padding:8px;color:#64748b;line-height:1.7}
 
 .payment-col {
@@ -8838,12 +8907,12 @@ tr.data-row td {
 }
 
 .search-highlight-row {
-  background: #ffcd07 !important;
-  box-shadow: inset 0 0 0 2px #f59e0b;
+  box-shadow: inset 0 0 0 2px #60a5fa;
 }
 
 .search-highlight-row td {
-  background: #ffd52e !important;
+  background: #eff6ff !important;
+  transition: background-color .28s ease;
 }
 
 /* رنگ نهایی وضعیت «آمد»؛ روشن و کم‌رنگ برای خوانایی بهتر جدول */
@@ -8921,9 +8990,9 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-booked {
-  border-color: #86efac !important;
-  background: linear-gradient(145deg, #f0fdf4, #ecfdf5) !important;
-  box-shadow: inset -4px 0 0 #16a34a, 0 5px 14px rgba(22, 163, 74, .10) !important;
+  border-color: #93c5fd !important;
+  background: linear-gradient(145deg, #eff6ff, #dbeafe) !important;
+  box-shadow: inset -4px 0 0 #2563eb, 0 5px 14px rgba(37, 99, 235, .11) !important;
 }
 
 .appointment-timeline .timeline-card.is-arrived {
@@ -8939,10 +9008,10 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-time-chip {
-  border: 1px solid #86efac;
+  border: 1px solid #93c5fd;
   background: #fff !important;
-  color: #166534 !important;
-  box-shadow: 0 5px 12px rgba(22, 101, 52, .12);
+  color: #1d4ed8 !important;
+  box-shadow: 0 5px 12px rgba(37, 99, 235, .12);
 }
 .appointment-timeline .timeline-card.is-arrived .timeline-time-chip { background: #bbf7d0 !important; color: #166534 !important; }
 .appointment-timeline .timeline-card.is-canceled .timeline-time-chip { background: #b91c1c !important; color: #fff !important; }
@@ -8954,7 +9023,7 @@ td.st-arrived select {
 .appointment-timeline .timeline-card.is-arrived .timeline-status-label { color: #166534 !important; }
 
 .appointment-timeline .timeline-card.is-booked .timeline-card-body strong {
-  color: #14532d !important;
+  color: #1e3a8a !important;
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-card-body span,
@@ -8963,9 +9032,9 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-status-label {
-  border: 1px solid #bbf7d0;
-  background: #dcfce7 !important;
-  color: #166534 !important;
+  border: 1px solid #bfdbfe;
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
 }
 
 .appointment-timeline .timeline-card.is-canceled .timeline-card-body strong,
@@ -9021,9 +9090,9 @@ td.st-arrived select {
 .section-filter-menu input{width:17px!important;height:17px!important;margin:0;justify-self:center}
 .section-filter-clear{position:sticky;bottom:-8px;height:38px;margin:7px -2px -2px;width:calc(100% + 4px);border-radius:9px}
 .service-type-col:has(.service-type-picker[open]){z-index:2200!important}
-.service-type-picker{z-index:1;width:100%;direction:rtl;text-align:right}
+.service-type-col{min-width:0!important;box-sizing:border-box}.service-type-picker{z-index:1;width:100%;min-width:0;max-width:100%;box-sizing:border-box;direction:rtl;text-align:right}
 .service-type-picker[open]{z-index:2200}
-.service-type-picker summary{position:relative;min-height:34px;display:flex;align-items:center;padding:7px 9px 7px 27px!important;text-align:right!important;direction:rtl}
+.service-type-picker summary{position:relative;min-width:0;max-width:100%;min-height:34px;display:flex;align-items:center;padding:7px 9px 7px 27px!important;text-align:right!important;direction:rtl}
 .service-type-picker summary::after{content:'⌄';position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#64748b;font-size:13px;transition:.18s}
 .service-type-picker[open] summary{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8;box-shadow:0 0 0 3px rgba(96,165,250,.12)}
 .service-type-picker[open] summary::after{transform:translateY(-50%) rotate(180deg)}
@@ -9057,4 +9126,5 @@ td.st-arrived select {
 .time-profile-modal{width:min(1040px,96vw)}
 .time-profile-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}.time-profile-section-head h4{margin:0;color:#0f172a;font-size:15px}.time-profile-section-head span{color:#64748b;font-size:10px;font-weight:800}.time-profile-details{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.time-profile-details-grid article{min-width:0;padding:9px 10px;border:1px solid #edf2f7;border-radius:10px;background:#f8fafc}.time-profile-details-grid span{display:block;margin-bottom:4px;color:#64748b;font-size:9px;font-weight:900}.time-profile-details-grid strong{display:block;overflow:hidden;color:#334155;font-size:11px;font-weight:900;line-height:1.7;text-overflow:ellipsis;white-space:nowrap}.time-profile-details-grid article:has(span:first-child:last-child){display:none}.time-profile-media{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-photo-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.time-profile-photo-list a{display:block;aspect-ratio:1;overflow:hidden;border:1px solid #e2e8f0;border-radius:10px;background:#f1f5f9}.time-profile-photo-list img{width:100%;height:100%;object-fit:cover;transition:transform .18s ease}.time-profile-photo-list a:hover img{transform:scale(1.06)}@media(max-width:700px){.time-profile-details-grid{grid-template-columns:1fr 1fr}.time-profile-photo-list{grid-template-columns:repeat(3,minmax(0,1fr))}.time-profile-details-grid strong{white-space:normal}.time-profile-modal{width:min(100%,96vw)}}
 .time-profile-history{overflow:auto}.time-profile-history table{min-width:960px}
+.financial-debt-payment{width:100%;display:grid;gap:3px;margin:0 0 13px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;font-size:13px;font-weight:1000;cursor:pointer}.financial-debt-payment small{color:#15803d;font-size:10px;font-weight:800}.financial-debt-payment:disabled{opacity:.55;cursor:wait}
 </style>

@@ -489,7 +489,7 @@
             </div>
 
             <div class="table-scroll">
-              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1180px' }">
+              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1340px' }">
                 <thead>
                   <tr>
                     <!-- کمپین -->
@@ -689,15 +689,7 @@
                         <b>{{ Math.max(0, followupHistoryRows(row).length - 1) }}</b>
                       </button>
                     </td>
-                    <td>
-                      <date-picker
-                        v-model="row.contactDate"
-                        format="YYYY-MM-DD"
-                        display-format="jYYYY/jMM/jDD"
-                        input-class="table-date-input"
-                        placeholder="تاریخ تماس"
-                      />
-                    </td>
+                    <td><div class="contact-date-time"><date-picker :key="`${row._localId}-report-contact`" v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" /><span>{{ row.contactTime || '--:--' }}</span></div></td>
                     <td>
   <date-picker
     v-model="row.followUpDate"
@@ -762,9 +754,7 @@
                       </select>
                     </td>
 
-                    <td class="desc-col">
-                      <input v-model="row.description" disabled />
-                    </td>
+                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !row.description }" @click.stop="openDescriptionModal(row, true)">{{ row.description || 'بدون توضیح' }}</button></td>
 
                     <td><input v-model="row.reason" disabled /></td>
 
@@ -868,7 +858,7 @@
             </div>
 
             <div class="table-scroll">
-              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1180px' }">
+              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1340px' }">
                 <thead>
                   <tr>
                     <!-- نام -->
@@ -1031,8 +1021,8 @@
                   >
                     <td>
                       <div class="campaign-patient-cell">
-                        <img v-if="patientAvatar(row)" :src="patientAvatar(row)" class="campaign-patient-avatar" alt="" />
-                        <span v-else class="campaign-patient-avatar fallback">{{ patientInitial(row) }}</span>
+                        <img v-if="patientAvatar(row)" :src="patientAvatar(row)" :class="['campaign-patient-avatar', patientAvatarClass(row)]" alt="" title="مشاهده پرونده" @click.stop="openFollowupPatientProfile(row)" />
+                        <span v-else :class="['campaign-patient-avatar', 'fallback', patientAvatarClass(row)]" title="مشاهده پرونده" @click.stop="openFollowupPatientProfile(row)">{{ patientInitial(row) }}</span>
                         <input v-model="row.fullName" @input="onFollowupNameInput(row)" />
                       </div>
                     </td>
@@ -1070,7 +1060,7 @@
                         <b>{{ Math.max(0, followupHistoryRows(row).length - 1) }}</b>
                       </button>
                     </td>
-                    <td><div style="display:grid;grid-template-columns:minmax(0,1fr) 40px;align-items:center;gap:3px"><DatePicker v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" /><span style="display:grid;place-items:center;height:36px;border-radius:6px;background:#f1f5f9;color:#475569;font-size:9px;font-weight:900;direction:ltr">{{ row.contactTime || '--:--' }}</span></div></td>
+                    <td><div class="contact-date-time"><DatePicker :key="`${row._localId}-contact`" v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" /><input v-model="row.contactTime" class="contact-time-input" type="time" aria-label="ساعت تماس" @change="ensureContactDateTime(row)" /></div></td>
                     <td>
   <DatePicker
     v-model="row.followUpDate"
@@ -1126,9 +1116,7 @@
                       </select>
                     </td>
 
-                    <td class="desc-col">
-                      <input v-model="row.description" />
-                    </td>
+                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !row.description }" @click.stop="openDescriptionModal(row)">{{ row.description || 'ثبت توضیحات' }}</button></td>
 
                     <td>
                       <select v-model="row.reason">
@@ -1244,32 +1232,64 @@
           <button type="button" title="بستن" @click="closeFollowupHistory">×</button>
         </header>
 
-        <div class="history-timeline">
-          <article
-            v-for="item in followupHistory"
-            :key="`${item.campaignId}-${item.rowId}`"
-            :class="{ current: item.isCurrent }"
-          >
-            <div class="history-marker"></div>
-            <div class="history-card">
-              <div class="history-card-head">
-                <strong>{{ item.campaignTitle || 'کمپین بدون عنوان' }}</strong>
-                <span v-if="item.isCurrent">ردیف فعلی</span>
-              </div>
-              <dl>
-                <div><dt>تاریخ کمپین</dt><dd>{{ formatDateFa(item.campaignDate) || '-' }}</dd></div>
-                <div><dt>تاریخ تماس</dt><dd>{{ formatDateFa(item.contactDate) || '-' }}</dd></div>
-                <div><dt>تاریخ پیگیری</dt><dd>{{ formatDateFa(item.followUpDate) || '-' }}</dd></div>
-                <div><dt>مشاور</dt><dd>{{ item.consultant || '-' }}</dd></div>
-                <div><dt>منبع</dt><dd>{{ item.source || '-' }}</dd></div>
-                <div><dt>وضعیت</dt><dd>{{ item.status || '-' }}</dd></div>
-                <div><dt>تمایل</dt><dd>{{ item.interest || '-' }}</dd></div>
-                <div><dt>علت</dt><dd>{{ item.reason || '-' }}</dd></div>
-                <div><dt>لندینگ</dt><dd>{{ landingSmsText(item.landingSms) || '-' }}</dd></div>
-              </dl>
-              <p class="history-description">{{ item.description || 'توضیحی ثبت نشده است.' }}</p>
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead><tr><th>کمپین</th><th>تاریخ تماس</th><th>پیگیری بعدی</th><th>مشاور</th><th>منبع</th><th>وضعیت</th><th>تمایل</th><th>علت</th><th>توضیحات ثبت‌شده</th></tr></thead>
+            <tbody>
+              <tr v-for="item in followupHistory" :key="`${item.campaignId}-${item.rowId}`" :class="{ current: item.isCurrent }">
+                <td><strong>{{ item.campaignTitle || 'کمپین بدون عنوان' }}</strong><small v-if="item.isCurrent">ردیف فعلی</small></td>
+                <td>{{ formatDateFa(item.contactDate) || '-' }}</td>
+                <td>{{ formatDateFa(item.followUpDate) || '-' }}</td>
+                <td>{{ item.consultant || '-' }}</td><td>{{ item.source || '-' }}</td><td>{{ item.status || '-' }}</td><td>{{ item.interest || '-' }}</td><td>{{ item.reason || '-' }}</td><td class="history-note">{{ item.description || 'توضیحی ثبت نشده است.' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="descriptionModalOpen" class="description-modal-overlay" @click.self="closeDescriptionModal">
+      <section class="description-modal" role="dialog" aria-modal="true" aria-labelledby="followup-description-title">
+        <header>
+          <div><small>{{ descriptionModalReadonly ? 'مشاهده توضیحات' : 'ثبت توضیحات پیگیری' }}</small><h3 id="followup-description-title">{{ activeDescriptionRow?.fullName || 'مخاطب' }}</h3></div>
+          <button type="button" aria-label="بستن" @click="closeDescriptionModal">×</button>
+        </header>
+        <textarea v-model="descriptionDraft" :readonly="descriptionModalReadonly" :placeholder="descriptionModalReadonly ? 'توضیحی ثبت نشده است.' : 'توضیحات تماس را بنویسید...'" autofocus></textarea>
+        <footer>
+          <button type="button" class="description-cancel" @click="closeDescriptionModal">بستن</button>
+          <button v-if="!descriptionModalReadonly" type="button" class="description-save" @click="saveDescriptionModal">ثبت توضیحات</button>
+        </footer>
+      </section>
+    </div>
+
+    <div v-if="followupProfileModalOpen" class="followup-profile-overlay" @click.self="closeFollowupPatientProfile">
+      <section class="followup-profile-modal" role="dialog" aria-modal="true" aria-labelledby="followup-profile-title">
+        <header>
+          <div class="followup-profile-head">
+            <img v-if="patientAvatar(followupProfile)" :src="patientAvatar(followupProfile)" :class="['followup-profile-avatar', patientAvatarClass(followupProfile)]" alt="">
+            <span v-else :class="['followup-profile-avatar', 'fallback', patientAvatarClass(followupProfile)]">{{ patientInitial(followupProfile) }}</span>
+            <div>
+              <small>پرونده مراجعه‌کننده</small>
+              <h3 id="followup-profile-title">{{ followupProfileName }}</h3>
+              <p>پرونده {{ followupProfile?.file_number || '-' }} · {{ displayPatientPhone(followupProfile?.phone) || '-' }}</p>
             </div>
-          </article>
+          </div>
+          <button type="button" title="بستن" aria-label="بستن" @click="closeFollowupPatientProfile">×</button>
+        </header>
+        <div v-if="followupProfileLoading" class="followup-profile-loading">در حال دریافت پرونده...</div>
+        <div v-else-if="followupProfileError" class="followup-profile-error">{{ followupProfileError }}</div>
+        <div v-else class="followup-profile-body">
+          <div class="followup-profile-stats">
+            <article><span>جنسیت</span><strong>{{ followupProfile?.gender || '-' }}</strong></article>
+            <article><span>اعتبار</span><strong>{{ formatMoney(followupProfile?.wallet_balance || 0) }}</strong></article>
+            <article :class="{ danger: Number(followupProfile?.outstanding_debt || 0) > 0 }"><span>بدهکاری</span><strong>{{ formatMoney(followupProfile?.outstanding_debt || 0) }}</strong></article>
+          </div>
+          <div class="followup-profile-details">
+            <article><span>شماره پرونده</span><strong>{{ followupProfile?.file_number || '-' }}</strong></article>
+            <article><span>نام و نام خانوادگی</span><strong>{{ followupProfileName }}</strong></article>
+            <article><span>شماره تماس</span><strong>{{ displayPatientPhone(followupProfile?.phone) || '-' }}</strong></article>
+          </div>
+          <p class="followup-profile-hint">برای دیدن و ویرایش جزئیات کامل، به بخش پرونده‌ها بروید.</p>
         </div>
       </section>
     </div>
@@ -1422,6 +1442,14 @@ export default {
       landingSmsSendError: '',
       historyModalOpen: false,
       activeHistoryRow: null,
+      followupProfileModalOpen: false,
+      followupProfileLoading: false,
+      followupProfileError: '',
+      followupProfile: null,
+      descriptionModalOpen: false,
+      descriptionModalReadonly: false,
+      activeDescriptionRow: null,
+      descriptionDraft: '',
 
       staffOptions: [],
       channelOptions: [],
@@ -1467,6 +1495,10 @@ export default {
   computed: {
     canViewCampaignCost() { return this.permissions.includes('followups.campaign_cost'); },
     canViewPatientPhone() { return this.permissions.includes('patients.view_phone'); },
+    followupProfileName() {
+      const patient = this.followupProfile || {};
+      return [patient.first_name, patient.last_name].filter(Boolean).join(' ').trim() || patient.full_name || 'مراجعه‌کننده';
+    },
     archivedCampaigns() { return this.campaigns.filter(c => this.isCampaignArchived(c)); },
     visibleCampaigns: {
       get() { return this.campaigns.filter(c => this.showArchived ? this.isCampaignArchived(c) : !this.isCampaignArchived(c)); },
@@ -1634,6 +1666,7 @@ export default {
     this.loadChannels();
     this.loadLandingSmsTags();
     this.loadCampaignsFromLocal();
+    this.hydrateFollowupPatientProfiles();
     this.applyAppointmentResult(this.appointmentResult);
     if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
     window.addEventListener("beforeunload", this.handleBeforeUnload);
@@ -1753,6 +1786,66 @@ export default {
     consultantInitial(name) { return avatarInitial(this.consultantResource(name) || { name }); },
     patientAvatar(row) { return avatarUrl(row); },
     patientInitial(row) { return avatarInitial(row); },
+    patientAvatarClass(row) {
+      if (!(row?.patient_id || row?.patientId || row?.id)) return 'level-none';
+      const level = String(row?.customer_level || row?.customerLevel || 'silver').trim().toLowerCase();
+      return ['silver', 'blue', 'gold', 'problematic'].includes(level) ? `level-${level}` : 'level-silver';
+    },
+    async openFollowupPatientProfile(row) {
+      const patientId = row?.patient_id || row?.patientId;
+      if (!patientId) return;
+      this.followupProfileModalOpen = true;
+      this.followupProfileLoading = true;
+      this.followupProfileError = '';
+      this.followupProfile = {
+        id: patientId,
+        first_name: String(row.fullName || '').trim().split(/\s+/)[0] || '',
+        last_name: String(row.fullName || '').trim().split(/\s+/).slice(1).join(' ') || '',
+        phone: row.phone || '',
+        file_number: row.file_number || row.fileNumber || '',
+        customer_level: row.customer_level || row.customerLevel || 'silver',
+        avatar_url: row.avatar_url || row.avatarUrl || '',
+        profile_photo_url: row.profile_photo_url || '',
+        profile_thumbnail_url: row.profile_thumbnail_url || '',
+      };
+      try {
+        const phone = this.normalizePhoneLookup(row.phone);
+        const { data } = await axios.get('/api/patients/search', {
+          params: row.file_number || row.fileNumber
+            ? { file_number: row.file_number || row.fileNumber }
+            : { phone }
+        });
+        const patient = Array.isArray(data) ? data[0] : null;
+        if (patient) this.followupProfile = patient;
+        else this.followupProfileError = 'پرونده موردنظر پیدا نشد.';
+      } catch (error) {
+        console.error(error);
+        this.followupProfileError = 'دریافت اطلاعات پرونده انجام نشد.';
+      } finally {
+        this.followupProfileLoading = false;
+      }
+    },
+    closeFollowupPatientProfile() {
+      this.followupProfileModalOpen = false;
+      this.followupProfileLoading = false;
+      this.followupProfileError = '';
+      this.followupProfile = null;
+    },
+    openDescriptionModal(row, readonly = false) {
+      this.activeDescriptionRow = row;
+      this.descriptionModalReadonly = readonly;
+      this.descriptionDraft = row?.description || '';
+      this.descriptionModalOpen = true;
+    },
+    closeDescriptionModal() {
+      this.descriptionModalOpen = false;
+      this.activeDescriptionRow = null;
+      this.descriptionDraft = '';
+    },
+    saveDescriptionModal() {
+      if (this.activeDescriptionRow) this.activeDescriptionRow.description = this.descriptionDraft.trim();
+      this.closeDescriptionModal();
+    },
 
     applyAppointmentResult(result) {
       const followup = result?.followup;
@@ -2021,6 +2114,10 @@ export default {
         row.profile_photo_url = patient.profile_photo_url || "";
         row.avatar_url = patient.avatar_url || "";
         row.avatarUrl = avatarUrl(patient);
+        row.patient_id = patient.id || "";
+        row.file_number = patient.file_number || "";
+        row.customer_level = patient.customer_level || "silver";
+        this.ensureContactDateTime(row);
 
       } catch (e) {
 
@@ -2045,6 +2142,38 @@ export default {
       this.activeFilter = null;
       this.activeReportFilter = null;
       this.closeLandingMenu();
+    },
+
+    async hydrateFollowupPatientProfiles() {
+      const rows = this.campaigns.flatMap(campaign => campaign.rows || [])
+        .filter(row => this.normalizePhoneLookup(row.phone).length >= 10)
+        .filter(row => !row.patient_id || !row.customer_level || !row.avatarUrl);
+      const seen = new Set();
+      const uniqueRows = rows.filter(row => {
+        const phone = this.normalizePhoneLookup(row.phone);
+        if (seen.has(phone)) return false;
+        seen.add(phone);
+        return true;
+      }).slice(0, 100);
+
+      await Promise.all(uniqueRows.map(async row => {
+        try {
+          const { data: patient } = await axios.get(`/api/patients/find-by-phone/${encodeURIComponent(this.normalizePhoneLookup(row.phone))}`);
+          if (!patient) return;
+          this.campaigns.forEach(campaign => (campaign.rows || []).forEach(item => {
+            if (this.normalizePhoneLookup(item.phone) !== this.normalizePhoneLookup(row.phone)) return;
+            item.patient_id = patient.id || item.patient_id || '';
+            item.file_number = patient.file_number || item.file_number || '';
+            item.customer_level = patient.customer_level || item.customer_level || 'silver';
+            item.profile_thumbnail_url = patient.profile_thumbnail_url || item.profile_thumbnail_url || '';
+            item.profile_photo_url = patient.profile_photo_url || item.profile_photo_url || '';
+            item.avatar_url = patient.avatar_url || item.avatar_url || '';
+            item.avatarUrl = avatarUrl(patient) || item.avatarUrl || '';
+          }));
+        } catch (error) {
+          if (error.response?.status !== 404) console.warn('دریافت اطلاعات پرونده پیگیری انجام نشد.', error);
+        }
+      }));
     },
 
     closeLandingMenu() {
@@ -2241,8 +2370,20 @@ export default {
           avatarUrl: row.avatarUrl || "",
         },
       };
+      // نوبت‌دهی در پنجره جدا باز می‌شود تا پیگیری و ردیف جاری در همین صفحه باقی بماند.
+      const token = `followup-appointment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      try {
+        localStorage.setItem(token, JSON.stringify(payload));
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.searchParams.set('followupAppointment', token);
+        const appointmentWindow = window.open(url.toString(), '_blank');
+        if (appointmentWindow) return;
+      } catch (error) {
+        console.warn('باز کردن پنجره نوبت‌دهی انجام نشد.', error);
+      }
+      // اگر مرورگر باز شدن پنجره را مسدود کرد، همان مسیر قبلی را استفاده کن.
       this.$emit("open-appointments-timeline", payload);
-      this.closeCampaignModal();
     },
 
     appointmentSummary(row) {
@@ -2259,6 +2400,10 @@ export default {
 
     onFollowupNameInput(row) {
       if (!String(row?.fullName || '').trim()) return;
+      this.ensureContactDateTime(row);
+    },
+    ensureContactDateTime(row) {
+      if (!row) return;
       if (!row.contactDate) row.contactDate = this.getTodayString();
       if (!row.contactTime) {
         const now = new Date();
@@ -2288,6 +2433,9 @@ export default {
         interest: "",
         reason: "",
         avatarUrl: "",
+        patient_id: "",
+        file_number: "",
+        customer_level: "silver",
       };
     },
 
@@ -2694,6 +2842,9 @@ export default {
                 appointmentTime: r.appointmentTime ?? "",
                 appointmentPatientName: r.appointmentPatientName ?? "",
                 avatarUrl: r.avatarUrl ?? "",
+                patient_id: r.patient_id ?? r.patientId ?? "",
+                file_number: r.file_number ?? r.fileNumber ?? "",
+                customer_level: r.customer_level ?? r.customerLevel ?? "silver",
                 answeredWithoutInterestAt: r.answeredWithoutInterestAt ?? "",
               }))
             : [],
@@ -4192,13 +4343,14 @@ export default {
 .campaign-table-modal .contacts-table input,.campaign-table-modal .contacts-table select{width:100%;height:36px;min-width:0;margin:0;padding:0 5px;border:1px solid transparent;border-radius:6px;background:transparent;font-size:10px;line-height:34px;text-align:center;text-overflow:ellipsis;white-space:nowrap}
 .campaign-table-modal .contacts-table input:focus,.campaign-table-modal .contacts-table select:focus{border-color:#93c5fd;background:#eff6ff;box-shadow:0 0 0 2px rgba(96,165,250,.12)}
 .campaign-table-modal .contacts-table .vpd-input-group,.campaign-table-modal .contacts-table .vpd-input-group input,.campaign-table-modal .contacts-table .table-date-input{width:100%!important;min-width:0!important;height:36px!important;margin:0!important;padding:0 3px!important;font-size:9px!important}
+.contact-date-time{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:3px;min-width:0}.contact-date-time>span,.contact-time-input{display:grid!important;place-items:center;height:36px!important;min-width:0!important;margin:0!important;padding:0 2px!important;border:1px solid transparent!important;border-radius:6px!important;background:#f1f5f9!important;color:#475569!important;font-size:9px!important;font-weight:900!important;direction:ltr;text-align:center!important}.contact-time-input:focus{border-color:#93c5fd!important;background:#eff6ff!important;outline:0}.description-preview{display:block;width:100%;height:34px;min-width:0;padding:0 7px;border:1px solid transparent;border-radius:7px;background:#f8fafc;color:#334155;font-family:inherit;font-size:10px;font-weight:800;line-height:32px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.description-preview:hover{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.description-preview.empty{color:#94a3b8;font-weight:700}
 .campaign-table-modal .contacts-table .th-content{width:100%;min-width:0;gap:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .campaign-table-modal .filter-btn{width:19px;height:19px;flex:0 0 19px;display:grid;place-items:center;padding:0;color:#64748b;font-size:10px}
 .campaign-table-modal .resizer{width:5px}.campaign-table-modal .resizer:hover{background:#60a5fa}
 .campaign-patient-cell{height:38px;min-width:0;gap:4px;overflow:visible}
 .campaign-patient-cell input{min-width:0;flex:1}
-.campaign-patient-avatar{position:relative;z-index:2;width:28px;height:28px;flex:0 0 28px;border:2px solid #60a5fa;box-shadow:0 2px 6px rgba(37,99,235,.12);transition:transform .18s ease,box-shadow .18s ease;transform-origin:right center;cursor:zoom-in}
-.campaign-patient-avatar:hover{z-index:500;transform:scale(3);box-shadow:0 10px 28px rgba(15,23,42,.28);cursor:zoom-out}
+.campaign-patient-avatar{position:relative;z-index:2;width:28px;height:28px;flex:0 0 28px;border:2px solid #cbd5e1;box-shadow:0 2px 6px rgba(15,23,42,.10);transition:transform .18s ease,box-shadow .18s ease;transform-origin:right center;cursor:pointer}.campaign-patient-avatar.level-none{border-color:#dbe3ed;box-shadow:none;cursor:default}.campaign-patient-avatar.level-silver{border-color:#94a3b8;box-shadow:0 0 0 2px rgba(148,163,184,.16)}.campaign-patient-avatar.level-blue{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.16)}.campaign-patient-avatar.level-gold{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.18)}.campaign-patient-avatar.level-problematic{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.16)}
+.campaign-patient-avatar:hover{z-index:500;transform:scale(1.12);box-shadow:0 7px 16px rgba(15,23,42,.2)}
 .contacts-table td:has(.campaign-patient-avatar:hover),.contacts-table tr:has(.campaign-patient-avatar:hover){z-index:450}
 .resource-select-with-avatar{height:38px;min-width:0;gap:3px}.resource-select-with-avatar img,.resource-select-with-avatar>span{width:24px;height:24px;flex:0 0 24px;border-width:2px;font-size:9px}.resource-select-with-avatar select{min-width:0}
 .campaign-table-modal .landing-multi-trigger{height:34px;padding:0 6px;border-radius:7px;font-size:9px}
@@ -4226,6 +4378,9 @@ export default {
 .history-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}.history-card-head strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.history-card-head span{padding:4px 8px;border-radius:999px;background:#dcfce7;color:#047857;font-size:9px;font-weight:1000}
 .history-card dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.history-card dl div{min-width:0;padding:8px;border-radius:9px;background:#f8fafc}.history-card dt{margin-bottom:4px;color:#94a3b8;font-size:9px;font-weight:900}.history-card dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-size:11px;font-weight:900}
 .history-description{margin-top:10px!important;padding:10px;border-radius:10px;background:#f8fafc;color:#334155!important;font-size:12px!important;line-height:1.9!important;white-space:pre-wrap}
+.history-table-wrap{overflow:auto;padding:16px 18px 20px}.history-table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;font-size:11px}.history-table th,.history-table td{padding:10px 9px;border-left:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:center;vertical-align:middle}.history-table th:first-child,.history-table td:first-child{border-right:1px solid #e2e8f0}.history-table th{position:sticky;top:0;z-index:1;background:#f8fafc;color:#475569;font-size:10px;font-weight:1000}.history-table tbody tr:nth-child(even) td{background:#fbfdff}.history-table tbody tr.current td{background:#eff6ff;border-bottom-color:#bfdbfe}.history-table td strong{display:block;color:#1e3a8a;font-size:11px}.history-table td small{display:block;margin-top:4px;color:#2563eb;font-size:9px;font-weight:1000}.history-table .history-note{min-width:210px;max-width:310px;text-align:right;white-space:pre-wrap;line-height:1.8;color:#334155}
+.description-modal-overlay{position:fixed;z-index:1000014;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}.description-modal{width:min(620px,96vw);overflow:hidden;border:1px solid rgba(255,255,255,.85);border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.description-modal header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:17px 18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.description-modal header small{color:#2563eb;font-size:10px;font-weight:1000}.description-modal header h3{margin:4px 0 0;color:#172033;font-size:17px}.description-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:#64748b;font-size:22px;cursor:pointer}.description-modal textarea{display:block;width:calc(100% - 32px);min-height:180px;resize:vertical;margin:16px;padding:12px;border:1px solid #dbe3ed;border-radius:11px;background:#fff;color:#334155;font:800 12px/1.9 inherit;outline:0}.description-modal textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.14)}.description-modal textarea[readonly]{background:#f8fafc;color:#475569}.description-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:13px 16px;border-top:1px solid #e2e8f0}.description-modal footer button{height:37px;padding:0 14px;border:0;border-radius:9px;font-family:inherit;font-size:10px;font-weight:1000;cursor:pointer}.description-cancel{background:#e2e8f0;color:#475569}.description-save{background:#2563eb;color:#fff}
+.followup-profile-overlay{position:fixed;z-index:1000012;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}.followup-profile-modal{width:min(680px,96vw);max-height:92vh;overflow:auto;border:1px solid rgba(255,255,255,.85);border-radius:22px;background:#fff;color:#0f172a;box-shadow:0 28px 90px rgba(15,23,42,.35)}.followup-profile-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.followup-profile-head{display:flex;align-items:center;gap:12px;min-width:0}.followup-profile-avatar{width:58px;height:58px;flex:0 0 58px;border:3px solid #94a3b8;border-radius:50%;object-fit:cover;background:#e2e8f0}.followup-profile-avatar.fallback{display:grid;place-items:center;color:#475569;font-size:20px;font-weight:1000}.followup-profile-avatar.level-none{border-color:#dbe3ed}.followup-profile-avatar.level-silver{border-color:#94a3b8}.followup-profile-avatar.level-blue{border-color:#3b82f6}.followup-profile-avatar.level-gold{border-color:#f59e0b}.followup-profile-avatar.level-problematic{border-color:#ef4444}.followup-profile-head small{color:#2563eb;font-size:10px;font-weight:1000}.followup-profile-head h3{margin:4px 0;font-size:19px}.followup-profile-head p{margin:0;color:#64748b;font-size:11px;font-weight:800}.followup-profile-modal>header>button{width:36px;height:36px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 5px 14px rgba(15,23,42,.08)}.followup-profile-loading,.followup-profile-error{padding:40px 20px;text-align:center;font-size:13px;font-weight:900}.followup-profile-loading{color:#2563eb}.followup-profile-error{color:#b91c1c}.followup-profile-body{padding:18px}.followup-profile-stats,.followup-profile-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.followup-profile-stats{margin-bottom:14px}.followup-profile-stats article,.followup-profile-details article{min-width:0;padding:11px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.followup-profile-stats span,.followup-profile-details span{display:block;margin-bottom:5px;color:#94a3b8;font-size:9px;font-weight:900}.followup-profile-stats strong,.followup-profile-details strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-size:11px}.followup-profile-stats article.danger{border-color:#fecaca;background:#fff7f7}.followup-profile-stats article.danger strong{color:#b91c1c}.followup-profile-hint{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:800;line-height:1.8}@media(max-width:560px){.followup-profile-stats,.followup-profile-details{grid-template-columns:1fr}.followup-profile-modal>header{padding:15px}.followup-profile-head h3{font-size:17px}}
 @media(max-width:760px){.history-card dl{grid-template-columns:1fr 1fr}.history-modal>header{padding:15px}.history-timeline{padding:14px}.history-modal h3{font-size:18px}}
 @media(max-width:480px){.history-card dl{grid-template-columns:1fr}}
 .landing-sms-modal-overlay{position:fixed;inset:0;z-index:1000010;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.landing-sms-modal{width:min(520px,96vw);overflow:hidden;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.landing-sms-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.landing-sms-modal header small{color:#2563eb;font-size:11px;font-weight:900}.landing-sms-modal h3{margin:4px 0;font-size:18px}.landing-sms-modal p{margin:0;color:#64748b;font-size:11px}.landing-sms-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.landing-sms-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding:16px}.landing-sms-list label{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:11px;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer}.landing-sms-list label.selected{border-color:#93c5fd;background:#eff6ff}.landing-sms-list label.sent{border-color:#86efac;background:#f0fdf4}.landing-sms-list input{width:17px;height:17px;accent-color:#2563eb}.landing-sms-list span{display:grid;gap:3px}.landing-sms-list b{font-size:12px}.landing-sms-list small{color:#64748b;font-size:10px}.landing-sms-list i{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-weight:1000}.landing-sms-empty{padding:20px;text-align:center}.landing-sms-error{margin:0 16px 12px!important;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c!important}.landing-sms-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #e2e8f0}.landing-sms-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.landing-sms-cancel{background:#e2e8f0;color:#475569}.landing-sms-send{background:#2563eb;color:#fff}.landing-sms-send:disabled{opacity:.55;cursor:wait}@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}</style>

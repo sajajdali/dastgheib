@@ -170,18 +170,18 @@
           <div v-for="(item, index) in passwords" :key="item.id || index" class="user-definition-card">
             <div class="user-definition-head">
               <div class="user-photo-row">
-                <label class="settings-user-avatar">
+                <label class="settings-user-avatar" :class="{ locked: item.is_project_owner }">
                   <img v-if="userAvatar(item)" :src="userAvatar(item)" alt="" />
                   <span v-else>{{ userInitial(item) }}</span>
-                  <input type="file" accept="image/*" @change="uploadUserPhoto(item, index, $event)" />
+                  <input type="file" accept="image/*" :disabled="item.is_project_owner" @change="uploadUserPhoto(item, index, $event)" />
                 </label>
                 <span>عکس کاربر</span>
               </div>
               <button
                 type="button"
                 class="user-delete-btn"
-                :disabled="deletingUserId === item.id || isCurrentUserRow(item)"
-                :title="isCurrentUserRow(item) ? 'حذف حساب کاربری خودتان مجاز نیست' : 'حذف کاربر'"
+                :disabled="deletingUserId === item.id || isCurrentUserRow(item) || item.is_project_owner"
+                :title="item.is_project_owner ? 'حذف مالک پروژه مجاز نیست' : (isCurrentUserRow(item) ? 'حذف حساب کاربری خودتان مجاز نیست' : 'حذف کاربر')"
                 @click="deletePasswordUser(item, index)"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -192,10 +192,11 @@
                 </svg>
               </button>
             </div>
+            <span v-if="item.is_project_owner" class="project-owner-badge">مالک پروژه</span>
             <div class="user-two-line-form">
-              <input class="green-input" type="text" placeholder="نام کاربر" v-model="item.user" />
-              <input class="green-input" type="text" placeholder="نام مستعار" v-model="item.nickname" />
-              <input class="green-input" type="text" placeholder="شماره موبایل" v-model="item.mobile" />
+              <input class="green-input" type="text" placeholder="نام کاربر" v-model="item.user" :disabled="item.is_project_owner" />
+              <input class="green-input" type="text" placeholder="نام مستعار" v-model="item.nickname" :disabled="item.is_project_owner" />
+              <input class="green-input" type="text" placeholder="شماره موبایل" v-model="item.mobile" :disabled="item.is_project_owner" />
               <div class="user-control-column">
                 <div class="gender-icon-picker" aria-label="انتخاب جنسیت">
                   <button
@@ -204,6 +205,7 @@
                     type="button"
                     :class="{ active: item.gender === option.value }"
                     :title="option.label"
+                    :disabled="item.is_project_owner"
                     @click="item.gender = item.gender === option.value ? '' : option.value"
                   >
                     <svg v-if="option.value === 'female'" viewBox="0 0 24 24" aria-hidden="true">
@@ -219,10 +221,11 @@
                   </button>
                 </div>
                 <button
+                  v-if="item.id"
                   type="button"
                   class="access-lock-btn"
                   :class="{ active: item.access_blocked }"
-                  :disabled="isCurrentUserRow(item)"
+                  :disabled="isCurrentUserRow(item) || item.is_project_owner"
                   :title="item.access_blocked ? 'باز کردن دسترسی' : 'بستن دسترسی'"
                   @click="toggleAccessBlocked(item)"
                 >
@@ -238,12 +241,17 @@
                   </svg>
                 </button>
               </div>
-              <div class="password-eye-field">
+              <label class="custom-password-toggle">
+                <input v-model="item.custom_password" type="checkbox" :disabled="item.is_project_owner" @change="!item.custom_password && (item.pass = '')" />
+                <span>{{ item.id ? 'تغییر کلمه عبور' : 'تعیین کلمه عبور' }}</span>
+              </label>
+              <div v-if="item.custom_password" class="password-eye-field">
                 <input
                   class="green-input"
                   :type="item.showPassword ? 'text' : 'password'"
-                  placeholder="رمز عبور (برای ویرایش خالی بماند)"
+                  placeholder="رمز عبور"
                   v-model="item.pass"
+                  :disabled="item.is_project_owner"
                 />
                 <button type="button" :title="item.showPassword ? 'مخفی کردن رمز' : 'نمایش رمز'" @click="item.showPassword = !item.showPassword">
                   <svg v-if="!item.showPassword" viewBox="0 0 24 24" aria-hidden="true">
@@ -263,7 +271,7 @@
             <div class="user-role-title">نقش‌های کاربر</div>
             <div class="user-role-picker">
               <label v-for="role in roles" :key="role.id">
-                <input v-model="item.role_ids" type="checkbox" :value="role.id" />
+                <input v-model="item.role_ids" type="checkbox" :value="role.id" :disabled="item.is_project_owner" />
                 <span>{{ role.name }}</span>
               </label>
               <small v-if="!roles.length">ابتدا از منوی نقش‌ها، یک نقش تعریف کنید.</small>
@@ -280,41 +288,51 @@
       <div v-if="featureEnabled('patients')" class="accordion customer-level-settings">
         <div class="accordion-header" @click="toggleAccordion('customerLevels')">دسته‌بندی خودکار مشتری‌ها</div>
         <div v-if="openAccordion === 'customerLevels'" class="accordion-body">
-          <p class="level-settings-help">هر سطح بر اساس حداقل و حداکثر پرداخت در بازه خودش یا حداقل مراجعه همان بازه محاسبه می‌شود.</p>
+          <p class="level-settings-help">برای هر سطح، فقط معیارهایی را که می‌خواهید در محاسبه لحاظ شوند باز کنید.</p>
           <div class="level-settings-columns">
             <section v-for="level in customerLevelColumns" :key="level.key" :class="['level-settings-card', level.key]">
               <h4>{{ level.label }}</h4>
-              <label>
-                {{ customerLevelPeriodTitle(level.key, 'حداقل پرداخت') }}
-                <input
-                  :value="formatThousands(customerLevels[`${level.key}_min_period_amount`])"
-                  class="green-input"
-                  type="text"
-                  inputmode="numeric"
-                  dir="ltr"
-                  @input="setCustomerLevelAmount(`${level.key}_min_period_amount`, $event.target.value)"
-                >
-              </label>
-              <label>
-                {{ customerLevelPeriodTitle(level.key, 'حداکثر پرداخت') }}
-                <input
-                  :value="formatThousands(customerLevels[`${level.key}_max_period_amount`])"
-                  class="green-input"
-                  type="text"
-                  inputmode="numeric"
-                  dir="ltr"
-                  @input="setCustomerLevelAmount(`${level.key}_max_period_amount`, $event.target.value)"
-                >
-              </label>
-              <label>{{ customerLevelPeriodTitle(level.key, 'حداقل مراجعه') }}<input v-model.number="customerLevels[`${level.key}_visit_count`]" class="green-input" type="number" min="0"></label>
-              <label>
-                بازه مراجعه (ماه)
-                <select v-model.number="customerLevels[`${level.key}_visit_period_months`]" class="green-input">
-                  <option v-for="month in customerLevelMonthOptions" :key="`${level.key}-month-${month}`" :value="month">
-                    {{ month.toLocaleString("fa-IR") }}
-                  </option>
-                </select>
-              </label>
+              <div v-for="criterion in customerLevelCriteriaFields" :key="criterion.key" class="level-criterion">
+                <button type="button" class="level-criterion-toggle" :class="{ active: customerLevelCriteria[level.key][criterion.key] }" @click="toggleCustomerLevelCriterion(level.key, criterion.key)">
+                  <span>{{ criterion.toggle }}</span>
+                  <b>{{ customerLevelCriteria[level.key][criterion.key] ? 'بستن' : 'تعیین' }}</b>
+                </button>
+                <label v-if="customerLevelCriteria[level.key][criterion.key]" class="level-criterion-input">
+                  <span>
+                    {{ criterion.label }}
+                    <small v-if="criterion.type === 'amount'">تومان</small>
+                    <em>در {{ customerLevels[`${level.key}_visit_period_months`].toLocaleString("fa-IR") }} ماه</em>
+                  </span>
+                  <input
+                    v-if="criterion.type === 'amount'"
+                    :value="customerLevels[`${level.key}_${criterion.setting}`] ? formatThousands(customerLevels[`${level.key}_${criterion.setting}`]) : ''"
+                    class="green-input"
+                    type="text"
+                    inputmode="numeric"
+                    dir="ltr"
+                    placeholder="مبلغ را وارد کنید"
+                    @input="setCustomerLevelAmount(`${level.key}_${criterion.setting}`, $event.target.value)"
+                  >
+                  <input v-else v-model.number="customerLevels[`${level.key}_${criterion.setting}`]" class="green-input" type="number" min="0" placeholder="تعداد را وارد کنید">
+                </label>
+              </div>
+              <div class="level-period-control">
+                <span>بازه پرداخت {{ customerLevels[`${level.key}_visit_period_months`].toLocaleString("fa-IR") }} ماه می‌باشد</span>
+                <button type="button" @click="customerLevelPeriodModal = level.key">تغییر</button>
+              </div>
+            </section>
+          </div>
+          <div v-if="customerLevelPeriodModal" class="level-period-modal-backdrop" @click.self="customerLevelPeriodModal = null">
+            <section class="level-period-modal" role="dialog" aria-modal="true" aria-label="تغییر بازه پرداخت">
+              <h4>تغییر بازه پرداخت</h4>
+              <p>بازه محاسبهٔ پرداخت و مراجعه را انتخاب کنید.</p>
+              <select v-model.number="customerLevels[`${customerLevelPeriodModal}_visit_period_months`]" class="green-input">
+                <option v-for="month in customerLevelMonthOptions" :key="month" :value="month">{{ month.toLocaleString("fa-IR") }} ماه</option>
+              </select>
+              <div>
+                <button type="button" class="level-period-cancel" @click="customerLevelPeriodModal = null">انصراف</button>
+                <button type="button" class="level-period-save" @click="customerLevelPeriodModal = null">تأیید</button>
+              </div>
             </section>
           </div>
         </div>
@@ -782,19 +800,29 @@ const patientFieldOptions = [
 ].map(([key,label]) => ({ key,label }));
 const patientRequiredFields = ref(Object.fromEntries(patientFieldOptions.map(field => [field.key, false])));
 const customerLevelColumns = [
-  { key: "blue", label: "آبی" },
   { key: "silver", label: "نقره‌ای" },
+  { key: "blue", label: "آبی" },
   { key: "gold", label: "طلایی" }
 ];
+const customerLevelCriteriaFields = [
+  { key: "minPayment", toggle: "تعیین حداقل پرداخت", label: "حداقل پرداخت", setting: "min_period_amount", type: "amount" },
+  { key: "maxPayment", toggle: "تعیین حداکثر پرداخت", label: "حداکثر پرداخت", setting: "max_period_amount", type: "amount" },
+  { key: "visits", toggle: "تعیین حداقل مراجعه", label: "حداقل مراجعه", setting: "visit_count", type: "number" }
+];
 const customerLevelMonthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
+const makeCustomerLevelCriteria = () => Object.fromEntries(
+  customerLevelColumns.map(level => [level.key, { minPayment: false, maxPayment: false, visits: false }])
+);
+const customerLevelCriteria = ref(makeCustomerLevelCriteria());
+const customerLevelPeriodModal = ref(null);
 const customerLevels = ref({
-  blue_min_period_amount: 0,
-  blue_max_period_amount: 0,
-  blue_visit_count: 1,
+  blue_min_period_amount: 10000000,
+  blue_max_period_amount: 30000000,
+  blue_visit_count: 2,
   blue_visit_period_months: 3,
-  silver_min_period_amount: 10000000,
-  silver_max_period_amount: 30000000,
-  silver_visit_count: 2,
+  silver_min_period_amount: 0,
+  silver_max_period_amount: 0,
+  silver_visit_count: 0,
   silver_visit_period_months: 3,
   gold_min_period_amount: 100000000,
   gold_max_period_amount: 200000000,
@@ -824,8 +852,10 @@ const makePasswordRow = () => ({
   nickname: "",
   mobile: "",
   pass: "",
-  gender: "",
+  gender: "female",
   access_blocked: false,
+  is_project_owner: false,
+  custom_password: false,
   showPassword: false,
   role_ids: [],
   profile_photo_path: null,
@@ -851,6 +881,9 @@ const plainNumber = (value) => {
 const formatThousands = (value) => plainNumber(value).toLocaleString("en-US");
 const setCustomerLevelAmount = (key, value) => {
   customerLevels.value[key] = plainNumber(value);
+};
+const toggleCustomerLevelCriterion = (level, criterion) => {
+  customerLevelCriteria.value[level][criterion] = !customerLevelCriteria.value[level][criterion];
 };
 
 const satisfactionOptions = [
@@ -969,6 +1002,10 @@ const addPassword = () => { passwords.value.push(makePasswordRow()); };
 const removePassword = () => { if (passwords.value.length > 1) passwords.value.pop(); };
 const isCurrentUserRow = (item) => !!item?.id && Number(item.id) === Number(props.currentUser?.id);
 const toggleAccessBlocked = async (item) => {
+  if (item.is_project_owner) {
+    await Swal.fire({ icon: "warning", title: "مجاز نیست", text: "دسترسی مالک پروژه را نمی‌توان بست." });
+    return;
+  }
   if (isCurrentUserRow(item)) {
     await Swal.fire({ icon: "warning", title: "مجاز نیست", text: "نمی‌توانید دسترسی حساب خودتان را ببندید." });
     return;
@@ -1007,10 +1044,6 @@ const customerLevelPayload = () => Object.fromEntries(
     key.endsWith("_amount") ? plainNumber(value) : Number(value || 0)
   ])
 );
-const customerLevelPeriodTitle = (levelKey, title) => {
-  const months = Math.max(1, Number(customerLevels.value[`${levelKey}_visit_period_months`] || 3));
-  return `${title} در ${months.toLocaleString("fa-IR")} ماه`;
-};
 
 watch(
   () => props.enabledFeatures,
@@ -1225,8 +1258,11 @@ const fetchSettings = async () => {
         nickname: u.nickname || "",
         mobile: u.mobile || "",
         pass: "",
+        // رمز فعلی قابل بازیابی نیست و تنها با انتخاب «تغییر کلمه عبور» نمایش داده می‌شود.
+        custom_password: false,
         gender: u.gender || "",
         access_blocked: Boolean(u.access_blocked),
+        is_project_owner: Boolean(u.is_project_owner),
         showPassword: false,
         role_ids: [...(u.role_ids || [])],
         profile_photo_path: u.profile_photo_path || null,
@@ -1522,11 +1558,13 @@ onMounted(() => {
 .accordion-header:hover{ background:#f8fbff; }
 .accordion-body{ padding:20px; display:flex; flex-direction:column; gap:14px; border-top:1px solid #eef2ff; }
 .level-settings-help{ margin:0; color:#64748b; font-size:13px; line-height:1.9; }
-.level-settings-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.level-settings-card{display:grid;gap:10px;padding:13px;border:1px solid #dbe3ed;border-radius:14px;background:#fff}
+.level-settings-columns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+.level-settings-card{display:grid;align-content:start;gap:8px;padding:13px;border:1px solid #dbe3ed;border-radius:14px;background:#fff}
 .level-settings-card h4{margin:0;padding-bottom:8px;border-bottom:1px solid #edf2f7;font-size:14px;font-weight:900}
-.level-settings-card label{display:flex;flex-direction:column;gap:7px;color:#334155;font-size:11px;font-weight:800}
+.level-criterion{display:grid;gap:7px}.level-criterion-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:#475569;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}.level-criterion-toggle b{padding:3px 7px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:9px}.level-criterion-toggle.active{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}.level-criterion-toggle.active b{background:#dbeafe;color:#1d4ed8}.level-criterion-input{display:grid;gap:7px;padding:9px 10px;border:1px dashed #bfdbfe;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:800}.level-criterion-input>span{display:flex;align-items:center;justify-content:space-between;gap:7px}.level-criterion-input em{padding:3px 7px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-size:9px;font-style:normal;font-weight:800}.level-criterion-input input{height:40px!important}
+.level-period-control{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:3px;padding-top:9px;border-top:1px solid #edf2f7;color:#64748b;font-size:10px;font-weight:700}.level-period-control button{border:0;border-radius:8px;background:#eff6ff;color:#2563eb;padding:5px 9px;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.level-period-modal-backdrop{position:fixed;inset:0;z-index:1000005;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.45);backdrop-filter:blur(3px)}.level-period-modal{width:min(340px,100%);display:grid;gap:13px;padding:19px;border-radius:17px;background:#fff;box-shadow:0 22px 55px rgba(15,23,42,.25)}.level-period-modal h4{margin:0;color:#1e293b;font-size:16px}.level-period-modal p{margin:0;color:#64748b;font-size:11px;line-height:1.8}.level-period-modal select{height:43px}.level-period-modal>div{display:flex;justify-content:flex-end;gap:8px}.level-period-modal button{height:37px;padding:0 13px;border-radius:10px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.level-period-cancel{border:1px solid #e2e8f0;background:#fff;color:#64748b}.level-period-save{border:0;background:#2563eb;color:#fff}
 .level-settings-card input{direction:ltr;text-align:left}
+.level-criterion-input small{margin-right:3px;color:#94a3b8;font-size:9px;font-weight:700}
 .level-settings-card.blue{border-color:#bfdbfe;background:#f8fbff}.level-settings-card.blue h4{color:#1d4ed8}
 .level-settings-card.silver{border-color:#cbd5e1;background:#f8fafc}.level-settings-card.silver h4{color:#475569}
 .level-settings-card.gold{border-color:#fde68a;background:#fffdf3}.level-settings-card.gold h4{color:#92400e}
@@ -1548,6 +1586,9 @@ textarea{ min-height:120px; resize:none; }
 .user-delete-btn svg{ width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .user-delete-btn:hover:not(:disabled){ background:#ffe4e6; transform:translateY(-1px); }
 .user-delete-btn:disabled{ cursor:not-allowed; opacity:0.55; transform:none; }
+.project-owner-badge{ align-self:flex-start; border:1px solid #f59e0b; border-radius:9px; background:#fef3c7; color:#92400e; padding:5px 9px; font-size:10px; font-weight:800; }
+.settings-user-avatar.locked{ cursor:default; opacity:.8; }
+.user-definition-card input:disabled{ cursor:not-allowed; opacity:.7; }
 .user-two-line-form{ display:grid; grid-template-columns:minmax(180px,1fr) 150px minmax(180px,1fr); gap:10px; align-items:center; }
 .user-two-line-form .green-input{ min-width:0; height:46px; border-radius:14px; padding:0 14px; }
 .password-eye-field{ grid-column:1; grid-row:2; position:relative; min-width:0; }
@@ -1555,6 +1596,9 @@ textarea{ min-height:120px; resize:none; }
 .password-eye-field button{ position:absolute; top:50%; left:9px; transform:translateY(-50%); width:28px; height:28px; border:0; border-radius:9px; background:transparent; color:#2563eb; display:flex; align-items:center; justify-content:center; cursor:pointer; }
 .password-eye-field button:hover{ background:rgba(37,99,235,.08); }
 .password-eye-field svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.custom-password-toggle{ grid-column:1; grid-row:2; width:fit-content; align-self:center; display:flex; align-items:center; gap:5px; padding:4px 7px; border-radius:8px; color:#64748b; font-size:10px; font-weight:600; cursor:pointer; }
+.custom-password-toggle:hover{ background:#f8fafc; color:#475569; }
+.custom-password-toggle input{ width:auto; padding:0; margin:0; accent-color:#2563eb; }
 .user-control-column{ grid-column:2; grid-row:2; display:grid; grid-template-columns:1fr 42px; gap:8px; align-items:center; min-width:0; }
 .gender-icon-picker{ height:46px; box-sizing:border-box; display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:4px; border:1px solid #dbeafe; border-radius:14px; background:#f8fbff; }
 .gender-icon-picker button{ min-width:0; width:100%; height:36px; border:0; border-radius:11px; background:#fff; color:#64748b; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:.2s; box-shadow:0 0 0 1px #e2e8f0 inset; }

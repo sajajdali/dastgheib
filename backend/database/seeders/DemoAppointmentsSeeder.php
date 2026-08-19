@@ -123,8 +123,8 @@ class DemoAppointmentsSeeder extends Seeder
                 $phone = '0912'.str_pad((string) (1000000 + $index + 4), 7, '0', STR_PAD_LEFT);
                 $customerLevel = match ($fileNumber) {
                     '4', '8', '12' => 'gold',
-                    '5', '7', '9', '11', '13', '17', '18', '19' => 'blue',
-                    '6', '10', '14', '15', '16' => 'silver',
+                    '5', '7', '9', '11', '13', '17', '18', '19' => 'silver',
+                    '6', '10', '14', '15', '16' => 'blue',
                     '20' => 'problematic',
                     default => null,
                 };

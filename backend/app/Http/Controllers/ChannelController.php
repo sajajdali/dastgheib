@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Channel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ChannelController extends Controller
 {
@@ -21,32 +22,49 @@ class ChannelController extends Controller
      */
     public function store(Request $request)
     {
-        // داده ارسالی باید آرایه‌ای از کانال‌ها (با نام کانال باشد) باشد.
-        $channelsData = $request->all();
+        $channelsData = $request->validate([
+            '*' => ['array'],
+            '*.id' => ['nullable', 'integer'],
+            '*.name' => ['required', 'string', 'max:255'],
+            '*.icon' => ['nullable', 'string', 'max:30'],
+        ]);
 
-        // اعتبارسنجی ساده روی هر آیتم
+        $keptIds = [];
+        $savedChannels = [];
         foreach ($channelsData as $channel) {
-            if (!isset($channel['name']) || trim($channel['name']) === '') {
-                return response()->json(['error' => 'فیلد نام کانال الزامی است.'], 422);
-            }
-            if (isset($channel['icon']) && mb_strlen($channel['icon']) > 30) {
-                return response()->json(['error' => 'آیکون کانال نامعتبر است.'], 422);
-            }
-        }
-
-        // حذف کل کانال‌های قبلی (اگر می‌خواهید جایگزین شوند)
-        Channel::query()->get()->each->delete();
-
-        // درج داده‌های جدید
-        foreach ($channelsData as $channel) {
-            Channel::create([
-                'name' => $channel['name'],
+            $model = !empty($channel['id']) ? Channel::find($channel['id']) : null;
+            $model ??= new Channel();
+            $model->fill([
+                'name' => trim($channel['name']),
                 'icon' => $channel['icon'] ?? null,
-            ]);
+            ])->save();
+            $keptIds[] = $model->id;
+            $savedChannels[] = $model->fresh();
         }
 
-        $newChannels = Channel::all();
-        return response()->json($newChannels, 201);
+        Channel::query()->whereNotIn('id', $keptIds)->get()->each(function (Channel $channel) {
+            if ($channel->icon_image_path) {
+                Storage::disk('public')->delete($channel->icon_image_path);
+            }
+            $channel->delete();
+        });
+
+        return response()->json($savedChannels);
+    }
+
+    public function uploadIcon(Request $request, Channel $channel)
+    {
+        $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        if ($channel->icon_image_path) {
+            Storage::disk('public')->delete($channel->icon_image_path);
+        }
+        $path = $request->file('image')->store("channels/{$channel->id}", 'public');
+        $channel->update(['icon_image_path' => $path]);
+
+        return response()->json(['channel' => $channel->fresh()]);
     }
 
     /**
@@ -60,6 +78,9 @@ class ChannelController extends Controller
             return response()->json(['error' => 'کانال یافت نشد.'], 404);
         }
 
+        if ($channel->icon_image_path) {
+            Storage::disk('public')->delete($channel->icon_image_path);
+        }
         $channel->delete();
         return response()->json(null, 204);
     }

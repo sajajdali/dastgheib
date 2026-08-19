@@ -29,9 +29,17 @@ class RolePermissionSeeder extends Seeder
                 fn (string $prefix) => str_starts_with($name, $prefix.'.')
             ));
 
+        // نقش عمومی: امکان مشاهده همه بخش‌ها و انجام ثبت ورود/خروج،
+        // بدون دسترسی‌های مدیریتی، مالی، حذف یا تنظیمات سیستم.
+        $generalStaffPermissions = $permissionNames
+            ->filter(fn (string $name) => str_ends_with($name, '.view'))
+            ->merge(['patients.view_phone', 'attendance.clock'])
+            ->filter(fn (string $name) => $permissionNames->contains($name));
+
         $rolePermissions = [
             'مدیر سیستم' => $permissionNames,
             'مدیر مجموعه' => $permissionNames->reject(fn (string $name) => $name === 'roles.manage'),
+            'پرسنل مجموعه' => $generalStaffPermissions,
             'پذیرش' => $permissionsByPrefix(['patients', 'appointments'])
                 ->merge(['services.view', 'followups.view', 'followups.create']),
             'پزشک' => collect([

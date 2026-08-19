@@ -1,11 +1,11 @@
 <template>
   <section class="roles-page" :class="{ embedded }" dir="rtl">
     <header class="roles-header">
+      <button class="primary-btn" type="button" @click="startCreateRole">+ نقش جدید</button>
       <div>
         <h1>مدیریت نقش‌ها</h1>
         <p>نقش‌ها، سطح دسترسی هر نقش و کاربران متصل را مدیریت کنید.</p>
       </div>
-      <button class="primary-btn" type="button" @click="startCreateRole">+ نقش جدید</button>
     </header>
 
     <div v-if="loading" class="roles-loading">

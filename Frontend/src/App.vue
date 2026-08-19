@@ -737,6 +737,7 @@ export default {
         startPresence(this.user);
         await this.loadAttendanceStatus();
         this.restoreLastClinicPage();
+        this.consumeFollowupAppointmentIntent();
       } catch (error) {
         if (error.response?.status !== 401) {
           console.error("خطا در بررسی ورود", error);
@@ -802,6 +803,29 @@ export default {
         }
       } catch {
         // نبودن دسترسی localStorage نباید جلوی ورود به سامانه را بگیرد.
+      }
+    },
+
+    consumeFollowupAppointmentIntent() {
+      const url = new URL(window.location.href);
+      const token = url.searchParams.get('followupAppointment');
+      if (!token || !this.user?.permissions?.includes('appointments.view')) return;
+      try {
+        const raw = localStorage.getItem(token);
+        const payload = raw ? JSON.parse(raw) : null;
+        if (!payload?.followup) return;
+        localStorage.removeItem(token);
+        this.pendingAppointmentViewRequest = {
+          view: 'timeline',
+          date: payload.date || '',
+          followup: payload.followup,
+          requestedAt: Date.now()
+        };
+        this.currentPage = 'Vaghtdahi';
+        url.searchParams.delete('followupAppointment');
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+      } catch (error) {
+        console.warn('دریافت درخواست نوبت‌دهی پیگیری انجام نشد.', error);
       }
     },
 

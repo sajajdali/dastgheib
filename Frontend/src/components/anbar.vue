@@ -73,7 +73,7 @@
             aria-label="افزودن زیرشاخه"
             @click.stop="addChildSection(sectionKey(node.section), node.level + 1)"
           >+</button>
-          <button type="button" class="tree-more-btn" title="حذف" aria-label="حذف" @click.stop="removeSectionNode(node.section)">⋮</button>
+          <button type="button" class="tree-more-btn" title="حذف" aria-label="حذف" @click.stop="removeSectionNode(node.section)">×</button>
         </div>
 
         <small v-if="!inventoryTreeNodes.length" class="tree-empty">اولین انبار را بسازید</small>
@@ -2186,8 +2186,9 @@ p {
 }
 
 .tree-more-btn {
-  color: #94a3b8;
-  font-size: 18px;
+  color: #cbd5e1;
+  font-size: 16px;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -2399,7 +2400,7 @@ select {
 }
 
 td:first-child input {
-  text-align: right;
+  text-align: center;
 }
 
 input:focus,
@@ -2411,6 +2412,7 @@ select:focus {
 .service-tags-editor {
   min-height: 54px;
   display: flex;
+  justify-content: center;
   align-content: flex-start;
   align-items: center;
   flex-wrap: wrap;

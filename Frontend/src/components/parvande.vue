@@ -3595,21 +3595,16 @@ export default {
     },
 
     async updatePatient() {
-      if (
-        !this.editPatient.first_name || 
-        !this.editPatient.last_name || 
-        !this.editPatient.phone || 
-        !this.editPatient.file_number || 
-        !this.editPatient.gender || 
-        !this.editPatient.birth_date || 
-        !this.editPatient.area || 
-        !this.editPatient.financial_status
-      ) {
-        Swal.fire({ icon: 'warning', title: 'خطای اعتبار سنجی', text: 'لطفاً تمامی فیلدهای ستاره‌دار را تکمیل کنید.', confirmButtonText: 'تایید' })
+      const missingFields = Object.entries(this.patientRequiredFields || {})
+        .filter(([field, required]) => required && !String(this.editPatient[field] ?? '').trim())
+        .map(([field]) => this.columnLabels[field] || field)
+
+      if (missingFields.length) {
+        Swal.fire({ icon: 'warning', title: 'اطلاعات ناقص', text: `فیلدهای ستاره‌دار را تکمیل کنید: ${missingFields.join('، ')}`, confirmButtonText: 'تایید' })
         return
       }
 
-      if (this.editPatient.phone.length !== 11) {
+      if (this.canViewPatientPhone && String(this.editPatient.phone || '').trim() && String(this.editPatient.phone).trim().length !== 11) {
         Swal.fire({ icon: 'warning', title: 'خطای شماره تماس', text: 'شماره تماس باید دقیقاً ۱۱ رقم باشد.', confirmButtonText: 'تایید' })
         return
       }

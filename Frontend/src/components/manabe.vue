@@ -244,10 +244,10 @@
         <thead><tr><th>آیکون</th><th>نام کانال</th><th>تنظیمات</th><th>حذف / اضافه</th></tr></thead>
         <tbody>
           <tr v-for="(row, index) in channelRows" :key="row.id || index">
-            <td data-label="آیکون"><span class="channel-card-icon">{{ row.icon || '📣' }}</span></td>
+            <td data-label="آیکون"><span class="channel-card-icon"><img v-if="channelImageUrl(row)" :src="channelImageUrl(row)" alt=""><template v-else>{{ row.icon || '📣' }}</template></span></td>
             <td data-label="نام کانال"><strong class="channel-card-name">{{ row.name || 'کانال جدید' }}</strong></td>
             <td class="doctor-settings-cell" data-label="تنظیمات">
-              <button type="button" class="doctor-settings-btn channel-settings-btn" @click="openChannelSettings(index)"><span class="doctor-settings-icon">✎</span><span><strong>تنظیم کانال</strong><small>{{ row.icon ? 'آیکون اختصاصی انتخاب شده' : 'نمایش با آیکون پیش‌فرض' }}</small></span><b>ویرایش</b></button>
+              <button type="button" class="doctor-settings-btn channel-settings-btn" @click="openChannelSettings(index)"><span class="doctor-settings-icon">✎</span><span><strong>تنظیم کانال</strong><small>{{ channelImageUrl(row) ? 'تصویر اختصاصی بارگذاری شده' : row.icon ? 'آیکون اختصاصی انتخاب شده' : 'نمایش با آیکون پیش‌فرض' }}</small></span><b>ویرایش</b></button>
             </td>
             <td class="actions-cell" data-label="عملیات"><button class="btn-add" type="button" title="اضافه کردن کانال" @click="addChannelRow"><span>+</span><small>اضافه</small></button><button v-if="channelRows.length > 1" class="btn-remove" type="button" title="حذف کانال" @click="removeChannelRow(index)"><span>−</span><small>حذف</small></button></td>
           </tr>
@@ -259,7 +259,7 @@
       <section class="doctor-settings-modal channel-settings-modal" role="dialog" aria-modal="true" aria-labelledby="channel-settings-title">
         <header class="doctor-settings-modal-head"><div><span class="modal-eyebrow">تنظیمات کانال</span><h3 id="channel-settings-title">{{ activeChannel.name || 'کانال جدید' }}</h3><p>نام و آیکون نمایشی کانال تبلیغاتی را تعیین کنید.</p></div><button type="button" class="resource-modal-close" title="بستن" aria-label="بستن" @click="closeChannelSettings">×</button></header>
         <div class="doctor-settings-modal-body">
-          <section class="channel-modal-form"><label><span>نام کانال</span><input v-model.trim="activeChannel.name" type="text" placeholder="نام کانال تبلیغات"></label><label><span>آیکون نمایشی</span><select v-model="activeChannel.icon"><option value="">آیکون پیش‌فرض</option><option v-for="icon in channelIconOptions" :key="icon" :value="icon">{{ icon }}</option></select></label><div class="channel-modal-preview"><span>{{ activeChannel.icon || '📣' }}</span><strong>{{ activeChannel.name || 'پیش‌نمایش کانال' }}</strong></div></section>
+          <section class="channel-modal-form"><label><span>نام کانال</span><input v-model.trim="activeChannel.name" type="text" placeholder="نام کانال تبلیغات"></label><label><span>آیکون نمایشی</span><select v-model="activeChannel.icon"><option value="">آیکون پیش‌فرض</option><option v-for="icon in channelIconOptions" :key="icon" :value="icon">{{ icon }}</option></select></label><label class="channel-image-upload"><span>تصویر اختصاصی <small>اختیاری</small></span><input type="file" accept="image/png,image/jpeg,image/webp" @change="uploadChannelIcon"><b>انتخاب و بارگذاری تصویر</b><em>PNG، JPG یا WEBP تا ۲ مگابایت</em></label><div class="channel-modal-preview"><span><img v-if="channelImageUrl(activeChannel)" :src="channelImageUrl(activeChannel)" alt=""><template v-else>{{ activeChannel.icon || '📣' }}</template></span><strong>{{ activeChannel.name || 'پیش‌نمایش کانال' }}</strong></div></section>
         </div>
         <footer class="doctor-settings-modal-actions"><span>تغییرات پس از بستن به‌صورت خودکار ذخیره می‌شوند.</span><button type="button" @click="closeChannelSettings">تأیید و بستن</button></footer>
       </section>
@@ -337,6 +337,7 @@ export default {
 
     saveTimeout: null,
     isSyncingResourceRows: false,
+    isSyncingChannelRows: false,
     doctorRowsRevision: 0,
     doctorsDirty: false,
     savingDoctors: false,
@@ -372,6 +373,7 @@ export default {
     },
     channelRows: {
       handler() {
+        if (this.isSyncingChannelRows) return;
         clearTimeout(this.saveTimeout);
         this.saveTimeout = setTimeout(() => {
           this.autoSaveChannels();
@@ -675,6 +677,10 @@ export default {
       return avatarInitial(row);
     },
 
+    channelImageUrl(row) {
+      return String(row?.icon_image_url || row?.iconImageUrl || '').trim();
+    },
+
     async makeSquareWebp(file, size, quality, fileName) {
       const imageUrl = URL.createObjectURL(file);
       const image = new Image();
@@ -831,7 +837,7 @@ export default {
 
     async autoSaveChannels() {
       const validChannels = this.channelRows.filter(row => row.name && row.name.trim() !== '');
-      if (validChannels.length === 0) return;
+      if (validChannels.length === 0) return [];
 
       try {
         const response = await fetch('/api/channels', {
@@ -843,9 +849,56 @@ export default {
           body: JSON.stringify(validChannels)
         });
         const data = await response.json();
+        if (!response.ok) throw new Error(data.message || data.error || 'ذخیره کانال‌ها انجام نشد.');
+        if (Array.isArray(data)) {
+          this.isSyncingChannelRows = true;
+          this.channelRows = data;
+          this.$nextTick(() => { this.isSyncingChannelRows = false; });
+        }
         console.log('کانال‌ها با موفقیت ذخیره شدند:', data);
+        return data;
       } catch (error) {
         console.error('خطا در ذخیره اطلاعات کانال‌ها:', error);
+        return [];
+      }
+    },
+
+    async uploadChannelIcon(event) {
+      const input = event.target;
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file || !this.activeChannel) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
+        alert('تصویر باید از نوع PNG، JPG یا WEBP و حداکثر ۲ مگابایت باشد.');
+        return;
+      }
+      if (!String(this.activeChannel.name || '').trim()) {
+        alert('ابتدا نام کانال را وارد کنید.');
+        return;
+      }
+
+      const saved = await this.autoSaveChannels();
+      const channel = this.channelRows[this.activeChannelIndex];
+      if (!saved.length || !channel?.id) {
+        alert('ابتدا کانال ذخیره نشد؛ دوباره تلاش کنید.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', file);
+      try {
+        const response = await fetch(`/api/channels/${channel.id}/icon`, {
+          method: 'POST',
+          headers: { Accept: 'application/json' },
+          body: formData,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'بارگذاری تصویر انجام نشد.');
+        this.isSyncingChannelRows = true;
+        Object.assign(channel, data.channel);
+        this.$nextTick(() => { this.isSyncingChannelRows = false; });
+      } catch (error) {
+        alert(error.message || 'بارگذاری تصویر کانال انجام نشد.');
       }
     },
 
@@ -1908,7 +1961,7 @@ input:focus {
 .channels-content .btn-add,.channels-content .btn-remove{width:auto;min-width:74px;height:38px;padding:0 12px;gap:6px;border-radius:11px;line-height:1;box-shadow:0 7px 16px rgba(15,23,42,.1)}
 .channels-content .btn-add span,.channels-content .btn-remove span{font-size:18px;line-height:1}
 .channels-content .btn-add small,.channels-content .btn-remove small{display:block;color:inherit;font-size:10px;font-weight:900;line-height:1}
-.channel-card-icon{width:48px;height:48px;display:grid;place-items:center;margin:auto;border:1px solid #dbeafe;border-radius:14px;background:#eff6ff;font-size:23px}
+.channel-card-icon{width:48px;height:48px;display:grid;place-items:center;overflow:hidden;margin:auto;border:1px solid #dbeafe;border-radius:14px;background:#eff6ff;font-size:23px}.channel-card-icon img{width:100%;height:100%;object-fit:cover}
 .channel-card-name{display:block;min-width:0;overflow:hidden;color:#1e293b;font-size:13px;text-align:right;text-overflow:ellipsis;white-space:nowrap}
 .channels-content .doctor-settings-btn{width:100%;min-height:54px;display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px}
 .channels-content .doctor-settings-btn>span:nth-child(2){min-width:0;text-align:right}
@@ -1920,6 +1973,6 @@ input:focus {
 .channel-modal-form label{display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}
 .channel-modal-form input,.channel-modal-form select{width:100%;height:42px;padding:0 12px;border:1px solid #dbe3ed;border-radius:11px;background:#fff;font-family:inherit;text-align:right}
 .channel-modal-preview{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #ddd6fe;border-radius:14px;background:#faf5ff}
-.channel-modal-preview span{width:48px;height:48px;display:grid;place-items:center;border-radius:13px;background:#7c3aed;color:#fff;font-size:23px}
+.channel-image-upload{grid-column:1/-1;padding:11px 12px;border:1px dashed #a78bfa;border-radius:12px;background:#faf5ff;cursor:pointer}.channel-image-upload>span{display:block;color:#5b21b6;font-size:11px;font-weight:900}.channel-image-upload small{color:#8b5cf6;font-weight:600}.channel-image-upload input{display:none}.channel-image-upload b{display:block;margin-top:7px;color:#6d28d9;font-size:12px}.channel-image-upload em{display:block;margin-top:3px;color:#8b5cf6;font-size:9px;font-style:normal;font-weight:700}.channel-modal-preview span{width:48px;height:48px;display:grid;place-items:center;overflow:hidden;border-radius:13px;background:#7c3aed;color:#fff;font-size:23px}.channel-modal-preview span img{width:100%;height:100%;object-fit:cover}
 .channel-modal-preview strong{color:#4c1d95;font-size:13px}
 @media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:180px;min-width:180px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}</style>

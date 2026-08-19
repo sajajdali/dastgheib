@@ -231,22 +231,33 @@ class PatientController extends Controller
     {
         $patient = Patient::findOrFail($id);
 
-        $updates = [
-            'first_name'       => $request->first_name,
-            'last_name'        => $request->last_name,
-            'phone'            => $request->phone,
-            'gender'           => $request->gender,
-            'birth_date'       => $request->birth_date,
-            'area'             => $request->area,
-            'city'             => $request->city,
-            'financial_status' => $request->financial_status,
-            'customer_level'   => $request->customer_level,
-            'patient_history'  => $request->patient_history,
-            'medical_history'  => $request->medical_history,
-        ];
+        $requiredFields = json_decode((string) AppSetting::getByKey('patient_required_fields', '{}'), true) ?: [];
+        $presence = fn (string $field) => ! empty($requiredFields[$field]) ? 'required' : 'nullable';
+        $updates = $request->validate([
+            'first_name' => [$presence('first_name'), 'string', 'max:255'],
+            'last_name' => [$presence('last_name'), 'string', 'max:255'],
+            'phone' => [$presence('phone'), 'string', 'max:30', Rule::unique('patients', 'phone')->ignore($patient->id)],
+            'gender' => [$presence('gender'), 'string', 'max:20'],
+            'birth_date' => [$presence('birth_date'), 'string', 'max:20'],
+            'area' => [$presence('area'), 'string', 'max:255'],
+            'city' => [$presence('city'), 'string', 'max:255'],
+            'financial_status' => [$presence('financial_status'), 'string', 'max:255'],
+            'customer_level' => ['nullable', 'in:problematic,blue,silver,gold'],
+            'patient_history' => [$presence('patient_history'), 'string'],
+            'medical_history' => [$presence('medical_history'), 'string'],
+            'national_id' => [$presence('national_id'), 'string', 'max:20'],
+            'father_name' => [$presence('father_name'), 'string', 'max:255'],
+            'marriage_date' => [$presence('marriage_date'), 'string', 'max:20'],
+            'education' => [$presence('education'), 'string', 'max:255'],
+            'second_phone' => [$presence('second_phone'), 'string', 'max:30'],
+            'address' => [$presence('address'), 'string'],
+        ], [
+            'phone.unique' => 'شماره موبایل تکراری است',
+        ]);
 
         if (! PatientPhoneVisibility::canView($request) || PatientPhoneVisibility::looksMasked($updates['phone'] ?? '')) {
             $updates['phone'] = $patient->phone;
+            $updates['second_phone'] = $patient->second_phone;
         }
 
         $patient->update($updates);

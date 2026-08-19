@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HumanResourceController;
 use App\Models\InventorySection;
 use App\Models\PatientMedia;
 use App\Support\PatientPhoneVisibility;
@@ -84,10 +85,10 @@ class PhotoComparisonController extends Controller
                 });
             })
             ->when($request->filled('tag'), function (Collection $rows) use ($data) {
-                $tag = mb_strtolower(trim($data['tag']));
+                $tag = $this->normalizedTag($data['tag']);
 
                 return $rows->filter(fn ($row) => collect($row['tags'])->contains(
-                    fn ($item) => str_contains(mb_strtolower((string) ($item['name'] ?? '')), $tag)
+                    fn ($item) => str_contains($this->normalizedTag($item['name'] ?? ''), $tag)
                 ));
             })
             ->when($request->boolean('only_complete'), fn (Collection $rows) => $rows->filter(fn ($row) => $row['before'] && $row['after']))
@@ -100,12 +101,13 @@ class PhotoComparisonController extends Controller
         return response()->json([
             'comparisons' => $groups,
             'services' => InventorySection::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
-            'tags' => PatientMedia::query()
-                ->whereNotNull('services')
-                ->pluck('services')
-                ->flatMap(fn ($items) => is_array($items) ? $items : [])
-                ->filter(fn ($item) => is_array($item) && ! empty($item['name']))
-                ->pluck('name')
+            'tags' => collect(app(HumanResourceController::class)->serviceTags())
+                ->merge(PatientMedia::query()
+                    ->whereNotNull('services')
+                    ->pluck('services')
+                    ->flatMap(fn ($items) => is_array($items) ? $items : [])
+                    ->filter(fn ($item) => is_array($item) && ! empty($item['name']))
+                    ->pluck('name'))
                 ->map(fn ($name) => trim((string) $name))
                 ->filter()
                 ->unique()
@@ -156,6 +158,14 @@ class PhotoComparisonController extends Controller
         }
 
         return $group === 'old' ? $age >= 40 : $age < 40;
+    }
+
+    private function normalizedTag($value): string
+    {
+        return mb_strtolower(trim(preg_replace('/\s+/u', ' ', strtr((string) $value, [
+            'ي' => 'ی',
+            'ك' => 'ک',
+        ]))));
     }
 
     private function ageFromBirthDate(?string $birthDate): ?int
