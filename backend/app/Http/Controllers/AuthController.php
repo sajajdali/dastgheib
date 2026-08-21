@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Tenant;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,7 +15,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use App\Support\ActivityLogger;
 
 class AuthController extends Controller
 {
@@ -206,7 +207,7 @@ class AuthController extends Controller
                 'id' => tenant('id'),
                 'name' => $tenant->name ?? tenant('id'),
                 'status' => $tenant->status ?? 'active',
-                'module_ids' => array_values(array_unique([...$legacyModules, ...$subscriptionModules])),
+                'module_ids' => Tenant::withBaseModules([...$legacyModules, ...$subscriptionModules]),
                 'plan_id' => $planId,
                 'plan' => $plan ? [
                     'id' => $plan->id,

@@ -50,7 +50,7 @@ class CentralTenantController extends Controller
             'status' => $data['status'] ?? 'active',
             'plan_id' => $data['plan_id'] ?? null,
             'user_count' => $data['user_count'] ?? 1,
-            'module_ids' => $data['module_ids'] ?? [],
+            'module_ids' => Tenant::withBaseModules($data['module_ids'] ?? []),
         ]);
 
         $tenant->domains()->create(['domain' => Str::lower($data['domain'])]);
@@ -78,6 +78,10 @@ class CentralTenantController extends Controller
             'module_ids' => ['sometimes', 'array'],
             'module_ids.*' => ['string', 'max:120'],
         ]);
+
+        if (array_key_exists('module_ids', $data)) {
+            $data['module_ids'] = Tenant::withBaseModules($data['module_ids']);
+        }
 
         $tenant->update($data);
 
@@ -148,9 +152,6 @@ class CentralTenantController extends Controller
 
     private function tenantData(Tenant $tenant): array
     {
-        $legacyModules = is_array($tenant->module_ids ?? null) ? $tenant->module_ids : [];
-        $subscriptionModules = $this->subscriptions->activeModuleIds($tenant->getTenantKey());
-
         return [
             'id' => $tenant->getTenantKey(),
             'name' => $tenant->name ?? $tenant->getTenantKey(),
@@ -158,7 +159,7 @@ class CentralTenantController extends Controller
             'database' => $tenant->database()->getName(),
             'plan_id' => $tenant->plan_id ?? null,
             'user_count' => $tenant->user_count ?? 1,
-            'module_ids' => array_values(array_unique([...$legacyModules, ...$subscriptionModules])),
+            'module_ids' => $this->subscriptions->enabledModuleIds($tenant->getTenantKey()),
             'module_subscriptions' => $this->moduleSubscriptions($tenant),
             'domains' => $tenant->domains
                 ->map(fn (Domain $domain) => [

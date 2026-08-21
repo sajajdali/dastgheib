@@ -21,10 +21,16 @@ use App\Support\PatientPhoneVisibility;
 
 class AppointmentController extends Controller
 {
-    // دریافت نوبت‌ها (فقط کل نوبت‌ها را برمی‌گرداند)
+    // دریافت نوبت‌ها؛ در صفحه تقویم فقط ماه انتخاب‌شده بارگذاری می‌شود.
     public function getAppointments(Request $request, CustomerLevelService $levels)
     {
+        $validated = $request->validate([
+            'month' => ['nullable', 'string', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
+        ]);
+        $month = $validated['month'] ?? null;
+
         $appointments = Appointment::query()
+            ->when($month, fn ($query) => $query->where('month', $month))
             ->orderBy('month')
             ->orderBy('day_num')
             ->orderBy('sort_order')

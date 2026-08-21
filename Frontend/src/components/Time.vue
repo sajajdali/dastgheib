@@ -2123,6 +2123,9 @@ export default {
       handledOpenViewRequestAt: null,
       searchQuery: "",
       holidays: {},
+      monthEventsCache: {},
+      monthAppointmentsCache: {},
+      monthDaysCache: {},
 
       months: ["1405-01"],
       avatarPreview: null,
@@ -2467,7 +2470,10 @@ export default {
       this.currentMonth
     );
 
-    this.init();
+    this.generatingNewMonth = true;
+    this.init().finally(() => {
+      this.generatingNewMonth = false;
+    });
   },
 
   beforeUnmount() {
@@ -2575,11 +2581,16 @@ export default {
 
       const targetMonthIndex = this.months.indexOf(targetMonth);
       if (targetMonthIndex !== this.currentMonth) {
-        this.currentMonth = targetMonthIndex;
-        localStorage.setItem("schedule_current_month", this.currentMonth);
-        await this.fetchMonthEvents();
-        await this.fetchData();
-        this.syncAllDaysCollapsedState();
+        this.generatingNewMonth = true;
+        try {
+          this.currentMonth = targetMonthIndex;
+          localStorage.setItem("schedule_current_month", this.currentMonth);
+          await this.fetchMonthEvents();
+          await this.fetchData();
+          this.syncAllDaysCollapsedState();
+        } finally {
+          this.generatingNewMonth = false;
+        }
       }
 
       const day = this.ensureScheduleDay(selectedDate);
@@ -3362,8 +3373,16 @@ export default {
       }
     },
 
-    async fetchMonthEvents() {
-      const { year, month } = this.parseJalaliMonth();
+    async fetchMonthEvents(force = false) {
+      const monthKey = this.months[this.currentMonth];
+      if (!monthKey) return;
+
+      if (!force && this.monthEventsCache[monthKey]) {
+        this.holidays = this.monthEventsCache[monthKey];
+        return;
+      }
+
+      const [year, month] = monthKey.split("-").map(Number);
 
       try {
         const res = await axios.get(
@@ -3371,12 +3390,12 @@ export default {
         );
 
         const result = res.data?.result || {};
-        this.holidays = {};
+        const holidays = {};
 
         Object.keys(result).forEach(day => {
           const item = result[day];
 
-          this.holidays[Number(day)] = {
+          holidays[Number(day)] = {
             title: Array.isArray(item.event)
               ? item.event.join("، ")
               : "",
@@ -3384,9 +3403,17 @@ export default {
           };
         });
 
+        this.monthEventsCache[monthKey] = holidays;
+        if (this.months[this.currentMonth] === monthKey) {
+          this.holidays = holidays;
+        }
+
       } catch (e) {
         console.error("خطا در دریافت مناسبت‌ها", e);
-        this.holidays = {};
+        this.monthEventsCache[monthKey] = {};
+        if (this.months[this.currentMonth] === monthKey) {
+          this.holidays = {};
+        }
       }
     },
 
@@ -4145,15 +4172,39 @@ export default {
       }
     },
 
-    async fetchData() {
+    async fetchData(force = false) {
+      const targetMonth = this.months[this.currentMonth];
+      if (!targetMonth) return;
+
+      if (!force && this.monthDaysCache[targetMonth]) {
+        this.isFetching = true;
+        this.days = this.monthDaysCache[targetMonth];
+        this.restorePendingDraft();
+        this.isFetching = false;
+        return;
+      }
+
       this.isFetching = true;
 
       try {
         const previousUnreadKeys = new Set(this.doctorNoteUnreadSnapshot || []);
-        const res = await axios.get("/api/appointments");
+        let data = this.monthAppointmentsCache[targetMonth];
+        if (force || !data) {
+          const res = await axios.get("/api/appointments", {
+            params: { month: targetMonth }
+          });
+          data = Array.isArray(res.data) ? res.data : [];
+          this.monthAppointmentsCache[targetMonth] = data;
+        }
 
-        const month = this.months[this.currentMonth];
-        const data = res.data.filter(a => a.month === month);
+        // اگر کاربر هنگام دریافت اطلاعات ماه دیگری را انتخاب کرده باشد،
+        // پاسخ را برای مراجعه بعدی کش می‌کنیم ولی صفحه فعلی را بازنویسی نمی‌کنیم.
+        if (this.months[this.currentMonth] !== targetMonth) {
+          this.isFetching = false;
+          return;
+        }
+
+        const month = targetMonth;
 
         this.days = [];
 
@@ -4266,13 +4317,18 @@ export default {
         if (this.doctorNoteUnreadInitialized && hasNewUnreadDoctorNote) this.playDoctorNoteBell();
         this.doctorNoteUnreadSnapshot = nextUnreadKeys;
         this.doctorNoteUnreadInitialized = true;
+        this.monthDaysCache[targetMonth] = this.days;
 
       } catch (e) {
         console.error(e);
-        this.days = [];
+        if (this.months[this.currentMonth] === targetMonth) {
+          this.days = [];
+        }
       }
 
-      const restoredDraft = this.restorePendingDraft();
+      const restoredDraft = this.months[this.currentMonth] === targetMonth
+        ? this.restorePendingDraft()
+        : false;
       this.isFetching = false;
       if (restoredDraft) this.saveData(0);
     },
@@ -4539,6 +4595,12 @@ export default {
       clearTimeout(this.saveTimeout);
       this.persistPendingDraft();
 
+      // ماه و آرایه روزها را هنگام زمان‌بندی ذخیره ثابت نگه می‌داریم؛
+      // ممکن است کاربر پیش از اجرای debounce ماه دیگری را انتخاب کند.
+      const scheduledMonth = this.months[this.currentMonth];
+      const scheduledDays = this.days;
+      if (!scheduledMonth) return;
+
       this.saveTimeout =
         setTimeout(async () => {
 
@@ -4555,12 +4617,11 @@ export default {
 
             const draftRevisionAtRequest = this.draftRevision;
 
-            const month =
-              this.months[this.currentMonth];
+            const month = scheduledMonth;
 
             const payload = [];
 
-            this.days.forEach(day => {
+            scheduledDays.forEach(day => {
 
               day.rows.forEach((row, rowIndex) => {
                 if (!this.rowShouldPersist(row)) {
@@ -4732,6 +4793,9 @@ this.calculateFinalAmount(row)
                 appointments: payload
               }
             );
+
+            this.monthDaysCache[month] = scheduledDays;
+            delete this.monthAppointmentsCache[month];
 
             if (this.draftRevision === draftRevisionAtRequest) {
               this.clearPendingDraft(month);
@@ -6339,6 +6403,8 @@ smsColor(val) {
 
       handler() {
         if (!this.isFetching) {
+          const month = this.months[this.currentMonth];
+          if (month) this.monthDaysCache[month] = this.days;
           this.draftRevision++;
           this.persistPendingDraft();
         }
@@ -6363,7 +6429,12 @@ smsColor(val) {
       deep: true
     },
 
-    async currentMonth(val) {
+    async currentMonth(val, oldVal) {
+      const oldMonth = this.months[oldVal];
+      if (oldMonth && this.days.length) {
+        this.monthDaysCache[oldMonth] = this.days;
+      }
+
       localStorage.setItem(
         "schedule_current_month",
         val
@@ -6371,6 +6442,7 @@ smsColor(val) {
 
       if (this.generatingNewMonth) return;
 
+      this.isFetching = true;
       await this.fetchMonthEvents();
       await this.fetchData();
     }

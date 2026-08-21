@@ -33,7 +33,11 @@ Route::middleware([
             $frontend = public_path('app.html');
 
             return is_file($frontend)
-                ? response()->file($frontend)
+                ? response()->file($frontend, [
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                    'Pragma' => 'no-cache',
+                    'Expires' => '0',
+                ])
                 : view('welcome');
         });
     });

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CentralModuleSubscription;
+use App\Models\Tenant;
 use Illuminate\Support\Carbon;
 
 class ModuleSubscriptionService
@@ -27,7 +28,24 @@ class ModuleSubscriptionService
 
     public function syncTenantModuleIds(string $tenantId): array
     {
-        return $this->activeModuleIds($tenantId);
+        return $this->enabledModuleIds($tenantId);
+    }
+
+    public function enabledModuleIds(?string $tenantId): array
+    {
+        if (! $tenantId) {
+            return Tenant::withBaseModules([]);
+        }
+
+        $tenant = Tenant::query()->find($tenantId);
+        $storedModuleIds = is_array($tenant?->module_ids)
+            ? $tenant->module_ids
+            : [];
+
+        return Tenant::withBaseModules([
+            ...$storedModuleIds,
+            ...$this->activeModuleIds($tenantId),
+        ]);
     }
 
     public function purchaseOrRenew(string $tenantId, array $item, Carbon $paidAt): CentralModuleSubscription

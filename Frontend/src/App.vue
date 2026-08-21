@@ -185,7 +185,8 @@
       <Photos v-if="currentPage === 'Photos'" :permissions="user.permissions || []" />
 
       <Time
-        v-if="currentPage === 'Vaghtdahi'"
+        v-if="appointmentPageOpened"
+        v-show="currentPage === 'Vaghtdahi'"
         :permissions="user.permissions || []"
         :open-view-request="pendingAppointmentViewRequest"
         @open-patient-profile="openPatientProfileFromAppointment"
@@ -430,6 +431,8 @@ export default {
 
       currentPage: null,
 
+      appointmentPageOpened: false,
+
       isDark: false,
 
       authLoading: true,
@@ -517,6 +520,9 @@ export default {
     },
 
     currentPage(newPage) {
+      if (newPage === "Vaghtdahi") {
+        this.appointmentPageOpened = true;
+      }
       this.rememberLastClinicPage(newPage);
     }
 
