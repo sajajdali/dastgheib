@@ -914,6 +914,10 @@
                     <input v-model="mediaUpload.no_usage_consent" type="checkbox">
                     <span>عدم رضایت استفاده از تصاویر</span>
                   </label>
+                  <label class="feature-check featured-check">
+                    <input v-model="mediaUpload.is_featured" type="checkbox">
+                    <span>★ برترین‌ها</span>
+                  </label>
 
                   <button
                     type="button"
@@ -939,6 +943,10 @@
               <label class="feature-check no-consent-check">
                 <input type="checkbox" v-model="mediaUpload.no_usage_consent">
                 <span>عدم رضایت استفاده از تصاویر</span>
+              </label>
+              <label class="feature-check featured-check">
+                <input type="checkbox" v-model="mediaUpload.is_featured">
+                <span>★ برترین‌ها</span>
               </label>
 
               <div class="service-picker">
@@ -992,6 +1000,7 @@
                     <small v-if="mediaUpload.services.length">
                       {{ mediaUpload.services.length }} تگ انتخاب شده
                       <template v-if="mediaUpload.no_usage_consent"> · عدم رضایت استفاده از تصاویر</template>
+                      <template v-if="mediaUpload.is_featured"> · برترین‌ها</template>
                     </small>
                     <small v-else class="settings-needed">برای آپلود، تنظیمات را تکمیل کنید</small>
                   </span>
@@ -1030,6 +1039,10 @@
                     <label class="feature-check no-consent-check">
                       <input v-model="mediaUpload.no_usage_consent" type="checkbox">
                       <span>عدم رضایت استفاده از تصاویر</span>
+                    </label>
+                    <label class="feature-check featured-check">
+                      <input v-model="mediaUpload.is_featured" type="checkbox">
+                      <span>★ برترین‌ها</span>
                     </label>
                   </div>
                 </section>
@@ -1608,6 +1621,7 @@ export default {
       mediaUpload: {
         description: '',
         no_usage_consent: false,
+        is_featured: false,
         services: []
       }
     }
@@ -2684,6 +2698,7 @@ export default {
       this.mediaUpload = {
         description: '',
         no_usage_consent: false,
+        is_featured: false,
         services: []
       }
     },
@@ -3105,6 +3120,7 @@ export default {
     appendMediaUploadMetadata(formData) {
       formData.append('description', this.mediaUpload.description || '')
       formData.append('usage_consent', this.mediaUpload.no_usage_consent ? '0' : '1')
+      formData.append('is_featured', this.mediaUpload.is_featured ? '1' : '0')
       formData.append('services', JSON.stringify(this.mediaUpload.services || []))
     },
 
@@ -3267,6 +3283,10 @@ export default {
         const updated = await res.json()
         const target = this.mediaItems.find(item => item.id === updated.id)
         if (target) Object.assign(target, updated)
+
+        // وضعیت قرمز فولدر از مجموع رضایت فایل‌های داخل آن محاسبه می‌شود.
+        // با تازه‌سازی گالری، برداشتن تیک بلافاصله هم از عکس و هم از فولدر حذف می‌شود.
+        await this.loadPatientMedia(this.currentMediaFolderId, this.mediaShowAll)
 
         this.closeMediaEdit()
         Swal.fire({ icon: 'success', title: 'ذخیره شد', text: 'اطلاعات فایل بروزرسانی شد', timer: 1800, showConfirmButton: false })

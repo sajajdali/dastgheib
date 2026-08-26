@@ -39,6 +39,7 @@
       <template v-if="appointmentView === 'table'">
 
       <button 
+        v-if="days.length === 0"
         class="add-day-btn icon-add-day-btn"
         type="button"
         title="افزودن روز"
@@ -3366,20 +3367,12 @@ export default {
       const { year, month } = this.parseJalaliMonth();
 
       try {
-        const res = await axios.get(
-          `https://pnldev.com/api/calender?year=${year}&month=${month}`
-        );
-
-        const result = res.data?.result || {};
+        const res = await axios.get('/api/calendar/events', { params: { year, month } });
         this.holidays = {};
 
-        Object.keys(result).forEach(day => {
-          const item = result[day];
-
-          this.holidays[Number(day)] = {
-            title: Array.isArray(item.event)
-              ? item.event.join("، ")
-              : "",
+        (res.data?.events || []).forEach(item => {
+          this.holidays[Number(item.day)] = {
+            title: item.title || '',
             holiday: item.holiday === true
           };
         });
@@ -4550,6 +4543,7 @@ export default {
           }
 
           this.saveInProgress = true;
+          let saveSucceeded = false;
 
           try {
 
@@ -4732,6 +4726,7 @@ this.calculateFinalAmount(row)
                 appointments: payload
               }
             );
+            saveSucceeded = true;
 
             if (this.draftRevision === draftRevisionAtRequest) {
               this.clearPendingDraft(month);
@@ -4746,14 +4741,17 @@ this.calculateFinalAmount(row)
             Swal.fire({
               icon: "error",
               title: "خطا",
-              text: "ذخیره انجام نشد"
+              text: e.response?.data?.message || "ذخیره انجام نشد"
             });
 
           } finally {
             this.saveInProgress = false;
             if (this.saveQueued) {
               this.saveQueued = false;
-              this.saveData(0);
+              // در خطا (مثلاً قفل موقت ذخیره‌سازی)، تکرار خودکار باعث
+              // باز شدن پی‌درپی مدال خطا می‌شد. تغییرات محلی حفظ می‌شوند
+              // و با تغییر بعدی کاربر دوباره ذخیره خواهند شد.
+              if (saveSucceeded) this.saveData(0);
             }
 
           }
@@ -6204,7 +6202,12 @@ smsColor(val) {
         : this.serviceSectionScopeIds(row?.serviceTypes);
       if (!selectedSections.length) return [];
       return (this.doctors || []).filter(doctor => {
+        if (!String(doctor?.name || '').trim()) return false;
         const doctorSections = this.serviceSectionScopeIds(doctor.service_section_ids);
+        // پزشکانی که در «منابع» برایشان بخش خدماتی تعیین نشده،
+        // محدودیت تخصصی ندارند و باید در همهٔ خدمات قابل انتخاب باشند.
+        // فقط پزشکِ دارای بخش‌های مشخص به خدمات همان بخش‌ها محدود می‌شود.
+        if (!doctorSections.length) return true;
         return doctorSections.some(sectionId => selectedSections.includes(sectionId));
       });
     },
@@ -7401,6 +7404,8 @@ smsColor(val) {
 .table-view-active .top-actions {
   position: sticky;
   top: 0;
+  /* هم‌راستا با ابزارهای هر روز در جدول؛ نوار جدول در سمت راست فضای خالی دارد. */
+  padding-right: 46px;
   margin-bottom: 0;
 }
 

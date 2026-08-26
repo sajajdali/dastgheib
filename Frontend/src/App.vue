@@ -218,6 +218,8 @@
 
       <Anbar ref="inventory" v-if="currentPage === 'Anbar'" />
 
+      <AutomaticSmsScenarios v-if="currentPage === 'AutomaticSms'" />
+
       <Dermatracker
         v-if="currentPage === 'dermatracker'"
         :permissions="user.permissions || []"
@@ -352,6 +354,7 @@ import Photos from "./components/Photos.vue";
 import Time from "./components/Time.vue";
 
 import Anbar from "./components/anbar.vue";
+import AutomaticSmsScenarios from "./components/AutomaticSmsScenarios.vue";
 
 import FlwUp from "./components/flwup.vue";
 
@@ -401,6 +404,7 @@ export default {
     Time,
 
     Anbar,
+    AutomaticSmsScenarios,
 
     FlwUp,
 
@@ -777,7 +781,7 @@ export default {
         Parvande: 'patients', Vaghtdahi: 'booking', Peygiri: 'followups',
         dermatracker: 'beauty', Photos: 'gallery', Gozaresh: 'report',
         Anbar: 'inventory', Ticket: 'tickets', Products: 'finder',
-        Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings'
+        Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings', AutomaticSms: null
       };
       const permissionMap = {
         Parvande: 'patients.view', Photos: 'photos.view', Vaghtdahi: 'appointments.view',
@@ -788,7 +792,7 @@ export default {
       };
       const feature = featureMap[page];
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return false;
-      if (page === 'Setting' || page === 'Store' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
+      if (page === 'Setting' || page === 'AutomaticSms' || page === 'Store' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
       if (page === 'HRtimes' && !this.attendanceEnabled) return false;
       if (page === 'Payroll') return ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.user?.permissions?.includes(permission));
       return !permissionMap[page] || this.user?.permissions?.includes(permissionMap[page]);
@@ -1013,6 +1017,7 @@ export default {
         Ticket: 'tickets',
         Products: 'finder',
         Automation: 'automation',
+        AutomaticSms: null,
         Bills: 'bills',
         HRtimes: 'attendance',
         Payroll: null,
@@ -1020,7 +1025,7 @@ export default {
         Setting: 'settings',
       };
       const feature = featureMap[menuValue];
-      if (menuValue === "Setting") {
+      if (menuValue === "Setting" || menuValue === "AutomaticSms") {
         if (this.isClinicManager && await this.confirmLeavingInventory(menuValue)) this.currentPage = menuValue;
         return;
       }

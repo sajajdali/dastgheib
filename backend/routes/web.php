@@ -5,6 +5,7 @@ use App\Http\Controllers\CentralAuthController;
 use App\Http\Controllers\CentralBillingController;
 use App\Http\Controllers\CentralServiceTicketController;
 use App\Http\Controllers\CentralTenantController;
+use App\Http\Controllers\CentralCalendarController;
 
 foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
     Route::domain($centralDomain)->group(function () {
@@ -32,6 +33,9 @@ foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
                 Route::post('/tenants/{tenant}/domains', [CentralTenantController::class, 'storeDomain']);
                 Route::delete('/tenants/{tenant}/domains/{domain}', [CentralTenantController::class, 'destroyDomain']);
                 Route::delete('/tenants/{tenant}', [CentralTenantController::class, 'destroy']);
+
+                Route::get('/calendar/events', [CentralCalendarController::class, 'index']);
+                Route::put('/calendar/events/{date}', [CentralCalendarController::class, 'update']);
 
                 Route::get('/service-tickets', [CentralServiceTicketController::class, 'centralIndex']);
                 Route::post('/service-tickets/{ticket}', [CentralServiceTicketController::class, 'centralUpdate']);

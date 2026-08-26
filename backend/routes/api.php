@@ -31,6 +31,8 @@ use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\PersonalReportController;
 use App\Http\Controllers\Api\PayrollReportController;
 use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\AutomaticSmsScenarioController;
+use App\Http\Controllers\Api\CalendarController;
 
 
 
@@ -51,11 +53,20 @@ Route::post('/store/checkout', [StoreCheckoutController::class, 'checkout']);
 Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIndex']);
 Route::post('/service-tickets', [CentralServiceTicketController::class, 'tenantStore'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/settings', [SettingController::class, 'index']);
+Route::get('/calendar/events', [CalendarController::class, 'index']);
+Route::put('/calendar/overrides/{date}', [CalendarController::class, 'saveOverride'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/internal', [SettingController::class, 'saveInternalSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/attendance-status', [SettingController::class, 'saveAttendanceStatus'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/users/{user}/photo', [SettingController::class, 'uploadUserPhoto'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::delete('/settings/users/{user}', [SettingController::class, 'destroyUser'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/sms', [SettingController::class, 'saveSmsSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::get('/automatic-sms-scenarios', [AutomaticSmsScenarioController::class, 'index'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::post('/automatic-sms-projects', [AutomaticSmsScenarioController::class, 'storeProject'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::put('/automatic-sms-projects/{automaticSmsProject}', [AutomaticSmsScenarioController::class, 'updateProject'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::delete('/automatic-sms-projects/{automaticSmsProject}', [AutomaticSmsScenarioController::class, 'destroyProject'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::post('/automatic-sms-scenarios', [AutomaticSmsScenarioController::class, 'store'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::put('/automatic-sms-scenarios/{automaticSmsScenario}', [AutomaticSmsScenarioController::class, 'update'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::delete('/automatic-sms-scenarios/{automaticSmsScenario}', [AutomaticSmsScenarioController::class, 'destroy'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/sms/completion', [CompletionSmsController::class, 'send']);
 Route::post('/sms/payment-link', [CompletionSmsController::class, 'sendPaymentLink']);
 Route::post('/sms/appointment', [CompletionSmsController::class, 'sendAppointment']);
@@ -133,6 +144,7 @@ Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->
 Route::get('/appointments/balance-audits', [AppointmentController::class, 'balanceAudits'])->middleware('permission:reports.financial');
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments', [AppointmentController::class, 'saveAppointments'])->middleware('permission:appointments.create|appointments.update');
+Route::post('/appointments/single', [AppointmentController::class, 'storeSingle'])->middleware('permission:appointments.create|appointments.update');
 Route::get('/appointment-notes', [AppointmentNoteController::class, 'index']);
 Route::post('/appointment-notes', [AppointmentNoteController::class, 'store']);
 Route::delete('/appointment-notes/{message}', [AppointmentNoteController::class, 'destroy']);
