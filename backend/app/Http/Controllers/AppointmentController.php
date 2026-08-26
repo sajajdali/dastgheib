@@ -327,6 +327,45 @@ class AppointmentController extends Controller
         return response()->json(['message' => 'تغییرات این ماه با موفقیت ثبت شد']);
     }
 
+    /**
+     * ثبت یک نوبت از بخش‌هایی مانند پیگیری، بدون بازنویسی کل ماه.
+     */
+    public function storeSingle(Request $request)
+    {
+        $data = $request->validate([
+            'month' => ['required', 'string', 'regex:/^1[34]\d{2}-(0[1-9]|1[0-2])$/'],
+            'day_num' => ['required', 'integer', 'between:1,31'],
+            'lastname' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'gender' => ['nullable', 'string', 'max:20'],
+            'time' => ['required', 'date_format:H:i'],
+            'doctor' => ['nullable', 'string', 'max:255'],
+            'consultant' => ['nullable', 'string', 'max:255'],
+            'source' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+        ]);
+
+        $sortOrder = ((int) Appointment::query()
+            ->where('month', $data['month'])
+            ->where('day_num', $data['day_num'])
+            ->max('sort_order')) + 1;
+
+        $appointment = Appointment::create([
+            ...$data,
+            'sort_order' => $sortOrder,
+            'status' => 'وقت داده شد',
+            'services' => [],
+            'service_types' => [],
+            'amount' => 0,
+            'original_amount' => 0,
+            'discount' => 0,
+            'debt' => 0,
+            'new_customer' => false,
+        ]);
+
+        return response()->json(['appointment' => $appointment], 201);
+    }
+
 
     public function balanceAudits(Request $request)
     {

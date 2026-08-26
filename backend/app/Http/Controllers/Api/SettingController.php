@@ -9,6 +9,7 @@ use App\Models\Module;
 use App\Models\UserPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -143,6 +144,7 @@ class SettingController extends Controller
             ],
             'sms_settings' => [
                 'provider' => AppSetting::getByKey('sms_provider', 'shsms'),
+                'account_configured' => filled(AppSetting::getByKey('shsms_api_token')),
                 'templates' => $smsTemplates,
                 'birthday' => [
                     'enabled' => AppSetting::getByKey('birthday_sms_enabled', '0') === '1',
@@ -573,6 +575,7 @@ class SettingController extends Controller
     {
         $validated = $request->validate([
             'provider' => ['required', 'in:shsms'],
+            'api_token' => ['nullable', 'string', 'min:10', 'max:500'],
             'templates' => ['present', 'array'],
             'templates.*.id' => ['nullable', 'string', 'max:100'],
             'templates.*.title' => ['required', 'string', 'max:100'],
@@ -608,6 +611,12 @@ class SettingController extends Controller
             ]);
 
         AppSetting::updateOrCreate(['key' => 'sms_provider'], ['value' => $validated['provider']]);
+        if (filled($validated['api_token'] ?? null)) {
+            AppSetting::updateOrCreate(
+                ['key' => 'shsms_api_token'],
+                ['value' => Crypt::encryptString(trim($validated['api_token']))]
+            );
+        }
         AppSetting::updateOrCreate(['key' => 'birthday_sms_enabled'], ['value' => $validated['birthday']['enabled'] ? '1' : '0']);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_content'], ['value' => trim((string) ($validated['birthday']['content'] ?? ''))]);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_guide_text'], ['value' => trim((string) ($validated['birthday']['guide_text'] ?? ''))]);
@@ -631,6 +640,7 @@ class SettingController extends Controller
             'message' => 'تنظیمات و الگوهای پیامک با موفقیت ذخیره شدند.',
             'sms_settings' => [
                 'provider' => $validated['provider'],
+                'account_configured' => filled(AppSetting::getByKey('shsms_api_token')),
                 'templates' => $templates->all(),
                 'birthday' => $validated['birthday'],
                 'lead_alerts' => $leadAlerts,

@@ -23,6 +23,10 @@ class DatabaseSeeder extends Seeder
             $this->call(CentralBillingSeeder::class);
         }
 
+        if (Schema::hasTable('calendar_events')) {
+            $this->call(OfficialCalendarSeeder::class);
+        }
+
         if (Schema::hasTable('users')) {
             $this->call(SuperAdminSeeder::class);
         }

@@ -336,9 +336,11 @@ export default {
     inventorySections: [],
 
     saveTimeout: null,
+    channelSaveTimeout: null,
     isSyncingResourceRows: false,
     isSyncingChannelRows: false,
     doctorRowsRevision: 0,
+    channelRowsRevision: 0,
     doctorsDirty: false,
     savingDoctors: false,
     doctorsSaveMessage: '',
@@ -374,8 +376,11 @@ export default {
     channelRows: {
       handler() {
         if (this.isSyncingChannelRows) return;
-        clearTimeout(this.saveTimeout);
-        this.saveTimeout = setTimeout(() => {
+        // پاسخ یک ذخیرهٔ قدیمی نباید ردیف تازه‌ای را که کاربر اضافه کرده
+        // از لیست حذف کند.
+        this.channelRowsRevision += 1;
+        clearTimeout(this.channelSaveTimeout);
+        this.channelSaveTimeout = setTimeout(() => {
           this.autoSaveChannels();
         }, 1000);
       },
@@ -836,6 +841,7 @@ export default {
     },
 
     async autoSaveChannels() {
+      const requestRevision = this.channelRowsRevision;
       const validChannels = this.channelRows.filter(row => row.name && row.name.trim() !== '');
       if (validChannels.length === 0) return [];
 
@@ -851,6 +857,11 @@ export default {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || data.error || 'ذخیره کانال‌ها انجام نشد.');
         if (Array.isArray(data)) {
+          // در فاصلهٔ ارسال تا پاسخ، ممکن است کانال دوم اضافه یا ویرایش شده باشد.
+          // در آن صورت فقط پاسخ جدیدتر اجازهٔ جایگزینی لیست را دارد.
+          if (requestRevision !== this.channelRowsRevision) {
+            return this.channelRows;
+          }
           this.isSyncingChannelRows = true;
           this.channelRows = data;
           this.$nextTick(() => { this.isSyncingChannelRows = false; });

@@ -461,8 +461,8 @@
         <section v-else class="report-filter-panel customer-filters">
           <div class="report-filter-group wide"><b>جست‌وجوی مشتری</b><input v-model="reportSearch" placeholder="نام، شماره تماس، مشاور یا توضیحات..." /></div>
           <div class="report-filter-group"><b>نام مشاور</b><div class="report-filter-chips"><label v-for="staff in staffOptions" :key="staff.id" :class="{ selected: selectedReportFilters.consultant.includes(staff.name) }"><input v-model="selectedReportFilters.consultant" type="checkbox" :value="staff.name">{{ staff.name }}</label></div></div>
-          <div class="report-filter-group"><b>وضعیت پاسخ</b><div class="report-filter-chips"><label v-for="status in getStatusOptions()" :key="status" :class="{ selected: selectedReportFilters.status.includes(status) }"><input v-model="selectedReportFilters.status" type="checkbox" :value="status">{{ status }}</label></div></div>
-          <div class="report-filter-group"><b>درجه تمایل</b><div class="report-filter-chips"><label v-for="interest in ['1','2','3','ok']" :key="interest" :class="{ selected: selectedReportFilters.interest.includes(interest) }"><input v-model="selectedReportFilters.interest" type="checkbox" :value="interest">{{ interest }}</label></div></div>
+          <div class="report-filter-group"><b>وضعیت پاسخ</b><div class="report-filter-chips"><label v-for="status in statusFilterOptions()" :key="status.value" :class="{ selected: selectedReportFilters.status.includes(status.value) }"><input v-model="selectedReportFilters.status" type="checkbox" :value="status.value">{{ status.label }}</label></div></div>
+          <div class="report-filter-group"><b>درجه تمایل</b><div class="report-filter-chips"><label v-for="interest in interestFilterOptions()" :key="interest.value" :class="{ selected: selectedReportFilters.interest.includes(interest.value) }"><input v-model="selectedReportFilters.interest" type="checkbox" :value="interest.value">{{ interest.label }}</label></div></div>
           <div class="report-filter-group wide"><b>علت عدم تبدیل</b><div class="report-filter-chips"><label v-for="reason in reasonOptions" :key="reason" :class="{ selected: selectedReportFilters.reason.includes(reason) }"><input v-model="selectedReportFilters.reason" type="checkbox" :value="reason">{{ reason }}</label></div></div>
         </section>
 
@@ -614,13 +614,13 @@
                       </div>
 
                       <div v-if="activeReportFilter === 'status'" class="filter-dropdown" @click.stop>
-                        <label v-for="val in getStatusOptions()" :key="val" class="filter-option">
+                        <label v-for="val in statusFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
-                            :checked="selectedReportFilters.status.includes(val)"
-                            @change="toggleReportValue('status', val)"
+                            :checked="selectedReportFilters.status.includes(val.value)"
+                            @change="toggleReportValue('status', val.value)"
                           />
-                          <span>{{ val }}</span>
+                          <span>{{ val.label }}</span>
                         </label>
                       </div>
 
@@ -633,8 +633,11 @@
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'description')" @dblclick.stop="autoFitFollowupColumn('description')"></div>
                     </th>
 
-                    <th class="center resizable" :style="{ width: colWidths.reason + 'px' }">
-                      <div class="th-content">علت</div>
+                    <th class="center filterable resizable" :class="{ 'filtered-cell': isReportFiltered('reason') }" :style="{ width: colWidths.reason + 'px' }">
+                      <div class="th-content">علت <button class="filter-btn" @click.stop="toggleReportFilterMenu('reason')">⚙</button></div>
+                      <div v-if="activeReportFilter === 'reason'" class="filter-dropdown" @click.stop>
+                        <label v-for="val in reasonFilterOptions(reportAllFilteredRows)" :key="val" class="filter-option"><input type="checkbox" :checked="selectedReportFilters.reason.includes(val)" @change="toggleReportValue('reason', val)"><span>{{ val }}</span></label>
+                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'reason')" @dblclick.stop="autoFitFollowupColumn('reason')"></div>
                     </th>
 
@@ -656,13 +659,13 @@
                       </div>
 
                       <div v-if="activeReportFilter === 'interest'" class="filter-dropdown" @click.stop>
-                        <label v-for="val in getReportUniqueValues('interest')" :key="val" class="filter-option">
+                        <label v-for="val in interestFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
-                            :checked="selectedReportFilters.interest.includes(val)"
-                            @change="toggleReportValue('interest', val)"
+                            :checked="selectedReportFilters.interest.includes(val.value)"
+                            @change="toggleReportValue('interest', val.value)"
                           />
-                          <span>{{ val }}</span>
+                          <span>{{ val.label }}</span>
                         </label>
                       </div>
 
@@ -951,13 +954,13 @@
                       </div>
 
                       <div v-if="activeFilter === 'status'" class="filter-dropdown" @click.stop>
-                        <label v-for="val in getStatusOptions()" :key="val" class="filter-option">
+                        <label v-for="val in statusFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
-                            :checked="selectedFilters.status.includes(val)"
-                            @change="toggleValue('status', val)"
+                            :checked="selectedFilters.status.includes(val.value)"
+                            @change="toggleValue('status', val.value)"
                           />
-                          <span>{{ val }}</span>
+                          <span>{{ val.label }}</span>
                         </label>
                       </div>
 
@@ -970,8 +973,11 @@
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'description')" @dblclick.stop="autoFitFollowupColumn('description')"></div>
                     </th>
 
-                    <th class="center resizable" :style="{ width: colWidths.reason + 'px' }">
-                      <div class="th-content">علت</div>
+                    <th class="center filterable resizable" :class="{ 'filtered-cell': isFiltered('reason') }" :style="{ width: colWidths.reason + 'px' }">
+                      <div class="th-content">علت <button class="filter-btn" @click.stop="toggleFilterMenu('reason')">⚙</button></div>
+                      <div v-if="activeFilter === 'reason'" class="filter-dropdown" @click.stop>
+                        <label v-for="val in reasonFilterOptions(activeCampaign?.rows)" :key="val" class="filter-option"><input type="checkbox" :checked="selectedFilters.reason.includes(val)" @change="toggleValue('reason', val)"><span>{{ val }}</span></label>
+                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'reason')" @dblclick.stop="autoFitFollowupColumn('reason')"></div>
                     </th>
 
@@ -998,13 +1004,13 @@
                       </div>
 
                       <div v-if="activeFilter === 'interest'" class="filter-dropdown" @click.stop>
-                        <label v-for="val in getUniqueValues('interest')" :key="val" class="filter-option">
+                        <label v-for="val in interestFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
-                            :checked="selectedFilters.interest.includes(val)"
-                            @change="toggleValue('interest', val)"
+                            :checked="selectedFilters.interest.includes(val.value)"
+                            @change="toggleValue('interest', val.value)"
                           />
-                          <span>{{ val }}</span>
+                          <span>{{ val.label }}</span>
                         </label>
                       </div>
 
@@ -1221,6 +1227,24 @@
       </section>
     </div>
 
+    <div v-if="appointmentModalOpen" class="followup-appointment-overlay" @click.self="closeFollowupAppointmentModal">
+      <section class="followup-appointment-modal" role="dialog" aria-modal="true" aria-labelledby="followup-appointment-title">
+        <header>
+          <div><small>ثبت نوبت از پیگیری</small><h3 id="followup-appointment-title">{{ appointmentForm.lastname || 'مراجعه‌کننده' }}</h3><p>{{ displayPatientPhone(appointmentForm.phone) || 'شماره تماس وارد نشده' }}</p></div>
+          <button type="button" aria-label="بستن" @click="closeFollowupAppointmentModal">×</button>
+        </header>
+        <div class="followup-appointment-form">
+          <label><span>تاریخ نوبت</span><date-picker v-model="appointmentForm.date" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="date-input" placeholder="تاریخ را انتخاب کنید" auto-submit append-to="body" @open="raiseFollowupAppointmentDatePicker" /></label>
+          <label><span>ساعت</span><input v-model="appointmentForm.time" type="time"></label>
+          <label><span>پزشک</span><select v-model="appointmentForm.doctor"><option value="">انتخاب پزشک</option><option v-for="doctor in doctorOptions" :key="doctor.id" :value="doctor.name">{{ doctor.name }}</option></select></label>
+          <label><span>مشاور</span><select v-model="appointmentForm.consultant"><option value="">انتخاب مشاور</option><option v-for="staff in staffOptions" :key="staff.id" :value="staff.name">{{ staff.name }}</option></select></label>
+          <label class="full"><span>توضیحات نوبت</span><textarea v-model.trim="appointmentForm.description" placeholder="توضیحات یا درخواست مراجعه‌کننده"></textarea></label>
+        </div>
+        <p v-if="appointmentModalError" class="followup-appointment-error">{{ appointmentModalError }}</p>
+        <footer><button type="button" class="followup-appointment-cancel" @click="closeFollowupAppointmentModal">انصراف</button><button type="button" class="followup-appointment-save" :disabled="appointmentModalSaving" @click="saveFollowupAppointment">{{ appointmentModalSaving ? 'در حال ثبت...' : 'ثبت نوبت' }}</button></footer>
+      </section>
+    </div>
+
     <div v-if="historyModalOpen" class="history-modal-overlay" @click.self="closeFollowupHistory">
       <section class="history-modal" role="dialog" aria-modal="true">
         <header>
@@ -1389,6 +1413,11 @@ export default {
       showCampaignModal: false,
       activeCampaignId: null,
       appointmentTimelineDate: "",
+      appointmentModalOpen: false,
+      appointmentModalSaving: false,
+      appointmentModalError: '',
+      activeAppointmentRow: null,
+      appointmentForm: { date: '', time: '', lastname: '', phone: '', gender: '', doctor: '', consultant: '', source: '', description: '' },
 
       newCampaign: {
         title: "",
@@ -1452,6 +1481,7 @@ export default {
       descriptionDraft: '',
 
       staffOptions: [],
+      doctorOptions: [],
       channelOptions: [],
       channelsLoading: false,
       channelsLoadError: "",
@@ -1468,6 +1498,7 @@ export default {
         source: [],
         status: [],
         interest: [],
+        reason: [],
       },
 
       colWidths: {
@@ -1475,8 +1506,8 @@ export default {
         fullName: 136,
         phone: 104,
         history: 72,
-        contactDate: 154,
-        followUpDate: 96,
+        contactDate: 205,
+        followUpDate: 130,
         gender: 64,
         consultant: 104,
         source: 92,
@@ -1545,13 +1576,13 @@ export default {
             .filter(Boolean)
             .some((f) => String(f).toLowerCase().includes(term));
 
-        const keys = ["gender", "consultant", "source", "status", "interest"];
+        const keys = ["gender", "consultant", "source", "status", "interest", "reason"];
 
         const colMatch = keys.every((key) => {
           const selected = this.selectedFilters[key];
           if (!selected.length) return true;
-          if (key === "interest" && r.interest === "ok" && selected.includes("ok") && !this.hasRegisteredAppointment(r)) return false;
-          return selected.includes(r[key]);
+          const value = this.normalizedFollowupFilterValue(key, r[key]);
+          return selected.includes(value);
         });
 
         return inSearch && colMatch;
@@ -1594,8 +1625,8 @@ export default {
         const colMatch = keys.every((key) => {
           const selected = this.selectedReportFilters[key];
           if (!selected.length) return true;
-          if (key === "interest" && r.interest === "ok" && selected.includes("ok") && !this.hasRegisteredAppointment(r)) return false;
-          return selected.includes(r[key]);
+          const value = this.normalizedFollowupFilterValue(key, r[key]);
+          return selected.includes(value);
         });
 
         return inSearch && colMatch;
@@ -1663,6 +1694,7 @@ export default {
 
   mounted() {
     this.loadStaff();
+    this.loadDoctors();
     this.loadChannels();
     this.loadLandingSmsTags();
     this.loadCampaignsFromLocal();
@@ -2213,7 +2245,7 @@ export default {
     },
 
     autoFitFollowupColumn(key) {
-      const fixed = { contactDate:154, followUpDate:120, gender:72, interest:88, landingSms:145, appointment:122, history:76 };
+      const fixed = { contactDate:205, followUpDate:130, gender:72, interest:88, landingSms:145, appointment:122, history:76 };
       if (fixed[key]) {
         this.colWidths[key] = fixed[key];
         return;
@@ -2322,6 +2354,7 @@ export default {
         source: [],
         status: [],
         interest: [],
+        reason: [],
       };
     },
 
@@ -2338,52 +2371,72 @@ export default {
       this.$emit("open-appointments-timeline", { date: requestedDate });
     },
 
+    raiseFollowupAppointmentDatePicker(pickerVm = null) {
+      const raise = () => {
+        const picker = pickerVm?.$refs?.picker || document.querySelector("body > .vpd-wrapper:last-of-type") || document.querySelector(".vpd-wrapper");
+        if (!picker) return;
+        picker.classList.add("followup-appointment-date-picker-layer");
+        picker.style.setProperty("z-index", "2147483006", "important");
+        picker.style.setProperty("position", "fixed", "important");
+        const container = picker.querySelector(".vpd-container");
+        if (container) container.style.setProperty("z-index", "2147483007", "important");
+      };
+      this.$nextTick(raise);
+      setTimeout(raise, 0);
+      setTimeout(raise, 50);
+    },
+
     openRowAppointmentTimeline(row) {
       if (!row || !this.activeCampaign) return;
-      const today = this.getTodayString();
-      const requestedDate = today;
       const campaignSource = this.activeCampaign.source || this.activeCampaign.sourceName || "";
-      const payload = {
-        date: requestedDate,
-        followup: {
-          campaignId: this.activeCampaign.id,
-          campaignTitle: this.activeCampaign.title || "",
-          campaignDate: this.activeCampaign.date || "",
-          campaignStatus: this.activeCampaign.campaignStatus || "",
-          campaignCost: this.activeCampaign.cost || "",
-          rowId: row._localId,
-          fullName: row.fullName || "",
-          phone: row.phone || "",
-          contactDate: row.contactDate || "",
-          contactTime: row.contactTime || "",
-          followUpDate: row.followUpDate || "",
-          gender: row.gender || "",
-          source: row.source || campaignSource,
-          campaignSource,
-          sourceName: this.activeCampaign.sourceName || "",
-          consultant: row.consultant || "",
-          status: row.status || "",
-          interest: row.interest || "",
-          reason: row.reason || "",
-          description: row.description || "",
-          landingSms: Array.isArray(row.landingSms) ? [...row.landingSms] : [],
-          avatarUrl: row.avatarUrl || "",
-        },
+      this.activeAppointmentRow = row;
+      this.appointmentModalError = '';
+      this.appointmentForm = {
+        date: this.getTodayString(), time: '', lastname: row.fullName || '', phone: row.phone || '',
+        gender: row.gender || '', doctor: '', consultant: row.consultant || '',
+        source: row.source || campaignSource, description: row.description || '',
       };
-      // نوبت‌دهی در پنجره جدا باز می‌شود تا پیگیری و ردیف جاری در همین صفحه باقی بماند.
-      const token = `followup-appointment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      try {
-        localStorage.setItem(token, JSON.stringify(payload));
-        const url = new URL(window.location.href);
-        url.search = '';
-        url.searchParams.set('followupAppointment', token);
-        const appointmentWindow = window.open(url.toString(), '_blank');
-        if (appointmentWindow) return;
-      } catch (error) {
-        console.warn('باز کردن پنجره نوبت‌دهی انجام نشد.', error);
+      this.appointmentModalOpen = true;
+    },
+
+    closeFollowupAppointmentModal() {
+      if (this.appointmentModalSaving) return;
+      this.appointmentModalOpen = false;
+      this.appointmentModalError = '';
+      this.activeAppointmentRow = null;
+    },
+
+    async saveFollowupAppointment() {
+      const form = this.appointmentForm;
+      const jalali = moment(this.normalizeDateValue(form.date));
+      if (!form.lastname.trim() || !jalali.isValid() || !form.time) {
+        this.appointmentModalError = 'نام مراجعه‌کننده، تاریخ و ساعت نوبت الزامی است.';
+        return;
       }
-      // اگر مرورگر باز شدن پنجره را مسدود کرد، همان مسیر قبلی را استفاده کن.
-      this.$emit("open-appointments-timeline", payload);
+      this.appointmentModalSaving = true;
+      this.appointmentModalError = '';
+      try {
+        const { data } = await axios.post('/api/appointments/single', {
+          month: jalali.format('jYYYY-jMM'), day_num: Number(jalali.format('jD')),
+          lastname: form.lastname.trim(), phone: form.phone, gender: form.gender,
+          time: form.time, doctor: form.doctor, consultant: form.consultant,
+          source: form.source, description: form.description,
+        });
+        if (this.activeAppointmentRow) {
+          this.activeAppointmentRow.appointmentRegistered = true;
+          this.activeAppointmentRow.appointmentDate = this.normalizeDateValue(form.date);
+          this.activeAppointmentRow.appointmentTime = form.time;
+          this.activeAppointmentRow.appointmentPatientName = form.lastname.trim();
+        }
+        this.saveCampaignsToLocal();
+        this.appointmentModalOpen = false;
+        this.activeAppointmentRow = null;
+        return data;
+      } catch (error) {
+        this.appointmentModalError = error.response?.data?.message || 'ثبت نوبت انجام نشد.';
+      } finally {
+        this.appointmentModalSaving = false;
+      }
     },
 
     appointmentSummary(row) {
@@ -2471,6 +2524,33 @@ export default {
 
     getStatusOptions() {
       return ["پاسخ داد", "پاسخ نداد", "اشتباه", "پیگیری"];
+    },
+
+    statusFilterOptions() {
+      return this.getStatusOptions().map(value => ({ value, label: value }));
+    },
+
+    interestFilterOptions() {
+      return [
+        { value: '1', label: 'کم' },
+        { value: '2', label: 'متوسط' },
+        { value: '3', label: 'زیاد' },
+        { value: 'ok', label: 'وقت داده شد' },
+      ];
+    },
+
+    reasonFilterOptions(rows = []) {
+      return [...new Set([
+        ...this.reasonOptions,
+        ...(Array.isArray(rows) ? rows : []).map(row => String(row?.reason || '').trim()),
+      ].filter(Boolean))];
+    },
+
+    normalizedFollowupFilterValue(key, value) {
+      if (key === 'status') return normalizeStatus(value);
+      if (key === 'interest') return normalizeInterest(value);
+      if (key === 'reason') return String(value || '').trim();
+      return value;
     },
 
     landingSmsValues(rowOrValue) {
@@ -2893,6 +2973,16 @@ export default {
         console.error("Channels load error", e);
       } finally {
         this.channelsLoading = false;
+      }
+    },
+
+    async loadDoctors() {
+      try {
+        const res = await axios.get('/api/doctors');
+        this.doctorOptions = Array.isArray(res.data) ? res.data : [];
+      } catch (e) {
+        console.error('Doctors load error', e);
+        this.doctorOptions = [];
       }
     },
 
@@ -4040,10 +4130,6 @@ export default {
   background: #f8dfbd !important;
 }
 
-::v-deep(input#vpd-173743) {
-    width: 90px !important;
-}
-
 .gender-male {
   background: #dbeafe !important;
 }
@@ -4211,8 +4297,23 @@ export default {
 
 /* popup calendar */
 
-.vpd-container {
+:global(.vpd-container) {
   font-family: "Vazir", sans-serif !important;
+  z-index: 1000020 !important;
+}
+
+:global(.vpd-wrapper) {
+  z-index: 1000020 !important;
+}
+
+:global(.followup-appointment-date-picker-layer) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483006 !important;
+}
+
+:global(.followup-appointment-date-picker-layer .vpd-container) {
+  z-index: 2147483007 !important;
 }
 
 .vpd-input-group input {
@@ -4335,6 +4436,8 @@ export default {
 @media(max-width:650px){.archive-view-banner{grid-template-columns:38px 1fr}.archive-view-banner>button{grid-column:1/-1;width:100%}.archive-view-banner>div:nth-child(2){align-items:flex-start;flex-direction:column;gap:3px}}
 /* Dense, fitted follow-up data table */
 .campaign-table-modal .table-scroll{border-radius:11px;scrollbar-width:thin}
+.campaign-table-modal .table-scroll{width:100%;overflow-x:auto;overflow-y:visible}
+.campaign-table-modal .contacts-table{width:max-content!important;min-width:1660px!important}
 .campaign-table-modal .contacts-table{width:100%;min-width:1018px;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:10px}
 .campaign-table-modal .contacts-table thead th{height:42px;padding:0 4px;border-left:1px solid #edf1f5;border-bottom:1px solid #dbe3ed;background:#f8fafc;color:#475569;font-size:10px;font-weight:1000;line-height:1.35}
 .campaign-table-modal .contacts-table tbody tr{height:40px}
@@ -4343,7 +4446,7 @@ export default {
 .campaign-table-modal .contacts-table input,.campaign-table-modal .contacts-table select{width:100%;height:36px;min-width:0;margin:0;padding:0 5px;border:1px solid transparent;border-radius:6px;background:transparent;font-size:10px;line-height:34px;text-align:center;text-overflow:ellipsis;white-space:nowrap}
 .campaign-table-modal .contacts-table input:focus,.campaign-table-modal .contacts-table select:focus{border-color:#93c5fd;background:#eff6ff;box-shadow:0 0 0 2px rgba(96,165,250,.12)}
 .campaign-table-modal .contacts-table .vpd-input-group,.campaign-table-modal .contacts-table .vpd-input-group input,.campaign-table-modal .contacts-table .table-date-input{width:100%!important;min-width:0!important;height:36px!important;margin:0!important;padding:0 3px!important;font-size:9px!important}
-.contact-date-time{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:3px;min-width:0}.contact-date-time>span,.contact-time-input{display:grid!important;place-items:center;height:36px!important;min-width:0!important;margin:0!important;padding:0 2px!important;border:1px solid transparent!important;border-radius:6px!important;background:#f1f5f9!important;color:#475569!important;font-size:9px!important;font-weight:900!important;direction:ltr;text-align:center!important}.contact-time-input:focus{border-color:#93c5fd!important;background:#eff6ff!important;outline:0}.description-preview{display:block;width:100%;height:34px;min-width:0;padding:0 7px;border:1px solid transparent;border-radius:7px;background:#f8fafc;color:#334155;font-family:inherit;font-size:10px;font-weight:800;line-height:32px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.description-preview:hover{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.description-preview.empty{color:#94a3b8;font-weight:700}
+.contact-date-time{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:3px;min-width:0;overflow:hidden}.contact-date-time>span,.contact-time-input{display:grid!important;place-items:center;height:36px!important;min-width:0!important;margin:0!important;padding:0 2px!important;border:1px solid transparent!important;border-radius:6px!important;background:#f1f5f9!important;color:#475569!important;font-size:9px!important;font-weight:900!important;direction:ltr;text-align:center!important}.contact-date-time :deep(.vpd-input-group){display:flex!important;width:100%!important;min-width:0!important;max-width:100%!important;overflow:hidden}.contact-date-time :deep(.vpd-input-group input){width:0!important;min-width:0!important;flex:1 1 0!important}.contact-date-time :deep(.vpd-input-group button){flex:0 0 36px!important;width:36px!important}.contact-time-input:focus{border-color:#93c5fd!important;background:#eff6ff!important;outline:0}.description-preview{display:block;width:100%;height:34px;min-width:0;padding:0 7px;border:1px solid transparent;border-radius:7px;background:#f8fafc;color:#334155;font-family:inherit;font-size:10px;font-weight:800;line-height:32px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.description-preview:hover{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.description-preview.empty{color:#94a3b8;font-weight:700}
 .campaign-table-modal .contacts-table .th-content{width:100%;min-width:0;gap:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .campaign-table-modal .filter-btn{width:19px;height:19px;flex:0 0 19px;display:grid;place-items:center;padding:0;color:#64748b;font-size:10px}
 .campaign-table-modal .resizer{width:5px}.campaign-table-modal .resizer:hover{background:#60a5fa}
@@ -4383,4 +4486,4 @@ export default {
 .followup-profile-overlay{position:fixed;z-index:1000012;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}.followup-profile-modal{width:min(680px,96vw);max-height:92vh;overflow:auto;border:1px solid rgba(255,255,255,.85);border-radius:22px;background:#fff;color:#0f172a;box-shadow:0 28px 90px rgba(15,23,42,.35)}.followup-profile-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.followup-profile-head{display:flex;align-items:center;gap:12px;min-width:0}.followup-profile-avatar{width:58px;height:58px;flex:0 0 58px;border:3px solid #94a3b8;border-radius:50%;object-fit:cover;background:#e2e8f0}.followup-profile-avatar.fallback{display:grid;place-items:center;color:#475569;font-size:20px;font-weight:1000}.followup-profile-avatar.level-none{border-color:#dbe3ed}.followup-profile-avatar.level-silver{border-color:#94a3b8}.followup-profile-avatar.level-blue{border-color:#3b82f6}.followup-profile-avatar.level-gold{border-color:#f59e0b}.followup-profile-avatar.level-problematic{border-color:#ef4444}.followup-profile-head small{color:#2563eb;font-size:10px;font-weight:1000}.followup-profile-head h3{margin:4px 0;font-size:19px}.followup-profile-head p{margin:0;color:#64748b;font-size:11px;font-weight:800}.followup-profile-modal>header>button{width:36px;height:36px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 5px 14px rgba(15,23,42,.08)}.followup-profile-loading,.followup-profile-error{padding:40px 20px;text-align:center;font-size:13px;font-weight:900}.followup-profile-loading{color:#2563eb}.followup-profile-error{color:#b91c1c}.followup-profile-body{padding:18px}.followup-profile-stats,.followup-profile-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.followup-profile-stats{margin-bottom:14px}.followup-profile-stats article,.followup-profile-details article{min-width:0;padding:11px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.followup-profile-stats span,.followup-profile-details span{display:block;margin-bottom:5px;color:#94a3b8;font-size:9px;font-weight:900}.followup-profile-stats strong,.followup-profile-details strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-size:11px}.followup-profile-stats article.danger{border-color:#fecaca;background:#fff7f7}.followup-profile-stats article.danger strong{color:#b91c1c}.followup-profile-hint{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:800;line-height:1.8}@media(max-width:560px){.followup-profile-stats,.followup-profile-details{grid-template-columns:1fr}.followup-profile-modal>header{padding:15px}.followup-profile-head h3{font-size:17px}}
 @media(max-width:760px){.history-card dl{grid-template-columns:1fr 1fr}.history-modal>header{padding:15px}.history-timeline{padding:14px}.history-modal h3{font-size:18px}}
 @media(max-width:480px){.history-card dl{grid-template-columns:1fr}}
-.landing-sms-modal-overlay{position:fixed;inset:0;z-index:1000010;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.landing-sms-modal{width:min(520px,96vw);overflow:hidden;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.landing-sms-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.landing-sms-modal header small{color:#2563eb;font-size:11px;font-weight:900}.landing-sms-modal h3{margin:4px 0;font-size:18px}.landing-sms-modal p{margin:0;color:#64748b;font-size:11px}.landing-sms-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.landing-sms-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding:16px}.landing-sms-list label{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:11px;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer}.landing-sms-list label.selected{border-color:#93c5fd;background:#eff6ff}.landing-sms-list label.sent{border-color:#86efac;background:#f0fdf4}.landing-sms-list input{width:17px;height:17px;accent-color:#2563eb}.landing-sms-list span{display:grid;gap:3px}.landing-sms-list b{font-size:12px}.landing-sms-list small{color:#64748b;font-size:10px}.landing-sms-list i{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-weight:1000}.landing-sms-empty{padding:20px;text-align:center}.landing-sms-error{margin:0 16px 12px!important;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c!important}.landing-sms-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #e2e8f0}.landing-sms-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.landing-sms-cancel{background:#e2e8f0;color:#475569}.landing-sms-send{background:#2563eb;color:#fff}.landing-sms-send:disabled{opacity:.55;cursor:wait}@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}</style>
+.landing-sms-modal-overlay{position:fixed;inset:0;z-index:1000010;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.landing-sms-modal{width:min(520px,96vw);overflow:hidden;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.landing-sms-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.landing-sms-modal header small{color:#2563eb;font-size:11px;font-weight:900}.landing-sms-modal h3{margin:4px 0;font-size:18px}.landing-sms-modal p{margin:0;color:#64748b;font-size:11px}.landing-sms-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.landing-sms-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding:16px}.landing-sms-list label{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:11px;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer}.landing-sms-list label.selected{border-color:#93c5fd;background:#eff6ff}.landing-sms-list label.sent{border-color:#86efac;background:#f0fdf4}.landing-sms-list input{width:17px;height:17px;accent-color:#2563eb}.landing-sms-list span{display:grid;gap:3px}.landing-sms-list b{font-size:12px}.landing-sms-list small{color:#64748b;font-size:10px}.landing-sms-list i{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-weight:1000}.landing-sms-empty{padding:20px;text-align:center}.landing-sms-error{margin:0 16px 12px!important;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c!important}.landing-sms-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #e2e8f0}.landing-sms-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.landing-sms-cancel{background:#e2e8f0;color:#475569}.landing-sms-send{background:#2563eb;color:#fff}.landing-sms-send:disabled{opacity:.55;cursor:wait}.followup-appointment-overlay{position:fixed;inset:0;z-index:1000011;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.56);backdrop-filter:blur(5px)}.followup-appointment-modal{width:min(570px,96vw);overflow:visible;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.followup-appointment-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.followup-appointment-modal header small{color:#2563eb;font-size:11px;font-weight:900}.followup-appointment-modal h3{margin:4px 0;font-size:18px}.followup-appointment-modal header p{margin:0;color:#64748b;font-size:11px}.followup-appointment-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.followup-appointment-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:18px}.followup-appointment-form label{display:grid;gap:6px;color:#475569;font-size:11px;font-weight:900}.followup-appointment-form label.full{grid-column:1/-1}.followup-appointment-form input,.followup-appointment-form select,.followup-appointment-form textarea{width:100%;min-height:40px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#1e293b;font:inherit;outline:0}.followup-appointment-form textarea{min-height:78px;resize:vertical}.followup-appointment-form input:focus,.followup-appointment-form select:focus,.followup-appointment-form textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.followup-appointment-modal :deep(.vpd-container){z-index:1000020!important}.followup-appointment-error{margin:0 18px 14px;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:800}.followup-appointment-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid #e2e8f0}.followup-appointment-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.followup-appointment-cancel{background:#e2e8f0;color:#475569}.followup-appointment-save{background:#2563eb;color:#fff}.followup-appointment-save:disabled{opacity:.55;cursor:wait}@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}@media(max-width:540px){.followup-appointment-form{grid-template-columns:1fr}.followup-appointment-modal footer{padding:12px}.followup-appointment-modal footer button{flex:1}}</style>

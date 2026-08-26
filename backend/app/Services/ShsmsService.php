@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\AppSetting;
+use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -44,14 +47,40 @@ class ShsmsService
             return;
         }
 
-        if (! config('services.shsms.endpoint') || ! config('services.shsms.token')) {
+        if (! $this->hasCredentials()) {
             throw new \RuntimeException('ارسال پیامک در حال حاضر ممکن نیست.');
         }
 
-        Http::withToken(config('services.shsms.token'))
+        Http::withToken($this->apiToken())
             ->acceptJson()
-            ->get(config('services.shsms.endpoint'), $query)
+            ->get($this->endpoint(), $query)
             ->throw();
+    }
+
+    /** Each clinic must use the SHSMS account saved in its own tenant settings. */
+    public function hasCredentials(): bool
+    {
+        return filled($this->endpoint()) && filled($this->apiToken());
+    }
+
+    private function endpoint(): ?string
+    {
+        return config('services.shsms.endpoint') ?: config('shsms.endpoint');
+    }
+
+    private function apiToken(): ?string
+    {
+        $encryptedToken = AppSetting::getByKey('shsms_api_token');
+
+        if (filled($encryptedToken)) {
+            try {
+                return Crypt::decryptString($encryptedToken);
+            } catch (DecryptException) {
+                Log::warning('The clinic SHSMS token could not be decrypted.');
+            }
+        }
+
+        return null;
     }
 
     private function isSandbox(): bool

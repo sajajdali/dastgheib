@@ -126,7 +126,8 @@ export default {
         HRtimes: 'attendance.view',
         Roles: 'roles.view',
         Setting: 'settings.view',
-        Store: 'store.view'
+        Store: 'store.view',
+        AutomaticSms: null
       },
       items: [
         { label: 'پرونده', value: 'Parvande', feature: 'patients' },
@@ -141,7 +142,8 @@ export default {
         { label: 'اتوماسیون', value: 'Automation', feature: 'automation' },
         { label: 'هزینه‌ها', value: 'Bills', feature: 'bills' },
         { label: 'حضور غیاب', value: 'HRtimes', feature: 'attendance' },
-        { label: 'حقوق و تسویه', value: 'Payroll', feature: null }
+        { label: 'حقوق و تسویه', value: 'Payroll', feature: null },
+        { label: 'پیامک اتوماتیک', value: 'AutomaticSms', feature: null }
       ]
     }
   },
@@ -159,6 +161,7 @@ export default {
         if (item.value === 'Setting') {
           return this.isClinicManager
         }
+        if (item.value === 'AutomaticSms') return this.isClinicManager
         if (!this.featureEnabled(item.feature)) return false
         const requiredPermission = this.permissionMap[item.value]
         return requiredPermission && this.permissions.includes(requiredPermission)

@@ -461,6 +461,12 @@
           </select>
           <small><i></i> سامانه فعال فعلی: SHSMS</small>
         </label>
+
+        <label class="provider-field">
+          توکن API حساب این کلینیک
+          <input v-model.trim="smsSettings.api_token" type="password" autocomplete="new-password" placeholder="توکن SHSMS را وارد کنید">
+          <small><i></i> {{ smsSettings.account_configured ? 'توکن اختصاصی ذخیره شده است؛ برای تغییر، توکن جدید وارد کنید.' : 'هر کلینیک باید توکن حساب SHSMS خود را وارد کند.' }}</small>
+        </label>
       </section>
 
       <section class="sms-templates-section">
@@ -788,7 +794,7 @@ const serviceFinderPaymentGroups = computed(() => [
 
 // داده‌های بخش تنظیمات داخلی
 const sms = ref({ appointment: "", info: "", welcome: "" });
-const smsSettings = ref({ provider: "shsms", templates: [], birthday: { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true } });
+const smsSettings = ref({ provider: "shsms", api_token: "", account_configured: false, templates: [], birthday: { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true } });
 const leadRecipientDraft = ref("");
 const leadAlertKeys = ["inventory_empty", "active_tickets", "daily_appointments", "daily_financial"];
 const allLeadAlertsSelected = computed(() => leadAlertKeys.every(key => smsSettings.value.lead_alerts[key]));
@@ -1223,6 +1229,8 @@ const fetchSettings = async () => {
     if (data.sms) sms.value = data.sms;
     if (data.sms_settings) {
       smsSettings.value.provider = data.sms_settings.provider || "shsms";
+      smsSettings.value.api_token = "";
+      smsSettings.value.account_configured = Boolean(data.sms_settings.account_configured);
       smsSettings.value.birthday = data.sms_settings.birthday || { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" };
       smsSettings.value.lead_alerts = data.sms_settings.lead_alerts || { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true };
       smsSettings.value.templates = (data.sms_settings.templates || []).map((template, index) => ({
@@ -1462,13 +1470,14 @@ const saveSmsSettings = async () => {
   try {
     const { data } = await axios.post("/api/settings/sms", {
       provider: smsSettings.value.provider,
+      api_token: smsSettings.value.api_token,
       templates: smsSettings.value.templates
       ,birthday: smsSettings.value.birthday
       ,lead_alerts: smsSettings.value.lead_alerts
     });
 
     if (data.sms_settings) {
-      smsSettings.value = data.sms_settings;
+      smsSettings.value = { ...data.sms_settings, api_token: "" };
     }
 
     await Swal.fire({

@@ -47,8 +47,8 @@ class CompletionSmsController extends Controller
             'payment_link' => ['nullable','string','max:2000'], 'payment_amount' => ['nullable','numeric','min:0'],
             'reference' => ['required','string','max:190'],
         ]);
-        if (!config('services.shsms.endpoint') || !config('services.shsms.token')) {
-            return response()->json(['message'=>'اتصال SHSMS تنظیم نشده است. مقادیر SHSMS_ENDPOINT و SHSMS_API_TOKEN را در env وارد کنید.'], 422);
+        if (! $this->sms->hasCredentials()) {
+            return response()->json(['message'=>'اتصال SHSMS برای این کلینیک تنظیم نشده است. توکن API را از تنظیمات پیامک وارد کنید.'], 422);
         }
         $results = [];
         foreach ($data['types'] as $type) {
@@ -147,8 +147,8 @@ class CompletionSmsController extends Controller
             'doctors' => ['nullable', 'array', 'max:2'], 'doctors.*' => ['string', 'max:255'],
             'consultant' => ['nullable', 'string', 'max:255'],
         ]);
-        if (!config('services.shsms.endpoint') || !config('services.shsms.token')) {
-            return response()->json(['message'=>'اتصال سامانه پیامک تنظیم نشده است.'], 422);
+        if (! $this->sms->hasCredentials()) {
+            return response()->json(['message'=>'اتصال SHSMS برای این کلینیک تنظیم نشده است. توکن API را از تنظیمات پیامک وارد کنید.'], 422);
         }
         $results = [];
         foreach ($data['types'] as $type) {
