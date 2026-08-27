@@ -1629,7 +1629,7 @@ export default {
 
   computed: {
     canViewPatientPhone() {
-      return this.permissions.includes("patients.view_phone");
+      return this.permissions.includes("patients.view_phone") && !this.permissions.includes("patients.hide_phone");
     },
 
     canUseGallery() {

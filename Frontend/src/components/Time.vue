@@ -17,6 +17,16 @@
       </div>
     </div>
 
+    <section v-if="!isFetching && !bookingScheduleReady" class="booking-setup-overlay" @click.stop>
+      <div class="booking-setup-card">
+        <span class="booking-setup-icon">🗓️</span>
+        <span class="booking-setup-eyebrow">راه‌اندازی نوبت‌دهی</span>
+        <h1>ابتدا روزها و ساعت‌های حضور را تعریف کنید</h1>
+        <p>برای فعال‌شدن نوبت‌دهی، روزهای کاری و بازهٔ زمانی حضور مجموعه را در تنظیمات مشخص کنید. پس از ذخیره، نوبت‌دهی خودکار فعال می‌شود.</p>
+        <button type="button" @click="$emit('open-schedule-settings')">تعریف برنامه نوبت‌دهی <span>←</span></button>
+      </div>
+    </section>
+
     <div v-if="appointmentView === 'table'" class="top-actions">
       <button
         v-if="appointmentView === 'table'"
@@ -208,6 +218,14 @@
                     v-model="selectedStatuses"
                   />
                   پیگیری
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    value="انتقال داده شده"
+                    v-model="selectedStatuses"
+                  />
+                  انتقال داده شده
                 </label>
               </div>
             </th>
@@ -466,7 +484,7 @@
 
                   <button
                     class="mini-btn delete-all-day-btn"
-                    title="حذف این روز و تمام ردیف‌های آن"
+                    title="حذف موقت روز (نوبت‌ها حفظ می‌شوند)"
                     @click.stop="clearDayRows(day)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -648,6 +666,7 @@
                   <option value="کنسل شد">کنسل شد</option>
                   <option value="پاسخ نداد">پاسخ نداد</option>
                   <option value="پیگیری">پیگیری</option>
+                  <option value="انتقال داده شده">انتقال وقت</option>
                 </select>
               </td>
 
@@ -1707,6 +1726,10 @@
           </label>
         </div>
         <div v-if="activeCompletionSmsRow?.referrerPhone" class="completion-referral-info">معرف: {{ displayPatientPhone(activeCompletionSmsRow.referrerPhone) }} — مبلغ: {{ formatDisplayMoney(activeCompletionSmsRow.referralScore || 0) }} تومان</div>
+        <section v-if="sentCompletionSmsOptions.length" class="completion-sms-history">
+          <strong>پیامک‌های ارسال‌شده</strong>
+          <span v-for="item in sentCompletionSmsOptions" :key="item.key">✓ {{ item.title }}<small>{{ formatCompletionSmsSentAt(item.sentAt) }}</small></span>
+        </section>
         <footer><button class="completion-sms-cancel" @click="closeCompletionSmsModal">بعداً</button><button class="completion-sms-send" :disabled="completionSmsSending || !selectedCompletionSms.length" @click="sendSelectedCompletionSms">{{ completionSmsSending ? 'در حال ارسال...' : `ارسال ${selectedCompletionSms.length || ''} پیامک` }}</button></footer>
       </section>
     </div>
@@ -2143,6 +2166,7 @@ export default {
       currentMonth: 0,
 
       days: [],
+      hiddenScheduleDayNumbers: [],
 
       _idCounter: 0,
       _rowCounter: 0,
@@ -2182,6 +2206,7 @@ export default {
         best_staff: false
       },
       clinicSchedule: {
+        is_configured: false,
         active_days: ["saturday", "monday", "wednesday"],
         interval_minutes: 15,
         day_times: {
@@ -2310,7 +2335,7 @@ export default {
 
   computed: {
     canViewPatientPhone() {
-      return this.permissions.includes("patients.view_phone");
+      return this.permissions.includes("patients.view_phone") && !this.permissions.includes("patients.hide_phone");
     },
 
     patientProfileDetails() {
@@ -2393,6 +2418,13 @@ export default {
       return this.permissions.includes("reports.financial");
     },
 
+    sentCompletionSmsOptions() {
+      const statuses = this.activeCompletionSmsRow?.completionSmsStatuses || {};
+      return this.completionSmsOptions
+        .filter(option => statuses[option.key])
+        .map(option => ({ ...option, sentAt: statuses[option.key] }));
+    },
+
     primaryTimelineService() {
       if (!this.activeTimelineDraft) return {};
       if (!Array.isArray(this.activeTimelineDraft.services) || !this.activeTimelineDraft.services.length) {
@@ -2425,6 +2457,17 @@ export default {
     appointmentMinuteStep() {
       const interval = Number(this.clinicSchedule?.interval_minutes || 0);
       return interval > 0 ? interval : 1;
+    },
+
+    bookingScheduleReady() {
+      const schedule = this.clinicSchedule || {};
+      const activeDays = Array.isArray(schedule.active_days) ? schedule.active_days : [];
+      return Boolean(schedule.is_configured) && activeDays.some(day => {
+        const times = schedule.day_times?.[day] || {};
+        return /^\d{2}:\d{2}$/.test(String(times.start || ''))
+          && /^\d{2}:\d{2}$/.test(String(times.end || ''))
+          && String(times.end) > String(times.start);
+      });
     },
 
     allServiceTags() {
@@ -3312,6 +3355,9 @@ export default {
         case "پیگیری":
           return { backgroundColor: "#cff4fc" };
 
+        case "انتقال داده شده":
+          return { backgroundColor: "#ede9fe" };
+
         default:
           return {};
       }
@@ -3436,9 +3482,8 @@ export default {
       if (appointmentDay) this.ensurePaymentLink(appointmentDay, row);
       this.activeCompletionSmsRow = row;
       this.completionSmsErrors = {};
-      const alreadySent = row.completionSmsStatuses || {};
-      this.selectedCompletionSms = ['treatment_care','payment_link','welcome'].filter(type => !alreadySent[type]);
-      if (row.referrerPhone && this.moneyToNumber(row.referralScore) > 0 && !alreadySent.referral_credit) this.selectedCompletionSms.unshift('referral_credit');
+      // انتخاب پیامک‌ها باید همیشه با تصمیم کاربر انجام شود.
+      this.selectedCompletionSms = [];
       if (!this.canViewPatientPhone) {
         this.selectedCompletionSms = [];
         return;
@@ -3486,6 +3531,13 @@ export default {
     formatAuditDate(value) {
       const parsed = moment(value);
       return parsed.isValid() ? parsed.format("YYYY/MM/DD HH:mm") : "-";
+    },
+
+    formatCompletionSmsSentAt(value) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime())
+        ? 'زمان ارسال ثبت شده است'
+        : date.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' });
     },
 
     formatSignedDisplayMoney(value) {
@@ -4143,10 +4195,15 @@ export default {
 
       try {
         const previousUnreadKeys = new Set(this.doctorNoteUnreadSnapshot || []);
-        const res = await axios.get("/api/appointments");
-
         const month = this.months[this.currentMonth];
-        const data = res.data.filter(a => a.month === month);
+        const [res, hiddenDaysRes] = await Promise.all([
+          axios.get("/api/appointments"),
+          axios.get("/api/appointments/hidden-days", { params: { month } })
+        ]);
+
+        this.hiddenScheduleDayNumbers = (hiddenDaysRes.data || []).map(Number);
+        const hiddenDays = new Set(this.hiddenScheduleDayNumbers);
+        const data = res.data.filter(a => a.month === month && !hiddenDays.has(Number(a.day_num)));
 
         this.days = [];
 
@@ -4246,6 +4303,7 @@ export default {
 
         if (data.length === 0) {
           this.generateClinicScheduleForCurrentMonth();
+          this.days = this.days.filter(day => !hiddenDays.has(Number(day.dayNum)));
         }
         this.days.forEach(day => this.sortDayRowsByTime(day));
         this.days.sort((a, b) => a.dayNum - b.dayNum);
@@ -4831,6 +4889,8 @@ this.calculateFinalAmount(row)
 
     serviceLinePrice(service) {
       const item = this.getServiceData(service?.name);
+      // مبلغ نوبت از «قیمت کالا»ی انبار (فیلد amount) خوانده می‌شود؛
+      // فیلد price فقط هزینه مواد است و در مبلغ دریافتی بیمار دخالت ندارد.
       return item ? Number(item.amount || 0) * Math.max(Number(service?.cc || 0), 0) : 0;
     },
 
@@ -5422,7 +5482,7 @@ this.calculateFinalAmount(row)
       });
     },
 
-    addDay() {
+    async addDay() {
       const { year, month } = this.parseJalaliMonth();
       const maxDays = moment.jDaysInMonth(year, month - 1);
 
@@ -5436,6 +5496,8 @@ this.calculateFinalAmount(row)
       }
 
       if (n > maxDays) return;
+
+      if (await this.restoreHiddenScheduleDay(n)) return;
 
       const date = moment(`${year}/${month}/${n}`, "jYYYY/jM/jD");
       const event = this.holidays[n] || null;
@@ -5484,6 +5546,8 @@ this.calculateFinalAmount(row)
         });
         return;
       }
+
+      if (await this.restoreHiddenScheduleDay(nextDayNum)) return;
 
       const newDay = this.createScheduleDay(nextDayNum, nextDate);
       newDay.rows = this.createRowsForAddedDay(nextDate);
@@ -5953,10 +6017,10 @@ this.calculateFinalAmount(row)
       const result = await Swal.fire({
         icon: "warning",
         title: deleteWholeDay
-          ? "حذف کامل روز"
+          ? "حذف موقت روز"
           : count > 1 ? "حذف کلی نوبت‌ها" : "حذف ردیف نوبت",
         text: deleteWholeDay
-          ? `این روز همراه با ${count} ردیف دارای نوبت یا اطلاعات حذف می‌شود. مطمئنید؟`
+          ? `روز از برنامه پنهان می‌شود؛ ${count} نوبت یا ردیف آن حفظ شده و با افزودن دوباره همان روز برمی‌گردد. مطمئنید؟`
           : count > 1
           ? `در این بخش ${count} ردیف دارای نوبت یا اطلاعات است. مطمئنید حذف شود؟`
           : "این ردیف دارای نوبت یا اطلاعات است. مطمئنید حذف شود؟",
@@ -6001,9 +6065,56 @@ this.calculateFinalAmount(row)
       const dayIndex = this.days.findIndex(item => item.id === day.id);
       if (dayIndex === -1) return;
 
+      try {
+        await axios.post('/api/appointments/hide-day', {
+          month: this.months[this.currentMonth],
+          day_num: day.dayNum
+        });
+        this.hiddenScheduleDayNumbers = [...new Set([...this.hiddenScheduleDayNumbers, Number(day.dayNum)])];
+      } catch (error) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'حذف روز انجام نشد',
+          text: error.response?.data?.message || 'ارتباط با سرور برقرار نشد.'
+        });
+        return;
+      }
+
       this.days.splice(dayIndex, 1);
       this.activeServicePopup = null;
       this.highlightedRowId = null;
+    },
+
+    async restoreHiddenScheduleDay(dayNum) {
+      if (!this.hiddenScheduleDayNumbers.includes(Number(dayNum))) return false;
+
+      try {
+        const response = await axios.post('/api/appointments/restore-day', {
+          month: this.months[this.currentMonth],
+          day_num: dayNum
+        });
+        if (!response.data?.restored) return false;
+
+        this.hiddenScheduleDayNumbers = this.hiddenScheduleDayNumbers
+          .filter(item => Number(item) !== Number(dayNum));
+        await this.fetchData();
+        if (!this.days.some(day => Number(day.dayNum) === Number(dayNum))) {
+          const { year, month } = this.parseJalaliMonth();
+          const date = moment(`${year}/${month}/${dayNum}`, 'jYYYY/jM/jD');
+          const day = this.createScheduleDay(dayNum, date);
+          day.rows = this.createRowsForAddedDay(date);
+          this.days.push(day);
+          this.days.sort((a, b) => Number(a.dayNum) - Number(b.dayNum));
+        }
+        return true;
+      } catch (error) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'بازگردانی روز انجام نشد',
+          text: error.response?.data?.message || 'ارتباط با سرور برقرار نشد.'
+        });
+        return true;
+      }
     },
 
     getDayTotalAmount(day) {
@@ -6071,6 +6182,8 @@ this.calculateFinalAmount(row)
           return "st-noans";
         case "پیگیری":
           return "st-follow";
+        case "انتقال داده شده":
+          return "st-transferred";
         default:
           return "";
       }
@@ -7373,6 +7486,8 @@ smsColor(val) {
   animation: schedule-loading-spin 0.75s linear infinite;
 }
 
+.booking-setup-overlay{position:fixed;z-index:1000002;inset:0;display:grid;place-items:center;padding:24px;background:rgba(15,23,42,.66);backdrop-filter:blur(8px);direction:rtl}.booking-setup-card{width:min(560px,100%);padding:38px 36px 34px;border:1px solid rgba(255,255,255,.75);border-radius:30px;background:radial-gradient(circle at top right,#eff6ff 0,transparent 44%),#fff;box-shadow:0 32px 90px rgba(15,23,42,.38);text-align:center}.booking-setup-icon{display:grid;place-items:center;width:76px;height:76px;margin:0 auto 17px;border:8px solid #dbeafe;border-radius:25px;background:#eff6ff;font-size:34px;box-shadow:0 12px 28px rgba(37,99,235,.14)}.booking-setup-eyebrow{display:block;color:#2563eb;font-size:11px;font-weight:1000;letter-spacing:.2px}.booking-setup-card h1{margin:8px 0 12px;color:#0f172a;font-size:23px;line-height:1.55}.booking-setup-card p{margin:0;color:#64748b;font-size:13px;line-height:2.1}.booking-setup-card button{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:47px;margin-top:25px;padding:0 20px;border:0;border-radius:14px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font:900 13px inherit;box-shadow:0 12px 24px rgba(37,99,235,.25);cursor:pointer}.booking-setup-card button span{font-size:19px;line-height:1}@media(max-width:560px){.booking-setup-overlay{padding:16px}.booking-setup-card{padding:29px 22px 25px;border-radius:24px}.booking-setup-card h1{font-size:20px}}
+
 @keyframes schedule-loading-spin {
   to {
     transform: rotate(360deg);
@@ -7992,6 +8107,11 @@ td.row-action-col {
   background-color: #bbdefb !important;
 }
 
+.st-transferred {
+  background-color: #7c3aed !important;
+  color: #fff !important;
+}
+
 /* رنگ‌بندی انجام کار */
 .dn-yes {
   background-color: #c8e6c9 !important;
@@ -8184,6 +8304,13 @@ td.st-noans {
 td.st-follow select,
 td.st-follow {
   background: #cff4fc !important;
+}
+
+td.st-transferred select,
+td.st-transferred {
+  background: #ede9fe !important;
+  color: #5b21b6 !important;
+  font-weight: 900;
 }
 
 .service-select {
@@ -8929,6 +9056,9 @@ td.st-arrived select {
   color: #166534 !important;
   border-color: #bbf7d0 !important;
 }
+
+/* پیامک‌های ارسال‌شده در پنجرهٔ پایان درمان */
+.completion-sms-history{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 18px 15px;padding:11px 12px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4;color:#166534}.completion-sms-history>strong{margin-left:5px;font-size:11px}.completion-sms-history>span{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:8px;background:#fff;color:#15803d;font-size:11px;font-weight:900}.completion-sms-history small{color:#64748b;font-size:9px;font-weight:700}
 
 /* بدهکاری: بدون رنگ‌آمیزی ردیف یا ستون؛ فقط خود مبلغ قرمز است */
 .main-schedule-table tr.debtor-row,

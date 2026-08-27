@@ -38,15 +38,19 @@ class SettingController extends Controller
         $raw = AppSetting::getByKey('clinic_schedule_settings', '{}');
         $stored = is_string($raw) ? json_decode($raw, true) : $raw;
         $defaults = $this->defaultClinicSchedule();
+        $isConfigured = is_array($stored)
+            && ! empty($stored['active_days'])
+            && is_array($stored['day_times'] ?? null);
 
         if (! is_array($stored)) {
-            return $defaults;
+            return [...$defaults, 'is_configured' => false];
         }
 
         return [
             'active_days' => array_values(array_filter($stored['active_days'] ?? $defaults['active_days'])),
             'interval_minutes' => max(1, (int) ($stored['interval_minutes'] ?? $defaults['interval_minutes'])),
             'day_times' => array_replace_recursive($defaults['day_times'], is_array($stored['day_times'] ?? null) ? $stored['day_times'] : []),
+            'is_configured' => $isConfigured,
         ];
     }
 

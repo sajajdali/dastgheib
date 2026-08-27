@@ -141,10 +141,13 @@ Route::post('/service-tags', [HumanResourceController::class, 'saveServiceTags']
 
 // نوبت‌دهی
 Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->middleware('permission:appointments.view');
+Route::get('/appointments/hidden-days', [AppointmentController::class, 'hiddenDays'])->middleware('permission:appointments.view');
 Route::get('/appointments/balance-audits', [AppointmentController::class, 'balanceAudits'])->middleware('permission:reports.financial');
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments', [AppointmentController::class, 'saveAppointments'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/single', [AppointmentController::class, 'storeSingle'])->middleware('permission:appointments.create|appointments.update');
+Route::post('/appointments/hide-day', [AppointmentController::class, 'hideDay'])->middleware('permission:appointments.create|appointments.update');
+Route::post('/appointments/restore-day', [AppointmentController::class, 'restoreDay'])->middleware('permission:appointments.create|appointments.update');
 Route::get('/appointment-notes', [AppointmentNoteController::class, 'index']);
 Route::post('/appointment-notes', [AppointmentNoteController::class, 'store']);
 Route::delete('/appointment-notes/{message}', [AppointmentNoteController::class, 'destroy']);

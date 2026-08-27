@@ -190,6 +190,7 @@
         :open-view-request="pendingAppointmentViewRequest"
         @open-patient-profile="openPatientProfileFromAppointment"
         @followup-appointment-created="handleFollowupAppointmentCreated"
+        @open-schedule-settings="openBookingScheduleSettings"
       />
 
       <FlwUp
@@ -245,7 +246,7 @@
       <PayrollSettlement v-if="currentPage === 'Payroll'" />
 
       <!-- تنظیمات -->
-      <Setting v-if="currentPage === 'Setting'" :current-user="user" :enabled-features="tenantEnabledFeatures" />
+      <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : 'internal'" :initial-accordion="settingsInitialAccordion" />
       <Store
         v-if="currentPage === 'Store'"
         :enabled-features="tenantEnabledFeatures"
@@ -455,6 +456,7 @@ export default {
       ,myReportError: ""
       ,reportMonth: ""
       ,pendingStoreModuleKey: ""
+      ,settingsInitialAccordion: ""
       // حضور و غیاب فقط بر اساس ماژول اشتراک مجموعه کنترل می‌شود.
       ,attendanceEnabled: true
       ,uiMenuOpen: false
@@ -781,7 +783,7 @@ export default {
         Parvande: 'patients', Vaghtdahi: 'booking', Peygiri: 'followups',
         dermatracker: 'beauty', Photos: 'gallery', Gozaresh: 'report',
         Anbar: 'inventory', Ticket: 'tickets', Products: 'finder',
-        Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings', AutomaticSms: null
+        Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings', Satisfaction: 'satisfaction', AutomaticSms: null
       };
       const permissionMap = {
         Parvande: 'patients.view', Photos: 'photos.view', Vaghtdahi: 'appointments.view',
@@ -792,7 +794,7 @@ export default {
       };
       const feature = featureMap[page];
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return false;
-      if (page === 'Setting' || page === 'AutomaticSms' || page === 'Store' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
+      if (page === 'Setting' || page === 'Satisfaction' || page === 'AutomaticSms' || page === 'Store' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
       if (page === 'HRtimes' && !this.attendanceEnabled) return false;
       if (page === 'Payroll') return ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.user?.permissions?.includes(permission));
       return !permissionMap[page] || this.user?.permissions?.includes(permissionMap[page]);
@@ -1023,9 +1025,10 @@ export default {
         Payroll: null,
         Store: null,
         Setting: 'settings',
+        Satisfaction: 'satisfaction',
       };
       const feature = featureMap[menuValue];
-      if (menuValue === "Setting" || menuValue === "AutomaticSms") {
+      if (menuValue === "Setting" || menuValue === "Satisfaction" || menuValue === "AutomaticSms") {
         if (this.isClinicManager && await this.confirmLeavingInventory(menuValue)) this.currentPage = menuValue;
         return;
       }
@@ -1195,6 +1198,11 @@ export default {
         requestedAt: Date.now()
       };
       this.currentPage = "Vaghtdahi";
+    },
+
+    openBookingScheduleSettings() {
+      this.settingsInitialAccordion = 'clinicSchedule';
+      this.currentPage = 'Setting';
     },
 
     handleOpenAppointmentsTimelineEvent(event) {

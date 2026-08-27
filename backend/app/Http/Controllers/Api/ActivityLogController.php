@@ -98,7 +98,7 @@ class ActivityLogController extends Controller
             }
 
             if (str_contains((string) $key, 'phone') || str_contains((string) $key, 'mobile')) {
-                $values[$key] = PatientPhoneVisibility::mask((string) $value);
+                $values[$key] = '';
             }
         }
 

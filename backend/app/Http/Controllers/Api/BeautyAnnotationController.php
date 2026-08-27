@@ -178,8 +178,8 @@ class BeautyAnnotationController extends Controller
             return $patient;
         }
 
-        $patient->setAttribute('phone', PatientPhoneVisibility::mask($patient->phone));
-        $patient->setAttribute('second_phone', PatientPhoneVisibility::mask($patient->second_phone));
+        $patient->setAttribute('phone', '');
+        $patient->setAttribute('second_phone', '');
 
         return $patient;
     }

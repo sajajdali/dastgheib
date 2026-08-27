@@ -7,10 +7,14 @@ use Illuminate\Http\Request;
 class PatientPhoneVisibility
 {
     public const PERMISSION = 'patients.view_phone';
+    public const HIDE_PERMISSION = 'patients.hide_phone';
 
     public static function canView(?Request $request): bool
     {
-        return (bool) $request?->user()?->can(self::PERMISSION);
+        $user = $request?->user();
+
+        return (bool) $user?->can(self::PERMISSION)
+            && ! $user?->can(self::HIDE_PERMISSION);
     }
 
     public static function mask(?string $phone): ?string
@@ -35,7 +39,7 @@ class PatientPhoneVisibility
 
     public static function hideValue(mixed $value, ?Request $request): mixed
     {
-        return self::canView($request) ? $value : self::mask((string) $value);
+        return self::canView($request) ? $value : '';
     }
 
     public static function hideArrayPhones(array $row, ?Request $request, array $keys = ['phone', 'second_phone', 'referrer_phone', 'patient_phone']): array
@@ -46,7 +50,7 @@ class PatientPhoneVisibility
 
         foreach ($keys as $key) {
             if (array_key_exists($key, $row)) {
-                $row[$key] = self::mask((string) $row[$key]);
+                $row[$key] = '';
             }
         }
 
