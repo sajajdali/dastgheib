@@ -10,6 +10,7 @@ use App\Models\ActivityLog;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Inventory;
+use App\Models\HiddenAppointmentDay;
 use App\Models\InventoryMovement;
 use App\Models\InventoryCommission;
 use App\Models\ResourceEarningLine;
@@ -98,6 +99,42 @@ class AppointmentController extends Controller
         return response()->json($this->hideAppointmentPhones($appointments, $request));
     }
 
+    public function hiddenDays(Request $request)
+    {
+        $data = $request->validate(['month' => ['required', 'string', 'regex:/^1[34]\d{2}-(0[1-9]|1[0-2])$/']]);
+
+        return response()->json(HiddenAppointmentDay::query()
+            ->where('month', $data['month'])
+            ->orderBy('day_num')
+            ->pluck('day_num')
+            ->map(fn ($day) => (int) $day)
+            ->values());
+    }
+
+    public function hideDay(Request $request)
+    {
+        $data = $this->validateScheduleDay($request);
+        HiddenAppointmentDay::query()->firstOrCreate($data);
+
+        return response()->json(['message' => 'روز از برنامه پنهان شد.']);
+    }
+
+    public function restoreDay(Request $request)
+    {
+        $data = $this->validateScheduleDay($request);
+        $restored = HiddenAppointmentDay::query()->where($data)->delete() > 0;
+
+        return response()->json(['restored' => $restored]);
+    }
+
+    private function validateScheduleDay(Request $request): array
+    {
+        return $request->validate([
+            'month' => ['required', 'string', 'regex:/^1[34]\d{2}-(0[1-9]|1[0-2])$/'],
+            'day_num' => ['required', 'integer', 'between:1,31'],
+        ]);
+    }
+
     private function hideAppointmentPhones($appointments, Request $request)
     {
         if (PatientPhoneVisibility::canView($request)) {
@@ -105,8 +142,8 @@ class AppointmentController extends Controller
         }
 
         return $appointments->each(function (Appointment $appointment) {
-            $appointment->setAttribute('phone', PatientPhoneVisibility::mask($appointment->phone));
-            $appointment->setAttribute('referrer_phone', PatientPhoneVisibility::mask($appointment->referrer_phone));
+            $appointment->setAttribute('phone', '');
+            $appointment->setAttribute('referrer_phone', '');
         });
     }
 
@@ -162,9 +199,29 @@ class AppointmentController extends Controller
             $matchedPreviousAppointmentIds = [];
             
             if ($month) {
-                // فقط و فقط نوبت‌های همین ماه پاک می‌شوند
+                // روزهای پنهان‌شده در نوبت‌دهی، حذف نرم هستند: رکوردهای آن‌ها
+                // در بازنویسی ماه دست‌نخورده می‌مانند تا با بازگرداندن روز دوباره نمایش داده شوند.
+                $hiddenDayNumbers = HiddenAppointmentDay::query()
+                    ->where('month', $month)
+                    ->pluck('day_num')
+                    ->map(fn ($day) => (int) $day)
+                    ->all();
+                $hiddenAppointments = $hiddenDayNumbers
+                    ? Appointment::query()
+                        ->where('month', $month)
+                        ->whereIn('day_num', $hiddenDayNumbers)
+                        ->get()
+                    : collect();
+                foreach ($hiddenAppointments as $hiddenAppointment) {
+                    $auditKey = $this->appointmentAuditKey($hiddenAppointment->toArray());
+                    $desiredWalletSources[] = "referral|{$month}|".sha1($auditKey);
+                    $desiredWalletSources[] = "wallet-use|{$month}|".sha1($auditKey);
+                }
+
+                // فقط و فقط نوبت‌های قابل‌نمایش همین ماه بازنویسی می‌شوند.
                 $existingAppointments = Appointment::query()
                     ->where('month', $month)
+                    ->when($hiddenDayNumbers, fn ($query) => $query->whereNotIn('day_num', $hiddenDayNumbers))
                     ->get();
                 $existingById = $existingAppointments->keyBy('id');
                 $existingByKey = $existingAppointments->keyBy(fn (Appointment $item) => $this->appointmentAuditKey($item->toArray()));

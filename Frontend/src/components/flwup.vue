@@ -103,6 +103,14 @@
                   <h3 class="campaign-title">
                     کمپین {{ campaignNumber(campaign) }} ـ {{ campaign.title || 'بدون عنوان' }}
                   </h3>
+                  <span
+                    v-if="campaignBanners(campaign).length"
+                    class="campaign-banner-indicator"
+                    :title="`${campaignBanners(campaign).length.toLocaleString('fa-IR')} بنر ثبت شده`"
+                    aria-label="این کمپین بنر دارد"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m5 17 4.5-4 3.2 2.7 2.5-2.2L19 17"/></svg>
+                  </span>
                   <select v-model="campaign.campaignStatus" class="campaign-status-select" :class="campaignStatusClass(campaign.campaignStatus)" @click.stop>
                     <option value="active">فعال</option><option value="paused">متوقف</option>
                     <option value="finished">پایان‌یافته</option><option value="archived">آرشیو</option>
@@ -1357,6 +1365,14 @@
         </div>
       </section>
     </div>
+
+    <div v-if="bannerUploadLoading" class="banner-upload-loading-overlay" role="status" aria-live="polite">
+      <div class="banner-upload-loading-card">
+        <span class="banner-upload-spinner" aria-hidden="true"></span>
+        <strong>در حال بارگذاری بنر…</strong>
+        <small>لطفاً چند لحظه صبر کنید.</small>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1488,6 +1504,7 @@ export default {
       campaignFormError: "",
       campaignDateError: "",
       bannerGalleryCampaignId: null,
+      bannerUploadLoading: false,
       landingSmsOptions: [],
       landingSmsLoading: false,
       landingSmsLoadError: "",
@@ -1525,7 +1542,7 @@ export default {
 
   computed: {
     canViewCampaignCost() { return this.permissions.includes('followups.campaign_cost'); },
-    canViewPatientPhone() { return this.permissions.includes('patients.view_phone'); },
+    canViewPatientPhone() { return this.permissions.includes('patients.view_phone') && !this.permissions.includes('patients.hide_phone'); },
     followupProfileName() {
       const patient = this.followupProfile || {};
       return [patient.first_name, patient.last_name].filter(Boolean).join(' ').trim() || patient.full_name || 'مراجعه‌کننده';
@@ -2023,13 +2040,19 @@ export default {
     },
 
     async handleCampaignAttachment(event) {
-      const banners = await this.filesToCampaignBanners(event.target.files);
-      if (banners.length) {
-        this.newCampaign.banners.push(...banners);
-        this.newCampaign.attachmentName = this.newCampaign.banners[0]?.name || "";
-        this.newCampaign.attachmentData = this.newCampaign.banners[0]?.data || "";
+      if (!event.target.files?.length) return;
+      this.bannerUploadLoading = true;
+      try {
+        const banners = await this.filesToCampaignBanners(event.target.files);
+        if (banners.length) {
+          this.newCampaign.banners.push(...banners);
+          this.newCampaign.attachmentName = this.newCampaign.banners[0]?.name || "";
+          this.newCampaign.attachmentData = this.newCampaign.banners[0]?.data || "";
+        }
+      } finally {
+        this.bannerUploadLoading = false;
+        event.target.value = "";
       }
-      event.target.value = "";
     },
 
     campaignBanners(campaign) {
@@ -2055,12 +2078,18 @@ export default {
     },
 
     async handleGalleryBannerUpload(event) {
-      const banners = await this.filesToCampaignBanners(event.target.files);
-      if (banners.length && this.bannerGalleryCampaign) {
-        this.campaignBanners(this.bannerGalleryCampaign).push(...banners);
-        this.saveCampaignsToLocal();
+      if (!event.target.files?.length) return;
+      this.bannerUploadLoading = true;
+      try {
+        const banners = await this.filesToCampaignBanners(event.target.files);
+        if (banners.length && this.bannerGalleryCampaign) {
+          this.campaignBanners(this.bannerGalleryCampaign).push(...banners);
+          this.saveCampaignsToLocal();
+        }
+      } finally {
+        this.bannerUploadLoading = false;
+        event.target.value = "";
       }
-      event.target.value = "";
     },
 
     removeCampaignBanner(index) {
@@ -3245,6 +3274,28 @@ export default {
   margin-bottom: 7px;
 }
 
+.campaign-banner-indicator {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.campaign-banner-indicator svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .campaign-title {
   margin: 0;
   font-size: 15px;
@@ -3500,7 +3551,8 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  /* این پنجره باید روی ناوبری سراسری و منوی همبرگری باز شود. */
+  z-index: 2147483500;
   padding: 20px;
 }
 
@@ -3652,7 +3704,8 @@ export default {
 .missed-followup-row button { border:0; border-radius:8px; padding:7px 10px; background:#dc2626; color:#fff; font-family:inherit; cursor:pointer; }
 .campaign-attachment-link { padding:5px 9px; border-radius:8px; background:#eef2ff; color:#4338ca; font-weight:800; text-decoration:none; }
 .campaign-header-actions{display:flex;align-items:center;gap:8px}.campaign-icon-action{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid #dbeafe;border-radius:11px;background:#eff6ff;color:#2563eb;box-sizing:border-box;cursor:pointer;transition:.16s ease}.campaign-icon-action:hover{border-color:#93c5fd;background:#dbeafe;transform:translateY(-1px)}.campaign-icon-action svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.campaign-icon-action>span{position:absolute;top:-7px;left:-7px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff;border-radius:999px;background:#2563eb;color:#fff;font-size:9px;font-weight:900}.banner-upload-action input{display:none}
-.banner-gallery-page{position:fixed;inset:0;z-index:1000002;padding:24px;background:rgba(15,23,42,.56);backdrop-filter:blur(7px);overflow:auto;direction:rtl}.banner-gallery-shell{width:min(1180px,96vw);min-height:calc(100vh - 48px);box-sizing:border-box;margin:0 auto;padding:22px;border:1px solid rgba(255,255,255,.75);border-radius:26px;background:#f8fafc;box-shadow:0 30px 90px rgba(15,23,42,.34)}.banner-gallery-shell>header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px;padding:4px 3px 18px;border-bottom:1px solid #e2e8f0}.banner-gallery-shell header small{color:#2563eb;font-size:10px;font-weight:900}.banner-gallery-shell h2{margin:4px 0;color:#0f172a;font-size:23px}.banner-gallery-shell header p{margin:0;color:#64748b;font-size:11px}.banner-gallery-actions{display:flex;gap:8px}.banner-gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.banner-gallery-grid article{overflow:hidden;border:1px solid #dbe3ed;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.07);transition:.18s}.banner-gallery-grid article:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(15,23,42,.11)}.banner-gallery-grid article>a{height:230px;display:block;background:#e2e8f0}.banner-gallery-grid img{width:100%;height:100%;display:block;object-fit:contain}.banner-gallery-grid footer{display:flex;align-items:center;gap:10px;padding:11px 13px}.banner-gallery-grid footer span{min-width:0;flex:1;overflow:hidden;color:#334155;font-size:11px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}.banner-gallery-grid footer button{width:34px;height:34px;display:grid;place-items:center;padding:0;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#dc2626}.banner-gallery-grid footer button:hover{background:#fee2e2}.banner-gallery-grid footer svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.banner-gallery-empty{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;border:1px dashed #bfdbfe;border-radius:20px;background:#fff;color:#64748b}.banner-gallery-empty svg{width:55px;height:55px;fill:none;stroke:#93c5fd;stroke-width:1.4}.banner-gallery-empty strong{color:#334155}.banner-gallery-empty small{font-size:10px}@media(max-width:850px){.banner-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.banner-gallery-page{padding:8px}.banner-gallery-shell{min-height:calc(100vh - 16px);padding:14px;border-radius:18px}.banner-gallery-grid{grid-template-columns:1fr}.banner-gallery-shell>header{align-items:flex-start}.banner-gallery-grid article>a{height:210px}}
+.banner-gallery-page{position:fixed;inset:0;z-index:2147483510;padding:24px;background:rgba(15,23,42,.56);backdrop-filter:blur(7px);overflow:auto;direction:rtl}.banner-gallery-shell{width:min(1180px,96vw);min-height:calc(100vh - 48px);box-sizing:border-box;margin:0 auto;padding:22px;border:1px solid rgba(255,255,255,.75);border-radius:26px;background:#f8fafc;box-shadow:0 30px 90px rgba(15,23,42,.34)}.banner-gallery-shell>header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px;padding:4px 3px 18px;border-bottom:1px solid #e2e8f0}.banner-gallery-shell header small{color:#2563eb;font-size:10px;font-weight:900}.banner-gallery-shell h2{margin:4px 0;color:#0f172a;font-size:23px}.banner-gallery-shell header p{margin:0;color:#64748b;font-size:11px}.banner-gallery-actions{display:flex;gap:8px}.banner-gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.banner-gallery-grid article{overflow:hidden;border:1px solid #dbe3ed;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.07);transition:.18s}.banner-gallery-grid article:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(15,23,42,.11)}.banner-gallery-grid article>a{height:230px;display:block;background:#e2e8f0}.banner-gallery-grid img{width:100%;height:100%;display:block;object-fit:contain}.banner-gallery-grid footer{display:flex;align-items:center;gap:10px;padding:11px 13px}.banner-gallery-grid footer span{min-width:0;flex:1;overflow:hidden;color:#334155;font-size:11px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}.banner-gallery-grid footer button{width:34px;height:34px;display:grid;place-items:center;padding:0;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#dc2626}.banner-gallery-grid footer button:hover{background:#fee2e2}.banner-gallery-grid footer svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.banner-gallery-empty{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;border:1px dashed #bfdbfe;border-radius:20px;background:#fff;color:#64748b}.banner-gallery-empty svg{width:55px;height:55px;fill:none;stroke:#93c5fd;stroke-width:1.4}.banner-gallery-empty strong{color:#334155}.banner-gallery-empty small{font-size:10px}@media(max-width:850px){.banner-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.banner-gallery-page{padding:8px}.banner-gallery-shell{min-height:calc(100vh - 16px);padding:14px;border-radius:18px}.banner-gallery-grid{grid-template-columns:1fr}.banner-gallery-shell>header{align-items:flex-start}.banner-gallery-grid article>a{height:210px}}
+.banner-upload-loading-overlay{position:fixed;z-index:2147483520;inset:0;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.38);backdrop-filter:blur(4px);direction:rtl}.banner-upload-loading-card{min-width:220px;display:grid;justify-items:center;gap:8px;padding:24px 28px;border:1px solid rgba(255,255,255,.86);border-radius:21px;background:rgba(255,255,255,.98);color:#0f172a;box-shadow:0 22px 60px rgba(15,23,42,.28);text-align:center}.banner-upload-loading-card strong{font-size:14px;font-weight:1000}.banner-upload-loading-card small{color:#64748b;font-size:11px;font-weight:800}.banner-upload-spinner{width:38px;height:38px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:banner-upload-spin .75s linear infinite}@keyframes banner-upload-spin{to{transform:rotate(360deg)}}
 
 
 .modal-actions {

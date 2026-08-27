@@ -41,6 +41,10 @@ class InventoryController extends Controller
 
     public function store(Request $request)
     {
+        $request->validate([
+            'items' => ['nullable', 'array'],
+            'items.*.stock' => ['nullable', 'integer', 'min:0'],
+        ]);
         $items = $request->input('items', []);
         $sections = $request->input('sections', []);
 
@@ -115,7 +119,7 @@ class InventoryController extends Controller
                     'amount' => $item['amount'] ?? null,
                     'price' => $item['price'] ?? null,
                     'count' => $item['count'] ?? 0,
-                    'stock' => $item['stock'] ?? null,
+                    'stock' => isset($item['stock']) ? (int) $item['stock'] : null,
                     'min_stock' => $item['min_stock'] ?? $item['minStock'] ?? 5,
                     'active' => $item['active'] ?? true,
                     'sort_order' => $item['sort_order'] ?? $index,
@@ -148,7 +152,7 @@ class InventoryController extends Controller
             'inventory_id' => ['nullable', 'integer'],
             'name' => ['nullable', 'string'],
             'direction' => ['required', 'in:increase,decrease'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
+            'quantity' => ['required', 'integer', 'min:1'],
             'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -160,8 +164,8 @@ class InventoryController extends Controller
             if (! $item) {
                 return response()->json(['message' => 'کالا در انبار یافت نشد'], 404);
             }
-            $previousStock = (float) ($item->stock ?? 0);
-            $quantity = (float) $data['quantity'];
+            $previousStock = (int) ($item->stock ?? 0);
+            $quantity = (int) $data['quantity'];
             $change = $data['direction'] === 'increase' ? $quantity : -$quantity;
 
             if ($change < 0 && $previousStock + $change < 0) {
@@ -180,7 +184,7 @@ class InventoryController extends Controller
 
             return response()->json([
                 'message' => 'گردش موجودی ثبت شد.',
-                'stock' => (float) $item->stock,
+                'stock' => (int) $item->stock,
                 'item' => $item->fresh(),
                 'movement' => $movement,
             ]);

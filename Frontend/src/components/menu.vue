@@ -1,12 +1,5 @@
 <template>
   <div class="menu">
-    <button
-      v-if="overflowOpen"
-      type="button"
-      class="more-backdrop"
-      aria-label="بستن زیرمنو"
-      @click.stop="overflowOpen = false"
-    ></button>
     <ul class="menu-items">
       <!-- آیتم‌ها -->
       <li
@@ -45,19 +38,21 @@
         >
           {{ formatBadgeCount(overflowNotificationCount) }}
         </span>
-        <div v-if="overflowOpen" class="more-submenu" @click.stop>
-          <button
-            v-for="item in overflowItems"
-            :key="item.value"
-            type="button"
-            :class="{ active: currentPage === item.value }"
-            @click="selectOverflow(item.value)"
-          >
-            <span>{{ item.label }}</span>
-            <b v-if="notificationCounts[item.value] > 0">{{ formatBadgeCount(notificationCounts[item.value]) }}</b>
-          </button>
-        </div>
       </li>
+
+      <template v-if="overflowOpen || overflowActive">
+        <li
+          v-for="item in overflowItems"
+          :key="item.value"
+          class="menu-item"
+          :class="{ active: currentPage === item.value }"
+          @click="selectOverflow(item.value)"
+        >
+          <div class="menu-dot"></div>
+          <span>{{ item.label }}</span>
+          <span v-if="notificationCounts[item.value] > 0" class="notification-badge">{{ formatBadgeCount(notificationCounts[item.value]) }}</span>
+        </li>
+      </template>
 
       <!-- دکمه بستن -->
       <li class="menu-item close-btn" @click="$emit('close-all')">
@@ -127,6 +122,7 @@ export default {
         Roles: 'roles.view',
         Setting: 'settings.view',
         Store: 'store.view',
+        Satisfaction: 'settings.view',
         AutomaticSms: null
       },
       items: [
@@ -143,6 +139,7 @@ export default {
         { label: 'هزینه‌ها', value: 'Bills', feature: 'bills' },
         { label: 'حضور غیاب', value: 'HRtimes', feature: 'attendance' },
         { label: 'حقوق و تسویه', value: 'Payroll', feature: null },
+        { label: 'رضایت‌مندی', value: 'Satisfaction', feature: 'satisfaction' },
         { label: 'پیامک اتوماتیک', value: 'AutomaticSms', feature: null }
       ]
     }
@@ -161,6 +158,7 @@ export default {
         if (item.value === 'Setting') {
           return this.isClinicManager
         }
+        if (item.value === 'Satisfaction') return this.isClinicManager && this.featureEnabled(item.feature)
         if (item.value === 'AutomaticSms') return this.isClinicManager
         if (!this.featureEnabled(item.feature)) return false
         const requiredPermission = this.permissionMap[item.value]
@@ -214,7 +212,7 @@ export default {
       this.$emit('select', val)
     },
     selectOverflow(val) {
-      this.overflowOpen = false
+      this.overflowOpen = true
       this.$emit('select', val)
     },
     featureEnabled(feature) {
@@ -889,12 +887,13 @@ export default {
   /* Keep the global navigation and its overflow menu above page-level
      controls such as date pickers on every module. */
   z-index: 2147482000;
-  width: calc(100% - 58px);
+  /* سمت چپ برای دکمهٔ منوی کاربری و دکمهٔ بستن ناوبری رزرو می‌شود. */
+  width: calc(100% - 92px);
   min-width: 0;
-  margin: 0 0 0 58px;
+  margin: 0 0 0 92px;
   padding: 7px 8px;
-  overflow-x: visible;
-  overflow-y: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
   direction: rtl;
   border: 1px solid rgba(219, 234, 254, .9);
   border-radius: 20px;
@@ -1048,8 +1047,8 @@ export default {
 /* موبایل */
 @media (max-width: 768px) {
   .menu {
-    width: calc(100% - 48px);
-    margin-left: 48px;
+    width: calc(100% - 72px);
+    margin-left: 72px;
     top: 7px;
     padding: 6px 7px;
     border-radius: 16px;

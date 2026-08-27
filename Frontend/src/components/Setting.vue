@@ -733,7 +733,9 @@ import axios from "axios";
 
 const props = defineProps({
   currentUser: { type: Object, default: null },
-  enabledFeatures: { type: Array, default: null }
+  enabledFeatures: { type: Array, default: null },
+  initialSection: { type: String, default: "internal" },
+  initialAccordion: { type: String, default: "" }
 });
 const isSuperAdmin = computed(() => (props.currentUser?.roles || []).some(role => ['مدیر کل', 'مدیر سیستم', 'super admin', 'super-admin'].includes(String(role).trim().toLowerCase())));
 const canViewSettings = computed(() => isSuperAdmin.value);
@@ -754,6 +756,19 @@ const SATISFACTION_SETTINGS_KEY = "satisfaction_form_settings_v1";
 
 const activeSection = ref(canViewSettings.value ? "internal" : "resources");
 const openAccordion = ref("");
+watch(() => props.initialSection, (section) => {
+  if (section === "satisfaction" && featureEnabled("satisfaction") && canViewSettings.value) {
+    activeSection.value = "satisfaction";
+  } else if (section === "internal" && canViewSettings.value) {
+    activeSection.value = "internal";
+  }
+}, { immediate: true });
+watch(() => props.initialAccordion, (accordion) => {
+  if (accordion) {
+    activeSection.value = 'internal';
+    openAccordion.value = accordion;
+  }
+}, { immediate: true });
 const paymentMethodRows = ref([{ name: "کارتخوان" }, { name: "کارت به کارت" }, { name: "شبا" }]);
 const paymentAccountRows = ref([{ name: "حساب اصلی" }]);
 const serviceCategoryRows = ref([{ name: "زیبایی" }, { name: "درمانی" }, { name: "لیزر" }, { name: "پوست و مو" }]);

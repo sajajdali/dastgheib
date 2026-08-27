@@ -129,7 +129,7 @@ class PhotoComparisonController extends Controller
 
         $patient = $sample->patient;
         if ($patient && ! PatientPhoneVisibility::canView($request)) {
-            $patient->setAttribute('phone', PatientPhoneVisibility::mask($patient->phone));
+            $patient->setAttribute('phone', '');
         }
         $patientData = $patient?->only(['id', 'first_name', 'last_name', 'phone', 'file_number', 'gender']);
 

@@ -29,7 +29,6 @@ class ChannelController extends Controller
             '*.icon' => ['nullable', 'string', 'max:30'],
         ]);
 
-        $keptIds = [];
         $savedChannels = [];
         foreach ($channelsData as $channel) {
             $model = !empty($channel['id']) ? Channel::find($channel['id']) : null;
@@ -38,16 +37,8 @@ class ChannelController extends Controller
                 'name' => trim($channel['name']),
                 'icon' => $channel['icon'] ?? null,
             ])->save();
-            $keptIds[] = $model->id;
             $savedChannels[] = $model->fresh();
         }
-
-        Channel::query()->whereNotIn('id', $keptIds)->get()->each(function (Channel $channel) {
-            if ($channel->icon_image_path) {
-                Storage::disk('public')->delete($channel->icon_image_path);
-            }
-            $channel->delete();
-        });
 
         return response()->json($savedChannels);
     }

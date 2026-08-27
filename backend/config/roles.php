@@ -12,6 +12,7 @@ return [
                 ['name' => 'patients.delete', 'label' => 'حذف پرونده'],
                 ['name' => 'patients.wallet', 'label' => 'مدیریت کیف پول'],
                 ['name' => 'patients.view_phone', 'label' => 'مشاهده شماره تماس بیمار'],
+                ['name' => 'patients.hide_phone', 'label' => 'عدم مشاهده شماره موبایل بیماران'],
             ],
         ],
         [

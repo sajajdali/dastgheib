@@ -230,8 +230,8 @@
               <tr>
                 <th>نام کالا / خدمت</th>
                 <th>تگ‌های خدمات</th>
-                <th>هزینه</th>
-                <th>قیمت</th>
+                <th>قیمت کالا</th>
+                <th>هزینه مواد</th>
                 <th>حداقل</th>
                 <th>موجودی</th>
                 <th>پورسانت کلی</th>
@@ -467,7 +467,7 @@
         <div class="modal-head"><div><h3>گردش موجودی</h3><p>{{ stockMovement.row?.name }}</p></div><button class="modal-close" type="button" @click="closeStockMovement">×</button></div>
         <div class="stock-current">موجودی فعلی: <strong>{{ Number(stockMovement.row?.stock || 0).toLocaleString('fa-IR') }}</strong></div>
         <div class="stock-direction"><button type="button" :class="{ active: stockMovement.direction === 'increase' }" @click="stockMovement.direction = 'increase'">افزایش موجودی</button><button type="button" :class="{ active: stockMovement.direction === 'decrease' }" @click="stockMovement.direction = 'decrease'">کاهش موجودی</button></div>
-        <div class="modal-grid"><label>تعداد<input v-model.number="stockMovement.quantity" type="number" min="0.001" step="0.001"></label><label>توضیحات<textarea v-model.trim="stockMovement.description" placeholder="مثلاً خرید جدید یا اصلاح شمارش"></textarea></label></div>
+        <div class="modal-grid"><label>تعداد<input v-model.number="stockMovement.quantity" type="number" inputmode="numeric" min="1" step="1"></label><label>توضیحات<textarea v-model.trim="stockMovement.description" placeholder="مثلاً خرید جدید یا اصلاح شمارش"></textarea></label></div>
         <div class="movement-history"><div class="movement-history-head"><strong>۴ گردش آخر</strong><button type="button" @click="openMovementList(stockMovement.row)">لیست کامل</button></div><p v-if="stockMovement.loading">در حال دریافت...</p><p v-else-if="!stockMovement.history.length">هنوز گردشی ثبت نشده است.</p><div v-for="movement in stockMovement.history.slice(0, 4)" :key="movement.id" :class="['movement-row', Number(movement.quantity) < 0 ? 'out' : 'in']"><b>{{ Number(movement.quantity) > 0 ? '+' : '' }}{{ Number(movement.quantity).toLocaleString('fa-IR') }}</b><span>{{ movement.description }}</span><time>{{ formatMovementDate(movement.occurred_at) }}</time></div></div>
         <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeStockMovement">انصراف</button><button class="text-btn primary" :disabled="stockMovement.saving || !stockMovement.quantity" type="button" @click="saveStockMovement">{{ stockMovement.saving ? 'در حال ثبت...' : 'ثبت گردش' }}</button></div>
       </section>
@@ -777,7 +777,8 @@ export default {
       handler() {
         this.rows.forEach(row => {
           const stock = Number(row.stock)
-          if (isNaN(stock)) row.stock = 0
+          const normalizedStock = Number.isFinite(stock) ? Math.max(0, Math.trunc(stock)) : 0
+          if (row.stock !== normalizedStock) row.stock = normalizedStock
         })
         this.queueSave()
       },
@@ -858,13 +859,18 @@ export default {
     },
     async saveStockMovement() {
       const movement = this.stockMovement
-      if (!movement.row?.id || !Number(movement.quantity) || movement.saving) return
+      const quantity = Number(movement.quantity)
+      if (!movement.row?.id || movement.saving) return
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        Swal.fire({ icon: "warning", title: "تعداد نامعتبر است", text: "موجودی کالا فقط باید یک عدد صحیحِ بزرگ‌تر از صفر باشد." })
+        return
+      }
       movement.saving = true
       try {
         const { data } = await axios.post(`${API}/inventory/adjust-stock`, {
           inventory_id: movement.row.id,
           direction: movement.direction,
-          quantity: movement.quantity,
+          quantity,
           description: movement.description,
         })
         movement.row.stock = Number(data.stock || 0)
@@ -1032,7 +1038,7 @@ export default {
         amount: Number(item.amount) || 0,
         price: Number(item.price) || 0,
         count: Number(item.count) || 0,
-        stock: Number(item.stock) || 0,
+        stock: Math.max(0, Math.trunc(Number(item.stock) || 0)),
         minStock: Number(item.min_stock ?? item.minStock ?? 5),
         active: item.active === undefined ? true : Boolean(item.active),
         sort_order: item.sort_order ?? index,

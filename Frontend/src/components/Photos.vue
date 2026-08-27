@@ -134,7 +134,7 @@ export default {
     filters: { q: '', tag: '', gender: '', age_group: '', angle: '', featured: '', date_from: '', date_to: '', only_complete: false, consented_only: false }
   }),
   computed: {
-    canViewPatientPhone() { return this.permissions.includes('patients.view_phone') },
+    canViewPatientPhone() { return this.permissions.includes('patients.view_phone') && !this.permissions.includes('patients.hide_phone') },
     featuredComparisons() { return this.comparisons.filter(item => item.is_featured) },
     regularComparisons() { return this.comparisons.filter(item => !item.is_featured) },
     selectedPatientAngles() {

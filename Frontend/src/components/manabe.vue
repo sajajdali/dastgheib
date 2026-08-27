@@ -249,7 +249,7 @@
             <td class="doctor-settings-cell" data-label="تنظیمات">
               <button type="button" class="doctor-settings-btn channel-settings-btn" @click="openChannelSettings(index)"><span class="doctor-settings-icon">✎</span><span><strong>تنظیم کانال</strong><small>{{ channelImageUrl(row) ? 'تصویر اختصاصی بارگذاری شده' : row.icon ? 'آیکون اختصاصی انتخاب شده' : 'نمایش با آیکون پیش‌فرض' }}</small></span><b>ویرایش</b></button>
             </td>
-            <td class="actions-cell" data-label="عملیات"><button class="btn-add" type="button" title="اضافه کردن کانال" @click="addChannelRow"><span>+</span><small>اضافه</small></button><button v-if="channelRows.length > 1" class="btn-remove" type="button" title="حذف کانال" @click="removeChannelRow(index)"><span>−</span><small>حذف</small></button></td>
+            <td class="actions-cell" data-label="عملیات"><button class="btn-add" type="button" title="اضافه کردن کانال" @click="addChannelRow"><span>+</span><small>اضافه</small></button><button v-if="channelRows.length > 1" class="btn-remove" type="button" title="حذف کانال" @click="requestChannelRemoval(index)"><span>−</span><small>حذف</small></button></td>
           </tr>
         </tbody>
       </table>
@@ -262,6 +262,19 @@
           <section class="channel-modal-form"><label><span>نام کانال</span><input v-model.trim="activeChannel.name" type="text" placeholder="نام کانال تبلیغات"></label><label><span>آیکون نمایشی</span><select v-model="activeChannel.icon"><option value="">آیکون پیش‌فرض</option><option v-for="icon in channelIconOptions" :key="icon" :value="icon">{{ icon }}</option></select></label><label class="channel-image-upload"><span>تصویر اختصاصی <small>اختیاری</small></span><input type="file" accept="image/png,image/jpeg,image/webp" @change="uploadChannelIcon"><b>انتخاب و بارگذاری تصویر</b><em>PNG، JPG یا WEBP تا ۲ مگابایت</em></label><div class="channel-modal-preview"><span><img v-if="channelImageUrl(activeChannel)" :src="channelImageUrl(activeChannel)" alt=""><template v-else>{{ activeChannel.icon || '📣' }}</template></span><strong>{{ activeChannel.name || 'پیش‌نمایش کانال' }}</strong></div></section>
         </div>
         <footer class="doctor-settings-modal-actions"><span>تغییرات پس از بستن به‌صورت خودکار ذخیره می‌شوند.</span><button type="button" @click="closeChannelSettings">تأیید و بستن</button></footer>
+      </section>
+    </div>
+
+    <div v-if="pendingChannelRemoval" class="resource-modal-backdrop channel-delete-backdrop" @click.self="cancelChannelRemoval">
+      <section class="channel-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="channel-delete-title" aria-describedby="channel-delete-description">
+        <div class="channel-delete-icon">!</div>
+        <span class="modal-eyebrow">حذف کانال تبلیغاتی</span>
+        <h3 id="channel-delete-title">از حذف مطمئن هستید؟</h3>
+        <p id="channel-delete-description">کانال <b>«{{ pendingChannelRemoval.channel.name || 'بدون نام' }}»</b> حذف می‌شود. این کار قابل بازگشت نیست.</p>
+        <div class="channel-delete-actions">
+          <button type="button" class="channel-delete-cancel" @click="cancelChannelRemoval">انصراف</button>
+          <button type="button" class="channel-delete-confirm" @click="confirmChannelRemoval">بله، حذف کن</button>
+        </div>
       </section>
     </div>
 
@@ -280,6 +293,7 @@ export default {
     activeDoctorIndex: null,
     activeStaffIndex: null,
     activeChannelIndex: null,
+    pendingChannelRemoval: null,
 
     weekDays: [
       "شنبه",
@@ -653,8 +667,43 @@ export default {
     addChannelRow() {
       this.channelRows.push({ name: '', icon: '' });
     },
-    removeChannelRow(index) {
+    requestChannelRemoval(index) {
+      const channel = this.channelRows[index];
+      if (!channel) return;
+      this.pendingChannelRemoval = { channel, index };
+    },
+    cancelChannelRemoval() {
+      this.pendingChannelRemoval = null;
+    },
+    async confirmChannelRemoval() {
+      const pending = this.pendingChannelRemoval;
+      if (!pending) return;
+      this.pendingChannelRemoval = null;
+      const index = this.channelRows.indexOf(pending.channel);
+      if (index >= 0) await this.removeChannelRow(index);
+    },
+    async removeChannelRow(index) {
+      const channel = this.channelRows[index];
+      if (!channel) return;
+
       this.channelRows.splice(index, 1);
+
+      // حذف را جدا از ذخیرهٔ گروهی انجام می‌دهیم. در غیر این صورت یک درخواست
+      // قدیمیِ ذخیره می‌تواند کانالی را که هم‌زمان تازه اضافه شده است حذف کند.
+      if (!channel.id) return;
+
+      try {
+        const response = await fetch(`/api/channels/${channel.id}`, {
+          method: 'DELETE',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) throw new Error('حذف کانال انجام نشد.');
+      } catch (error) {
+        this.isSyncingChannelRows = true;
+        this.channelRows.splice(index, 0, channel);
+        this.$nextTick(() => { this.isSyncingChannelRows = false; });
+        alert(error.message || 'حذف کانال انجام نشد.');
+      }
     },
 
     
@@ -862,8 +911,17 @@ export default {
           if (requestRevision !== this.channelRowsRevision) {
             return this.channelRows;
           }
+
+          // پاسخ API فقط کانال‌های دارای نام را برمی‌گرداند. ردیف خالی‌ای که
+          // کاربر با دکمهٔ «اضافه» ساخته نیز باید تا زمان وارد شدن نام حفظ شود.
+          const unsavedChannels = this.channelRows.filter(row => {
+            if (row.id) return false;
+            const name = String(row.name || '').trim();
+            return !name || !data.some(saved => String(saved.name || '').trim() === name);
+          });
+
           this.isSyncingChannelRows = true;
-          this.channelRows = data;
+          this.channelRows = [...data, ...unsavedChannels];
           this.$nextTick(() => { this.isSyncingChannelRows = false; });
         }
         console.log('کانال‌ها با موفقیت ذخیره شدند:', data);
@@ -1332,6 +1390,80 @@ select {
   padding: 22px;
   background: rgba(15, 23, 42, .62);
   backdrop-filter: blur(6px);
+}
+
+.channel-delete-backdrop {
+  z-index: 1300;
+}
+
+.channel-delete-modal {
+  width: min(430px, 100%);
+  padding: 31px 30px 26px;
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 26px;
+  background: linear-gradient(145deg, #fff, #fff7f7);
+  box-shadow: 0 30px 90px rgba(15, 23, 42, .34);
+  direction: rtl;
+  text-align: center;
+}
+
+.channel-delete-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 14px;
+  border: 7px solid #fee2e2;
+  border-radius: 50%;
+  background: #fff1f2;
+  color: #dc2626;
+  font: 900 30px/1 Arial, sans-serif;
+  box-shadow: 0 8px 20px rgba(220, 38, 38, .14);
+}
+
+.channel-delete-modal h3 {
+  margin: 7px 0 9px;
+  color: #0f172a;
+  font-size: 21px;
+}
+
+.channel-delete-modal p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 2;
+}
+
+.channel-delete-modal p b { color: #b91c1c; }
+
+.channel-delete-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.channel-delete-actions button {
+  min-height: 44px;
+  border-radius: 13px;
+  font: 800 13px inherit;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+}
+
+.channel-delete-actions button:hover { transform: translateY(-1px); }
+
+.channel-delete-cancel {
+  border: 1px solid #dbe3ee;
+  background: #fff;
+  color: #475569;
+}
+
+.channel-delete-confirm {
+  border: 1px solid #dc2626;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  box-shadow: 0 9px 18px rgba(220, 38, 38, .24);
 }
 
 .doctor-settings-modal {
