@@ -82,11 +82,13 @@
           <div class="compact-checks">
             <label><input type="checkbox" v-model="profileFields.city" /> <span>شهر</span></label>
             <label><input type="checkbox" v-model="profileFields.national_id" /> <span>کد ملی</span></label>
+            <label><input type="checkbox" v-model="profileFields.foreign_national_code" /> <span>کد اتباع</span></label>
             <label><input type="checkbox" v-model="profileFields.marriage_date" /> <span>تاریخ ازدواج</span></label>
             <label><input type="checkbox" v-model="profileFields.education" /> <span>تحصیلات</span></label>
             <label><input type="checkbox" v-model="profileFields.father_name" /> <span>نام پدر</span></label>
             <label><input type="checkbox" v-model="profileFields.second_phone" /> <span>شماره تماس دوم</span></label>
             <label><input type="checkbox" v-model="profileFields.address" /> <span> آدرس</span></label>
+            <label><input type="checkbox" v-model="followupConsultantPhoneRestricted" /> <span>نمایش شماره لید فقط برای مشاور انتخاب‌شده</span></label>
           </div>
         </div>
       </div>
@@ -98,6 +100,18 @@
 
         <div v-if="openAccordion === 'company'" class="accordion-body">
           <input v-model="company.name" class="green-input" type="text" placeholder="نام مجموعه" />
+          <input v-model.trim="company.address" class="green-input" type="text" maxlength="500" placeholder="آدرس مرکز" />
+          <input v-model.trim="company.instagram_url" class="green-input" type="url" maxlength="2000" dir="ltr" placeholder="لینک اینستاگرام" />
+          <input v-model.trim="company.phone" class="green-input" type="text" maxlength="100" dir="ltr" placeholder="شماره تماس مرکز" />
+          <section class="clinic-location-picker">
+            <header><strong>موقعیت مرکز</strong><small>برای ثبت موقعیت، روی نقشه کلیک کنید.</small></header>
+            <div ref="clinicMapElement" class="clinic-location-map" aria-label="نقشه انتخاب موقعیت مرکز"></div>
+            <div v-if="company.latitude !== null && company.longitude !== null" class="clinic-location-result">
+              <span dir="ltr">{{ Number(company.latitude).toFixed(6) }}, {{ Number(company.longitude).toFixed(6) }}</span>
+              <a :href="company.location_url" target="_blank" rel="noopener">مشاهده در نقشه</a>
+              <button type="button" @click="clearClinicLocation">حذف موقعیت</button>
+            </div>
+          </section>
 
           <div class="upload-box">
             <label>آپلود لوگو</label>
@@ -130,6 +144,21 @@
               </select>
             </label>
           </div>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="accordion-header" @click="toggleAccordion('reportTarget')">تنظیمات گزارش</div>
+        <div v-if="openAccordion === 'reportTarget'" class="accordion-body">
+          <label class="schedule-interval-field">
+            سقف تارگت پرسنل <small>میلیون تومان</small>
+            <input v-model.number="reportStaffTarget" class="green-input" type="number" min="0" step="1" placeholder="مثلاً ۱۲۰" />
+          </label>
+          <label class="schedule-interval-field">
+            سقف درآمد ماهانهٔ گنجایش <small>تومان</small>
+            <input v-model.number="reportMonthlyCapacity" class="green-input" type="number" min="0" step="1000000" placeholder="مثلاً ۶۵۰٬۰۰۰٬۰۰۰" />
+          </label>
+          <small class="report-target-help">در گزارش، هر پرسنلی که درآمدش به این مقدار برسد با وضعیت «رسیده به تارگت» نمایش داده می‌شود.</small>
         </div>
       </div>
 
@@ -462,15 +491,23 @@
           <small><i></i> سامانه فعال فعلی: SHSMS</small>
         </label>
 
-        <label class="provider-field">
-          توکن API حساب این کلینیک
-          <input v-model.trim="smsSettings.api_token" type="password" autocomplete="new-password" placeholder="توکن SHSMS را وارد کنید">
-          <small><i></i> {{ smsSettings.account_configured ? 'توکن اختصاصی ذخیره شده است؛ برای تغییر، توکن جدید وارد کنید.' : 'هر کلینیک باید توکن حساب SHSMS خود را وارد کند.' }}</small>
+        <label v-if="!smsSettings.account_configured || smsSettings.editing_api_token" class="provider-field">
+          کلید API (توکن) حساب SHSMS این کلینیک
+          <input v-model.trim="smsSettings.api_token" type="password" autocomplete="new-password" placeholder="کلید API را از پنل SHSMS کپی و اینجا وارد کنید">
+          <small><i></i> {{ smsSettings.editing_api_token ? 'کلید جدید را وارد و تنظیمات پیامک را ذخیره کنید.' : 'این رمز عبور یا کد تأیید نیست؛ در پنل SHSMS، بخش API، کلید/توکن API حساب را کپی و اینجا وارد کنید.' }}</small>
         </label>
+
+        <section v-else class="provider-field api-token-saved">
+          <span>کلید API حساب SHSMS این کلینیک</span>
+          <div class="api-token-saved-status"><span>✓</span><div><strong>کلید API ذخیره شده است</strong><small>برای امنیت، مقدار کلید نمایش داده نمی‌شود.</small></div></div>
+          <button type="button" @click="smsSettings.editing_api_token = true">تغییر کلید API <span>←</span></button>
+        </section>
+
+        <p class="sms-clinic-info-note">آدرس، اینستاگرام، تلفن و لوکیشن پیامک اطلاعات از «تنظیمات داخلی ← اطلاعات مجموعه» خوانده می‌شود. پارامتر ۱ نیز نام بیمار است.</p>
       </section>
 
       <section class="sms-templates-section">
-        <article class="lead-alert-sms-card">
+        <article class="lead-alert-sms-card" :class="{ 'is-inactive': !smsSettings.lead_alerts.enabled }">
           <div class="lead-alert-head">
             <div>
               <span class="section-eyebrow">گزارش‌های مدیریتی خودکار</span>
@@ -500,96 +537,77 @@
             </label>
           </div>
           <div class="lead-alert-options">
-            <label><input v-model="smsSettings.lead_alerts.inventory_empty" type="checkbox"><span><b>اتمام موجودی انبار</b><small>برای هر کالایی که موجودی آن تمام شود</small></span></label>
-            <label><input v-model="smsSettings.lead_alerts.active_tickets" type="checkbox"><span><b>تیکت فعال</b><small>اعلام تعداد تیکت‌های فعال</small></span></label>
-            <label><input v-model="smsSettings.lead_alerts.daily_appointments" type="checkbox"><span><b>نوبت‌های امروز، ساعت ۹ صبح</b><small>فقط اگر نوبتی وجود داشته باشد، تعداد کل ارسال می‌شود</small></span></label>
-            <label><input v-model="smsSettings.lead_alerts.daily_financial" type="checkbox"><span><b>درآمد و سود روزانه، هر شب</b><small>فقط اگر درآمدی ثبت شده باشد</small></span></label>
+            <article v-for="alert in leadAlertDefinitions" :key="alert.key" class="lead-alert-template-card" :class="{ active: smsSettings.lead_alerts[alert.key], 'is-inactive': !smsSettings.lead_alerts.enabled || !smsSettings.lead_alerts[alert.key] }">
+              <label><input v-model="smsSettings.lead_alerts[alert.key]" type="checkbox"><span><b>{{ alert.title }}</b><small>{{ alert.description }}</small></span></label>
+              <template v-if="smsSettings.lead_alerts[alert.key]">
+                <input v-model.trim="smsSettings.lead_alerts[alert.templateKey]" type="text" :placeholder="`نام الگوی SHSMS برای ${alert.title}`">
+                <button type="button" class="sms-sample-text-btn" @click="openSmsTemplateText(alert.key, alert.title)">متن پیشنهادی SHSMS</button>
+                <ol><li v-for="(parameter, index) in alert.parameters" :key="parameter"><b>پارامتر {{ index + 1 }}</b><span>{{ parameter }}</span></li></ol>
+              </template>
+            </article>
           </div>
         </article>
-        <article class="birthday-sms-card">
+        <article class="birthday-sms-card" :class="{ 'is-inactive': !smsSettings.birthday.enabled }">
           <div><span class="section-eyebrow">ارسال خودکار ساعت ۹ صبح</span><h3>پیامک تبریک تولد</h3><p>برای بیمارانی که امروز تولدشان است فقط یک پیام در هر سال ارسال می‌شود.</p></div>
           <label class="active-switch"><input v-model="smsSettings.birthday.enabled" type="checkbox"><span>{{ smsSettings.birthday.enabled ? 'فعال' : 'غیرفعال' }}</span></label>
-          <label class="template-message-field">نام الگوی SHSMS<input v-model.trim="smsSettings.birthday.content" type="text" maxlength="190" placeholder="مثلاً birthday_message"></label>
-          <label class="template-message-field">متن راهنما<textarea v-model="smsSettings.birthday.guide_text" maxlength="1000" placeholder="پارامترها: {name}، {clinic}. متن واقعی داخل پنل SHSMS تعریف می‌شود."></textarea></label>
+          <label class="template-message-field">نام الگوی SHSMS<input v-model.trim="smsSettings.birthday.content" type="text" maxlength="190" placeholder="مثلاً birthday_message"><small>متن پیام را در پنل SHSMS تعریف کنید؛ اینجا فقط نام الگو وارد می‌شود.</small></label>
+          <section class="sms-template-parameter-list" aria-label="ترتیب پارامترهای الگوی تبریک تولد">
+            <header><strong>ترتیب پارامترهای ارسالی به SHSMS</strong><small>این ترتیب باید دقیقاً در الگوی پیامکی شما تعریف شده باشد.</small></header>
+            <ol>
+              <li><b>پارامتر ۱</b><span>نام و نام خانوادگی بیمار</span></li>
+              <li><b>پارامتر ۲</b><span>نام کوچک بیمار</span></li>
+              <li><b>پارامتر ۳</b><span>شماره پرونده بیمار</span></li>
+              <li><b>پارامتر ۴</b><span>تاریخ تولد ثبت‌شده</span></li>
+              <li><b>پارامتر ۵</b><span>نام کلینیک</span></li>
+              <li><b>پارامتر ۶</b><span>تاریخ روز ارسال پیامک</span></li>
+            </ol>
+          </section>
+          <button type="button" class="sms-sample-text-btn birthday-sample-text-btn" @click="openSmsTemplateText('birthday', 'پیامک تبریک تولد')">متن پیشنهادی SHSMS</button>
         </article>
         <div class="sms-section-head">
           <div>
-            <span class="section-eyebrow">مدیریت محتوا</span>
+            <span class="section-eyebrow">سناریوهای ثابت ارسال</span>
             <h3>الگوهای پیامک</h3>
-            <p>متن‌های آماده را تعریف کنید و کاربرد هر الگو را مشخص کنید.</p>
+            <p>متن پیام در SHSMS تعریف می‌شود؛ اینجا فقط نام الگو، وضعیت و ترتیب پارامترهای واقعی را می‌بینید.</p>
           </div>
-          <button class="add-template-btn" type="button" @click="addSmsTemplate">+ افزودن الگو</button>
         </div>
 
         <div v-if="smsSettings.templates.length" class="template-list">
-          <article
-            v-for="(template, index) in smsSettings.templates"
-            :key="template.id"
-            class="template-card"
-          >
+          <section v-for="group in smsTemplateGroups" :key="group.title" class="sms-template-group">
+            <header><span>سناریوهای {{ group.title }}</span><small>{{ group.templates.length }} الگو</small></header>
+            <p v-if="group.title === 'پیامک‌های پس از انجام درمان'" class="sms-template-group-note">برای هر پیامک، نام الگو را وارد و گزینهٔ «فعال» را روشن کنید؛ فقط گزینه‌های فعال در پنجرهٔ پایان نوبت نمایش داده می‌شوند.</p>
+            <article v-for="template in group.templates" :key="template.id" class="template-card" :class="{ 'is-inactive': !template.active }">
             <div class="template-card-head">
-              <strong>الگوی {{ index + 1 }}</strong>
+              <strong>{{ template.title }}</strong>
               <label class="active-switch">
                 <input v-model="template.active" type="checkbox">
                 <span>{{ template.active ? 'فعال' : 'غیرفعال' }}</span>
               </label>
-              <button class="delete-template-btn" type="button" @click="removeSmsTemplate(index)">حذف</button>
-            </div>
-
-            <div class="template-fields">
-              <label>
-                عنوان الگو
-                <input v-model.trim="template.title" type="text" placeholder="مثلاً یادآوری نوبت">
-              </label>
-              <label>
-                کاربرد الگو
-                <select v-model="template.category">
-                  <option value="general">عمومی</option>
-                  <option value="appointment">یادآوری نوبت</option>
-                  <option value="info">اطلاعات مراجعه</option>
-                  <option value="welcome">خوش‌آمدگویی</option>
-                  <option value="referral_credit">واریز مبلغ برای معرف</option>
-                  <option value="treatment_care">توصیه‌های بعد از درمان</option>
-                  <option value="payment_link">لینک پرداخت</option>
-                </select>
-              </label>
             </div>
 
             <label class="template-message-field">
-              نام الگوی SHSMS
               <input
                 v-model.trim="template.content"
                 type="text"
                 maxlength="190"
                 placeholder="مثلاً appointment_reminder"
+                :aria-label="`نام الگوی SHSMS برای ${template.title}`"
               >
               <small>نام دقیق template تعریف‌شده در پنل SHSMS را وارد کنید.</small>
             </label>
-
-            <label class="template-message-field">
-              متن راهنما
-              <textarea
-                v-model="template.guide_text"
-                maxlength="2000"
-                placeholder="اینجا فقط راهنمای متن و پارامترهای الگو را بنویسید؛ متن واقعی در SHSMS است."
-              ></textarea>
-              <small>{{ (template.guide_text || '').length }} / ۲۰۰۰ کاراکتر</small>
-            </label>
-
-            <div class="template-variables">
-              <span>پارامترهای پیشنهادی:</span>
-              <button
-                v-for="variable in smsVariables"
-                :key="variable"
-                type="button"
-                @click="appendSmsVariable(template, variable)"
-              >{{ variable }}</button>
-            </div>
-          </article>
+            <button type="button" class="sms-sample-text-btn" @click="openSmsTemplateText(template.category, template.title)">متن پیشنهادی SHSMS</button>
+            <section class="sms-template-parameter-list" :aria-label="`ترتیب پارامترهای ${template.title}`">
+              <header><strong>ترتیب پارامترهای ارسالی</strong><small>این موارد به‌ترتیب به الگوی SHSMS فرستاده می‌شوند.</small></header>
+              <ol>
+                <li v-for="(parameter, index) in template.parameters" :key="parameter"><b>پارامتر {{ index + 1 }}</b><span>{{ parameter }}</span></li>
+              </ol>
+            </section>
+            </article>
+          </section>
         </div>
 
         <div v-else class="empty-templates">
-          هنوز الگویی تعریف نشده است؛ با «افزودن الگو» اولین پیامک را بسازید.
+          سناریوهای پیامک در حال آماده‌سازی هستند.
         </div>
 
         <button class="save-sms-btn" type="button" :disabled="savingSms" @click="saveSmsSettings">
@@ -725,7 +743,9 @@
 
 <script setup>
 import { avatarInitial, avatarUrl } from '@/utils/avatar'
-import { computed, ref, onMounted, watch } from "vue";
+import { computed, ref, onMounted, watch, nextTick } from "vue";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import Swal from "sweetalert2";
 import Roles from "./Roles.vue";
 import Manabe from "./manabe.vue";
@@ -759,6 +779,8 @@ const openAccordion = ref("");
 watch(() => props.initialSection, (section) => {
   if (section === "satisfaction" && featureEnabled("satisfaction") && canViewSettings.value) {
     activeSection.value = "satisfaction";
+  } else if (section === "sms" && canViewSettings.value) {
+    activeSection.value = "sms";
   } else if (section === "internal" && canViewSettings.value) {
     activeSection.value = "internal";
   }
@@ -809,15 +831,68 @@ const serviceFinderPaymentGroups = computed(() => [
 
 // داده‌های بخش تنظیمات داخلی
 const sms = ref({ appointment: "", info: "", welcome: "" });
-const smsSettings = ref({ provider: "shsms", api_token: "", account_configured: false, templates: [], birthday: { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true } });
+const reportStaffTarget = ref(120);
+const reportMonthlyCapacity = ref(0);
+const smsSettings = ref({ provider: "shsms", api_token: "", account_configured: false, editing_api_token: false, clinic_info: { address: "", instagram_url: "", phone: "", location_url: "" }, templates: [], birthday: { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true, inventory_empty_template: "", active_tickets_template: "", daily_appointments_template: "", daily_financial_template: "" } });
 const leadRecipientDraft = ref("");
 const leadAlertKeys = ["inventory_empty", "active_tickets", "daily_appointments", "daily_financial"];
+const leadAlertDefinitions = [
+  { key: "inventory_empty", templateKey: "inventory_empty_template", title: "اتمام موجودی انبار", description: "برای هر کالایی که موجودی آن تمام شود", parameters: ["نام کالا", "موجودی فعلی", "نام کلینیک"] },
+  { key: "active_tickets", templateKey: "active_tickets_template", title: "تیکت فعال", description: "اعلام تعداد تیکت‌های فعال", parameters: ["تعداد تیکت فعال", "نام کلینیک"] },
+  { key: "daily_appointments", templateKey: "daily_appointments_template", title: "نوبت‌های امروز، ساعت ۹ صبح", description: "فقط اگر نوبتی وجود داشته باشد، تعداد کل ارسال می‌شود", parameters: ["تعداد نوبت‌های امروز", "تاریخ روز", "نام کلینیک"] },
+  { key: "daily_financial", templateKey: "daily_financial_template", title: "درآمد و سود روزانه، هر شب", description: "فقط اگر درآمدی ثبت شده باشد", parameters: ["درآمد روز", "سود تقریبی روز", "تاریخ روز", "نام کلینیک"] }
+];
+const smsTemplateTextSamples = {
+  appointment: "سلام %param1%\nنوبت شما در تاریخ %param2% ساعت %param3% با پزشک %param4% در کلینیک %param5% ثبت شد.",
+  info: "سلام %param1%\nآدرس مرکز: %param2%\nلینک اینستاگرام: %param3%\nشماره تماس: %param4%\nلوکیشن: %param5%\nبا تشکر",
+  welcome: "%param1% عزیز، از مراجعه شما به %param2% سپاسگزاریم.",
+  referral_credit: "%param1% عزیز\nمبلغ %param2% تومان به اعتبار شما واریز شد.\nمانده اعتبار: %param3% تومان",
+  treatment_care: "%param1% عزیز\nراهنمای مراقبت پس از درمان:\n%param2%",
+  payment_link: "%param1% عزیز\nبرای پرداخت مبلغ %param3% تومان از لینک زیر استفاده کنید:\n%param2%",
+  birthday: "%param1% عزیز، روز تولدتان مبارک.\n%param2% جان، کلینیک %param5% این روز زیبا را به شما تبریک می‌گوید.\nشماره پرونده: %param3%\nتاریخ تولد ثبت‌شده: %param4%\nتاریخ ارسال: %param6%",
+  inventory_empty: "موجودی %param1% در حال اتمام است\nموجودی فعلی %param2% عدد می‌باشد\nکلینیک %param3%",
+  active_tickets: "تعداد تیکت‌های فعال: %param1%\nکلینیک %param2%",
+  daily_appointments: "امروز شما %param1% نوبت در تاریخ %param2% در کلینیک %param3% دارید.",
+  daily_financial: "گزارش مالی %param3%\nدرآمد: %param1% تومان\nسود تقریبی: %param2% تومان\nکلینیک %param4%"
+};
+const openSmsTemplateText = async (key, title) => {
+  const sample = smsTemplateTextSamples[key] || "";
+  const result = await Swal.fire({
+    title: `متن پیشنهادی «${title}»`,
+    input: "textarea",
+    inputValue: sample,
+    inputAttributes: { readonly: "readonly", "aria-label": "متن پیشنهادی برای SHSMS" },
+    html: "<p class=\"swal-sms-template-note\">شما می‌توانید از هرکدام از پارامترهایی که دوست دارید استفاده کنید.</p>",
+    showCancelButton: true,
+    confirmButtonText: "کپی متن",
+    cancelButtonText: "بستن",
+    customClass: { input: "swal-sms-template-input" }
+  });
+  if (!result.isConfirmed) return;
+
+  try {
+    await navigator.clipboard.writeText(sample);
+    await Swal.fire({ icon: "success", title: "متن کپی شد", timer: 1300, showConfirmButton: false });
+  } catch {
+    await Swal.fire({ icon: "info", title: "متن آماده است", text: "متن را از کادر انتخاب و کپی کنید." });
+  }
+};
 const allLeadAlertsSelected = computed(() => leadAlertKeys.every(key => smsSettings.value.lead_alerts[key]));
+const smsTemplateGroups = computed(() => {
+  const groups = new Map();
+  smsSettings.value.templates.forEach(template => {
+    const title = template.group || "سایر پیامک‌ها";
+    if (!groups.has(title)) groups.set(title, []);
+    groups.get(title).push(template);
+  });
+  return [...groups.entries()].map(([title, templates]) => ({ title, templates }));
+});
 const smsVariables = ["{name}", "{date}", "{time}", "{doctor}", "{clinic}", "{code}", "{amount}", "{balance}", "{link}"];
 const savingSms = ref(false);
-const profileFields = ref({ national_id: false, marriage_date: false, education: false, father_name: false, second_phone: false, address: false, city: false });
+const profileFields = ref({ national_id: false, foreign_national_code: false, marriage_date: false, education: false, father_name: false, second_phone: false, address: false, city: false });
+const followupConsultantPhoneRestricted = ref(false);
 const patientFieldOptions = [
-  ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['father_name','نام پدر'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
+  ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['foreign_national_code','کد اتباع'],['father_name','نام پدر'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
 ].map(([key,label]) => ({ key,label }));
 const patientRequiredFields = ref(Object.fromEntries(patientFieldOptions.map(field => [field.key, false])));
 const customerLevelColumns = [
@@ -866,7 +941,43 @@ const clinicSchedule = ref({
   interval_minutes: 15,
   day_times: defaultDayTimes()
 });
-const company = ref({ name: "", about: "", logoFile: null, logoUrl: "" });
+const company = ref({ name: "", about: "", logoFile: null, logoUrl: "", address: "", instagram_url: "", phone: "", location_url: "", latitude: null, longitude: null });
+const clinicMapElement = ref(null);
+let clinicMap = null;
+let clinicMapMarker = null;
+const defaultClinicCoordinates = [35.6892, 51.3890];
+const updateClinicLocation = (latitude, longitude) => {
+  company.value.latitude = Number(latitude.toFixed(6));
+  company.value.longitude = Number(longitude.toFixed(6));
+  company.value.location_url = `https://www.google.com/maps?q=${company.value.latitude},${company.value.longitude}`;
+  if (clinicMapMarker) clinicMapMarker.setLatLng([company.value.latitude, company.value.longitude]);
+  else if (clinicMap) clinicMapMarker = L.marker([company.value.latitude, company.value.longitude]).addTo(clinicMap);
+};
+const ensureClinicMap = async () => {
+  await nextTick();
+  if (!clinicMapElement.value || clinicMap) return;
+  const latitude = Number(company.value.latitude);
+  const longitude = Number(company.value.longitude);
+  const hasCoordinates = company.value.latitude !== null
+    && company.value.longitude !== null
+    && company.value.latitude !== ''
+    && company.value.longitude !== ''
+    && Number.isFinite(latitude)
+    && Number.isFinite(longitude);
+  const coordinates = hasCoordinates ? [latitude, longitude] : defaultClinicCoordinates;
+  clinicMap = L.map(clinicMapElement.value).setView(coordinates, hasCoordinates ? 15 : 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(clinicMap);
+  clinicMap.on('click', (event) => updateClinicLocation(event.latlng.lat, event.latlng.lng));
+  if (hasCoordinates) updateClinicLocation(latitude, longitude);
+};
+const clearClinicLocation = () => {
+  company.value.latitude = null;
+  company.value.longitude = null;
+  company.value.location_url = '';
+  if (clinicMapMarker && clinicMap) clinicMap.removeLayer(clinicMapMarker);
+  clinicMapMarker = null;
+};
+watch(openAccordion, (accordion) => { if (accordion === 'company') ensureClinicMap(); });
 const makePasswordRow = () => ({
   id: null,
   user: "",
@@ -1246,20 +1357,26 @@ const fetchSettings = async () => {
       smsSettings.value.provider = data.sms_settings.provider || "shsms";
       smsSettings.value.api_token = "";
       smsSettings.value.account_configured = Boolean(data.sms_settings.account_configured);
+      smsSettings.value.editing_api_token = false;
+      smsSettings.value.clinic_info = { address: "", instagram_url: "", phone: "", location_url: "", ...(data.sms_settings.clinic_info || {}) };
       smsSettings.value.birthday = data.sms_settings.birthday || { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" };
-      smsSettings.value.lead_alerts = data.sms_settings.lead_alerts || { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true };
+      smsSettings.value.lead_alerts = { ...smsSettings.value.lead_alerts, ...(data.sms_settings.lead_alerts || {}) };
       smsSettings.value.templates = (data.sms_settings.templates || []).map((template, index) => ({
         id: template.id || `template-loaded-${index}`,
         title: template.title || "",
+        group: template.group || "سایر پیامک‌ها",
         category: template.category || "general",
         content: template.content || "",
-        guide_text: template.guide_text || "",
+        parameters: Array.isArray(template.parameters) ? template.parameters : [],
         active: template.active !== false
       }));
     }
     if (data.profile_fields) profileFields.value = data.profile_fields;
+    followupConsultantPhoneRestricted.value = Boolean(data.followup_consultant_phone_restricted);
     if (data.patient_required_fields) patientRequiredFields.value = { ...patientRequiredFields.value, ...data.patient_required_fields };
     if (data.customer_levels) customerLevels.value = { ...customerLevels.value, ...data.customer_levels };
+    if (data.report_staff_target !== undefined) reportStaffTarget.value = Number(data.report_staff_target) || 0;
+    if (data.report_monthly_capacity !== undefined) reportMonthlyCapacity.value = Number(data.report_monthly_capacity) || 0;
     customerLevels.value = customerLevelPayload();
     if (data.appointment_columns) appointmentColumns.value = { ...appointmentColumns.value, ...data.appointment_columns };
     if (data.clinic_schedule) {
@@ -1273,6 +1390,12 @@ const fetchSettings = async () => {
       company.value.name = data.company.name;
       company.value.about = data.company.about;
       company.value.logoUrl = data.company.logo;
+      company.value.address = data.company.address || '';
+      company.value.instagram_url = data.company.instagram_url || '';
+      company.value.phone = data.company.phone || '';
+      company.value.location_url = data.company.location_url || '';
+      company.value.latitude = data.company.latitude === '' || data.company.latitude === null ? null : Number(data.company.latitude);
+      company.value.longitude = data.company.longitude === '' || data.company.longitude === null ? null : Number(data.company.longitude);
     }
     if (data.users && data.users.length) {
       passwords.value = data.users.map(u => ({
@@ -1310,13 +1433,22 @@ const saveInternalSettings = async (showMessage = true) => {
     // پpayload کاملاً تمیز و ساختاریافته به صورت JSON
     const payload = {
       profile_fields: profileFields.value,
+      followup_consultant_phone_restricted: followupConsultantPhoneRestricted.value,
       patient_required_fields: patientRequiredFields.value,
       customer_levels: customerLevelPayload(),
       appointment_columns: appointmentColumns.value,
       clinic_schedule: clinicSchedule.value,
+      report_staff_target: Math.max(0, Number(reportStaffTarget.value) || 0),
+      report_monthly_capacity: Math.max(0, Number(reportMonthlyCapacity.value) || 0),
       company: {
         name: company.value.name || "",
-        about: company.value.about || ""
+        about: company.value.about || "",
+        address: company.value.address || "",
+        instagram_url: company.value.instagram_url || "",
+        phone: company.value.phone || "",
+        location_url: company.value.location_url || "",
+        latitude: company.value.latitude,
+        longitude: company.value.longitude
       },
       passwords: passwords.value.map(({ showPassword, ...row }) => row)
     };
@@ -1468,16 +1600,26 @@ const uploadUserPhoto = async (item, index, event) => {
 };
 
 const saveSmsSettings = async () => {
-  const invalidTemplate = smsSettings.value.templates.find(
-    template => !template.title.trim() || !template.content.trim()
-  );
+  const invalidTemplate = smsSettings.value.templates.find(template => template.active && !template.content.trim());
 
   if (invalidTemplate) {
     await Swal.fire({
       icon: "warning",
       title: "الگوی ناقص",
-      text: "عنوان و نام الگوی SHSMS را برای همه الگوها کامل کنید."
+      text: "نام الگوی SHSMS را برای همهٔ سناریوهای فعال وارد کنید."
     });
+    return;
+  }
+
+  if (smsSettings.value.birthday.enabled && !smsSettings.value.birthday.content.trim()) {
+    await Swal.fire({ icon: "warning", title: "الگوی ناقص", text: "نام الگوی SHSMS برای پیامک تبریک تولد را وارد کنید." });
+    return;
+  }
+
+  const invalidLeadAlert = smsSettings.value.lead_alerts.enabled && leadAlertDefinitions
+    .find(alert => smsSettings.value.lead_alerts[alert.key] && !smsSettings.value.lead_alerts[alert.templateKey]?.trim());
+  if (invalidLeadAlert) {
+    await Swal.fire({ icon: "warning", title: "الگوی ناقص", text: `نام الگوی SHSMS برای «${invalidLeadAlert.title}» را وارد کنید.` });
     return;
   }
 
@@ -1492,7 +1634,7 @@ const saveSmsSettings = async () => {
     });
 
     if (data.sms_settings) {
-      smsSettings.value = { ...data.sms_settings, api_token: "" };
+      smsSettings.value = { ...data.sms_settings, api_token: "", editing_api_token: false };
     }
 
     await Swal.fire({
@@ -1565,6 +1707,7 @@ onMounted(() => {
   transform: translateY(-2px);
 }
 .settings-page{ direction:rtl; padding:24px; }
+.report-target-help{display:block;margin-top:8px;color:#64748b;font-size:11px;line-height:1.8}
 .top-tabs{ display:flex; justify-content:flex-start; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
 .tab-btn{ min-height:36px; display:flex; align-items:center; justify-content:center; background:#eef5ff; color:#2563eb; padding:8px 15px; border-radius:11px; font-size:11px; font-weight:800; cursor:pointer; transition:0.3s; border:1px solid #dbeafe; }
 .tab-btn:hover{ transform:translateY(-2px); }
@@ -1667,9 +1810,18 @@ textarea{ min-height:120px; resize:none; }
   box-shadow: 0 12px 32px rgba(15, 23, 42, .06);
 }
 
+.sms-template-group { display: grid; gap: 12px; padding: 18px 20px 20px; border-top: 1px solid #e7eef7; }
+.sms-template-group > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sms-template-group > header span { color: #1e3a8a; font-size: 14px; font-weight: 1000; }
+.sms-template-group > header small { padding: 4px 8px; border-radius: 999px; background: #eff6ff; color: #2563eb; font-size: 10px; font-weight: 900; }
+.sms-template-group-note { margin: 0; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: 11px; background: #f8fbff; color: #475569; font-size: 11px; font-weight: 700; line-height: 1.9; }
+
 .birthday-sms-card{display:grid;grid-template-columns:1fr auto;gap:14px;margin-bottom:20px;padding:20px;border:1px solid #fde68a;border-radius:18px;background:linear-gradient(135deg,#fffbeb,#fff7ed);box-shadow:0 10px 30px rgba(245,158,11,.08)}.birthday-sms-card h3{margin:4px 0;color:#92400e}.birthday-sms-card p{margin:0;color:#78716c;font-size:12px}.birthday-sms-card .template-message-field,.birthday-sms-card .template-variables{grid-column:1/-1}
+.sms-template-parameter-list{grid-column:1/-1;margin-top:2px;padding:14px 15px;border:1px solid #fde68a;border-radius:13px;background:rgba(255,255,255,.72)}.sms-template-parameter-list header{display:grid;gap:4px}.sms-template-parameter-list header strong{color:#92400e;font-size:12px}.sms-template-parameter-list header small{color:#78716c;font-size:10px}.sms-template-parameter-list ol{display:grid;gap:7px;margin:12px 0 0;padding:0;list-style:none;counter-reset:sms-param}.sms-template-parameter-list li{display:flex;align-items:center;gap:9px;color:#334155;font-size:11px;font-weight:800}.sms-template-parameter-list li b{min-width:77px;padding:5px 8px;border-radius:7px;background:#fef3c7;color:#92400e;font-size:10px;text-align:center}.sms-template-parameter-list li span{color:#475569}
+.sms-sample-text-btn{justify-self:start;padding:8px 12px;border:1px solid #93c5fd;border-radius:9px;background:#eff6ff;color:#1d4ed8;font:900 10px inherit;cursor:pointer;transition:.2s}.sms-sample-text-btn:hover{border-color:#2563eb;background:#dbeafe;transform:translateY(-1px)}.birthday-sample-text-btn{grid-column:1/-1;border-color:#fbbf24;background:#fffbeb;color:#92400e}.birthday-sample-text-btn:hover{border-color:#d97706;background:#fef3c7}
 .lead-alert-sms-card{margin-bottom:20px;padding:20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(135deg,#eff6ff,#f8fafc);box-shadow:0 10px 30px rgba(37,99,235,.08)}.lead-alert-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}.lead-alert-head h3{margin:4px 0;color:#1e3a8a}.lead-alert-head p{margin:0;color:#64748b;font-size:12px}.lead-recipient-field{display:grid;gap:7px;margin-top:18px;color:#334155;font-size:12px;font-weight:900}.lead-recipient-field>div{display:flex;gap:8px}.lead-recipient-field input{flex:1;height:44px;padding:0 13px;border:1px solid #bfdbfe;border-radius:11px;background:#fff;font-family:inherit}.lead-recipient-field button{padding:0 16px;border:0;border-radius:11px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}.lead-recipient-field small{color:#64748b;font-weight:500}.lead-recipient-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.lead-recipient-list>span{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:20px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:900;direction:ltr}.lead-recipient-list button{width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#fff;color:#dc2626;cursor:pointer}.lead-alert-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.lead-alert-options>label{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #dbeafe;border-radius:13px;background:#fff;cursor:pointer}.lead-alert-options input{width:18px;height:18px;accent-color:#2563eb}.lead-alert-options span{display:grid;gap:3px}.lead-alert-options b{color:#1e293b;font-size:11px}.lead-alert-options small{color:#64748b;font-size:9px}
 .lead-alert-options-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #dbeafe}.lead-alert-options-head>div{display:grid;gap:3px}.lead-alert-options-head strong{color:#1e3a8a;font-size:12px}.lead-alert-options-head small{color:#64748b;font-size:10px}.select-all-leads{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #93c5fd;border-radius:10px;background:#fff;color:#1d4ed8;font-size:10px;font-weight:900;cursor:pointer}.select-all-leads input{width:17px;height:17px;accent-color:#2563eb}
+.lead-alert-template-card{display:grid;gap:10px;padding:12px;border:1px solid #dbeafe;border-radius:13px;background:#fff}.lead-alert-template-card.active{border-color:#93c5fd;background:#f8fbff}.lead-alert-template-card>label{display:flex;align-items:center;gap:10px;cursor:pointer}.lead-alert-template-card>label input{width:18px;height:18px;accent-color:#2563eb}.lead-alert-template-card>label span{display:grid;gap:3px}.lead-alert-template-card>label b{color:#1e293b;font-size:11px}.lead-alert-template-card>label small{color:#64748b;font-size:9px}.lead-alert-template-card>input{width:100%;height:40px;padding:0 10px;border:1px solid #bfdbfe;border-radius:9px;background:#fff;color:#172033;font:800 11px inherit;outline:0}.lead-alert-template-card>input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1)}.lead-alert-template-card ol{display:grid;gap:5px;margin:0;padding:0;list-style:none}.lead-alert-template-card li{display:flex;align-items:center;gap:7px;color:#475569;font-size:10px;font-weight:800}.lead-alert-template-card li b{min-width:62px;padding:4px 5px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-size:9px;text-align:center}
 .required-fields-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:16px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff}.required-fields-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}.required-fields-head small{color:#64748b}.required-fields-settings label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:800}.required-fields-settings select{height:34px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-family:inherit}@media(max-width:800px){.required-fields-settings{grid-template-columns:1fr}.required-fields-head{align-items:flex-start;flex-direction:column}}
 
 .sms-provider-card {
@@ -1711,6 +1863,7 @@ textarea{ min-height:120px; resize:none; }
 }
 
 .provider-field select,
+.provider-field input,
 .template-fields select {
   min-height: 44px;
   padding: 0 13px;
@@ -1720,6 +1873,19 @@ textarea{ min-height:120px; resize:none; }
   color: #172033;
   font-family: inherit;
   outline: none;
+}
+
+.provider-field input {
+  box-sizing: border-box;
+  width: 100%;
+}
+.sms-clinic-info-note{margin:0;padding:11px 13px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:11px;font-weight:800;line-height:1.9}.clinic-location-picker{display:grid;gap:9px;width:min(680px,100%);margin-top:4px;padding:14px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.clinic-location-picker header{display:grid;gap:3px}.clinic-location-picker strong{color:#1e3a8a;font-size:13px}.clinic-location-picker small{color:#64748b;font-size:11px}.clinic-location-map{height:280px;border:1px solid #bfdbfe;border-radius:11px;overflow:hidden;z-index:0}.clinic-location-result{display:flex;align-items:center;flex-wrap:wrap;gap:9px;color:#475569;font-size:11px;font-weight:800}.clinic-location-result a,.clinic-location-result button{padding:6px 9px;border:1px solid #93c5fd;border-radius:8px;background:#fff;color:#1d4ed8;font:800 10px inherit;text-decoration:none;cursor:pointer}.clinic-location-result button{border-color:#fecaca;color:#b91c1c}
+
+.provider-field input:focus,
+.provider-field select:focus {
+  border-color: #2563eb;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
 }
 
 .provider-field small {
@@ -1737,6 +1903,12 @@ textarea{ min-height:120px; resize:none; }
   background: #22c55e;
   box-shadow: 0 0 0 4px rgba(34, 197, 94, .12);
 }
+
+.api-token-saved { gap: 9px; }
+.api-token-saved-status { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid #bbf7d0; border-radius: 12px; background: #f0fdf4; }
+.api-token-saved-status > span { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 50%; background: #16a34a; color: #fff; font-size: 13px; }
+.api-token-saved-status div { display: grid; gap: 2px; }.api-token-saved-status strong { color: #166534; font-size: 12px; }.api-token-saved-status small { color: #4b7c59; font-size: 10px; font-weight: 600; }
+.api-token-saved button { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #93c5fd; border-radius: 10px; background: #eff6ff; color: #1d4ed8; font: 900 11px inherit; cursor: pointer; transition: .18s; }.api-token-saved button:hover { border-color: #2563eb; background: #dbeafe; transform: translateY(-1px); }
 
 .sms-templates-section {
   padding: 22px;
@@ -1779,6 +1951,24 @@ textarea{ min-height:120px; resize:none; }
   background: #fbfdff;
 }
 
+.birthday-sms-card.is-inactive > :not(.active-switch),
+.lead-alert-sms-card.is-inactive > :not(.lead-alert-head),
+.lead-alert-sms-card.is-inactive .lead-alert-head > div,
+.template-card.is-inactive > :not(.template-card-head) {
+  opacity: .46;
+  filter: saturate(.55);
+}
+
+.lead-alert-template-card.is-inactive > label > span {
+  opacity: .46;
+  filter: saturate(.55);
+}
+
+.template-card.is-inactive .template-card-head > strong {
+  opacity: .46;
+  filter: saturate(.55);
+}
+
 .template-card-head {
   display: flex;
   align-items: center;
@@ -1796,14 +1986,29 @@ textarea{ min-height:120px; resize:none; }
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #16a34a;
+  min-width: 88px;
+  justify-content: center;
+  padding: 7px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #be123c;
   font-size: 11px;
   font-weight: 800;
+  cursor: pointer;
+  transition: .2s;
 }
 
 .active-switch input {
   width: auto;
   accent-color: #22c55e;
+  transform: scale(1.15);
+}
+
+.active-switch:has(input:checked) {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #15803d;
 }
 
 .delete-template-btn {
@@ -1835,12 +2040,28 @@ textarea{ min-height:120px; resize:none; }
 }
 
 .template-fields input,
+.template-message-field input,
 .template-message-field textarea {
   box-sizing: border-box;
   border: 1px solid #cbd8e8;
   border-radius: 12px;
   background: #fff;
 }
+
+.template-message-field input {
+  width: 100%;
+  height: 46px;
+  padding: 0 13px;
+  color: #172033;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  outline: 0;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, .03);
+}
+
+.template-message-field input::placeholder { color: #94a3b8; font-weight: 700; }
+.template-message-field input:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, .12); }
 
 .template-message-field {
   position: relative;
@@ -1859,6 +2080,9 @@ textarea{ min-height:120px; resize:none; }
   color: #94a3b8;
   font-size: 9px;
 }
+
+:global(.swal-sms-template-note) { margin: 2px 0 12px; color: #64748b; font: 700 12px inherit; line-height: 1.8; }
+:global(.swal-sms-template-input) { min-height: 180px !important; direction: rtl; text-align: right; line-height: 2; font-family: inherit !important; }
 
 .template-variables {
   display: flex;
