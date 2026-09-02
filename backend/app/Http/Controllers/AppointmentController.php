@@ -10,6 +10,7 @@ use App\Models\ActivityLog;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Inventory;
+use App\Models\ServiceFollowup;
 use App\Models\HiddenAppointmentDay;
 use App\Models\InventoryMovement;
 use App\Models\InventoryCommission;
@@ -275,9 +276,9 @@ class AppointmentController extends Controller
                         $appt['discount'] = $financial['discount'];
                         $appt['wallet_applied'] = min(
                             max(0, $this->signedMoneyToInteger($appt['wallet_applied'] ?? 0)),
-                            max(0, $financial['original_amount'] - $financial['discount'])
+                            max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount'])
                         );
-                        $appt['amount'] = max(0, $financial['original_amount'] - $financial['discount'] - $appt['wallet_applied']);
+                        $appt['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount'] - $appt['wallet_applied']);
                     }
 
                     $reward = $this->calculateReferralReward($appt);
@@ -297,6 +298,7 @@ class AppointmentController extends Controller
                     if ($previousAppointment) $matchedPreviousAppointmentIds[] = $previousAppointment->id;
                     $this->recordBalanceAudit($request, $created, $previousAppointment);
                     $this->syncResourceEarningLines($created);
+                    $this->syncServiceFollowups($created);
 
                     $auditKey = $this->appointmentAuditKey($created->toArray());
                     $referralSource = "referral|{$month}|".sha1($auditKey);
@@ -587,19 +589,33 @@ class AppointmentController extends Controller
                 ->merge(collect($service['addons'] ?? [])->pluck('name'));
         })->filter()->unique()->values();
 
-        $prices = Inventory::query()
-            ->whereIn('name', $names)
-            ->pluck('amount', 'name');
+        $inventoryIds = collect($services)->flatMap(fn ($service) => collect($service['addons'] ?? [])
+            ->pluck('inventory_id'))->filter()->unique()->values();
+        $inventory = Inventory::query()
+            ->where(function ($query) use ($names, $inventoryIds) {
+                $query->whereIn('name', $names);
+                if ($inventoryIds->isNotEmpty()) $query->orWhereIn('id', $inventoryIds);
+            })->get();
+        $prices = $inventory->pluck('amount', 'name');
+        $inventoryById = $inventory->keyBy('id');
 
         $originalAmount = 0;
         $totalDiscount = 0;
-        $normalizeLine = function (array $line) use ($prices, &$originalAmount, &$totalDiscount): array {
+        $totalSurcharge = 0;
+        $normalizeLine = function (array $line) use ($prices, $inventoryById, &$originalAmount, &$totalDiscount, &$totalSurcharge): array {
             $quantity = max(0, (float) ($line['cc'] ?? 0));
-            $lineAmount = (int) round((float) ($prices[$line['name'] ?? ''] ?? 0) * $quantity);
-            $discount = min(max(0, $this->signedMoneyToInteger($line['discount'] ?? 0)), $lineAmount);
-            $line['discount'] = $discount;
+            $inventoryItem = ! empty($line['inventory_id']) ? $inventoryById->get((int) $line['inventory_id']) : null;
+            $lineAmount = (int) round((float) ($inventoryItem?->amount ?? $prices[$line['name'] ?? ''] ?? 0) * $quantity);
+            $adjustment = max(0, $this->signedMoneyToInteger($line['discount'] ?? 0));
+            $line['adjustment_mode'] = ($line['adjustment_mode'] ?? '') === 'surcharge' ? 'surcharge' : 'discount';
+            $line['surcharge_for_doctor_commission'] = $line['adjustment_mode'] === 'surcharge'
+                && filter_var($line['surcharge_for_doctor_commission'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $discount = $line['adjustment_mode'] === 'discount' ? min($adjustment, $lineAmount) : 0;
+            $surcharge = $line['adjustment_mode'] === 'surcharge' ? $adjustment : 0;
+            $line['discount'] = $line['adjustment_mode'] === 'surcharge' ? $surcharge : $discount;
             $originalAmount += $lineAmount;
             $totalDiscount += $discount;
+            $totalSurcharge += $surcharge;
 
             return $line;
         };
@@ -619,6 +635,7 @@ class AppointmentController extends Controller
             'calculated' => $prices->isNotEmpty(),
             'original_amount' => $originalAmount,
             'discount' => $totalDiscount,
+            'surcharge' => $totalSurcharge,
         ];
     }
     private function signedMoneyToInteger(mixed $value): int
@@ -647,8 +664,10 @@ class AppointmentController extends Controller
         $movements = [];
 
         foreach ($pairs as $pair) {
-            $previous = $this->inventoryUsageForServices($pair['previous']?->services ?? []);
-            $current = $this->inventoryUsageForServices($pair['current']?->services ?? []);
+            // انتخاب خدمت در «وقت داده شد» رزرو موجودی نیست. مصرف و کنترل
+            // موجودی فقط زمانی انجام می‌شود که کار واقعاً انجام شده باشد.
+            $previous = $this->inventoryUsageForAppointment($pair['previous']);
+            $current = $this->inventoryUsageForAppointment($pair['current']);
             $names = array_unique([...array_keys($previous), ...array_keys($current)]);
 
             foreach ($names as $name) {
@@ -668,7 +687,7 @@ class AppointmentController extends Controller
         }
 
         foreach ($deletedAppointments as $appointment) {
-            foreach ($this->inventoryUsageForServices($appointment->services ?? []) as $name => $quantity) {
+            foreach ($this->inventoryUsageForAppointment($appointment) as $name => $quantity) {
                 $movements[] = [
                     'name' => $name,
                     'quantity' => $quantity,
@@ -688,6 +707,9 @@ class AppointmentController extends Controller
         foreach ($totals as $name => $quantity) {
             $inventory = $inventories->get($name);
             if (! $inventory) continue;
+            // آیتم‌های صفرمبلغ در این پروژه برای دسته/تگ خدمات هم استفاده
+            // می‌شوند و نباید با موجودی صفر مانع ثبت نوبت شوند.
+            if ((float) $inventory->amount <= 0) continue;
             if ((float) $inventory->stock + $quantity < -0.0001) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'inventory' => ["موجودی «{$name}» برای ثبت این خدمت کافی نیست."],
@@ -698,12 +720,14 @@ class AppointmentController extends Controller
         foreach ($totals as $name => $quantity) {
             $inventory = $inventories->get($name);
             if (! $inventory) continue;
+            if ((float) $inventory->amount <= 0) continue;
             $inventory->update(['stock' => max(0, (float) $inventory->stock + $quantity)]);
         }
 
         foreach ($movements as $movement) {
             $inventory = $inventories->get($movement['name']);
             if (! $inventory) continue;
+            if ((float) $inventory->amount <= 0) continue;
             InventoryMovement::create([
                 'inventory_id' => $inventory->id,
                 'inventory_name' => $inventory->name,
@@ -716,6 +740,28 @@ class AppointmentController extends Controller
         }
     }
 
+    private function syncServiceFollowups(Appointment $appointment): void
+    {
+        if (trim((string) $appointment->done) !== 'انجام شد') return;
+        $services = collect($appointment->services ?? [])->pluck('name')->filter()->unique()->values();
+        if ($services->isEmpty()) return;
+        $completedAt = $appointment->completed_at ? now()->parse($appointment->completed_at) : now();
+        Inventory::query()->whereIn('name', $services)->where('followup_days', '>', 0)->get()->each(function (Inventory $item) use ($appointment, $completedAt) {
+            $sourceKey = sha1(implode('|', [$appointment->phone, $appointment->month, $appointment->day_num, $item->id]));
+            ServiceFollowup::updateOrCreate(['source_key' => $sourceKey], [
+                'appointment_id' => $appointment->id,
+                'inventory_id' => $item->id,
+                'service_name' => $item->name,
+                'patient_name' => $appointment->lastname,
+                'patient_phone' => $appointment->phone,
+                'completed_at' => $completedAt,
+                'due_date' => $completedAt->copy()->addDays((int) $item->followup_days)->toDateString(),
+                'followup_days' => (int) $item->followup_days,
+                'status' => 'pending',
+            ]);
+        });
+    }
+
     private function inventoryUsageForServices(array $services): array
     {
         $usage = [];
@@ -726,6 +772,15 @@ class AppointmentController extends Controller
             $usage[$name] = ($usage[$name] ?? 0) + $quantity;
         }
         return $usage;
+    }
+
+    private function inventoryUsageForAppointment(?Appointment $appointment): array
+    {
+        if (! $appointment || trim((string) $appointment->done) !== 'انجام شد') {
+            return [];
+        }
+
+        return $this->inventoryUsageForServices($appointment->services ?? []);
     }
 
     private function syncResourceEarningLines(Appointment $appointment): void
@@ -762,8 +817,7 @@ class AppointmentController extends Controller
                     continue;
                 }
 
-                $this->createBaseCommissionLine($appointment, $line, $inventory, $target['type'], $resource);
-                $this->createInventoryCommissionLines($appointment, $line, $inventory, $target['type'], $resource);
+                $this->createPreferredCommissionLine($appointment, $line, $inventory, $target['type'], $resource);
             }
         }
     }
@@ -788,6 +842,8 @@ class AppointmentController extends Controller
             'name' => trim((string) ($line['name'] ?? '')),
             'quantity' => max(1, (float) ($line['cc'] ?? 1)),
             'discount' => max(0, (float) ($line['discount'] ?? 0)),
+            'surcharge' => ($line['adjustment_mode'] ?? '') === 'surcharge' ? max(0, (float) ($line['discount'] ?? 0)) : 0,
+            'surcharge_for_doctor_commission' => (bool) ($line['surcharge_for_doctor_commission'] ?? false),
             'doctor' => trim((string) ($line['doctor'] ?? $parent['doctor'] ?? '')),
             'consultant' => trim((string) ($line['consultant'] ?? $parent['consultant'] ?? '')),
             'index' => $index,
@@ -797,7 +853,7 @@ class AppointmentController extends Controller
 
     private function createBaseCommissionLine(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
     {
-        $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials);
+        $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
         $commissionValue = (float) ($resource->bonus ?? 0);
         $amount = $this->calculateCommissionAmount('percent', $commissionValue, $amounts['base'], $line['quantity']);
         if ($amount <= 0) {
@@ -819,6 +875,29 @@ class AppointmentController extends Controller
         ));
     }
 
+    /** اولویت قطعی: قانون اختصاصی انبار، سپس قانون پیش فرض انبار، سپس منابع. */
+    private function createPreferredCommissionLine(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
+    {
+        $specific = $inventory->commissions
+            ->where('recipient_type', $type)
+            ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
+        if ($specific->isNotEmpty()) {
+            $this->createInventoryCommissionLines($appointment, $line, $inventory, $type, $resource);
+            return;
+        }
+
+        if ((float) $inventory->default_commission_value > 0) {
+            $amounts = $this->earningAmounts($line, $inventory, false, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
+            $commissionType = $inventory->default_commission_type === 'fixed' ? 'fixed' : 'percent';
+            $value = (float) $inventory->default_commission_value;
+            $amount = $this->calculateCommissionAmount($commissionType, $value, $amounts['net'], $line['quantity']);
+            if ($amount > 0) ResourceEarningLine::create($this->earningPayload($appointment, $line, $inventory, $type, $resource, 'inventory_default_commission', $commissionType, $value, $amount, [...$amounts, 'base' => $amounts['net']], "پورسانت پیش‌فرض انبار {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}"));
+            return;
+        }
+
+        $this->createBaseCommissionLine($appointment, $line, $inventory, $type, $resource);
+    }
+
     private function createInventoryCommissionLines(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
     {
         $commissions = $inventory->commissions
@@ -826,7 +905,7 @@ class AppointmentController extends Controller
             ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
 
         foreach ($commissions as $commission) {
-            $amounts = $this->earningAmounts($line, $inventory, false);
+            $amounts = $this->earningAmounts($line, $inventory, false, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
             $commissionType = $commission->commission_type === 'fixed' ? 'fixed' : 'percent';
             $commissionValue = (float) $commission->commission_value;
             $amount = $this->calculateCommissionAmount($commissionType, $commissionValue, $amounts['net'], $line['quantity']);
@@ -879,6 +958,8 @@ class AppointmentController extends Controller
             'commission_customer_scope' => $resource->commission_customer_scope ?? 'both',
             'appointment_new_customer' => (bool) $appointment->new_customer,
             'calculation_snapshot' => [
+                'calculation_source' => str_starts_with($earningType, 'inventory') ? 'inventory' : 'resource',
+                'calculation_source_label' => str_starts_with($earningType, 'inventory') ? 'تنظیمات انبار' : 'تنظیمات کلی منبع',
                 'resource_bonus' => (float) ($resource->bonus ?? 0),
                 'resource_sales_bonus_enabled' => (bool) ($resource->sales_bonus_enabled ?? false),
                 'resource_sales_bonus_tiers' => $resource->sales_bonus_tiers ?? [],
@@ -887,15 +968,23 @@ class AppointmentController extends Controller
                 'inventory_default_commission_type' => $inventory->default_commission_type,
                 'inventory_default_commission_value' => (float) $inventory->default_commission_value,
             ],
+            'audit_events' => [[
+                'event' => 'created_from_appointment',
+                'at' => now()->toIso8601String(),
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user()?->name,
+                'appointment_id' => $appointment->id,
+                'source' => str_starts_with($earningType, 'inventory') ? 'inventory' : 'resource',
+            ]],
             'description' => $description,
         ];
     }
 
-    private function earningAmounts(array $line, Inventory $inventory, bool $afterMaterials): array
+    private function earningAmounts(array $line, Inventory $inventory, bool $afterMaterials, bool $includeSurcharge = true): array
     {
         $gross = (float) ($inventory->amount ?? 0) * $line['quantity'];
         $discount = min($line['discount'], $gross);
-        $net = max(0, $gross - $discount);
+        $net = max(0, $gross + ($includeSurcharge ? $line['surcharge'] : 0) - $discount);
         $materials = (float) ($inventory->price ?? 0) * $line['quantity'];
         $base = $afterMaterials ? max(0, $net - $materials) : $net;
 

@@ -33,7 +33,11 @@ class SendBirthdaySms implements ShouldQueue
                     try {
                         $sms->sendTemplate($patient->phone, $template, [
                             trim($patient->first_name.' '.$patient->last_name),
+                            trim((string) $patient->first_name),
+                            (string) ($patient->file_number ?? ''),
+                            (string) ($patient->birth_date ?? ''),
                             (string) AppSetting::getByKey('clinic_name', ''),
+                            $today->format('Y/m/d'),
                         ]);
                         DB::table('birthday_sms_logs')->insert(['patient_id'=>$patient->id,'birthday_year'=>$today->year,'recipient'=>$patient->phone,'sent_at'=>now(),'created_at'=>now(),'updated_at'=>now()]);
                     } catch (Throwable $e) { report($e); }

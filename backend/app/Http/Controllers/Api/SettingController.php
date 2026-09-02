@@ -20,6 +20,36 @@ use App\Support\ActivityLogger;
 
 class SettingController extends Controller
 {
+    private function fixedSmsTemplates(): array
+    {
+        return [
+            ['id' => 'appointment', 'group' => 'ثبت نوبت', 'title' => 'پیامک ثبت نوبت', 'category' => 'appointment', 'parameters' => ['نام و نام خانوادگی بیمار', 'تاریخ نوبت', 'ساعت نوبت', 'نام پزشک', 'نام کلینیک']],
+            ['id' => 'info', 'group' => 'ثبت نوبت', 'title' => 'پیامک اطلاعات', 'category' => 'info', 'parameters' => ['نام بیمار', 'آدرس مرکز', 'لینک اینستاگرام', 'شماره تماس', 'لینک لوکیشن']],
+            ['id' => 'welcome', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'پیام خوش‌آمدگویی', 'category' => 'welcome', 'parameters' => ['نام و نام خانوادگی بیمار', 'نام کلینیک']],
+            ['id' => 'referral-credit', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'واریز مبلغ برای معرف', 'category' => 'referral_credit', 'parameters' => ['نام بیمار', 'مبلغ واریزی', 'مانده اعتبار معرف']],
+            ['id' => 'treatment-care', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'توصیه‌های بعد از درمان', 'category' => 'treatment_care', 'parameters' => ['نام بیمار', 'لینک راهنمای درمان']],
+            ['id' => 'payment-link', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'لینک پرداخت', 'category' => 'payment_link', 'parameters' => ['نام بیمار', 'لینک پرداخت', 'مبلغ قابل پرداخت']],
+        ];
+    }
+
+    private function configuredFixedSmsTemplates(): array
+    {
+        $raw = AppSetting::getByKey('sms_templates', '[]');
+        $stored = is_string($raw) ? json_decode($raw, true) : $raw;
+        $storedByCategory = collect(is_array($stored) ? $stored : [])->keyBy('category');
+
+        return collect($this->fixedSmsTemplates())->map(function (array $template) use ($storedByCategory) {
+            $current = $storedByCategory->get($template['category'], []);
+            $legacy = AppSetting::getByKey('sms_'.$template['category'], '');
+
+            return [
+                ...$template,
+                'content' => trim((string) ($current['content'] ?? $legacy)),
+                'active' => array_key_exists('active', $current) ? (bool) $current['active'] : true,
+            ];
+        })->all();
+    }
+
     private function defaultClinicSchedule(): array
     {
         $days = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
@@ -80,52 +110,12 @@ class SettingController extends Controller
 
         // اگر دیتابیس کلا خالی بود، مقدار پیش‌فرض را بگذار
         $profileFieldsData = array_merge([
-            'national_id' => false, 'marriage_date' => false, 'education' => false,
+            'national_id' => false, 'foreign_national_code' => false, 'marriage_date' => false, 'education' => false,
             'father_name' => false, 'second_phone' => false, 'address' => false,
             'city' => false,
         ], is_array($profileFieldsData) ? $profileFieldsData : []);
 
-        $smsTemplatesRaw = AppSetting::getByKey('sms_templates', '[]');
-        $smsTemplates = is_string($smsTemplatesRaw)
-            ? json_decode($smsTemplatesRaw, true)
-            : $smsTemplatesRaw;
-
-        if (! is_array($smsTemplates) || count($smsTemplates) === 0) {
-            $legacyTemplates = [
-                ['id' => 'appointment', 'title' => 'یادآوری نوبت', 'category' => 'appointment', 'content' => AppSetting::getByKey('sms_appointment', ''), 'guide_text' => 'پارامترها: {name}، {date}، {time}، {doctor}، {clinic}', 'active' => true],
-                ['id' => 'info', 'title' => 'اطلاعات مراجعه', 'category' => 'info', 'content' => AppSetting::getByKey('sms_info', ''), 'guide_text' => 'پارامترها: {name}، {date}، {time}، {doctor}، {consultant}، {clinic}', 'active' => true],
-                ['id' => 'welcome', 'title' => 'خوش‌آمدگویی', 'category' => 'welcome', 'content' => AppSetting::getByKey('sms_welcome', ''), 'guide_text' => 'پارامترها: {name}، {clinic}', 'active' => true],
-            ];
-
-            $smsTemplates = array_values(array_filter(
-                $legacyTemplates,
-                fn (array $template) => $template['content'] !== ''
-            ));
-        }
-
-        $completionTemplates = [
-            ['id'=>'referral-credit','title'=>'واریز مبلغ برای معرف','category'=>'referral_credit','content'=>'','guide_text'=>'پارامترها: {name}، {amount}، {balance}','active'=>true],
-            ['id'=>'treatment-care','title'=>'توصیه‌های بعد از درمان','category'=>'treatment_care','content'=>'','guide_text'=>'پارامترها: {name}، {link}','active'=>true],
-            ['id'=>'payment-link','title'=>'لینک پرداخت','category'=>'payment_link','content'=>'','guide_text'=>'پارامترها: {name}، {link}، {amount}','active'=>true],
-            ['id'=>'completion-welcome','title'=>'خوش‌آمدگویی بعد از درمان','category'=>'welcome','content'=>'','guide_text'=>'پارامترها: {name}، {clinic}','active'=>true],
-        ];
-        foreach ($completionTemplates as $template) {
-            if (! collect($smsTemplates)->contains(fn ($item) => ($item['category'] ?? '') === $template['category'])) $smsTemplates[] = $template;
-        }
-        $templateGuides = [
-            'appointment' => 'پارامترها: {name}، {date}، {time}، {doctor}، {clinic}',
-            'info' => 'پارامترها: {name}، {date}، {time}، {doctor}، {consultant}، {clinic}',
-            'welcome' => 'پارامترها: {name}، {clinic}',
-            'referral_credit' => 'پارامترها: {name}، {amount}، {balance}',
-            'treatment_care' => 'پارامترها: {name}، {link}',
-            'payment_link' => 'پارامترها: {name}، {link}، {amount}',
-        ];
-        $smsTemplates = collect($smsTemplates)
-            ->map(fn (array $template) => array_merge($template, [
-                'guide_text' => $template['guide_text'] ?? ($templateGuides[$template['category'] ?? ''] ?? 'پارامترها را مطابق الگوی SHSMS وارد کنید.'),
-            ]))
-            ->values()
-            ->all();
+        $smsTemplates = $this->configuredFixedSmsTemplates();
         $leadAlertsRaw = AppSetting::getByKey('sms_lead_alerts', '{}');
         $leadAlerts = is_string($leadAlertsRaw) ? json_decode($leadAlertsRaw, true) : $leadAlertsRaw;
         $leadAlerts = array_replace_recursive([
@@ -135,6 +125,10 @@ class SettingController extends Controller
             'active_tickets' => true,
             'daily_appointments' => true,
             'daily_financial' => true,
+            'inventory_empty_template' => '',
+            'active_tickets_template' => '',
+            'daily_appointments_template' => '',
+            'daily_financial_template' => '',
         ], is_array($leadAlerts) ? $leadAlerts : []);
 
         $projectOwnerId = $this->projectOwnerId();
@@ -149,11 +143,17 @@ class SettingController extends Controller
             'sms_settings' => [
                 'provider' => AppSetting::getByKey('sms_provider', 'shsms'),
                 'account_configured' => filled(AppSetting::getByKey('shsms_api_token')),
+                'clinic_info' => [
+                    'address' => AppSetting::getByKey('clinic_address', ''),
+                    'instagram_url' => AppSetting::getByKey('clinic_instagram_url', ''),
+                    'phone' => AppSetting::getByKey('clinic_phone', ''),
+                    'location_url' => AppSetting::getByKey('clinic_location_url', ''),
+                ],
                 'templates' => $smsTemplates,
                 'birthday' => [
                     'enabled' => AppSetting::getByKey('birthday_sms_enabled', '0') === '1',
                     'content' => AppSetting::getByKey('birthday_sms_content', ''),
-                    'guide_text' => AppSetting::getByKey('birthday_sms_guide_text', 'پارامترها: {name}، {clinic}'),
+                    'guide_text' => AppSetting::getByKey('birthday_sms_guide_text', 'پارامتر ۱: نام کامل بیمار؛ پارامتر ۲: نام کوچک؛ پارامتر ۳: شماره پرونده؛ پارامتر ۴: تاریخ تولد؛ پارامتر ۵: نام کلینیک؛ پارامتر ۶: تاریخ ارسال'),
                 ],
                 'lead_alerts' => $leadAlerts,
             ],
@@ -161,11 +161,18 @@ class SettingController extends Controller
             // ارسال دیتای کاملا آرایه‌ای و تمیز به فرانت
             'profile_fields' => $profileFieldsData, 
             'patient_required_fields' => json_decode((string) AppSetting::getByKey('patient_required_fields', '{}'), true) ?: [],
+            'followup_consultant_phone_restricted' => AppSetting::getByKey('followup_consultant_phone_restricted', '0') === '1',
             
             'company' => [
                 'name' => AppSetting::getByKey('company_name', ''),
                 'logo' => AppSetting::getByKey('company_logo', null),
                 'about' => AppSetting::getByKey('company_about', ''),
+                'address' => AppSetting::getByKey('clinic_address', ''),
+                'instagram_url' => AppSetting::getByKey('clinic_instagram_url', ''),
+                'phone' => AppSetting::getByKey('clinic_phone', ''),
+                'location_url' => AppSetting::getByKey('clinic_location_url', ''),
+                'latitude' => AppSetting::getByKey('clinic_latitude', ''),
+                'longitude' => AppSetting::getByKey('clinic_longitude', ''),
             ],
             'customer_levels' => CustomerLevelService::settings(),
             'clinic_schedule' => $this->clinicScheduleSettings(),
@@ -176,6 +183,8 @@ class SettingController extends Controller
                 'best_staff' => AppSetting::getByKey('appointment_best_staff_enabled', '0') === '1',
             ],
             'attendance_enabled' => AppSetting::getByKey('attendance_enabled', '0') === '1',
+            'report_staff_target' => max(0, (float) AppSetting::getByKey('report_staff_target', 120)),
+            'report_monthly_capacity' => max(0, (float) AppSetting::getByKey('report_monthly_capacity', 0)),
             'users' => User::query()
                 ->with('roles:id,name')
                 ->orderBy('name')
@@ -345,6 +354,20 @@ class SettingController extends Controller
             );
         }
 
+        if ($request->has('report_staff_target')) {
+            $target = $request->validate([
+                'report_staff_target' => ['required', 'numeric', 'min:0', 'max:1000000000'],
+            ])['report_staff_target'];
+            AppSetting::updateOrCreate(['key' => 'report_staff_target'], ['value' => (string) $target]);
+        }
+
+        if ($request->has('report_monthly_capacity')) {
+            $capacity = $request->validate([
+                'report_monthly_capacity' => ['required', 'numeric', 'min:0', 'max:100000000000'],
+            ])['report_monthly_capacity'];
+            AppSetting::updateOrCreate(['key' => 'report_monthly_capacity'], ['value' => (string) $capacity]);
+        }
+
         if ($request->has('sms')) {
             AppSetting::updateOrCreate(['key' => 'sms_appointment'], ['value' => $request->input('sms.appointment')]);
             AppSetting::updateOrCreate(['key' => 'sms_info'], ['value' => $request->input('sms.info')]);
@@ -352,6 +375,12 @@ class SettingController extends Controller
         }
         AppSetting::updateOrCreate(['key' => 'company_name'], ['value' => $request->input('company.name')]);
         AppSetting::updateOrCreate(['key' => 'company_about'], ['value' => $request->input('company.about')]);
+        AppSetting::updateOrCreate(['key' => 'clinic_address'], ['value' => trim((string) $request->input('company.address', ''))]);
+        AppSetting::updateOrCreate(['key' => 'clinic_instagram_url'], ['value' => trim((string) $request->input('company.instagram_url', ''))]);
+        AppSetting::updateOrCreate(['key' => 'clinic_phone'], ['value' => trim((string) $request->input('company.phone', ''))]);
+        AppSetting::updateOrCreate(['key' => 'clinic_location_url'], ['value' => trim((string) $request->input('company.location_url', ''))]);
+        AppSetting::updateOrCreate(['key' => 'clinic_latitude'], ['value' => $request->input('company.latitude') ?? '']);
+        AppSetting::updateOrCreate(['key' => 'clinic_longitude'], ['value' => $request->input('company.longitude') ?? '']);
 
         // ۲. فیلدهای پرونده (تبدیل به جیسون تمیز بدون کوتیشن بیرونی و با حفظ فونت فارسی)
         $profileFields = $request->input('profile_fields');
@@ -363,6 +392,7 @@ class SettingController extends Controller
         AppSetting::updateOrCreate(['key' => 'patient_required_fields'], [
             'value' => json_encode($request->input('patient_required_fields', []), JSON_UNESCAPED_UNICODE),
         ]);
+        AppSetting::updateOrCreate(['key' => 'followup_consultant_phone_restricted'], ['value' => $request->boolean('followup_consultant_phone_restricted') ? '1' : '0']);
 
         // ۳. مدیریت کاربران
         DB::transaction(function () use ($validatedUsers) {
@@ -580,12 +610,13 @@ class SettingController extends Controller
         $validated = $request->validate([
             'provider' => ['required', 'in:shsms'],
             'api_token' => ['nullable', 'string', 'min:10', 'max:500'],
+            'clinic_info.address' => ['nullable', 'string', 'max:500'],
+            'clinic_info.instagram_url' => ['nullable', 'string', 'max:2000'],
+            'clinic_info.phone' => ['nullable', 'string', 'max:100'],
+            'clinic_info.location_url' => ['nullable', 'string', 'max:2000'],
             'templates' => ['present', 'array'],
-            'templates.*.id' => ['nullable', 'string', 'max:100'],
-            'templates.*.title' => ['required', 'string', 'max:100'],
-            'templates.*.category' => ['required', 'in:general,appointment,info,welcome,referral_credit,treatment_care,payment_link'],
-            'templates.*.content' => ['required', 'string', 'max:190'],
-            'templates.*.guide_text' => ['nullable', 'string', 'max:2000'],
+            'templates.*.category' => ['required', 'in:appointment,info,welcome,referral_credit,treatment_care,payment_link'],
+            'templates.*.content' => ['nullable', 'string', 'max:190'],
             'templates.*.active' => ['required', 'boolean'],
             'birthday.enabled' => ['required', 'boolean'],
             'birthday.content' => ['required_if:birthday.enabled,true', 'nullable', 'string', 'max:190'],
@@ -597,22 +628,31 @@ class SettingController extends Controller
             'lead_alerts.active_tickets' => ['required', 'boolean'],
             'lead_alerts.daily_appointments' => ['required', 'boolean'],
             'lead_alerts.daily_financial' => ['required', 'boolean'],
+            'lead_alerts.inventory_empty_template' => ['nullable', 'string', 'max:190'],
+            'lead_alerts.active_tickets_template' => ['nullable', 'string', 'max:190'],
+            'lead_alerts.daily_appointments_template' => ['nullable', 'string', 'max:190'],
+            'lead_alerts.daily_financial_template' => ['nullable', 'string', 'max:190'],
         ], [
             'provider.in' => 'سامانه پیامکی انتخاب‌شده معتبر نیست.',
-            'templates.*.title.required' => 'عنوان همه الگوهای پیامک الزامی است.',
-            'templates.*.content.required' => 'نام الگوی SHSMS همه الگوها الزامی است.',
+            'templates.*.category.in' => 'سناریوی پیامک انتخاب‌شده معتبر نیست.',
         ]);
 
-        $templates = collect($validated['templates'])
-            ->values()
-            ->map(fn (array $template, int $index) => [
-                'id' => $template['id'] ?: 'template-' . ($index + 1),
-                'title' => trim($template['title']),
-                'category' => $template['category'],
-                'content' => trim($template['content']),
-                'guide_text' => trim((string) ($template['guide_text'] ?? '')),
-                'active' => (bool) $template['active'],
+        $submittedTemplates = collect($validated['templates'])->keyBy('category');
+        $templates = collect($this->fixedSmsTemplates())->map(function (array $template) use ($submittedTemplates) {
+            $submitted = $submittedTemplates->get($template['category'], []);
+
+            return [
+                ...$template,
+                'content' => trim((string) ($submitted['content'] ?? '')),
+                'active' => (bool) ($submitted['active'] ?? false),
+            ];
+        });
+        $missingTemplate = $templates->first(fn (array $template) => $template['active'] && $template['content'] === '');
+        if ($missingTemplate) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'templates' => ["نام الگوی SHSMS برای «{$missingTemplate['title']}» الزامی است."],
             ]);
+        }
 
         AppSetting::updateOrCreate(['key' => 'sms_provider'], ['value' => $validated['provider']]);
         if (filled($validated['api_token'] ?? null)) {
@@ -621,11 +661,25 @@ class SettingController extends Controller
                 ['value' => Crypt::encryptString(trim($validated['api_token']))]
             );
         }
+        if ($request->has('clinic_info')) {
+            AppSetting::updateOrCreate(['key' => 'clinic_address'], ['value' => trim((string) data_get($validated, 'clinic_info.address', ''))]);
+            AppSetting::updateOrCreate(['key' => 'clinic_instagram_url'], ['value' => trim((string) data_get($validated, 'clinic_info.instagram_url', ''))]);
+            AppSetting::updateOrCreate(['key' => 'clinic_phone'], ['value' => trim((string) data_get($validated, 'clinic_info.phone', ''))]);
+            AppSetting::updateOrCreate(['key' => 'clinic_location_url'], ['value' => trim((string) data_get($validated, 'clinic_info.location_url', ''))]);
+        }
         AppSetting::updateOrCreate(['key' => 'birthday_sms_enabled'], ['value' => $validated['birthday']['enabled'] ? '1' : '0']);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_content'], ['value' => trim((string) ($validated['birthday']['content'] ?? ''))]);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_guide_text'], ['value' => trim((string) ($validated['birthday']['guide_text'] ?? ''))]);
         $leadAlerts = $validated['lead_alerts'];
         $leadAlerts['recipients'] = collect($leadAlerts['recipients'])->map(fn ($number) => trim($number))->unique()->values()->all();
+        foreach (['inventory_empty', 'active_tickets', 'daily_appointments', 'daily_financial'] as $alertKey) {
+            $leadAlerts[$alertKey.'_template'] = trim((string) ($leadAlerts[$alertKey.'_template'] ?? ''));
+            if ($leadAlerts['enabled'] && $leadAlerts[$alertKey] && $leadAlerts[$alertKey.'_template'] === '') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'lead_alerts.'.$alertKey.'_template' => ['نام الگوی SHSMS برای پیامک فعال الزامی است.'],
+                ]);
+            }
+        }
         AppSetting::updateOrCreate(['key' => 'sms_lead_alerts'], ['value' => json_encode($leadAlerts, JSON_UNESCAPED_UNICODE)]);
         AppSetting::updateOrCreate([
             'key' => 'sms_templates',
@@ -645,6 +699,12 @@ class SettingController extends Controller
             'sms_settings' => [
                 'provider' => $validated['provider'],
                 'account_configured' => filled(AppSetting::getByKey('shsms_api_token')),
+                'clinic_info' => [
+                    'address' => AppSetting::getByKey('clinic_address', ''),
+                    'instagram_url' => AppSetting::getByKey('clinic_instagram_url', ''),
+                    'phone' => AppSetting::getByKey('clinic_phone', ''),
+                    'location_url' => AppSetting::getByKey('clinic_location_url', ''),
+                ],
                 'templates' => $templates->all(),
                 'birthday' => $validated['birthday'],
                 'lead_alerts' => $leadAlerts,

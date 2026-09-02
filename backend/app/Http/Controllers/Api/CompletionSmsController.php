@@ -21,9 +21,14 @@ class CompletionSmsController extends Controller
 
     private function activeTemplate(string $category): string
     {
-        $matched = $this->smsTemplates()
-            ->first(fn($item) => ($item['category'] ?? '') === $category && ($item['active'] ?? true));
-        $template = $matched['content'] ?? (string) AppSetting::getByKey('sms_'.$category, '');
+        $configured = $this->smsTemplates()
+            ->first(fn($item) => ($item['category'] ?? '') === $category);
+
+        if ($configured && ! ($configured['active'] ?? true)) {
+            throw new \RuntimeException('این پیامک در تنظیمات غیرفعال است.');
+        }
+
+        $template = $configured['content'] ?? (string) AppSetting::getByKey('sms_'.$category, '');
 
         $template = trim((string) $template);
         if ($template === '') {
@@ -160,6 +165,10 @@ class CompletionSmsController extends Controller
                     'doctor' => implode('، ', $data['doctors'] ?? []),
                     'consultant' => $data['consultant'] ?? '',
                     'clinic' => (string) AppSetting::getByKey('clinic_name', ''),
+                    'clinic_address' => (string) AppSetting::getByKey('clinic_address', ''),
+                    'clinic_instagram_url' => (string) AppSetting::getByKey('clinic_instagram_url', ''),
+                    'clinic_phone' => (string) AppSetting::getByKey('clinic_phone', ''),
+                    'clinic_location_url' => (string) AppSetting::getByKey('clinic_location_url', ''),
                 ]));
                 ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
                     'type' => $type,
@@ -228,7 +237,7 @@ class CompletionSmsController extends Controller
     {
         return match($type) {
             'appointment' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? '', $values['doctor'] ?? '', $values['clinic'] ?? ''],
-            'info' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? '', $values['doctor'] ?? '', $values['consultant'] ?? '', $values['clinic'] ?? ''],
+            'info' => [$values['name'] ?? '', $values['clinic_address'] ?? '', $values['clinic_instagram_url'] ?? '', $values['clinic_phone'] ?? '', $values['clinic_location_url'] ?? ''],
             'welcome' => [$values['name'] ?? '', (string) AppSetting::getByKey('clinic_name', '')],
             'referral_credit' => [$values['name'] ?? '', $values['amount'] ?? '', $values['balance'] ?? ''],
             'treatment_care' => [$values['name'] ?? '', $values['link'] ?? ''],

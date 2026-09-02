@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Patient;
+use App\Models\WalletTransaction;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -61,6 +63,7 @@ class PatientController extends Controller
             'patient_history' => $presence('patient_history').'|string',
             'medical_history' => $presence('medical_history').'|string',
             'national_id' => $presence('national_id').'|string|max:20',
+            'foreign_national_code' => $presence('foreign_national_code').'|string|max:30',
             'father_name' => $presence('father_name').'|string|max:255',
             'marriage_date' => $presence('marriage_date').'|string|max:20',
             'education' => $presence('education').'|string|max:255',
@@ -246,6 +249,7 @@ class PatientController extends Controller
             'patient_history' => [$presence('patient_history'), 'string'],
             'medical_history' => [$presence('medical_history'), 'string'],
             'national_id' => [$presence('national_id'), 'string', 'max:20'],
+            'foreign_national_code' => [$presence('foreign_national_code'), 'string', 'max:30'],
             'father_name' => [$presence('father_name'), 'string', 'max:255'],
             'marriage_date' => [$presence('marriage_date'), 'string', 'max:20'],
             'education' => [$presence('education'), 'string', 'max:255'],
@@ -272,10 +276,18 @@ class PatientController extends Controller
         $lastFileNumber = Patient::query()
             ->whereNotNull('file_number')
             ->where('file_number', '!=', '')
-            ->orderByRaw('CAST(file_number AS UNSIGNED) DESC')
-            ->value('file_number');
+            ->selectRaw('MAX(CAST(file_number AS UNSIGNED)) AS last_number')
+            ->value('last_number');
 
-        return (string) (((int) $lastFileNumber) + 1);
+        $candidate = max(1, ((int) $lastFileNumber) + 1);
+
+        // بعضی داده‌های قدیمی ممکن است شماره‌های نامنظم داشته باشند؛
+        // تا اولین شمارهٔ آزاد جلو می‌رویم تا خطای unique رخ ندهد.
+        while (Patient::query()->where('file_number', (string) $candidate)->exists()) {
+            $candidate++;
+        }
+
+        return (string) $candidate;
     }
 
     private function hidePatientPhones($patients, Request $request)
@@ -316,7 +328,7 @@ class PatientController extends Controller
 
     public function uploadProfilePhoto(Request $request, Patient $patient)
     {
-        $request->validate([
+        $data = $request->validate([
             'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
             'thumbnail' => 'required|image|mimes:webp|max:30|dimensions:width=50,height=50',
         ]);
@@ -349,20 +361,43 @@ class PatientController extends Controller
 
     public function depositWallet(Request $request, $id)
     {
-        $request->validate([
+        $data = $request->validate([
             'amount' => 'required|numeric|min:1',
-            'description' => 'nullable|string|max:255'
+            'description' => 'nullable|string|max:255',
+            'services' => 'nullable|array|max:50',
+            'services.*.section' => 'nullable|string|max:255',
+            'services.*.subsection' => 'nullable|string|max:255',
+            'services.*.service' => 'required_with:services|string|max:255',
+            'services.*.amount' => 'required_with:services|numeric|min:1',
         ]);
+
+        if (! empty($data['services'])) {
+            $servicesTotal = collect($data['services'])->sum(fn (array $service) => (float) $service['amount']);
+            if (round($servicesTotal, 2) !== round((float) $data['amount'], 2)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'services' => ['جمع بیعانهٔ خدمات باید با مبلغ کل برابر باشد.'],
+                ]);
+            }
+        }
 
         $patient = Patient::findOrFail($id);
 
         $transaction = $patient->walletTransactions()->create([
-            'amount' => $request->amount,
+            'amount' => $data['amount'],
             'type' => 'deposit',
-            'description' => $request->description ?? 'واریز به کیف پول',
-            'source_type' => 'manual',
+            'description' => $data['description'] ?? 'واریز به کیف پول',
+            'source_type' => ! empty($data['services']) ? 'booking_deposit' : 'manual',
             'created_by' => $request->user()?->id,
-            'metadata' => ['ip' => $request->ip()],
+            'metadata' => [
+                'ip' => $request->ip(),
+                'services' => collect($data['services'] ?? [])
+                    ->map(fn (array $service) => [
+                        'section' => trim((string) ($service['section'] ?? '')),
+                        'subsection' => trim((string) ($service['subsection'] ?? '')),
+                        'service' => trim((string) ($service['service'] ?? '')),
+                        'amount' => (float) ($service['amount'] ?? 0),
+                    ])->values()->all(),
+            ],
         ]);
 
         return response()->json([
@@ -429,5 +464,44 @@ class PatientController extends Controller
                     'created_at' => $transaction->created_at,
                 ]),
         ]);
+    }
+
+    public function deleteBookingDeposit(Request $request, Patient $patient, WalletTransaction $transaction)
+    {
+        if ((int) $transaction->patient_id !== (int) $patient->id || $transaction->type !== 'deposit' || $transaction->source_type !== 'booking_deposit' || $transaction->reversed_at) {
+            abort(404);
+        }
+
+        try {
+            $balance = DB::transaction(function () use ($request, $patient, $transaction) {
+                $original = WalletTransaction::query()->lockForUpdate()->findOrFail($transaction->id);
+                $lockedPatient = Patient::query()->lockForUpdate()->findOrFail($patient->id);
+
+                if ($original->reversed_at) {
+                    throw new \RuntimeException('این بیعانه پیش‌تر حذف شده است.');
+                }
+                if ((float) $lockedPatient->wallet_balance < (float) $original->amount) {
+                    throw new \RuntimeException('این بیعانه قبلاً مصرف شده و امکان حذف آن وجود ندارد.');
+                }
+
+                $reverse = $lockedPatient->walletTransactions()->create([
+                    'type' => 'withdraw',
+                    'amount' => $original->amount,
+                    'description' => 'حذف بیعانه: '.$original->description,
+                    'source_type' => 'reversal',
+                    'source_key' => 'booking-deposit-delete-'.$original->id.'-'.now()->format('YmdHisv'),
+                    'reversed_transaction_id' => $original->id,
+                    'created_by' => $request->user()?->id,
+                    'metadata' => ['reason' => 'حذف بیعانه خدمات', 'original' => $original->metadata],
+                ]);
+                $original->update(['reversed_at' => now(), 'reversed_transaction_id' => $reverse->id]);
+
+                return $lockedPatient->fresh()->wallet_balance;
+            });
+        } catch (\RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'wallet_balance' => $balance]);
     }
 }

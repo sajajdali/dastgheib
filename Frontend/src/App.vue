@@ -192,15 +192,18 @@
         @open-patient-profile="openPatientProfileFromAppointment"
         @followup-appointment-created="handleFollowupAppointmentCreated"
         @open-schedule-settings="openBookingScheduleSettings"
+        @open-sms-settings="openSmsSettings"
       />
 
       <FlwUp
         v-if="currentPage === 'Peygiri'"
         :permissions="user.permissions || []"
+        :current-user="user"
         :appointment-result="pendingFollowupAppointmentResult"
         :open-followup-request="pendingFollowupOpenRequest"
         @open-appointments-timeline="openAppointmentsTimeline"
       />
+      <ServiceFollowups v-if="currentPage === 'ServiceFollowups'" />
 
       <Notif
         v-if="legacyLeadsEnabled && currentPage === 'Notif'"
@@ -247,7 +250,7 @@
       <PayrollSettlement v-if="currentPage === 'Payroll'" />
 
       <!-- تنظیمات -->
-      <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : 'internal'" :initial-accordion="settingsInitialAccordion" />
+      <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : settingsInitialSection" :initial-accordion="settingsInitialAccordion" />
       <Store
         v-if="currentPage === 'Store'"
         :enabled-features="tenantEnabledFeatures"
@@ -359,6 +362,7 @@ import Anbar from "./components/anbar.vue";
 import AutomaticSmsScenarios from "./components/AutomaticSmsScenarios.vue";
 
 import FlwUp from "./components/flwup.vue";
+import ServiceFollowups from "./components/ServiceFollowups.vue";
 
 import Gozaresh from "./components/gozaresh.vue";
 import ActivityLogs from "./components/ActivityLogs.vue";
@@ -409,6 +413,7 @@ export default {
     AutomaticSmsScenarios,
 
     FlwUp,
+    ServiceFollowups,
 
     Gozaresh,
     ActivityLogs,
@@ -460,6 +465,7 @@ export default {
       ,reportMonth: ""
       ,pendingStoreModuleKey: ""
       ,settingsInitialAccordion: ""
+      ,settingsInitialSection: "internal"
       // حضور و غیاب فقط بر اساس ماژول اشتراک مجموعه کنترل می‌شود.
       ,attendanceEnabled: true
       ,uiMenuOpen: false
@@ -545,6 +551,8 @@ export default {
     },
 
     tenantEnabledFeatures() {
+      // سایت محلی دمو باید همهٔ امکانات را نمایش دهد، مستقل از ماژول‌های خریداری‌شدهٔ تننت.
+      if (window.location.hostname.toLowerCase() === 'clinic1.localhost') return null;
       const features = this.user?.tenant?.module_ids;
       if (!Array.isArray(features)) return null;
       const aliases = {
@@ -786,14 +794,14 @@ export default {
       if (!page || page === '__home__') return true;
 
       const featureMap = {
-        Parvande: 'patients', Vaghtdahi: 'booking', Peygiri: 'followups',
+        Parvande: 'patients', Vaghtdahi: 'booking', Peygiri: 'followups', ServiceFollowups: 'service_followups',
         dermatracker: 'beauty', Photos: 'gallery', Gozaresh: 'report',
         Anbar: 'inventory', Ticket: 'tickets', Products: 'finder',
         Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings', Satisfaction: 'satisfaction', AutomaticSms: null
       };
       const permissionMap = {
         Parvande: 'patients.view', Photos: 'photos.view', Vaghtdahi: 'appointments.view',
-        Peygiri: 'followups.view', Gozaresh: 'reports.view', Anbar: 'inventory.view',
+        Peygiri: 'followups.view', ServiceFollowups: 'followups.view', Gozaresh: 'reports.view', Anbar: 'inventory.view',
         dermatracker: 'beauty.view', Ticket: 'tickets.view', Products: 'services.view',
         Bills: 'bills.view', HRtimes: 'attendance.view', Payroll: 'payroll.view',
         ActivityLogs: 'activity_logs.view'
@@ -1016,6 +1024,7 @@ export default {
         Parvande: 'patients',
         Vaghtdahi: 'booking',
         Peygiri: 'followups',
+        ServiceFollowups: 'service_followups',
         Notif: 'followups',
         dermatracker: 'beauty',
         Photos: 'gallery',
@@ -1045,6 +1054,7 @@ export default {
         Photos: 'photos.view',
         Vaghtdahi: 'appointments.view',
         Peygiri: 'followups.view',
+        ServiceFollowups: 'followups.view',
         Notif: 'followups.view',
         Gozaresh: 'reports.view',
         ActivityLogs: 'activity_logs.view',
@@ -1208,6 +1218,13 @@ export default {
 
     openBookingScheduleSettings() {
       this.settingsInitialAccordion = 'clinicSchedule';
+      this.settingsInitialSection = 'internal';
+      this.currentPage = 'Setting';
+    },
+
+    openSmsSettings() {
+      this.settingsInitialAccordion = '';
+      this.settingsInitialSection = 'sms';
       this.currentPage = 'Setting';
     },
 

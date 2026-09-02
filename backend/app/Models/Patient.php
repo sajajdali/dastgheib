@@ -28,6 +28,7 @@ class Patient extends Model
         'patient_history',
         'medical_history',
         'national_id',
+        'foreign_national_code',
         'father_name',
         'marriage_date',
         'education',

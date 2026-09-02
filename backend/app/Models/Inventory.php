@@ -23,6 +23,7 @@ class Inventory extends Model
         'stock',
         'min_stock',
         'active',
+        'followup_days',
         'sort_order',
         'default_commission_type',
         'default_commission_value',

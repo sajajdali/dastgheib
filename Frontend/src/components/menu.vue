@@ -38,21 +38,21 @@
         >
           {{ formatBadgeCount(overflowNotificationCount) }}
         </span>
-      </li>
 
-      <template v-if="overflowOpen || overflowActive">
-        <li
-          v-for="item in overflowItems"
-          :key="item.value"
-          class="menu-item"
-          :class="{ active: currentPage === item.value }"
-          @click="selectOverflow(item.value)"
-        >
-          <div class="menu-dot"></div>
-          <span>{{ item.label }}</span>
-          <span v-if="notificationCounts[item.value] > 0" class="notification-badge">{{ formatBadgeCount(notificationCounts[item.value]) }}</span>
-        </li>
-      </template>
+        <div v-if="overflowOpen" class="more-submenu" role="menu" @click.stop>
+          <button
+            v-for="item in overflowItems"
+            :key="item.value"
+            type="button"
+            role="menuitem"
+            :class="{ active: currentPage === item.value }"
+            @click="selectOverflow(item.value)"
+          >
+            <span>{{ item.label }}</span>
+            <b v-if="notificationCounts[item.value] > 0">{{ formatBadgeCount(notificationCounts[item.value]) }}</b>
+          </button>
+        </div>
+      </li>
 
       <!-- دکمه بستن -->
       <li class="menu-item close-btn" @click="$emit('close-all')">
@@ -108,6 +108,7 @@ export default {
         Photos: 'photos.view',
         Vaghtdahi: 'appointments.view',
         Peygiri: 'followups.view',
+        ServiceFollowups: 'followups.view',
         Notif: 'followups.view',
         Gozaresh: 'reports.view',
         ActivityLogs: 'activity_logs.view',
@@ -129,6 +130,7 @@ export default {
         { label: 'پرونده', value: 'Parvande', feature: 'patients' },
         { label: 'وقت دهی', value: 'Vaghtdahi', feature: 'booking' },
         { label: 'پیگیری', value: 'Peygiri', feature: 'followups' },
+        { label: 'پیگیری خدمات', value: 'ServiceFollowups', feature: 'service_followups' },
         { label: 'زیبایار', value: 'dermatracker', feature: 'beauty' },
         { label: 'عکس‌ها', value: 'Photos', feature: 'gallery' },
         { label: 'گزارش', value: 'Gozaresh', feature: 'report' },
@@ -204,15 +206,16 @@ export default {
     closeOverflowOnOutsidePointer(event) {
       if (!this.overflowOpen) return
 
-      const overflowMenu = this.$el?.querySelector('.more-menu-item')
-      if (!overflowMenu?.contains(event.target)) this.overflowOpen = false
+      // گزینه های بازشدهٔ «بیشتر» هم جزو منو هستند؛ بستن در pointerdown
+      // قبل از click باعث می شد گزینه ها هرگز انتخاب نشوند.
+      if (!this.$el?.contains(event.target)) this.overflowOpen = false
     },
     select(val) {
       this.overflowOpen = false
       this.$emit('select', val)
     },
     selectOverflow(val) {
-      this.overflowOpen = true
+      this.overflowOpen = false
       this.$emit('select', val)
     },
     featureEnabled(feature) {
@@ -886,14 +889,13 @@ export default {
   top: 10px;
   /* Keep the global navigation and its overflow menu above page-level
      controls such as date pickers on every module. */
-  z-index: 2147482000;
+  z-index: 2147483640;
   /* سمت چپ برای دکمهٔ منوی کاربری و دکمهٔ بستن ناوبری رزرو می‌شود. */
   width: calc(100% - 92px);
   min-width: 0;
   margin: 0 0 0 92px;
   padding: 7px 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   direction: rtl;
   border: 1px solid rgba(219, 234, 254, .9);
   border-radius: 20px;
@@ -988,9 +990,9 @@ export default {
 }
 
 .more-menu-item { overflow: visible; }
-.more-backdrop{position:fixed;inset:0;z-index:2147482001;border:0;background:transparent;cursor:default}
+.more-backdrop{position:fixed;inset:0;z-index:2147483641;border:0;background:transparent;cursor:default}
 .more-arrow{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;transition:transform 180ms ease}.more-arrow.open{transform:rotate(180deg)}
-.more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:2147482002;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
+.more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:2147483642;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
 .more-submenu button{min-height:36px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#475569;cursor:pointer;font-size:12px;font-weight:850;text-align:right}.more-submenu button:hover,.more-submenu button.active{background:#eff6ff;color:#2563eb}.more-submenu button b{min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border-radius:999px;background:#dc2626;color:#fff;font-size:10px}
 
 .notification-badge {

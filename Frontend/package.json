@@ -13,6 +13,7 @@
     "dayjs": "^1.11.20",
     "jalaliday": "^3.1.1",
     "laravel-echo": "^2.4.0",
+    "leaflet": "^1.9.4",
     "moment-jalaali-holiday": "^1.1.12",
     "pusher-js": "^8.5.0",
     "sweetalert2": "^11.26.24",

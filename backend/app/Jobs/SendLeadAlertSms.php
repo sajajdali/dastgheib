@@ -33,9 +33,11 @@ class SendLeadAlertSms
             : $this->morningMessages($settings);
 
         foreach ($messages as $message) {
+            $template = trim((string) ($settings[($message['key'] ?? '').'_template'] ?? ''));
+            if ($template === '') continue;
             foreach ($recipients as $recipient) {
                 try {
-                    $sms->send($recipient, $message);
+                    $sms->sendTemplate($recipient, $template, $message['params'] ?? []);
                 } catch (Throwable $exception) {
                     report($exception);
                 }
@@ -50,16 +52,16 @@ class SendLeadAlertSms
 
         if ($settings['daily_appointments'] ?? false) {
             $count = Appointment::query()->where('month', sprintf('%04d-%02d', $year, $month))->where('day_num', $day)->count();
-            if ($count > 0) $messages[] = "گزارش نوبت امروز: {$count} نوبت ثبت شده است.";
+            if ($count > 0) $messages[] = ['key' => 'daily_appointments', 'params' => [number_format($count), $this->jalaliDate($year, $month, $day), $this->clinicName()]];
         }
 
         if ($settings['inventory_empty'] ?? false) {
-            Inventory::query()->where('active', true)->whereRaw('COALESCE(stock, 0) <= 0')->pluck('name')
-                ->each(fn ($name) => $messages[] = "هشدار انبار: موجودی «{$name}» تمام شده است.");
+            Inventory::query()->where('active', true)->whereRaw('COALESCE(stock, 0) <= 0')->get(['name', 'stock'])
+                ->each(fn ($item) => $messages[] = ['key' => 'inventory_empty', 'params' => [(string) $item->name, number_format((int) $item->stock), $this->clinicName()]]);
         }
 
         if (($settings['active_tickets'] ?? false) && ($count = Ticket::query()->where('status', 'active')->count()) > 0) {
-            $messages[] = "هشدار تیکت: {$count} تیکت فعال در سیستم وجود دارد.";
+            $messages[] = ['key' => 'active_tickets', 'params' => [number_format($count), $this->clinicName()]];
         }
 
         return $messages;
@@ -95,7 +97,10 @@ class SendLeadAlertSms
         }
 
         $profit = max(0, $revenue - $cost - $commissions);
-        return ['گزارش مالی امروز: درآمد '.number_format($revenue).' تومان، سود تقریبی '.number_format($profit).' تومان.'];
+        return [[
+            'key' => 'daily_financial',
+            'params' => [number_format($revenue), number_format($profit), $this->jalaliDate($year, $month, $day), $this->clinicName()],
+        ]];
     }
 
     private function number(mixed $value): float
@@ -122,5 +127,15 @@ class SendLeadAlertSms
         $jm = $days < 186 ? 1 + intdiv($days, 31) : 7 + intdiv($days - 186, 30);
         $jd = 1 + ($days < 186 ? $days % 31 : ($days - 186) % 30);
         return [$jy, $jm, $jd];
+    }
+
+    private function jalaliDate(int $year, int $month, int $day): string
+    {
+        return sprintf('%04d/%02d/%02d', $year, $month, $day);
+    }
+
+    private function clinicName(): string
+    {
+        return (string) AppSetting::getByKey('clinic_name', '');
     }
 }

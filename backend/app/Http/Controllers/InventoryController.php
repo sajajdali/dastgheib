@@ -64,7 +64,7 @@ class InventoryController extends Controller
 
                     $created = InventorySection::create([
                         'parent_id' => null,
-                        'level' => min(2, max(1, (int) ($section['level'] ?? 1))),
+                        'level' => max(1, (int) ($section['level'] ?? 1)),
                         'name' => $section['name'],
                         'sort_order' => $section['sort_order'] ?? $index,
                     ]);
@@ -83,9 +83,12 @@ class InventoryController extends Controller
                         continue;
                     }
 
-                    InventorySection::query()
-                        ->whereKey($sectionIdMap[$key])
-                        ->update(['parent_id' => $sectionIdMap[$parentKey]]);
+                    $parentId = $sectionIdMap[$parentKey];
+                    $parentLevel = (int) (InventorySection::query()->find($parentId)?->level ?? 1);
+                    InventorySection::query()->whereKey($sectionIdMap[$key])->update([
+                        'parent_id' => $parentId,
+                        'level' => $parentLevel + 1,
+                    ]);
                 }
 
                 // ذخیرهٔ ساختار انبار شناسهٔ بخش‌ها را بازسازی می‌کند؛
@@ -115,13 +118,17 @@ class InventoryController extends Controller
                 $inventory = Inventory::create([
                     'section_id' => $this->resolveSectionId($sectionKey, $sectionIdMap),
                     'name' => $item['name'] ?? null,
-                    'service_tags' => $this->normalizeServiceTags($item['service_tags'] ?? $item['serviceTags'] ?? []),
+                    // حتی آرایهٔ خالی هم باید صریحاً ذخیره شود تا حذف همهٔ تگ‌ها برنگردد.
+                    'service_tags' => $this->normalizeServiceTags(
+                        array_key_exists('service_tags', $item) ? $item['service_tags'] : ($item['serviceTags'] ?? [])
+                    ),
                     'amount' => $item['amount'] ?? null,
                     'price' => $item['price'] ?? null,
                     'count' => $item['count'] ?? 0,
                     'stock' => isset($item['stock']) ? (int) $item['stock'] : null,
                     'min_stock' => $item['min_stock'] ?? $item['minStock'] ?? 5,
                     'active' => $item['active'] ?? true,
+                    'followup_days' => max(0, (int) ($item['followup_days'] ?? $item['followupDays'] ?? 0)),
                     'sort_order' => $item['sort_order'] ?? $index,
                     'default_commission_type' => $item['default_commission_type'] ?? $item['defaultCommissionType'] ?? 'percent',
                     'default_commission_value' => $item['default_commission_value'] ?? $item['defaultCommissionValue'] ?? 0,
@@ -242,10 +249,6 @@ class InventoryController extends Controller
         return collect($tags)
             ->map(fn ($tag) => trim((string) $tag))
             ->filter()
-            ->filter(function (string $tag) {
-                $allowed = app(HumanResourceController::class)->serviceTags();
-                return in_array($tag, $allowed, true);
-            })
             ->unique()
             ->values()
             ->all();

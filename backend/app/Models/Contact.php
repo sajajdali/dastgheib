@@ -21,7 +21,8 @@ class Contact extends Model
         'source',
         'status',
         'description',
-        'interest'
+        'interest',
+        'campaign_id',
     ];
 
     public $timestamps = false;

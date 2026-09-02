@@ -24,6 +24,7 @@ const STORE_MODULES_RAW = [
   { key: "inventory", title: "انبار داری", price: 2800000, periods: oneTime(2800000), category: "operations", categoryLabel: "انبار", icon: "🏠", color: "#d97706", billing: "یک‌باره", description: "کنترل موجودی، هشدار اتمام و مصرف مواد.", longDescription: "انبارداری برای مدیریت کالا، مصرف مواد، هشدار موجودی و اتصال خدمات به محصولات مصرفی است." },
   { key: "bills", title: "هزینه ها", price: 1500000, periods: oneTime(1500000), category: "finance", categoryLabel: "هزینه‌ها", icon: "💵", color: "#ec4899", billing: "یک‌باره", description: "ثبت و پیگیری هزینه‌ها و پرداخت‌های دوره‌ای.", longDescription: "هزینه‌ها کمک می‌کند هزینه‌های ثابت، پرداخت‌های دوره‌ای و بدهی‌های مرکز فراموش نشوند." },
   { key: "leads", title: "سرنخ ها", price: 3400000, periods: oneTime(3400000), category: "marketing", categoryLabel: "پیگیری", icon: "👥", color: "#2563eb", billing: "یک‌باره", description: "مدیریت سرنخ‌ها و فرصت‌های فروش.", longDescription: "سرنخ‌ها اعلان‌ها و پیگیری‌های مهم کلینیک را در یک صفحه جمع می‌کند." },
+  { key: "service_followups", title: "پیگیری خدمات", price: 1800000, periods: oneTime(1800000), category: "operations", categoryLabel: "خدمات", icon: "🗓️", color: "#0f766e", billing: "یک‌باره", description: "مدیریت سررسید و پیگیری‌های پس از انجام خدمت.", longDescription: "پیگیری خدمات سررسیدهای ایجادشده پس از انجام هر خدمت را در یک تقویم و فهرست قابل پیگیری نگهداری می‌کند." },
   { key: "sales_analysis", title: "تحلیل فروش", price: 1800000, periods: monthly(1800000), category: "insight", categoryLabel: "تحلیل", icon: "📈", color: "#22c55e", billing: "ماهانه", comingSoon: true, description: "تحلیل فروش ماهانه و روند درآمد.", longDescription: "تحلیل فروش برای بررسی روند درآمد، تبدیل سرنخ، عملکرد خدمات و تصمیم‌گیری مدیریتی استفاده می‌شود." },
   { key: "care_sms", title: "پیامک مراقبت ها", price: 1800000, periods: oneTime(1800000), category: "marketing", categoryLabel: "پیامک", icon: "💜", color: "#7c3aed", billing: "یک‌باره", comingSoon: true, description: "ارسال پیامک‌های مراقبتی بعد از خدمات.", longDescription: "پیامک مراقبت‌ها برای ارسال نکات بعد از خدمت و پیگیری وضعیت مراجعه‌کننده استفاده می‌شود." },
   { key: "payment_link", title: "لینک پرداخت", price: 2800000, periods: oneTime(2800000), category: "finance", categoryLabel: "پرداخت", icon: "🔗", color: "#4f46e5", billing: "یک‌باره", comingSoon: true, description: "ارسال لینک پرداخت برای مشتری.", longDescription: "لینک پرداخت امکان ارسال لینک امن پرداخت و پیگیری وضعیت پرداخت را فراهم می‌کند." },
@@ -47,9 +48,21 @@ const STORE_MODULES_RAW = [
   { key: "customer_segmentation", title: "تفکیک مشتریان", price: 2500000, periods: oneTime(2500000), category: "insight", categoryLabel: "دسته‌بندی", icon: "🧩", color: "#f59e0b", billing: "یک‌باره", comingSoon: true, description: "دسته‌بندی مشتریان بر اساس رفتار و ویژگی‌ها.", longDescription: "تفکیک مشتریان برای ساخت گروه‌های هدف، تحلیل رفتار و اجرای کمپین‌های دقیق‌تر استفاده می‌شود." },
 ];
 
+// تصاویر کارت‌های زیر از فایل مرجع ارسالی جدا شده‌اند؛ سایر ماژول‌ها آیکن پیش‌فرض خود را دارند.
+const REFERENCE_IMAGE_MODULES = new Set([
+  'doctor_chat', 'attendance', 'staff_evaluation', 'staff_tasks', 'flowchart', 'booking',
+  'wallet', 'gallery', 'finder', 'report', 'inventory', 'bills', 'leads', 'sales_analysis',
+  'care_sms', 'payment_link', 'staff_exam', 'voip', 'auto_sms', 'gift_cards', 'poll_box', 'service_followups',
+  'heatmap', 'service_recommendation', 'laser_booking', 'online_store', 'documents',
+  'service_landing', 'satisfaction', 'tv_management', 'user_access', 'device_rental',
+  'group_chat', 'organizations', 'customer_segmentation',
+]);
+
 export const STORE_MODULES = STORE_MODULES_RAW.map((module) => ({
   ...module,
-  image: moduleImage(module.icon, module.color),
+  image: REFERENCE_IMAGE_MODULES.has(module.key)
+    ? `/store/modules/${module.key}.png`
+    : (module.image || moduleImage(module.icon, module.color)),
 }));
 
 export const CENTRAL_MODULES = STORE_MODULES.map(({ key, title, price, periods, comingSoon }) => ({
