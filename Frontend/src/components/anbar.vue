@@ -48,7 +48,7 @@
           v-for="node in inventoryTreeNodes"
           :key="sectionKey(node.section)"
           class="tree-node"
-          :class="{ active: activeTreeKey === sectionKey(node.section), root: node.level === 1, leaf: node.level === 2 }"
+            :class="{ active: activeTreeKey === sectionKey(node.section), root: node.level === 1, leaf: !node.hasChildren }"
           :style="{ '--tree-depth': node.level - 1 }"
           @click="selectTreeNode(node.section)"
         >
@@ -68,8 +68,7 @@
           <button
             type="button"
             class="tree-add-btn"
-            :disabled="node.level >= 2"
-            :title="node.level >= 2 ? 'زیرشاخه سطح آخر است' : 'افزودن زیرشاخه'"
+            title="افزودن زیرشاخه"
             aria-label="افزودن زیرشاخه"
             @click.stop="addChildSection(sectionKey(node.section), node.level + 1)"
           >+</button>
@@ -222,6 +221,7 @@
               <col>
               <col class="small-col">
               <col class="small-col">
+              <col class="small-col">
               <col class="commission-col">
               <col class="active-col">
               <col class="action-col">
@@ -234,6 +234,7 @@
                 <th>هزینه مواد</th>
                 <th>حداقل</th>
                 <th>موجودی</th>
+                <th>دوره پیگیری<br><small>(روز)</small></th>
                 <th>پورسانت کلی</th>
                 <th>فعال</th>
                 <th></th>
@@ -290,6 +291,7 @@
                     <button type="button" title="افزایش یا کاهش موجودی" @click.stop="openStockMovement(row)">±</button>
                   </div>
                 </td>
+                <td><input v-model.number="row.followupDays" type="number" min="0" placeholder="۰"></td>
                 <td>
                   <button
                     class="commission-chip"
@@ -308,7 +310,7 @@
               </tr>
 
               <tr v-if="displayedRows.length === 0">
-                <td colspan="9" class="empty-cell">
+                <td colspan="10" class="empty-cell">
                   {{ inventoryEmptyMessage }}
                 </td>
               </tr>
@@ -612,7 +614,7 @@ export default {
     },
 
     rootSections() {
-      return this.sections.filter(section => Number(section.level || 1) === 1)
+      return this.sections.filter(section => !String(section.parent_id || section.parentId || '').trim())
     },
 
     activeSubSections() {
@@ -705,9 +707,7 @@ export default {
 
       if (this.bulkCommission.target === "group") {
         const groupKey = String(this.bulkCommission.sectionKey || this.activeRootKey || "")
-        const descendantSectionKeys = this.sections
-          .filter(section => String(section.parent_id || "") === groupKey)
-          .map(section => this.sectionKey(section))
+        const descendantSectionKeys = this.descendantSectionKeys(groupKey)
         return this.rows.filter(row => descendantSectionKeys.includes(this.rowSectionKey(row)))
       }
 
@@ -982,35 +982,18 @@ export default {
     selectableSectionForKey(sectionKey) {
       const section = this.sections.find(item => this.sectionKey(item) === String(sectionKey || ""))
       if (!section) return null
-      if (Number(section.level || 1) === 2) return section
-      return this.childSections(this.sectionKey(section))[0] || null
+      return this.firstLeafInBranch(section)
     },
 
     normalizeInventorySections(sections = []) {
-      const redirects = {}
-      const byKey = new Map((sections || []).map(section => [String(section.id || section.client_id || ""), section]))
-      const normalized = []
-
-      ;(sections || []).forEach(section => {
-        const key = String(section.id || section.client_id || "")
-        const level = Number(section.level || 1)
-
-        if (level <= 2) {
-          normalized.push({
-            ...section,
-            level,
-            parent_id: level === 1 ? null : section.parent_id || section.parentId || null,
-          })
-          return
-        }
-
-        const parent = byKey.get(String(section.parent_id || section.parentId || ""))
-        if (key && parent) {
-          redirects[key] = String(parent.id || parent.client_id || "")
-        }
-      })
-
-      return { sections: normalized, redirects }
+      return {
+        sections: (sections || []).map(section => ({
+          ...section,
+          level: Math.max(1, Number(section.level || 1)),
+          parent_id: section.parent_id || section.parentId || null,
+        })),
+        redirects: {},
+      }
     },
 
     resolveSectionKey(sectionKey) {
@@ -1019,7 +1002,7 @@ export default {
     },
 
     firstSelectableSectionKey() {
-      const section = this.sections.find(item => Number(item.level || 1) === 2) || this.sections[0]
+      const section = this.sections.find(item => !this.childSections(this.sectionKey(item)).length) || this.sections[0]
       return section ? this.sectionKey(section) : ""
     },
 
@@ -1041,6 +1024,7 @@ export default {
         stock: Math.max(0, Math.trunc(Number(item.stock) || 0)),
         minStock: Number(item.min_stock ?? item.minStock ?? 5),
         active: item.active === undefined ? true : Boolean(item.active),
+        followupDays: Math.max(0, Number(item.followup_days ?? item.followupDays ?? 0) || 0),
         sort_order: item.sort_order ?? index,
         defaultCommissionType: item.default_commission_type || "percent",
         defaultCommissionValue: Number(item.default_commission_value) || 0,
@@ -1151,6 +1135,7 @@ export default {
             stock: row.stock,
             min_stock: row.minStock,
             active: row.active,
+            followup_days: row.followupDays,
             sort_order: index,
             default_commission_type: row.defaultCommissionType,
             default_commission_value: row.defaultCommissionValue,
@@ -1204,7 +1189,7 @@ export default {
     },
 
     addChildSection(parentKey, level) {
-      if (!parentKey || Number(level) > 2) return
+      if (!parentKey) return
       const section = this.makeSection("زیرشاخه جدید", parentKey, level)
       this.sections.push(section)
       if (!this.expandedSectionKeys.includes(String(parentKey))) {
@@ -1233,13 +1218,8 @@ export default {
     },
 
     selectTreeNode(section) {
-      const level = Number(section.level || 1)
-      if (level === 1) {
+      if (this.childSections(this.sectionKey(section)).length) {
         this.selectRoot(section)
-        return
-      }
-      if (level === 2) {
-        this.selectSub(section)
         return
       }
       this.selectSub(section)
@@ -1247,7 +1227,7 @@ export default {
 
     selectFirstLeaf() {
       const leaf = this.sections
-        .filter(section => Number(section.level || 1) === 2)
+        .filter(section => !this.childSections(this.sectionKey(section)).length)
         .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))[0]
       if (leaf) {
         this.selectHierarchyForLeaf(leaf)
@@ -1258,12 +1238,13 @@ export default {
     },
 
     selectHierarchyForLeaf(leaf) {
-      const root = this.sections.find(section => this.sectionKey(section) === String(leaf.parent_id || ""))
+      const lineage = this.sectionLineage(leaf)
+      const root = lineage[0]
       this.activeRootKey = root ? this.sectionKey(root) : ""
       this.activeSubKey = this.sectionKey(leaf)
       this.activeSectionKey = this.sectionKey(leaf)
       this.activeTreeKey = this.activeSectionKey
-      ;[this.activeRootKey].filter(Boolean).forEach(key => {
+      lineage.map(section => this.sectionKey(section)).filter(Boolean).forEach(key => {
         if (!this.expandedSectionKeys.includes(key)) this.expandedSectionKeys.push(key)
       })
     },
@@ -1272,6 +1253,41 @@ export default {
       return this.sections
         .filter(section => String(section.parent_id || "") === String(parentKey || ""))
         .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    },
+
+    firstLeafInBranch(section) {
+      let current = section
+      const visited = new Set()
+      while (current && !visited.has(this.sectionKey(current))) {
+        visited.add(this.sectionKey(current))
+        const child = this.childSections(this.sectionKey(current))[0]
+        if (!child) return current
+        current = child
+      }
+      return section
+    },
+
+    sectionLineage(section) {
+      const lineage = []
+      let current = section
+      const visited = new Set()
+      while (current && !visited.has(this.sectionKey(current))) {
+        lineage.unshift(current)
+        visited.add(this.sectionKey(current))
+        current = this.sections.find(item => this.sectionKey(item) === String(current.parent_id || current.parentId || ''))
+      }
+      return lineage
+    },
+
+    descendantSectionKeys(sectionKey) {
+      const result = []
+      const walk = key => this.childSections(key).forEach(section => {
+        const childKey = this.sectionKey(section)
+        result.push(childKey)
+        walk(childKey)
+      })
+      walk(String(sectionKey || ''))
+      return result
     },
 
     isTreeExpanded(section) {
@@ -1286,14 +1302,14 @@ export default {
     },
 
     treeNodeCount(section) {
-      return Number(section.level || 1) === 2
-        ? this.sectionItemCount(section)
-        : this.childSections(this.sectionKey(section)).length
+      return this.childSections(this.sectionKey(section)).length
+        ? this.childSections(this.sectionKey(section)).length
+        : this.sectionItemCount(section)
     },
 
     treePlaceholder(level) {
       if (Number(level) === 1) return "مثلا پوست و زیبایی"
-      return "مثلا ژل یا بوتاکس"
+      return "مثلا ژل، بوتاکس یا زیرگروه جدید"
     },
 
     removeSectionNode(section) {
@@ -1303,7 +1319,7 @@ export default {
         alert("این شاخه زیرشاخه دارد. ابتدا زیرشاخه‌های داخل آن را حذف کنید.")
         return
       }
-      if (Number(section.level || 1) === 2 && this.rows.some(row => this.rowSectionKey(row) === key)) {
+      if (!this.childSections(key).length && this.rows.some(row => this.rowSectionKey(row) === key)) {
         alert(`این گروه دارای ${this.sectionItemCount(section)} آیتم است. ابتدا آیتم‌های داخل آن را حذف کنید.`)
         return
       }
@@ -1358,6 +1374,7 @@ export default {
         stock: 0,
         minStock: 5,
         active: true,
+        followupDays: 0,
         sort_order: this.rows.length,
         defaultCommissionType: "percent",
         defaultCommissionValue: 0,
@@ -1542,8 +1559,7 @@ export default {
     sectionNameForRow(row) {
       const section = this.sections.find(item => this.sectionKey(item) === this.rowSectionKey(row))
       if (!section) return "بدون گروه"
-      const parent = this.sections.find(item => this.sectionKey(item) === String(section.parent_id || ""))
-      return [parent?.name, section.name].filter(Boolean).join(" / ")
+      return this.sectionLineage(section).map(item => item.name).filter(Boolean).join(" / ")
     },
 
     normalizeSearchText(value) {

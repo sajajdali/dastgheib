@@ -82,11 +82,18 @@
           <option>عالی</option>
         </select>
 
-        <input 
-          v-if="activeProfileFields.national_id" 
-          v-model="form.national_id" 
-          type="text" 
-          placeholder="کد ملی" 
+        <input
+          v-if="activeProfileFields.national_id"
+          v-model="form.national_id"
+          type="text"
+          placeholder="کد ملی"
+        />
+
+        <input
+          v-if="activeProfileFields.foreign_national_code"
+          v-model="form.foreign_national_code"
+          type="text"
+          placeholder="کد اتباع"
         />
 
         <input 
@@ -656,6 +663,7 @@
           <input v-model="editPatient.financial_status" placeholder="وضعیت مالی" />
 
           <input v-if="activeProfileFields.national_id" v-model="editPatient.national_id" placeholder="کد ملی" />
+          <input v-if="activeProfileFields.foreign_national_code" v-model="editPatient.foreign_national_code" placeholder="کد اتباع" />
           <input v-if="activeProfileFields.father_name" v-model="editPatient.father_name" placeholder="نام پدر" />
           <input v-if="activeProfileFields.marriage_date" v-model="editPatient.marriage_date" placeholder="تاریخ ازدواج" />
           <input v-if="activeProfileFields.education" v-model="editPatient.education" placeholder="تحصیلات" />
@@ -1254,9 +1262,15 @@
                   <template v-if="transaction.created_by_name"> · توسط {{ transaction.created_by_name }}</template>
                 </small>
                 <details v-if="transaction.metadata?.services?.length">
-                  <summary>جزئیات خدمات و محاسبه</summary>
+                  <summary>جزئیات خدمات و بیعانه</summary>
                   <div v-for="(service, index) in transaction.metadata.services" :key="index">
-                    {{ service.service || service }}
+                    <template v-if="typeof service === 'object'">
+                      <b>{{ service.service || '-' }}</b>
+                      <span v-if="service.section"> · بخش: {{ service.section }}</span>
+                      <span v-if="service.subsection"> · زیر‌بخش: {{ service.subsection }}</span>
+                      <span v-if="service.amount"> · بیعانه: {{ formatMoneyValue(service.amount) }}</span>
+                    </template>
+                    <template v-else>{{ service }}</template>
                     <template v-if="service.commission_type">
                       — {{ service.commission_type === 'percent' ? `${service.commission_value}٪` : `${formatMoneyValue(service.commission_value)} ثابت` }}
                       — پاداش {{ formatMoneyValue(service.reward_amount) }}
@@ -1450,6 +1464,7 @@ export default {
       // آبجکت فیلدهای انتخابی که از سمت دیتابیس ست می‌شود
       activeProfileFields: {
         national_id: false,
+        foreign_national_code: false,
         marriage_date: false,
         education: false,
         father_name: false,
@@ -1478,6 +1493,7 @@ export default {
         medical_history: '',
         // فیلدهای تکمیلی اضافه شده برای v-model فرم
         national_id: '',
+        foreign_national_code: '',
         father_name: '',
         marriage_date: '',
         education: '',
@@ -1506,6 +1522,7 @@ export default {
         patient_history: 'تیپ شخصیتی',
         medical_history: 'سوابق پزشکی',
         national_id: 'کد ملی',
+        foreign_national_code: 'کد اتباع',
         father_name: 'نام پدر',
         marriage_date: 'تاریخ ازدواج',
         education: 'تحصیلات',
@@ -2051,6 +2068,7 @@ export default {
         patient_history: '',
         medical_history: '',
         national_id: '',
+        foreign_national_code: '',
         father_name: '',
         marriage_date: '',
         education: '',
@@ -2069,7 +2087,7 @@ export default {
     },
 
     walletSourceLabel(source) {
-      return { referral_reward: 'پاداش معرفی', appointment_payment: 'پرداخت نوبت', reversal: 'تراکنش برگشتی', manual: 'ثبت دستی' }[source] || 'کیف پول'
+      return { referral_reward: 'پاداش معرفی', appointment_payment: 'پرداخت نوبت', booking_deposit: 'بیعانه خدمات', reversal: 'تراکنش برگشتی', manual: 'ثبت دستی' }[source] || 'کیف پول'
     },
 
     async loadWalletTransactions() {

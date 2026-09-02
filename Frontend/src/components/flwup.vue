@@ -33,7 +33,7 @@
             <div class="today-followup-main">
               <div class="person-name">{{ item.fullName || 'بدون نام' }}</div>
               <div class="person-meta">
-                <span>{{ displayPatientPhone(item.phone) || 'بدون شماره' }}</span>
+                <span>{{ displayPatientPhone(item.phone, item) || 'بدون شماره' }}</span>
                 <span>•</span>
                 <span>{{ item.consultant || 'بدون مشاور' }}</span>
                 <span>•</span>
@@ -52,7 +52,7 @@
         <h3>عدم پیگیری</h3>
         <div v-if="!missedFollowups.length" class="empty-state">موردی وجود ندارد.</div>
         <div v-for="item in missedFollowups" :key="`missed-${item.campaignId}-${item._localId}`" class="missed-followup-row">
-          <span>{{ item.fullName || 'بدون نام' }}</span><span>{{ displayPatientPhone(item.phone) || 'بدون شماره' }}</span>
+          <span>{{ item.fullName || 'بدون نام' }}</span><span>{{ displayPatientPhone(item.phone, item) || 'بدون شماره' }}</span>
           <span>{{ item.campaignTitle }}</span><span>{{ formatDateFa(item.followUpDate) }}</span>
           <button type="button" @click.stop="openCampaign(item.campaignId)">باز کردن</button>
         </div>
@@ -103,6 +103,14 @@
                   <h3 class="campaign-title">
                     کمپین {{ campaignNumber(campaign) }} ـ {{ campaign.title || 'بدون عنوان' }}
                   </h3>
+                  <button
+                    type="button"
+                    class="campaign-pin-btn"
+                    :class="{ pinned: campaign.pinned }"
+                    :title="campaign.pinned ? 'برداشتن از پین' : 'پین کردن کمپین'"
+                    :aria-label="campaign.pinned ? 'برداشتن از پین' : 'پین کردن کمپین'"
+                    @click.stop="toggleCampaignPin(campaign)"
+                  >📌</button>
                   <span
                     v-if="campaignBanners(campaign).length"
                     class="campaign-banner-indicator"
@@ -686,7 +694,7 @@
                   <tr v-for="row in reportFilteredRows" :key="row._localId">
                     <td class="center">{{ row.campaignTitle }}</td>
                     <td><input v-model="row.fullName" disabled /></td>
-                    <td><input :value="displayPatientPhone(row.phone)" disabled /></td>
+                    <td><input :value="displayPatientPhone(row.phone, row)" disabled /></td>
                     <td class="history-cell">
                       <button
                         type="button"
@@ -1047,14 +1055,14 @@
                         :title="duplicatePhoneTitle(row)"
                       >
                         <input
-                          v-if="canViewPatientPhone"
+                          v-if="canViewCampaignPhone(row)"
                           v-model="row.phone"
                           @input="lookupPatientByPhone(row)"
                           @blur="fillPatientByPhone(row)"
                         />
                         <input
                           v-else
-                          :value="displayPatientPhone(row.phone)"
+                          :value="displayPatientPhone(row.phone, row)"
                           readonly
                           title="نمایش شماره تماس برای این نقش غیرفعال است"
                         />
@@ -1221,7 +1229,7 @@
 
     <div v-if="landingSmsModalOpen" class="landing-sms-modal-overlay" @click.self="closeLandingSmsModal">
       <section class="landing-sms-modal" role="dialog" aria-modal="true">
-        <header><div><small>ارسال پیامک لندینگ</small><h3>{{ activeLandingSmsRow?.fullName || 'مخاطب' }}</h3><p>{{ displayPatientPhone(activeLandingSmsRow?.phone) || 'شماره تماس وارد نشده' }}</p></div><button type="button" @click="closeLandingSmsModal">×</button></header>
+        <header><div><small>ارسال پیامک لندینگ</small><h3>{{ activeLandingSmsRow?.fullName || 'مخاطب' }}</h3><p>{{ displayPatientPhone(activeLandingSmsRow?.phone, activeLandingSmsRow) || 'شماره تماس وارد نشده' }}</p></div><button type="button" @click="closeLandingSmsModal">×</button></header>
         <div class="landing-sms-list">
           <label v-for="tag in landingSmsOptions" :key="landingTagName(tag)" :class="{ selected: landingSmsDraft.includes(landingTagName(tag)), sent: landingSmsWasSent(activeLandingSmsRow, landingTagName(tag)) }">
             <input type="checkbox" :value="landingTagName(tag)" v-model="landingSmsDraft">
@@ -1414,6 +1422,7 @@ export default {
 
   props: {
     permissions: { type: Array, default: () => [] },
+    currentUser: { type: Object, default: () => ({}) },
     appointmentResult: { type: Object, default: null },
     openFollowupRequest: { type: Object, default: null },
   },
@@ -1537,6 +1546,7 @@ export default {
       },
 
       debouncedSaveLocal: null,
+      followupConsultantPhoneRestricted: false,
     };
   },
 
@@ -1549,7 +1559,12 @@ export default {
     },
     archivedCampaigns() { return this.campaigns.filter(c => this.isCampaignArchived(c)); },
     visibleCampaigns: {
-      get() { return this.campaigns.filter(c => this.showArchived ? this.isCampaignArchived(c) : !this.isCampaignArchived(c)); },
+      get() {
+        return this.campaigns
+          .filter(c => this.showArchived ? this.isCampaignArchived(c) : !this.isCampaignArchived(c))
+          .slice()
+          .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
+      },
       set(value) {
         const hidden = this.campaigns.filter(c => this.showArchived ? !this.isCampaignArchived(c) : this.isCampaignArchived(c));
         this.campaigns = [...value, ...hidden];
@@ -1710,6 +1725,7 @@ export default {
   },
 
   mounted() {
+    this.loadFollowupPhoneVisibilitySetting();
     this.loadStaff();
     this.loadDoctors();
     this.loadChannels();
@@ -1775,13 +1791,28 @@ export default {
   },
 
   methods: {
-    displayPatientPhone(value) {
+    displayPatientPhone(value, row = null) {
       const text = String(value || "").trim();
       if (!text) return "";
-      if (this.canViewPatientPhone || text.includes("•") || text.includes("*")) return text;
+      if (this.canViewCampaignPhone(row) || text.includes("•") || text.includes("*")) return text;
       const digits = text.replace(/\D/g, "");
       if (digits.length <= 4) return "••••";
       return `${digits.slice(0, 3)}••••${digits.slice(-2)}`;
+    },
+
+    canViewCampaignPhone(row = null) {
+      if (!this.canViewPatientPhone) return false;
+      if (!this.followupConsultantPhoneRestricted) return true;
+      const consultant = String(row?.consultant || '').trim();
+      if (!consultant) return true;
+      return [this.currentUser?.name, this.currentUser?.nickname].map(value => String(value || '').trim()).filter(Boolean).includes(consultant);
+    },
+
+    async loadFollowupPhoneVisibilitySetting() {
+      try {
+        const { data } = await axios.get('/api/settings');
+        this.followupConsultantPhoneRestricted = Boolean(data.followup_consultant_phone_restricted);
+      } catch { this.followupConsultantPhoneRestricted = false; }
     },
 
     followupHistoryRows(row) {
@@ -2137,6 +2168,9 @@ export default {
     toggleCampaignArchive(campaign) {
       campaign.campaignStatus = this.isCampaignArchived(campaign) ? 'active' : 'archived';
     },
+    toggleCampaignPin(campaign) {
+      campaign.pinned = !campaign.pinned;
+    },
     campaignCpl(campaign) {
       const leads = this.getLeadCount(campaign);
       return leads ? Math.round(this.moneyToNumber(campaign.cost) / leads) : "";
@@ -2339,6 +2373,7 @@ export default {
         attachmentData: this.newCampaign.attachmentData,
         banners: [...this.newCampaign.banners],
         campaignStatus: "active",
+        pinned: false,
         rows: [],
       });
 
@@ -2927,6 +2962,7 @@ export default {
                 data: campaign.attachmentData
               }] : []),
           campaignStatus: ['archived', 'archive', 'آرشیو', 'آرشیو شده', 'آرشیوشده'].includes(String(campaign.campaignStatus || '').trim().toLowerCase()) ? 'archived' : (campaign.campaignStatus || 'active'),
+          pinned: Boolean(campaign.pinned),
           rows: Array.isArray(campaign.rows)
             ? campaign.rows.map((r, idx) => ({
                 _localId: r._localId || `local-${Date.now()}-${idx}`,
@@ -3273,6 +3309,8 @@ export default {
   flex-wrap: wrap;
   margin-bottom: 7px;
 }
+
+.campaign-pin-btn{width:25px;height:25px;display:grid;place-items:center;padding:0;border:1px solid #dbe3ef;border-radius:7px;background:#fff;color:#94a3b8;font-size:13px;line-height:1;filter:grayscale(1);opacity:.62;cursor:pointer;transition:.16s ease}.campaign-pin-btn:hover{border-color:#fbbf24;background:#fffbeb;color:#b45309;filter:none;opacity:1}.campaign-pin-btn.pinned{border-color:#fbbf24;background:#fef3c7;color:#b45309;filter:none;opacity:1}.campaign-card:has(.campaign-pin-btn.pinned){border-color:#fbbf24;box-shadow:0 8px 22px rgba(180,83,9,.12)}
 
 .campaign-banner-indicator {
   width: 22px;

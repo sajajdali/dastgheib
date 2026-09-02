@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\HumanResourceController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\ServiceFollowupController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\RoleController;
@@ -33,6 +34,9 @@ use App\Http\Controllers\Api\PayrollReportController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AutomaticSmsScenarioController;
 use App\Http\Controllers\Api\CalendarController;
+use App\Http\Controllers\Api\ClinicReportController;
+use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\CampaignController;
 
 
 
@@ -85,6 +89,7 @@ Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->middleware('
 Route::post('/patients/{id}/wallet/deposit', [PatientController::class, 'depositWallet']);
 Route::post('/patients/{id}/wallet/withdraw', [PatientController::class, 'withdrawWallet']);
 Route::get('/patients/{patient}/wallet/transactions', [PatientController::class, 'walletTransactions']);
+Route::delete('/patients/{patient}/wallet/deposits/{transaction}', [PatientController::class, 'deleteBookingDeposit']);
 
 // بیماران
 Route::get('/patients/next-file-number', [PatientController::class, 'nextFileNumber'])->middleware('permission:patients.create');
@@ -129,6 +134,12 @@ Route::patch('/attendance/months/{attendanceMonth}', [AttendanceMonthController:
 Route::delete('/attendance/months/{attendanceMonth}', [AttendanceMonthController::class, 'destroy'])->middleware('permission:attendance.manage');
 Route::apiResource('tickets', TicketController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::get('/personal-report', [PersonalReportController::class, 'show']);
+Route::get('/clinic-report/cancellation-rate', [ClinicReportController::class, 'cancellationRate'])->middleware('permission:reports.view');
+Route::get('/reports/dashboard', [ClinicReportController::class, 'dashboard'])->middleware('permission:reports.view');
+Route::get('/reports/drilldown/{metric}', [ClinicReportController::class, 'drilldown'])->middleware('permission:reports.view');
+Route::get('/reports/export', [ClinicReportController::class, 'export'])->middleware('permission:reports.view');
+Route::apiResource('expenses', ExpenseController::class)->middleware('permission:bills.view');
+Route::apiResource('campaigns', CampaignController::class)->middleware('permission:followups.view');
 Route::get('/payroll/resources', [PayrollReportController::class, 'resources'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
 Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
 Route::patch('/payroll/lines/{line}', [PayrollReportController::class, 'updateLine'])->middleware('permission:payroll.view|reports.financial');
@@ -158,6 +169,8 @@ Route::get('/inventory/context', [InventoryController::class, 'context'])->middl
 Route::post('/inventory', [InventoryController::class, 'store'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory/adjust-stock', [InventoryController::class, 'adjustStock'])->middleware('permission:inventory.update');
 Route::get('/inventory/{inventory}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');
+Route::get('/service-followups', [ServiceFollowupController::class, 'index'])->middleware('permission:followups.view');
+Route::patch('/service-followups/{serviceFollowup}', [ServiceFollowupController::class, 'update'])->middleware('permission:followups.view');
 
 // تماس‌ها (FlwUp)
 Route::get('/contacts', [ContactController::class, 'index']);

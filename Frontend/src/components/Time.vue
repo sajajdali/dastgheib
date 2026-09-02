@@ -909,7 +909,64 @@
                     >
 
                       <div class="service-main-row">
+                        <div class="service-choice-row">
+                          <span class="service-row-caption">مسیر خدمت</span>
 
+
+                    <Multiselect
+                      v-model="service.rootSectionId"
+                      :options="serviceRootSectionOptions(row)"
+                      :custom-label="serviceSectionLabel"
+                      :multiple="false"
+                      :searchable="true"
+                      :close-on-select="true"
+                      :clear-on-select="false"
+                      :allow-empty="true"
+                      :disabled="!row.serviceTypes?.length"
+                      :placeholder="row.serviceTypes?.length ? 'انتخاب بخش' : 'ابتدا بخش را انتخاب کنید'"
+                      select-label=""
+                      selected-label="انتخاب شد"
+                      deselect-label="حذف"
+                      class="service-multiselect service-section-multiselect"
+                      @select="onServiceRootSectionChanged(service, row)"
+                      @remove="onServiceRootSectionChanged(service, row)"
+                    />
+
+                    <Multiselect
+                      v-model="service.sectionId"
+                      :options="serviceSubsectionOptions(service, row)"
+                      :custom-label="serviceSectionPathLabel"
+                      :multiple="false"
+                      :searchable="true"
+                      :close-on-select="true"
+                      :clear-on-select="false"
+                      :allow-empty="true"
+                      :disabled="!service.rootSectionId"
+                      :placeholder="service.rootSectionId ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
+                      select-label=""
+                      selected-label="انتخاب شد"
+                      deselect-label="حذف"
+                      class="service-multiselect service-section-multiselect"
+                      @select="onServiceSectionChanged(service, row)"
+                      @remove="onServiceSectionChanged(service, row)"
+                    />
+
+                    <Multiselect
+                      v-if="service.sectionId"
+                      v-model="service.tags"
+                      :options="serviceTagsForSection(service.sectionId)"
+                      :multiple="true"
+                      :searchable="true"
+                      :close-on-select="false"
+                      :clear-on-select="false"
+                      :allow-empty="true"
+                      placeholder="انتخاب تگ‌ها"
+                      select-label=""
+                      selected-label="انتخاب شد"
+                      deselect-label="حذف"
+                      class="service-multiselect service-tags-multiselect"
+                      @input="calculateRowAmount(row)"
+                    />
 
                     <Multiselect
                       v-model="service.name"
@@ -929,6 +986,10 @@
                       @select="onServiceNameChanged(service, row)"
                       @remove="onServiceNameChanged(service, row)"
                     />
+
+                        </div>
+                        <div class="service-details-row">
+                          <span class="service-row-caption">جزئیات همین خدمت</span>
 
                       <select
                         v-model="service.doctor"
@@ -974,16 +1035,17 @@
                       <input
                         v-model="service.cc"
                         type="text"
-                        placeholder="تعداد سی‌سی"
+                        placeholder="تعداد / سی‌سی"
                         class="cc-input"
                         @input="updateRowAmounts(row)"
                       />
 
-                      <span class="service-price-chip">{{ service.name ? `${formatDisplayMoney(serviceLinePrice(service))} تومان` : 'قیمت' }}</span>
-                  <div class="service-discount-wrap">
+                      <span class="service-price-chip">{{ service.name ? `قیمت: ${formatDisplayMoney(serviceLinePrice(service))} تومان` : 'قیمت خدمت' }}</span>
+                  <div class="service-discount-wrap" :class="{ surcharge: service.adjustment_mode === 'surcharge' }">
                     <input v-model="service.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(service, row)">
-                    <span>تخفیف</span>
+                    <span>{{ service.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(service, row)">↻</button>
                   </div>
+                  <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
 
                       <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" @click.stop="addServiceAddon(service)">
                         جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b>+</b>
@@ -997,18 +1059,21 @@
                         -
                       </button>
 
+                        </div>
+
                       </div>
 
                       <div v-if="service.addons?.length" class="service-addons-panel">
                         <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>امکان افزودن چند مورد</small></div>
                         <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
-                          <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="جستجو و انتخاب جانبی" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="calculateRowAmount(row)" @remove="calculateRowAmount(row)" />
+                          <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, row)" @remove="onAddonChanged(service, addon, row)" />
                           <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="updateRowAmounts(row)">
                           <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
-                          <div class="service-discount-wrap addon-discount-wrap">
+                          <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
                             <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, row)">
-                            <span>تخفیف</span>
+                            <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, row)">↻</button>
                           </div>
+                          <label v-if="addon.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="addon.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
                           <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, row)">×</button>
                         </div>
                         <button type="button" class="add-another-addon-btn" @click.stop="addServiceAddon(service)">+ افزودن جانبی دیگر</button>
@@ -1363,11 +1428,11 @@
           <section class="timeline-sms-options">
             <label :class="{ active: activeTimelineDraft.sendAppointmentSms }">
               <input v-model="activeTimelineDraft.sendAppointmentSms" type="checkbox">
-              <span><b>پیامک وقت‌دهی</b><small>تاریخ و ساعت نوبت برای بیمار ارسال شود</small></span>
+              <span><b>پیامک وقت‌دهی</b><small>در انتظار ارسال قرار بگیرد</small></span>
             </label>
             <label :class="{ active: activeTimelineDraft.sendInfoSms }">
               <input v-model="activeTimelineDraft.sendInfoSms" type="checkbox">
-              <span><b>پیامک اطلاعات</b><small>اطلاعات مراجعه برای بیمار ارسال شود</small></span>
+              <span><b>پیامک اطلاعات</b><small>در انتظار ارسال قرار بگیرد</small></span>
             </label>
           </section>
 
@@ -1408,8 +1473,8 @@
               <div class="service-item" v-for="(service, sIndex) in activeTimelineDraft.services" :key="sIndex">
                 <div class="service-main-row">
                   <Multiselect
-                    v-model="service.sectionId"
-                    :options="serviceSectionOptionsForRow(activeTimelineDraft)"
+                    v-model="service.rootSectionId"
+                    :options="serviceRootSectionOptions(activeTimelineDraft)"
                     :custom-label="serviceSectionLabel"
                     :multiple="false"
                     :searchable="true"
@@ -1418,6 +1483,25 @@
                     :allow-empty="true"
                     :disabled="!activeTimelineDraft.serviceTypes?.length"
                     :placeholder="activeTimelineDraft.serviceTypes?.length ? 'انتخاب بخش' : 'ابتدا بخش را انتخاب کنید'"
+                    select-label=""
+                    selected-label="انتخاب شد"
+                    deselect-label="حذف"
+                    class="service-multiselect service-section-multiselect"
+                    @select="onServiceRootSectionChanged(service, activeTimelineDraft)"
+                    @remove="onServiceRootSectionChanged(service, activeTimelineDraft)"
+                  />
+
+                  <Multiselect
+                    v-model="service.sectionId"
+                    :options="serviceSubsectionOptions(service, activeTimelineDraft)"
+                    :custom-label="serviceSectionPathLabel"
+                    :multiple="false"
+                    :searchable="true"
+                    :close-on-select="true"
+                    :clear-on-select="false"
+                    :allow-empty="true"
+                    :disabled="!service.rootSectionId"
+                    :placeholder="service.rootSectionId ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
                     select-label=""
                     selected-label="انتخاب شد"
                     deselect-label="حذف"
@@ -1461,10 +1545,11 @@
 
                   <input v-model="service.cc" type="text" placeholder="تعداد سی‌سی" class="cc-input" @input="updateRowAmounts(activeTimelineDraft)" />
                   <span class="service-price-chip">{{ service.name ? `${formatDisplayMoney(serviceLinePrice(service))} تومان` : 'قیمت' }}</span>
-                  <div class="service-discount-wrap">
+                  <div class="service-discount-wrap" :class="{ surcharge: service.adjustment_mode === 'surcharge' }">
                     <input v-model="service.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(service, activeTimelineDraft)">
-                    <span>تخفیف</span>
+                    <span>{{ service.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(service, activeTimelineDraft)">↻</button>
                   </div>
+                  <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
 
                   <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" @click.stop="addServiceAddon(service)">
                     جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b>+</b>
@@ -1478,13 +1563,14 @@
                 <div v-if="service.addons?.length" class="service-addons-panel">
                   <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>امکان افزودن چند مورد</small></div>
                   <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
-                    <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="جستجو و انتخاب جانبی" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="calculateRowAmount(activeTimelineDraft)" @remove="calculateRowAmount(activeTimelineDraft)" />
+                    <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, activeTimelineDraft)" @remove="onAddonChanged(service, addon, activeTimelineDraft)" />
                     <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="updateRowAmounts(activeTimelineDraft)">
                     <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
-                    <div class="service-discount-wrap addon-discount-wrap">
-                      <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, activeTimelineDraft)">
-                      <span>تخفیف</span>
-                    </div>
+                          <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
+                            <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, activeTimelineDraft)">
+                            <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, activeTimelineDraft)">↻</button>
+                          </div>
+                          <label v-if="addon.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="addon.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
                     <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeTimelineDraft)">×</button>
                   </div>
 
@@ -1714,17 +1800,33 @@
       </section>
     </div>
 
+    <div v-if="smsQueueModalOpen" class="sms-queue-overlay" @click.self="closeSmsQueueModal">
+      <section class="sms-queue-modal" @click.stop>
+        <header><div><span>صف ارسال پیامک</span><h3>{{ !smsQueueConfirmed ? 'تأیید ارسال پیامک‌ها' : smsQueueSending ? 'در حال ارسال پیامک‌ها' : smsQueueCompleted === smsQueue.length ? 'ارسال پیامک‌ها کامل شد' : 'پیامک‌های در انتظار' }}</h3><p>{{ !smsQueueConfirmed ? `${smsQueue.length} پیامک آمادهٔ ارسال است` : `${smsQueueCompleted} از ${smsQueue.length} پیامک پردازش شده است` }}</p></div><button type="button" :disabled="smsQueueSending" @click="closeSmsQueueModal">×</button></header>
+        <section v-if="!smsQueueConfirmed" class="sms-queue-confirm"><span>✉</span><div><strong>پیامک‌های در انتظار آمادهٔ ارسال هستند</strong><p><b>{{ pendingInfoSmsCount }} پیامک اطلاعات</b><b>{{ pendingAppointmentSmsCount }} پیامک وقت‌دهی</b></p><small>آیا از ارسال {{ smsQueue.length }} پیامک اطمینان دارید؟</small></div></section>
+        <template v-else><div class="sms-queue-progress"><span :style="{ width: smsQueue.length ? `${(smsQueueCompleted / smsQueue.length) * 100}%` : '0%' }"></span></div><div class="sms-queue-list"><article v-for="item in smsQueue" :key="item.id" :class="['sms-queue-item', item.status]"><span class="sms-queue-state">{{ item.status === 'sending' ? '…' : item.status === 'sent' ? '✓' : item.status === 'failed' ? '!' : '○' }}</span><div><strong>{{ item.label }}</strong><small>{{ item.row.lastname || 'بیمار' }} — {{ displayPatientPhone(item.row.phone) || 'بدون شماره' }}</small><em v-if="item.status === 'failed'">{{ item.message }} <a v-if="isSmsSettingsDisabled(item.message)" href="#" class="sms-settings-link" @click.prevent="$emit('open-sms-settings')">تنظیمات پیامک</a></em><em v-else-if="item.status === 'sent'">ارسال شد</em><em v-else-if="item.status === 'sending'">در حال ارسال...</em></div></article></div></template>
+        <footer v-if="!smsQueueConfirmed"><span>ارسال واقعی پیامک با تأیید شما آغاز می‌شود.</span><div><button type="button" class="sms-queue-cancel" @click="closeSmsQueueModal">انصراف</button><button type="button" @click="confirmSmsQueue">ارسال پیامک‌ها</button></div></footer><footer v-else><span v-if="smsQueueSending">لطفاً تا پایان ارسال صبر کنید.</span><span v-else-if="smsQueue.some(item => item.status === 'failed')" class="error">برخی پیامک‌ها ارسال نشدند و در انتظار باقی مانده‌اند.</span><span v-else>همهٔ پیامک‌های در انتظار ارسال شدند.</span><button type="button" :disabled="smsQueueSending" @click="closeSmsQueueModal">بستن</button></footer>
+      </section>
+    </div>
+
     <div v-if="completionSmsModalOpen" class="completion-sms-overlay" @click.self="closeCompletionSmsModal">
       <section class="completion-sms-modal" @click.stop>
         <header><div><span>پس از انجام درمان</span><h3>ارسال پیامک‌ها</h3><p>{{ activeCompletionSmsRow?.lastname || 'مراجعه‌کننده' }} — {{ displayPatientPhone(activeCompletionSmsRow?.phone) || 'بدون شماره' }}</p></div><button @click="closeCompletionSmsModal">×</button></header>
-        <div class="completion-sms-list">
-          <label v-for="option in completionSmsOptions" :key="option.key" :class="['completion-sms-card', { sent: completionSmsWasSent(option.key), failed: completionSmsErrors[option.key] }]">
-            <input v-if="!completionSmsWasSent(option.key)" v-model="selectedCompletionSms" type="checkbox" :value="option.key">
-            <span v-else class="completion-sms-success">✓</span>
+        <div v-if="availableCompletionSmsOptions.length" class="completion-sms-list">
+          <label v-for="option in availableCompletionSmsOptions" :key="option.key" :class="['completion-sms-card', { sent: completionSmsWasSent(option.key), failed: completionSmsErrors[option.key] }]">
+            <input v-model="selectedCompletionSms" type="checkbox" :value="option.key">
             <span class="completion-sms-card-icon">{{ option.icon }}</span>
-            <span class="completion-sms-card-content"><strong>{{ option.title }}</strong><small>{{ option.description }}</small><em v-if="completionSmsWasSent(option.key)">ارسال شده</em><em v-else-if="completionSmsErrors[option.key]" class="error">{{ completionSmsErrors[option.key] }}</em></span>
+            <span class="completion-sms-card-content"><strong>{{ option.title }}</strong><small>{{ option.description }}</small><em v-if="completionSmsWasSent(option.key)">ارسال شده — برای ارسال مجدد انتخاب کنید</em><em v-else-if="completionSmsErrors[option.key]" class="error">{{ completionSmsErrors[option.key] }} <a v-if="isSmsSettingsDisabled(completionSmsErrors[option.key])" href="#" class="sms-settings-link" @click.prevent="$emit('open-sms-settings')">تنظیمات پیامک</a></em></span>
           </label>
         </div>
+        <section v-else class="completion-sms-empty">
+          <span class="completion-sms-empty-icon">✉</span>
+          <div>
+            <strong>پیامکی برای ارسال آماده نیست</strong>
+            <p>برای فعال‌سازی، نام الگوی SHSMS را در تنظیمات وارد کنید.</p>
+          </div>
+          <button type="button" @click="$emit('open-sms-settings')">تنظیم پیامک‌ها <span>←</span></button>
+        </section>
         <div v-if="activeCompletionSmsRow?.referrerPhone" class="completion-referral-info">معرف: {{ displayPatientPhone(activeCompletionSmsRow.referrerPhone) }} — مبلغ: {{ formatDisplayMoney(activeCompletionSmsRow.referralScore || 0) }} تومان</div>
         <section v-if="sentCompletionSmsOptions.length" class="completion-sms-history">
           <strong>پیامک‌های ارسال‌شده</strong>
@@ -1893,11 +1995,27 @@
           بدهکاری این جلسه
           <input v-model="financialDebtDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialDebtDraft')">
         </label>
-        <label>
-          ثبت بیعانه جدید
-          <input v-model="financialDepositDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialDepositDraft')">
-          <small>بیعانه در کیف پول بیمار ذخیره و در جلسات بعد قابل استفاده است.</small>
-        </label>
+        <section class="financial-deposit-lines">
+          <header><strong>بیعانه خدمات</strong><b>{{ formatDisplayMoney(financialDepositTotal()) }} تومان</b></header>
+          <p v-if="!financialDepositLines.length" class="financial-deposit-empty">خدمتی انتخاب نشده است.</p>
+          <div v-else class="financial-deposit-line" v-for="line in financialDepositLines" :key="line.key">
+            <span><small>بخش</small><b>{{ line.section || '-' }}</b></span>
+            <span><small>زیر‌بخش</small><b>{{ line.subsection || '-' }}</b></span>
+            <span><small>خدمت</small><b>{{ line.service }}</b></span>
+            <label class="financial-deposit-amount">
+              <span>مبلغ</span>
+              <input v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDepositLine(line)">
+            </label>
+          </div>
+        </section>
+        <section v-if="activeFinancialRow?.patientId" class="financial-deposit-history">
+          <header><strong>بیعانه‌های ثبت‌شده</strong><small v-if="financialDepositHistoryLoading">در حال دریافت...</small></header>
+          <p v-if="!financialDepositHistoryLoading && !financialDepositHistory.length">موردی ثبت نشده است.</p>
+          <article v-for="item in financialDepositHistory" :key="item.id">
+            <div><b>{{ formatDisplayMoney(item.amount) }} تومان</b><small>{{ financialDepositServicesLabel(item) }}</small></div>
+            <button type="button" :disabled="financialDepositDeletingId === item.id" @click="deleteFinancialDeposit(item)">{{ financialDepositDeletingId === item.id ? '...' : 'حذف' }}</button>
+          </article>
+        </section>
         <div class="financial-payment-grid">
           <label>
             روش پرداخت
@@ -2255,13 +2373,22 @@ export default {
       selectedCompletionSms: [],
       completionSmsSending: false,
       completionSmsErrors: {},
+      enabledCompletionSmsTypes: [],
+      smsQueueModalOpen: false,
+      smsQueueSending: false,
+      smsQueueConfirmed: false,
+      smsQueueCompleted: 0,
+      smsQueue: [],
       balanceAuditModalOpen: false,
       balanceAuditLoading: false,
       balanceAuditRows: [],
       financialPanelOpen: false,
       activeFinancialRow: null,
       financialDebtDraft: "",
-      financialDepositDraft: "",
+      financialDepositLines: [],
+      financialDepositHistory: [],
+      financialDepositHistoryLoading: false,
+      financialDepositDeletingId: null,
       financialPaymentMethodDraft: "",
       financialPaymentAccountDraft: "",
       financialCashDraft: "",
@@ -2296,8 +2423,10 @@ export default {
       showDoneFilter: false,
 
       saveTimeout: null,
+      saveRetryTimeout: null,
       saveInProgress: false,
       saveQueued: false,
+      saveRetryCount: 0,
       draftRevision: 0,
       isFetching: true,
       generatingNewMonth: false,
@@ -2425,12 +2554,42 @@ export default {
         .map(option => ({ ...option, sentAt: statuses[option.key] }));
     },
 
+    availableCompletionSmsOptions() {
+      return this.completionSmsOptions.filter(option => this.enabledCompletionSmsTypes.includes(option.key));
+    },
+
+    pendingSmsQueue() {
+      const queue = [];
+      const queued = new Set();
+      this.days.forEach(day => (day.rows || []).forEach(row => {
+        const appointmentKey = row.appointmentId || [day.dayNum, row.phone, row.time].join('|');
+        const addToQueue = (type, label) => {
+          const key = `${appointmentKey}|${type}`;
+          if (queued.has(key)) return;
+          queued.add(key);
+          queue.push({ id: key, type, label, day, row });
+        };
+        if (row.appointmentSms === 'انتظار') addToQueue('appointment', 'پیامک وقت‌دهی');
+        if (row.infoSms === 'انتظار') addToQueue('info', 'پیامک اطلاعات');
+      }));
+      return queue;
+    },
+
+    pendingAppointmentSmsCount() {
+      return this.smsQueue.filter(item => item.type === 'appointment').length;
+    },
+
+    pendingInfoSmsCount() {
+      return this.smsQueue.filter(item => item.type === 'info').length;
+    },
+
     primaryTimelineService() {
       if (!this.activeTimelineDraft) return {};
       if (!Array.isArray(this.activeTimelineDraft.services) || !this.activeTimelineDraft.services.length) {
         this.activeTimelineDraft.services = [{
           name: "",
           sectionId: "",
+          rootSectionId: "",
           cc: "",
           doctor: "",
           consultant: "",
@@ -2517,6 +2676,8 @@ export default {
   beforeUnmount() {
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     clearTimeout(this.highlightedRowTimer);
+    clearTimeout(this.saveTimeout);
+    clearTimeout(this.saveRetryTimeout);
     this.persistPendingDraft();
   },
 
@@ -2974,6 +3135,7 @@ export default {
         draft.services = [{
           name: "",
           sectionId: "",
+          rootSectionId: "",
           cc: "",
           doctor: "",
           consultant: "",
@@ -2985,12 +3147,15 @@ export default {
       draft.services = draft.services.map(service => ({
         name: service.name || "",
         sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name, draft),
+        rootSectionId: service.rootSectionId || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name, draft)),
         cc: service.cc || "",
         doctor: service.doctor || "",
         consultant: service.consultant || "",
         discount: service.discount ? this.formatDisplayMoney(service.discount) : "",
+        adjustment_mode: service.adjustment_mode || "discount",
+        surcharge_for_doctor_commission: Boolean(service.surcharge_for_doctor_commission),
         _lastSavedCc: service._lastSavedCc || 0,
-        addons: Array.isArray(service.addons) ? service.addons.map(addon => ({ ...addon, discount: addon.discount ? this.formatDisplayMoney(addon.discount) : "" })) : []
+        addons: Array.isArray(service.addons) ? service.addons.map(addon => ({ ...addon, discount: addon.discount ? this.formatDisplayMoney(addon.discount) : "", adjustment_mode: addon.adjustment_mode || "discount", surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) })) : []
       }));
       draft.timelineDoctors = Array.isArray(draft.timelineDoctors)
         ? draft.timelineDoctors.slice(0, 2)
@@ -3127,37 +3292,12 @@ export default {
       draft.done = '';
       draft.serviceTypes = [];
       draft.services = (doctors.length ? doctors : ['']).map((doctor, index) => ({
-        name: '', sectionId: '', cc: '', doctor,
+        name: '', sectionId: '', rootSectionId: '', cc: '', doctor,
         consultant: index === 0 ? consultant : '', discount: '', _lastSavedCc: 0, addons: []
       }));
 
-      const smsTypes = [];
-      if (draft.sendAppointmentSms) smsTypes.push('appointment');
-      if (draft.sendInfoSms) smsTypes.push('info');
-      let smsResults = {};
-      if (smsTypes.length) {
-        if (!String(draft.phone || '').trim()) {
-          smsResults = Object.fromEntries(smsTypes.map(type => [type, { success:false, message:'شماره موبایل بیمار وارد نشده است.' }]));
-        } else try {
-          const { data } = await axios.post('/api/sms/appointment', {
-            types: smsTypes,
-            patient_phone: draft.phone,
-            patient_name: draft.lastname,
-            date: this.activeTimelineDay.dateLabel || '',
-            time: draft.time,
-            doctors,
-            consultant
-          });
-          smsResults = data.results || {};
-          if (draft.sendAppointmentSms) draft.appointmentSms = smsResults.appointment?.success ? 'ارسال شد' : 'انتظار';
-          if (draft.sendInfoSms) draft.infoSms = smsResults.info?.success ? 'ارسال شد' : 'انتظار';
-        } catch (error) {
-          const message = error.response?.data?.message || 'ارتباط با سامانه پیامک برقرار نشد.';
-          smsResults = Object.fromEntries(smsTypes.map(type => [type, { success:false, message }]));
-        }
-        if (draft.sendAppointmentSms) draft.appointmentSms = smsResults.appointment?.success ? 'ارسال شد' : 'انتظار';
-        if (draft.sendInfoSms) draft.infoSms = smsResults.info?.success ? 'ارسال شد' : 'انتظار';
-      }
+      if (draft.sendAppointmentSms) draft.appointmentSms = 'انتظار';
+      if (draft.sendInfoSms) draft.infoSms = 'انتظار';
       Object.keys(this.activeTimelineRow).forEach(key => {
         if (!(key in this.activeTimelineDraft) && key !== "_rowId") {
           delete this.activeTimelineRow[key];
@@ -3587,7 +3727,7 @@ export default {
           }
           else this.completionSmsErrors[type] = result.message || 'ارسال ناموفق بود';
         });
-        this.selectedCompletionSms = this.selectedCompletionSms.filter(type => !row.completionSmsStatuses[type]);
+        this.selectedCompletionSms = [];
         if (!Object.keys(this.completionSmsErrors).length) {
           await Swal.fire({ icon:'success', title:'پیامک‌های انتخاب‌شده ارسال شدند', timer:1500, showConfirmButton:false });
           this.completionSmsSending = false;
@@ -3794,10 +3934,7 @@ export default {
         if (cc <= 0) return;
 
         const grossServiceAmount = Number(item.amount || 0) * cc;
-        const serviceAmount = Math.max(
-          grossServiceAmount - Math.min(this.moneyToNumber(service.discount), grossServiceAmount),
-          0
-        );
+        const serviceAmount = this.serviceNetAmount(service, grossServiceAmount);
         const materialCost = Number(item.price || 0) * cc;
         const doctor = this.doctors.find(d => d.name === service.doctor);
         const doctorPercent = Number(doctor?.bonus || 0);
@@ -4178,6 +4315,12 @@ export default {
         };
       }
 
+      const templates = settingsRes.data.sms_settings?.templates || [];
+      this.enabledCompletionSmsTypes = templates
+        .filter(template => ['referral_credit', 'treatment_care', 'payment_link', 'welcome'].includes(template.category)
+          && template.active && String(template.content || '').trim())
+        .map(template => template.category);
+
       if (settingsRes.data.clinic_schedule) {
         this.clinicSchedule = {
           ...this.clinicSchedule,
@@ -4232,12 +4375,16 @@ export default {
             ? item.services.map((s, serviceIndex) => ({
                 name: s.name || "",
                 sectionId: s.sectionId || s.section_id || this.sectionIdForService(s.name),
+                rootSectionId: s.rootSectionId || this.rootSectionIdFor(s.sectionId || s.section_id || this.sectionIdForService(s.name)),
+                tags: Array.isArray(s.tags) ? s.tags : [],
                 cc: s.cc || "",
                 doctor: s.doctor || "",
                 consultant: s.consultant || "",
                 discount: (s.discount || (serviceIndex === 0 ? item.discount : 0)) ? this.formatDisplayMoney(s.discount || item.discount) : "",
+                adjustment_mode: s.adjustment_mode || "discount",
+                surcharge_for_doctor_commission: Boolean(s.surcharge_for_doctor_commission),
                 _lastSavedCc: parseInt(s.cc) || 0
-                ,addons: (s.addons || []).map((addon, index) => ({ name:addon.name || '', cc:addon.cc || '', discount:addon.discount ? this.formatDisplayMoney(addon.discount) : '', _key:`addon-loaded-${index}-${Date.now()}` }))
+                ,addons: (s.addons || []).map((addon, index) => ({ name:addon.name || '', cc:addon.cc || '', discount:addon.discount ? this.formatDisplayMoney(addon.discount) : '', adjustment_mode:addon.adjustment_mode || 'discount', surcharge_for_doctor_commission:Boolean(addon.surcharge_for_doctor_commission), _key:`addon-loaded-${index}-${Date.now()}` }))
               }))
             : [{
                 name: "",
@@ -4362,17 +4509,18 @@ export default {
         this.moneyToNumber(row.originalAmount);
 
       const discount = this.totalServiceDiscount(row);
+      const surcharge = this.totalServiceSurcharge(row);
       row.discount = discount ? this.formatDisplayMoney(discount) : "";
 
       const walletApplied = Math.min(
         this.moneyToNumber(row.walletApplied),
-        Math.max(0, original - discount)
+        Math.max(0, original + surcharge - discount)
       );
       row.walletApplied = walletApplied ? this.formatDisplayMoney(walletApplied) : "";
 
       const finalAmount =
         Math.max(
-          original - discount - walletApplied,
+          original + surcharge - discount - walletApplied,
           0
         );
 
@@ -4409,10 +4557,7 @@ export default {
         if (cc <= 0) return;
 
         const grossServiceAmount = Number(item.amount || 0) * cc;
-        const serviceAmount = Math.max(
-          grossServiceAmount - Math.min(this.moneyToNumber(service.discount), grossServiceAmount),
-          0
-        );
+        const serviceAmount = this.serviceNetAmount(service, grossServiceAmount);
 
         const materialCost =
           Number(item.price || 0) * cc;
@@ -4582,6 +4727,36 @@ export default {
       }
 
       row[field] = `${isNegative ? "-" : ""}${Number(digits).toLocaleString()}`;
+    },
+
+    saveErrorMessage(error) {
+      const message = String(error?.response?.data?.message || '').trim();
+      if (message) return message;
+
+      if (!error?.response) {
+        return 'ارتباط با سرور نوبت‌دهی برقرار نشد. تغییرات شما روی این دستگاه حفظ شده و با برقراری اتصال دوباره ارسال می‌شود.';
+      }
+
+      return 'ذخیره نوبت‌ها با خطای غیرمنتظره روبه‌رو شد. تغییرات شما روی این دستگاه حفظ شده است.';
+    },
+
+    isRetriableSaveError(error) {
+      const status = Number(error?.response?.status || 0);
+      return !status || status === 423 || status === 429 || status >= 500;
+    },
+
+    isSmsSettingsDisabled(message) {
+      return String(message || '').includes('در تنظیمات غیرفعال است');
+    },
+
+    retrySave(error) {
+      if (!this.isRetriableSaveError(error) || this.saveRetryCount >= 3) return false;
+
+      const retryDelays = [700, 1600, 3200];
+      const delay = retryDelays[this.saveRetryCount++] || 3200;
+      clearTimeout(this.saveRetryTimeout);
+      this.saveRetryTimeout = setTimeout(() => this.saveData(0, true), delay);
+      return true;
     },
 
     saveData(delay = 1200, force = false) {
@@ -4764,11 +4939,14 @@ this.calculateFinalAmount(row)
                     row.services.map(s => ({
                       name: s.name || "",
                       section_id: s.sectionId || this.sectionIdForService(s.name, row) || null,
+                      tags: Array.isArray(s.tags) ? s.tags : [],
                       cc: s.cc || "",
                       doctor: s.doctor || "",
                       consultant: s.consultant || "",
-                      discount: this.moneyToNumber(s.discount)
-                      ,addons: (s.addons || []).map(addon => ({ name:addon.name || '', cc:addon.cc || '', discount:this.moneyToNumber(addon.discount) }))
+                      discount: this.moneyToNumber(s.discount),
+                      adjustment_mode: s.adjustment_mode || 'discount',
+                      surcharge_for_doctor_commission: Boolean(s.surcharge_for_doctor_commission),
+                      addons: (s.addons || []).map(addon => ({ name:addon.name || '', cc:addon.cc || '', discount:this.moneyToNumber(addon.discount), adjustment_mode: addon.adjustment_mode || 'discount', surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) }))
                     }))
 
                 });
@@ -4785,6 +4963,7 @@ this.calculateFinalAmount(row)
               }
             );
             saveSucceeded = true;
+            this.saveRetryCount = 0;
 
             if (this.draftRevision === draftRevisionAtRequest) {
               this.clearPendingDraft(month);
@@ -4796,19 +4975,21 @@ this.calculateFinalAmount(row)
 
             if (e.isAuthExpired || [401, 419].includes(e.response?.status)) return;
 
-            Swal.fire({
-              icon: "error",
-              title: "خطا",
-              text: e.response?.data?.message || "ذخیره انجام نشد"
-            });
+            // خطای شبکه و قفل کوتاه‌مدت ماه معمولاً گذرا هستند. ابتدا بدون
+            // مزاحمت کاربر دوباره تلاش می‌کنیم؛ نسخهٔ محلی نیز تا موفقیت حذف نمی‌شود.
+            if (!this.retrySave(e)) {
+              Swal.fire({
+                icon: "error",
+                title: "ذخیره نوبت‌ها انجام نشد",
+                text: this.saveErrorMessage(e)
+              });
+            }
 
           } finally {
             this.saveInProgress = false;
             if (this.saveQueued) {
               this.saveQueued = false;
-              // در خطا (مثلاً قفل موقت ذخیره‌سازی)، تکرار خودکار باعث
-              // باز شدن پی‌درپی مدال خطا می‌شد. تغییرات محلی حفظ می‌شوند
-              // و با تغییر بعدی کاربر دوباره ذخیره خواهند شد.
+              // اگر هم‌زمان با ارسال تغییری آمده است، تنها یک ذخیرهٔ تازه اجرا شود.
               if (saveSucceeded) this.saveData(0);
             }
 
@@ -4873,6 +5054,7 @@ this.calculateFinalAmount(row)
         services: [{
           name: "",
           sectionId: "",
+          rootSectionId: "",
           cc: "",
           doctor: "",
           consultant: "",
@@ -4892,6 +5074,13 @@ this.calculateFinalAmount(row)
       // مبلغ نوبت از «قیمت کالا»ی انبار (فیلد amount) خوانده می‌شود؛
       // فیلد price فقط هزینه مواد است و در مبلغ دریافتی بیمار دخالت ندارد.
       return item ? Number(item.amount || 0) * Math.max(Number(service?.cc || 0), 0) : 0;
+    },
+
+    serviceNetAmount(service, grossAmount = this.serviceLinePrice(service)) {
+      const adjustment = Math.max(0, this.moneyToNumber(service?.discount));
+      return service?.adjustment_mode === 'surcharge'
+        ? grossAmount + adjustment
+        : Math.max(0, grossAmount - Math.min(adjustment, grossAmount));
     },
 
     isDebtor(row) {
@@ -5048,7 +5237,9 @@ this.calculateFinalAmount(row)
       this.financialDebtDraft = this.moneyToNumber(row?.debt)
         ? this.formatDisplayMoney(this.moneyToNumber(row.debt))
         : "";
-      this.financialDepositDraft = "";
+      this.financialDepositLines = this.depositLinesForRow(row);
+      this.financialDepositHistory = [];
+      this.loadFinancialDepositHistory();
       const details = this.normalizePaymentDetails(row?.paymentDetails || {});
       this.financialPaymentMethodDraft = row?.paymentMethod || "";
       this.financialPaymentAccountDraft = row?.paymentAccount || "";
@@ -5065,7 +5256,10 @@ this.calculateFinalAmount(row)
       this.financialPanelOpen = false;
       this.activeFinancialRow = null;
       this.financialDebtDraft = "";
-      this.financialDepositDraft = "";
+      this.financialDepositLines = [];
+      this.financialDepositHistory = [];
+      this.financialDepositHistoryLoading = false;
+      this.financialDepositDeletingId = null;
       this.financialPaymentMethodDraft = "";
       this.financialPaymentAccountDraft = "";
       this.financialCashDraft = "";
@@ -5081,12 +5275,78 @@ this.calculateFinalAmount(row)
       this[field] = amount ? this.formatDisplayMoney(amount) : "";
     },
 
+    depositLinesForRow(row) {
+      return (row?.services || [])
+        .filter(service => String(service?.name || "").trim())
+        .map((service, index) => {
+          const section = this.serviceSections.find(item => String(item.id) === String(service.sectionId || service.section_id || this.sectionIdForService(service.name, row)));
+          const parentId = section?.parent_id || section?.parentId;
+          const parent = parentId ? this.serviceSections.find(item => String(item.id) === String(parentId)) : null;
+
+          return {
+            key: `${service.name}-${section?.id || "none"}-${index}`,
+            section: parent?.name || section?.name || "",
+            subsection: parent ? section?.name || "" : "",
+            service: String(service.name).trim(),
+            amount: ""
+          };
+        });
+    },
+
+    formatFinancialDepositLine(line) {
+      const amount = this.moneyToNumber(line.amount);
+      line.amount = amount ? this.formatDisplayMoney(amount) : "";
+    },
+
+    financialDepositTotal() {
+      return this.financialDepositLines.reduce((total, line) => total + Math.max(0, this.moneyToNumber(line.amount)), 0);
+    },
+
+    async loadFinancialDepositHistory() {
+      const patientId = this.activeFinancialRow?.patientId;
+      if (!patientId) return;
+      this.financialDepositHistoryLoading = true;
+      try {
+        const { data } = await axios.get(`/api/patients/${patientId}/wallet/transactions`);
+        this.financialDepositHistory = (data.transactions || []).filter(item =>
+          item.type === 'deposit' && item.source_type === 'booking_deposit' && !item.reversed_at
+        );
+        if (this.activeFinancialRow) this.activeFinancialRow.walletBalance = Number(data.wallet_balance || 0);
+      } catch {
+        this.financialDepositHistory = [];
+      } finally {
+        this.financialDepositHistoryLoading = false;
+      }
+    },
+
+    financialDepositServicesLabel(item) {
+      return (item?.metadata?.services || []).map(service => [service.section, service.subsection, service.service].filter(Boolean).join(' / ')).filter(Boolean).join('، ') || 'خدمت ثبت نشده';
+    },
+
+    async deleteFinancialDeposit(item) {
+      const result = await Swal.fire({ icon: 'warning', title: 'حذف بیعانه؟', text: 'مبلغ از کیف پول بیمار کسر می‌شود.', showCancelButton: true, confirmButtonText: 'حذف', cancelButtonText: 'انصراف', confirmButtonColor: '#dc2626' });
+      if (!result.isConfirmed || !this.activeFinancialRow?.patientId) return;
+      this.financialDepositDeletingId = item.id;
+      try {
+        const { data } = await axios.delete(`/api/patients/${this.activeFinancialRow.patientId}/wallet/deposits/${item.id}`);
+        this.activeFinancialRow.walletBalance = Number(data.wallet_balance || 0);
+        await this.loadFinancialDepositHistory();
+      } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'حذف انجام نشد', text: error.response?.data?.message || 'خطا در حذف بیعانه' });
+      } finally {
+        this.financialDepositDeletingId = null;
+      }
+    },
+
     async saveFinancialPanel() {
       const row = this.activeFinancialRow;
       if (!row) return;
 
       const newDebt = Math.max(0, this.moneyToNumber(this.financialDebtDraft));
-      const deposit = Math.max(0, this.moneyToNumber(this.financialDepositDraft));
+      const depositLines = this.financialDepositLines
+        .map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)) }))
+        .filter(line => line.amount > 0);
+      const deposit = depositLines.reduce((total, line) => total + line.amount, 0);
       const cash = Math.max(0, this.moneyToNumber(this.financialCashDraft));
       const card = Math.max(0, this.moneyToNumber(this.financialCardDraft));
       const checkAmount = Math.max(0, this.moneyToNumber(this.financialCheckAmountDraft));
@@ -5117,13 +5377,15 @@ this.calculateFinalAmount(row)
         if (deposit > 0) {
           const { data } = await axios.post(`/api/patients/${row.patientId}/wallet/deposit`, {
             amount: deposit,
-            description: `ثبت بیعانه از نوبت‌دهی برای ${row.lastname || "بیمار"}`
+            description: `ثبت بیعانه خدمات از نوبت‌دهی برای ${row.lastname || "بیمار"}`,
+            services: depositLines
           });
           row.walletBalance = Number(data.wallet_balance || 0);
         }
 
         await this.saveData();
-        this.closeFinancialPanel();
+        this.financialDepositLines = this.depositLinesForRow(row);
+        await this.loadFinancialDepositHistory();
         await Swal.fire({ icon: "success", title: "وضعیت مالی ثبت شد", timer: 1100, showConfirmButton: false });
       } catch (error) {
         await Swal.fire({ icon: "error", title: "ثبت انجام نشد", text: error.response?.data?.message || "خطا در ثبت وضعیت مالی بیمار" });
@@ -5443,6 +5705,7 @@ this.calculateFinalAmount(row)
       row.services.push({
         name: "",
         sectionId: this.defaultServiceSectionId(row),
+        rootSectionId: this.rootSectionIdFor(this.defaultServiceSectionId(row)),
         cc: "",
         doctor: "",
         consultant: "",
@@ -5462,6 +5725,7 @@ this.calculateFinalAmount(row)
         row.services.push({
           name: "",
           sectionId: "",
+          rootSectionId: "",
           cc: "",
           doctor: "",
           consultant: "",
@@ -5607,6 +5871,7 @@ this.calculateFinalAmount(row)
         '.filter-btn',
         '.service-popup',
         '.service-mini-btn',
+        '.swal2-container',
         '.section-filter-menu',
         '.section-filter-toggle',
         '.service-type-picker'
@@ -5698,7 +5963,60 @@ this.calculateFinalAmount(row)
       });
     },
 
-    openSmsPanel() {},
+    openSmsPanel() {
+      this.smsQueue = this.pendingSmsQueue.map(item => ({ ...item, status: 'waiting', message: '' }));
+      this.smsQueueCompleted = 0;
+      this.smsQueueConfirmed = false;
+      this.smsQueueModalOpen = true;
+    },
+
+    confirmSmsQueue() {
+      if (!this.smsQueue.length) return;
+      this.smsQueueConfirmed = true;
+      this.$nextTick(() => this.sendPendingSmsQueue());
+    },
+
+    closeSmsQueueModal() {
+      if (this.smsQueueSending) return;
+      this.smsQueueModalOpen = false;
+      this.smsQueue = [];
+      this.smsQueueConfirmed = false;
+    },
+
+    async sendPendingSmsQueue() {
+      if (this.smsQueueSending) return;
+      this.smsQueueSending = true;
+
+      for (const item of this.smsQueue) {
+        item.status = 'sending';
+        try {
+          const doctors = String(item.row.doctor || '').split('،').map(value => value.trim()).filter(Boolean).slice(0, 2);
+          const { data } = await axios.post('/api/sms/appointment', {
+            types: [item.type],
+            patient_phone: item.row.phone,
+            patient_name: item.row.lastname,
+            date: item.day.dateLabel || '',
+            time: item.row.time || '',
+            doctors,
+            consultant: item.row.consultant || ''
+          });
+          const result = data.results?.[item.type];
+          if (!result?.success) throw new Error(result?.message || 'ارسال پیامک ناموفق بود.');
+
+          item.status = 'sent';
+          if (item.type === 'appointment') item.row.appointmentSms = 'ارسال شد';
+          if (item.type === 'info') item.row.infoSms = 'ارسال شد';
+        } catch (error) {
+          item.status = 'failed';
+          item.message = error.response?.data?.message || error.message || 'ارسال پیامک ناموفق بود.';
+        } finally {
+          this.smsQueueCompleted += 1;
+        }
+      }
+
+      this.smsQueueSending = false;
+      this.saveData(0);
+    },
 
     startResize(event, column) {
       if (event.button !== 0) return;
@@ -5849,7 +6167,11 @@ this.calculateFinalAmount(row)
     addServiceAddon(service) {
       if (!service.name) return;
       if (!Array.isArray(service.addons)) service.addons = [];
-      service.addons.push({ name:"", cc:"1", discount:"", _key:`addon-${Date.now()}-${Math.random()}` });
+      service.addons.push({
+        name: "", cc: "1", discount: "", inventory_id: null,
+        section_id: service.sectionId || null, parent_service: service.name,
+        _key: `addon-${Date.now()}-${Math.random()}`
+      });
     },
 
     removeServiceAddon(service, index, row) {
@@ -5860,6 +6182,17 @@ this.calculateFinalAmount(row)
     serviceAddonOptions(service, currentAddon) {
       const selected = new Set((service.addons || []).filter(addon => addon !== currentAddon).map(addon => addon.name));
       return this.inventoryItems.filter(item => item.active !== false && String(item.section_id) === String(service.sectionId)).map(item => item.name).filter(name => name && name !== service.name && !selected.has(name));
+    },
+
+    onAddonChanged(service, addon, row) {
+      const inventory = this.inventoryItems.find(item =>
+        item.name === addon.name && String(item.section_id) === String(service.sectionId)
+      );
+      addon.inventory_id = inventory?.id || null;
+      addon.section_id = service.sectionId || null;
+      addon.parent_service = service.name || '';
+      if (!addon.name) addon.cc = '';
+      this.calculateRowAmount(row);
     },
 
     sectionIdForService(serviceName, row = null) {
@@ -5873,6 +6206,43 @@ this.calculateFinalAmount(row)
 
     serviceSectionLabel(sectionId) {
       return this.serviceSections.find(section => String(section.id) === String(sectionId))?.name || "";
+    },
+
+    rootSectionIdFor(sectionId) {
+      let section = this.serviceSections.find(item => String(item.id) === String(sectionId));
+      const visited = new Set();
+      while (section && (section.parent_id || section.parentId) && !visited.has(String(section.id))) {
+        visited.add(String(section.id));
+        section = this.serviceSections.find(item => String(item.id) === String(section.parent_id || section.parentId));
+      }
+      return section?.id || '';
+    },
+
+    serviceSectionPathLabel(sectionId) {
+      const names = [];
+      let section = this.serviceSections.find(item => String(item.id) === String(sectionId));
+      const visited = new Set();
+      while (section && !visited.has(String(section.id))) {
+        names.unshift(section.name);
+        visited.add(String(section.id));
+        section = this.serviceSections.find(item => String(item.id) === String(section.parent_id || section.parentId || ''));
+      }
+      return names.join(' / ');
+    },
+
+    serviceRootSectionOptions(row) {
+      return this.normalizeServiceSectionIds(row?.serviceTypes)
+        .map(id => this.serviceSections.find(section => String(section.id) === String(id))?.id)
+        .filter(value => value !== undefined);
+    },
+
+    serviceSubsectionOptions(service, row) {
+      const rootId = String(service?.rootSectionId || '');
+      if (!rootId) return [];
+      const allowed = new Set(this.serviceSectionScopeIds(row?.serviceTypes));
+      return this.serviceSectionScopeIds([rootId])
+        .filter(id => allowed.has(String(id)))
+        .filter(id => this.inventoryItems.some(item => item.active !== false && String(item.section_id) === String(id)));
     },
 
     normalizeServiceSectionIds(values) {
@@ -5949,9 +6319,12 @@ this.calculateFinalAmount(row)
       const allowed = new Set(this.serviceSectionScopeIds(row.serviceTypes));
       (row.services || []).forEach(service => {
         if (!service.sectionId) service.sectionId = this.defaultServiceSectionId(row);
+        if (!service.rootSectionId) service.rootSectionId = this.rootSectionIdFor(service.sectionId);
         if (service.sectionId && !allowed.has(String(service.sectionId))) {
           service.sectionId = '';
+          service.rootSectionId = '';
           service.name = '';
+          service.tags = [];
           service.doctor = '';
           service.cc = '';
           service.addons = [];
@@ -5976,11 +6349,38 @@ this.calculateFinalAmount(row)
         .filter(Boolean);
     },
 
+    serviceTagsForSection(sectionId) {
+      const scopedSectionIds = new Set(this.serviceSectionScopeIds([sectionId]).map(String));
+      return [...new Set(this.inventoryItems
+        .filter(item => item.active !== false && scopedSectionIds.has(String(item.section_id)))
+        .flatMap(item => item.service_tags || item.serviceTags || [])
+        .map(tag => String(tag).trim())
+        .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
+    },
+
     onServiceSectionChanged(service, row) {
       this.$nextTick(() => {
+        service.tags = [];
         if (service.name && !this.serviceOptionsFor(service, row).includes(service.name)) {
           service.name = "";
+          service.tags = [];
           service.cc = "";
+          service.addons = [];
+        }
+        this.calculateRowAmount(row);
+      });
+    },
+
+    onServiceRootSectionChanged(service, row) {
+      this.$nextTick(() => {
+        service.tags = [];
+        const validSections = new Set(this.serviceSubsectionOptions(service, row).map(String));
+        if (!validSections.has(String(service.sectionId || ''))) {
+          service.sectionId = '';
+          service.name = '';
+          service.tags = [];
+          service.doctor = '';
+          service.cc = '';
           service.addons = [];
         }
         this.calculateRowAmount(row);
@@ -5992,6 +6392,7 @@ this.calculateFinalAmount(row)
         const sectionId = this.sectionIdForService(service.name, row);
         if (sectionId && String(service.sectionId || "") !== String(sectionId)) {
           service.sectionId = sectionId;
+          service.rootSectionId = this.rootSectionIdFor(sectionId);
           service.addons = [];
         }
         if (!service.name) {
@@ -6277,7 +6678,7 @@ smsColor(val) {
       if (this.moneyToNumber(row.walletApplied) > 0) {
         row.walletApplied = '';
       } else {
-        const payable = Math.max(0, this.moneyToNumber(row.originalAmount) - this.totalServiceDiscount(row));
+        const payable = Math.max(0, this.moneyToNumber(row.originalAmount) + this.totalServiceSurcharge(row) - this.totalServiceDiscount(row));
         const amount = Math.min(payable, this.moneyToNumber(row.walletBalance));
         row.walletApplied = amount > 0 ? this.formatDisplayMoney(amount) : '';
       }
@@ -6287,14 +6688,35 @@ smsColor(val) {
 
     handleServiceDiscountInput(service, row) {
       const price = this.serviceLinePrice(service);
-      const discount = Math.min(this.moneyToNumber(service.discount), price);
-      service.discount = discount ? this.formatDisplayMoney(discount) : "";
+      const amount = Math.max(0, this.moneyToNumber(service.discount));
+      const adjustment = service.adjustment_mode === 'surcharge' ? amount : Math.min(amount, price);
+      service.discount = adjustment ? this.formatDisplayMoney(adjustment) : "";
       this.calculateFinalAmount(row);
+    },
+
+    async toggleServiceAdjustment(service, row) {
+      const surcharge = service.adjustment_mode !== 'surcharge';
+      const result = await Swal.fire({
+        icon: 'info',
+        title: surcharge ? 'تغییر به مازاد' : 'تغییر به تخفیف',
+        text: surcharge ? 'مبلغی که وارد می‌کنید به مبلغ خدمت اضافه می‌شود.' : 'مبلغی که وارد می‌کنید از مبلغ خدمت کم می‌شود.',
+        showCancelButton: true,
+        confirmButtonText: 'تأیید',
+        cancelButtonText: 'انصراف'
+      });
+      if (!result.isConfirmed) return;
+      service.adjustment_mode = surcharge ? 'surcharge' : 'discount';
+      this.handleServiceDiscountInput(service, row);
     },
 
     totalServiceDiscount(row) {
       return this.expandedServices(row).reduce((total, service) =>
-        total + Math.min(this.moneyToNumber(service.discount), this.serviceLinePrice(service)), 0);
+        total + (service.adjustment_mode === 'surcharge' ? 0 : Math.min(this.moneyToNumber(service.discount), this.serviceLinePrice(service))), 0);
+    },
+
+    totalServiceSurcharge(row) {
+      return this.expandedServices(row).reduce((total, service) =>
+        total + (service.adjustment_mode === 'surcharge' ? Math.max(0, this.moneyToNumber(service.discount)) : 0), 0);
     },
 
     calculateRowAmount(row) {
@@ -7297,7 +7719,8 @@ smsColor(val) {
 .swal2-container {
   z-index: 1100000 !important;
 }
-.completion-sms-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.6);backdrop-filter:blur(5px)}.completion-sms-modal{width:min(680px,96vw);overflow:hidden;border-radius:24px;background:#f8fafc;box-shadow:0 28px 80px rgba(15,23,42,.4);direction:rtl}.completion-sms-modal>header{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px;background:linear-gradient(135deg,#eff6ff,#ecfdf5);border-bottom:1px solid #dbeafe}.completion-sms-modal header span{font-size:11px;font-weight:900;color:#2563eb}.completion-sms-modal header h3{margin:4px 0;font-size:22px;color:#0f172a}.completion-sms-modal header p{margin:0;color:#64748b;font-size:13px}.completion-sms-modal header button{width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#64748b;font-size:25px;cursor:pointer}.completion-sms-list{display:grid;gap:10px;padding:18px}.completion-sms-card{position:relative;display:flex;align-items:center;gap:12px;padding:14px;border:2px solid #e2e8f0;border-radius:15px;background:#fff;cursor:pointer;transition:.18s}.completion-sms-card:hover{border-color:#93c5fd;transform:translateY(-1px)}.completion-sms-card.sent{border-color:#4ade80;background:#f0fdf4;cursor:default}.completion-sms-card.failed{border-color:#fca5a5;background:#fff7f7}.completion-sms-card input{width:18px;height:18px;accent-color:#2563eb}.completion-sms-card-icon{font-size:25px}.completion-sms-card-content{display:flex;flex-direction:column;gap:3px;flex:1}.completion-sms-card-content strong{color:#1e293b;font-size:14px}.completion-sms-card-content small{color:#64748b}.completion-sms-card-content em{color:#15803d;font-style:normal;font-size:11px;font-weight:900}.completion-sms-card-content em.error{color:#dc2626}.completion-sms-success{width:21px;height:21px;display:grid;place-items:center;border-radius:50%;background:#22c55e;color:#fff;font-weight:900}.completion-referral-info{margin:0 18px 15px;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:800}.completion-sms-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 18px;border-top:1px solid #e2e8f0;background:#fff}.completion-sms-modal footer button{padding:10px 17px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.completion-sms-cancel{background:#e2e8f0;color:#475569}.completion-sms-send{background:#2563eb;color:#fff}.completion-sms-send:disabled{opacity:.55;cursor:not-allowed}
+.sms-queue-overlay{position:fixed;inset:0;z-index:1000001;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.62);backdrop-filter:blur(5px)}.sms-queue-modal{width:min(590px,96vw);overflow:hidden;border-radius:23px;background:#f8fafc;box-shadow:0 28px 80px rgba(15,23,42,.42);direction:rtl}.sms-queue-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px;background:linear-gradient(135deg,#eff6ff,#ecfdf5);border-bottom:1px solid #dbeafe}.sms-queue-modal header span{font-size:11px;font-weight:900;color:#2563eb}.sms-queue-modal header h3{margin:4px 0;color:#0f172a;font-size:21px}.sms-queue-modal header p{margin:0;color:#64748b;font-size:12px}.sms-queue-modal header button{width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#64748b;font-size:25px;cursor:pointer}.sms-queue-confirm{display:flex;align-items:center;gap:13px;margin:20px;padding:18px;border:1px solid #bfdbfe;border-radius:16px;background:linear-gradient(135deg,#eff6ff,#f0fdfa)}.sms-queue-confirm>span{display:grid;flex:0 0 45px;width:45px;height:45px;place-items:center;border-radius:14px;background:#dbeafe;color:#2563eb;font-size:22px}.sms-queue-confirm div{display:grid;gap:5px}.sms-queue-confirm strong{color:#1e3a8a;font-size:14px}.sms-queue-confirm p{display:flex;gap:7px;margin:0}.sms-queue-confirm p b{padding:4px 8px;border-radius:99px;background:#fff;color:#2563eb;font-size:10px}.sms-queue-confirm small{color:#475569;font-size:11px;font-weight:700}.sms-queue-progress{height:7px;background:#dbeafe}.sms-queue-progress span{display:block;height:100%;border-radius:0 0 0 8px;background:linear-gradient(90deg,#2563eb,#22c55e);transition:width .35s ease}.sms-queue-list{display:grid;gap:9px;max-height:340px;overflow:auto;padding:18px}.sms-queue-item{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#fff}.sms-queue-state{display:grid;flex:0 0 26px;width:26px;height:26px;place-items:center;border-radius:50%;background:#e2e8f0;color:#64748b;font-weight:1000}.sms-queue-item div{display:grid;gap:2px}.sms-queue-item strong{color:#1e293b;font-size:12px}.sms-queue-item small{color:#64748b;font-size:10px}.sms-queue-item em{font-size:10px;font-style:normal;font-weight:800}.sms-queue-item.sending{border-color:#93c5fd;background:#eff6ff}.sms-queue-item.sending .sms-queue-state{background:#2563eb;color:#fff}.sms-queue-item.sent{border-color:#86efac;background:#f0fdf4}.sms-queue-item.sent .sms-queue-state{background:#16a34a;color:#fff}.sms-queue-item.sent em{color:#15803d}.sms-queue-item.failed{border-color:#fecaca;background:#fff7f7}.sms-queue-item.failed .sms-queue-state{background:#dc2626;color:#fff}.sms-queue-item.failed em{color:#b91c1c}.sms-queue-modal>footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-top:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:11px;font-weight:700}.sms-queue-modal>footer div{display:flex;gap:8px}.sms-queue-modal>footer .error{color:#b45309}.sms-queue-modal>footer button{padding:10px 17px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:900 11px inherit;cursor:pointer}.sms-queue-modal>footer .sms-queue-cancel{background:#e2e8f0;color:#475569}.sms-queue-modal>footer button:disabled{opacity:.55;cursor:not-allowed}
+.completion-sms-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.6);backdrop-filter:blur(5px)}.completion-sms-modal{width:min(680px,96vw);overflow:hidden;border-radius:24px;background:#f8fafc;box-shadow:0 28px 80px rgba(15,23,42,.4);direction:rtl}.completion-sms-modal>header{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px;background:linear-gradient(135deg,#eff6ff,#ecfdf5);border-bottom:1px solid #dbeafe}.completion-sms-modal header span{font-size:11px;font-weight:900;color:#2563eb}.completion-sms-modal header h3{margin:4px 0;font-size:22px;color:#0f172a}.completion-sms-modal header p{margin:0;color:#64748b;font-size:13px}.completion-sms-modal header button{width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#64748b;font-size:25px;cursor:pointer}.completion-sms-list{display:grid;gap:10px;padding:18px}.completion-sms-empty{display:flex;align-items:center;gap:13px;margin:18px;padding:18px;border:1px dashed #93c5fd;border-radius:16px;background:linear-gradient(135deg,#eff6ff,#f0fdfa)}.completion-sms-empty-icon{display:grid;flex:0 0 42px;width:42px;height:42px;place-items:center;border-radius:13px;background:#dbeafe;color:#2563eb;font-size:21px}.completion-sms-empty div{display:grid;gap:3px;flex:1}.completion-sms-empty strong{color:#1e3a8a;font-size:14px}.completion-sms-empty p{margin:0;color:#64748b;font-size:11px;line-height:1.8}.completion-sms-empty button{display:flex;align-items:center;gap:7px;padding:10px 13px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:900 11px inherit;cursor:pointer;box-shadow:0 5px 12px rgba(37,99,235,.2);transition:.18s}.completion-sms-empty button:hover{background:#1d4ed8;transform:translateY(-1px)}.completion-sms-card{position:relative;display:flex;align-items:center;gap:12px;padding:14px;border:2px solid #e2e8f0;border-radius:15px;background:#fff;cursor:pointer;transition:.18s}.completion-sms-card:hover{border-color:#93c5fd;transform:translateY(-1px)}.completion-sms-card.sent{border-color:#4ade80;background:#f0fdf4;cursor:default}.completion-sms-card.failed{border-color:#fca5a5;background:#fff7f7}.completion-sms-card input{width:18px;height:18px;accent-color:#2563eb}.completion-sms-card-icon{font-size:25px}.completion-sms-card-content{display:flex;flex-direction:column;gap:3px;flex:1}.completion-sms-card-content strong{color:#1e293b;font-size:14px}.completion-sms-card-content small{color:#64748b}.completion-sms-card-content em{color:#15803d;font-style:normal;font-size:11px;font-weight:900}.completion-sms-card-content em.error{color:#dc2626}.completion-sms-success{width:21px;height:21px;display:grid;place-items:center;border-radius:50%;background:#22c55e;color:#fff;font-weight:900}.completion-referral-info{margin:0 18px 15px;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:800}.completion-sms-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 18px;border-top:1px solid #e2e8f0;background:#fff}.completion-sms-modal footer button{padding:10px 17px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.completion-sms-cancel{background:#e2e8f0;color:#475569}.completion-sms-send{background:#2563eb;color:#fff}.completion-sms-send:disabled{opacity:.55;cursor:not-allowed}
 .tracking-modal-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.tracking-modal{width:min(720px,96vw);overflow:hidden;border-radius:22px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.38);direction:rtl}.tracking-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px;background:#f8fafc;border-bottom:1px solid #e2e8f0}.tracking-modal header span{color:#2563eb;font-size:11px;font-weight:900}.tracking-modal header h3{margin:4px 0;color:#0f172a;font-size:21px}.tracking-modal header p{margin:0;color:#64748b;font-size:13px}.tracking-modal header button{width:34px;height:34px;border:0;border-radius:50%;background:#e2e8f0;color:#475569;font-size:24px;cursor:pointer}.tracking-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:18px}.tracking-grid article{min-height:92px;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.tracking-grid article small{color:#64748b;font-size:12px;font-weight:800}.tracking-grid article strong{color:#0f172a;font-size:18px}.tracking-grid article.late{border-color:#fecaca;background:#fff7f7}.tracking-grid article.late strong{color:#b91c1c}.tracking-grid article.good{border-color:#bbf7d0;background:#f0fdf4}.tracking-grid article.good strong{color:#15803d}@media(max-width:700px){.tracking-grid{grid-template-columns:1fr}.tracking-modal>header{padding:18px}}
 .tracking-time-value{width:fit-content;padding:0;border:0;background:transparent;color:#0f172a;font-family:inherit;font-size:18px;font-weight:1000;line-height:1.4;cursor:pointer}.tracking-time-value:hover{color:#2563eb;text-decoration:underline;text-underline-offset:4px}.tracking-edit-panel{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 18px 18px;padding:14px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff}.tracking-edit-panel label{display:flex;flex-direction:column;gap:7px;color:#1e40af;font-size:12px;font-weight:900}.tracking-edit-panel input{width:150px;height:40px;border:1px solid #93c5fd;border-radius:10px;background:#fff;color:#0f172a;font-family:Tahoma,sans-serif;font-size:16px;font-weight:900;text-align:center;direction:ltr}.tracking-edit-panel div{display:flex;gap:8px}.tracking-edit-panel button{height:38px;padding:0 14px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.tracking-edit-cancel{background:#dbeafe;color:#1e40af}.tracking-edit-save{background:#2563eb;color:#fff}.tracking-edit-save:disabled{opacity:.55;cursor:not-allowed}
 .tracking-financial-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0 18px 18px}.tracking-financial-grid article{min-height:82px;display:flex;flex-direction:column;justify-content:center;gap:7px;padding:13px;border:1px solid #d1fae5;border-radius:13px;background:#f0fdf4}.tracking-financial-grid small{color:#047857;font-size:11px;font-weight:900}.tracking-financial-grid strong{color:#064e3b;font-size:15px;font-weight:1000}@media(max-width:900px){.tracking-financial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.tracking-financial-grid{grid-template-columns:1fr}}
@@ -8269,7 +8692,8 @@ td.row-action-col {
   margin-bottom: 8px;
 }
 .service-main-row{display:flex;align-items:center;gap:6px;direction:rtl;width:100%;flex-wrap:wrap}.service-main-row .service-multiselect{flex:1.35 1 220px;min-width:205px;text-align:right;direction:rtl}.service-main-row .service-select{flex:0 1 118px;min-width:108px;text-align:right;direction:rtl}.service-main-row input{text-align:right;direction:rtl}.service-price-chip{flex:0 0 96px;min-width:96px;max-width:96px;height:32px;display:flex;align-items:center;justify-content:center;padding:0 6px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;color:#1d4ed8;font-size:9.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.addon-price-chip{min-width:95px;background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
-.service-discount-wrap{position:relative;flex:0 0 112px;height:32px}.service-discount-input{width:100%!important;height:32px!important;padding:0 7px 0 43px!important;border:1px solid #fecaca!important;border-radius:7px!important;background:#fff7f7!important;color:#b91c1c!important;font-family:inherit;font-size:10px!important;font-weight:900}.service-discount-wrap>span{position:absolute;left:6px;top:50%;transform:translateY(-50%);padding:2px 5px;border-radius:5px;background:#fee2e2;color:#b91c1c;font-size:8px;font-weight:1000;pointer-events:none}.addon-discount-wrap{flex-basis:112px}
+.service-discount-wrap{position:relative;flex:0 0 112px;height:32px}.service-discount-input{width:100%!important;height:32px!important;padding:0 7px 0 45px!important;border:1px solid #fecaca!important;border-radius:7px!important;background:#fff7f7!important;color:#b91c1c!important;font-family:inherit;font-size:10px!important;font-weight:900}.service-discount-wrap>span{position:absolute;left:20px;top:50%;transform:translateY(-50%);padding:2px 3px;border-radius:5px;background:#fee2e2;color:#b91c1c;font-size:8px;font-weight:1000;pointer-events:none}.service-discount-wrap>button{position:absolute;left:3px;top:50%;transform:translateY(-50%);width:15px;height:17px;padding:0;border:0;border-radius:4px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:12px;line-height:1;cursor:pointer}.service-discount-wrap.surcharge .service-discount-input{border-color:#bfdbfe!important;background:#eff6ff!important;color:#1d4ed8!important}.service-discount-wrap.surcharge>span,.service-discount-wrap.surcharge>button{background:#dbeafe;color:#1d4ed8}.addon-discount-wrap{flex-basis:112px}
+.surcharge-commission-toggle{display:inline-flex!important;align-items:center;gap:4px;height:28px;margin:0!important;padding:0 6px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;color:#1d4ed8;font-size:9px!important;font-weight:900;white-space:nowrap;cursor:pointer}.surcharge-commission-toggle input{width:13px!important;height:13px!important;margin:0!important;accent-color:#2563eb}
 .service-addon-toggle{height:32px;display:flex;align-items:center;gap:4px;padding:0 8px;border:1px solid #c4b5fd;border-radius:7px;background:#f5f3ff;color:#6d28d9;font-family:inherit;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer}.service-addon-toggle:disabled{opacity:.45;cursor:not-allowed}.service-addon-toggle.active{background:#ede9fe;border-color:#8b5cf6}.service-addon-toggle span{display:grid;place-items:center;min-width:17px;height:17px;border-radius:9px;background:#7c3aed;color:#fff}.service-addons-panel{flex:0 0 100%;width:100%;margin-top:4px;padding:10px;border:1px dashed #c4b5fd;border-radius:11px;background:#faf8ff}.service-addons-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:#5b21b6;font-size:11px;font-weight:900}.service-addons-title small{color:#8b5cf6;font-weight:500}.service-addon-row{display:flex;align-items:center;gap:7px;margin-top:6px}.service-addon-multiselect{flex:1;min-width:220px}.addon-cc-input{width:95px!important}.remove-addon-btn{width:29px;height:29px;border:0;border-radius:7px;background:#fee2e2;color:#dc2626;font-size:18px;cursor:pointer}.add-another-addon-btn{margin-top:8px;padding:6px 10px;border:1px solid #ddd6fe;border-radius:7px;background:#fff;color:#6d28d9;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
 .service-addons-panel{margin-top:7px;direction:rtl;text-align:right}.service-addon-row{direction:rtl}.service-addon-multiselect,.service-addon-multiselect .multiselect__input,.service-addon-multiselect .multiselect__single,.service-addon-multiselect .multiselect__placeholder{text-align:right!important;direction:rtl}.service-addon-multiselect .multiselect__tags{padding-right:9px;padding-left:35px}
 .service-section-select{flex:0 0 145px!important;max-width:145px}
@@ -9262,4 +9686,8 @@ td.st-arrived select {
 .time-profile-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}.time-profile-section-head h4{margin:0;color:#0f172a;font-size:15px}.time-profile-section-head span{color:#64748b;font-size:10px;font-weight:800}.time-profile-details{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.time-profile-details-grid article{min-width:0;padding:9px 10px;border:1px solid #edf2f7;border-radius:10px;background:#f8fafc}.time-profile-details-grid span{display:block;margin-bottom:4px;color:#64748b;font-size:9px;font-weight:900}.time-profile-details-grid strong{display:block;overflow:hidden;color:#334155;font-size:11px;font-weight:900;line-height:1.7;text-overflow:ellipsis;white-space:nowrap}.time-profile-details-grid article:has(span:first-child:last-child){display:none}.time-profile-media{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-photo-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.time-profile-photo-list a{display:block;aspect-ratio:1;overflow:hidden;border:1px solid #e2e8f0;border-radius:10px;background:#f1f5f9}.time-profile-photo-list img{width:100%;height:100%;object-fit:cover;transition:transform .18s ease}.time-profile-photo-list a:hover img{transform:scale(1.06)}@media(max-width:700px){.time-profile-details-grid{grid-template-columns:1fr 1fr}.time-profile-photo-list{grid-template-columns:repeat(3,minmax(0,1fr))}.time-profile-details-grid strong{white-space:normal}.time-profile-modal{width:min(100%,96vw)}}
 .time-profile-history{overflow:auto}.time-profile-history table{min-width:960px}
 .financial-debt-payment{width:100%;display:grid;gap:3px;margin:0 0 13px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;font-size:13px;font-weight:1000;cursor:pointer}.financial-debt-payment small{color:#15803d;font-size:10px;font-weight:800}.financial-debt-payment:disabled{opacity:.55;cursor:wait}
+.service-main-row{display:grid!important;gap:0!important;padding:8px;border:1px solid #bfdbfe;border-radius:11px;background:#f8fbff}.service-choice-row,.service-details-row{position:relative;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:22px 0 8px;border:0;border-radius:0;background:transparent}.service-details-row{border-top:1px dashed #cbd5e1}.service-row-caption{position:absolute;top:6px;right:1px;color:#2563eb;font-size:9px;font-weight:1000}.service-details-row .service-row-caption{color:#64748b}.service-choice-row .service-multiselect:first-of-type,.service-choice-row .service-multiselect:nth-of-type(2){flex:0 1 150px!important;min-width:130px!important;max-width:none!important}.service-choice-row .service-multiselect:last-of-type{flex:1 1 260px!important;min-width:220px!important}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}
+.financial-deposit-lines{display:grid;gap:6px;margin-top:13px;padding:10px;border:1px solid #d7e6dd;border-radius:11px;background:#fafdfb}.financial-deposit-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-lines>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-line{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(90px,.9fr) minmax(120px,1.25fr) 135px;gap:8px;align-items:end;padding:8px 9px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}.financial-deposit-line>span,.financial-deposit-amount{display:grid;gap:3px;min-width:0}.financial-deposit-line small,.financial-deposit-amount span{color:#64748b;font-size:9px;font-weight:800}.financial-deposit-line b{overflow:hidden;color:#334155;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-amount{margin:0!important;color:#166534!important;font-size:10px!important;font-weight:900}.financial-deposit-amount input{height:35px!important;min-width:0}.financial-deposit-empty{margin:0;padding:8px;color:#64748b;font-size:10px;font-weight:800}@media(max-width:620px){.financial-deposit-line{grid-template-columns:1fr 1fr}.financial-deposit-amount{grid-column:1/-1}}
+.financial-deposit-history{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0}.financial-deposit-history>header{display:flex;align-items:center;justify-content:space-between;color:#334155;font-size:11px}.financial-deposit-history>header small,.financial-deposit-history>p{margin:0;color:#94a3b8;font-size:9px}.financial-deposit-history article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}.financial-deposit-history article>div{display:grid;gap:2px;min-width:0}.financial-deposit-history article b{color:#15803d;font-size:11px}.financial-deposit-history article small{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-history button{height:28px;padding:0 9px;border:1px solid #fecaca;border-radius:7px;background:#fff5f5;color:#dc2626;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.financial-deposit-history button:disabled{opacity:.55;cursor:wait}
+.sms-settings-link{display:inline-block;margin-right:5px;color:#2563eb;font-size:9px;font-style:normal;font-weight:1000;text-decoration:underline;text-underline-offset:2px;cursor:pointer}.sms-settings-link:hover{color:#1d4ed8}
 </style>
