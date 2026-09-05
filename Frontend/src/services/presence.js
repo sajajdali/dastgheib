@@ -15,6 +15,23 @@ export const presenceState = reactive({
 
 let echo = null;
 let activeUserId = null;
+let activeTenantId = null;
+let appointmentChannel = null;
+const appointmentListeners = new Set();
+
+const joinAppointmentChannel = () => {
+  if (!echo || !activeTenantId || appointmentChannel) return;
+  appointmentChannel = echo.private(`clinic.${activeTenantId}.appointments`);
+  appointmentChannel.listen(".appointment.changed", (event) => {
+    appointmentListeners.forEach((listener) => listener(event));
+  });
+};
+
+export function subscribeAppointmentChanges(listener) {
+  appointmentListeners.add(listener);
+  joinAppointmentChannel();
+  return () => appointmentListeners.delete(listener);
+}
 
 const normalizeUser = (user) => ({
   id: Number(user.id),
@@ -56,6 +73,7 @@ export function startPresence(user) {
   stopPresence();
 
   activeUserId = Number(user.id);
+  activeTenantId = String(user.tenant?.id || "");
   presenceState.connecting = true;
   presenceState.error = "";
   window.Pusher = Pusher;
@@ -109,15 +127,19 @@ export function startPresence(user) {
         || error?.message
         || `HTTP ${error?.response?.status || "unknown"}`;
     });
+  joinAppointmentChannel();
 }
 
 export function stopPresence() {
   if (echo) {
+    if (activeTenantId) echo.leave(`clinic.${activeTenantId}.appointments`);
     echo.leave(channelName);
     echo.disconnect();
   }
   echo = null;
   activeUserId = null;
+  activeTenantId = null;
+  appointmentChannel = null;
   presenceState.connected = false;
   presenceState.connecting = false;
   presenceState.error = "";

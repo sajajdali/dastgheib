@@ -155,7 +155,9 @@ Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->
 Route::get('/appointments/hidden-days', [AppointmentController::class, 'hiddenDays'])->middleware('permission:appointments.view');
 Route::get('/appointments/balance-audits', [AppointmentController::class, 'balanceAudits'])->middleware('permission:reports.financial');
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
+Route::post('/appointments/row', [AppointmentController::class, 'saveRow'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments', [AppointmentController::class, 'saveAppointments'])->middleware('permission:appointments.create|appointments.update');
+Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy'])->middleware('permission:appointments.update');
 Route::post('/appointments/single', [AppointmentController::class, 'storeSingle'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/hide-day', [AppointmentController::class, 'hideDay'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/restore-day', [AppointmentController::class, 'restoreDay'])->middleware('permission:appointments.create|appointments.update');
@@ -166,6 +168,7 @@ Route::delete('/appointment-notes/{message}', [AppointmentNoteController::class,
 // انبار
 Route::get('/inventory', [InventoryController::class, 'index'])->middleware('permission:inventory.view|appointments.view');
 Route::get('/inventory/context', [InventoryController::class, 'context'])->middleware('permission:inventory.view|appointments.view|resources.view');
+Route::post('/inventory/addons', [InventoryController::class, 'storeAddonDefinitions'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory', [InventoryController::class, 'store'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory/adjust-stock', [InventoryController::class, 'adjustStock'])->middleware('permission:inventory.update');
 Route::get('/inventory/{inventory}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');

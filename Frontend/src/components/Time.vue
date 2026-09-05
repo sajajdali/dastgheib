@@ -38,12 +38,12 @@
       >
         <span :class="['arrow-all', { collapsed: allCollapsed }]">▼</span>
       </button>
-      <input 
-        type="text" 
-        v-model="searchQuery" 
-        @input="searchTable" 
-        class="global-search-box" 
-        placeholder="جستجو در کل جدول..." 
+      <input
+        type="text"
+        v-model="searchQuery"
+        @input="searchTable"
+        class="global-search-box"
+        placeholder="جستجو در کل جدول..."
       />
 
       <template v-if="appointmentView === 'table'">
@@ -590,13 +590,14 @@
                     :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
                     :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
                     @click.stop
-                    @input="autoSetAppointmentStatus(row)"
+                    @input="autoSetAppointmentStatus(row); saveData()"
+                    @blur="persistDirectAppointment(row)"
                   />
                 </div>
               </td>
 
               <td :style="{ width: columnWidths.gender + 'px' }">
-                <select v-model="row.gender">
+                <select v-model="row.gender" @change="saveData(0)">
                   <option value="">-</option>
                   <option>زن</option>
                   <option>مرد</option>
@@ -607,7 +608,7 @@
                 <input
                   v-if="canViewPatientPhone"
                   v-model="row.phone"
-                  @input="autoSetAppointmentStatus(row)"
+                  @input="autoSetAppointmentStatus(row); saveData()"
                   @blur="fillPatientByPhone(row)"
                 />
                 <input
@@ -626,7 +627,7 @@
                 <input
                   v-model="row.fileNumber"
                   @blur="fillPatientByFileNumber(row)"
-                  @keyup.enter="fillPatientByFileNumber(row)"
+                  @keyup.enter.prevent="fillPatientByFileNumber(row, true)"
                 />
               </td>
 
@@ -647,7 +648,7 @@
                   :round-minute="appointmentMinuteStep > 1"
                   input-class="time-picker-input"
                   popover-class="time-picker-popover"
-                  @update:model-value="sortDayRowsByTime(day)"
+                  @update:model-value="sortDayRowsByTime(day); saveData(0)"
                 />
 
               </td>
@@ -690,7 +691,7 @@
                 :style="{ width: columnWidths.source + 'px' }"
               >
 
-                <select v-model="row.source">
+                <select v-model="row.source" @change="saveData(0)">
 
                   <option value="">-</option>
 
@@ -714,6 +715,7 @@
                   <input
                     style="text-align: center !important;"
                     v-model="row.description"
+                    @blur="saveData(0)"
                     @dblclick="showDescription(row.description)"
                   />
                   <button
@@ -848,17 +850,9 @@
                       خدمات {{ row.lastname || 'بیمار' }}
                     </div>
 
-                    <button
-                      class="add-service-line-btn"
-                      :disabled="!row.serviceTypes?.length"
-                      @click.stop="addService(row)"
-                    >
-                      + افزودن خدمت
-                    </button>
-
                   </div>
 
-                  <div class="referral-section">
+                  <div class="referral-section patient-services-referral-actions">
 
                     <input
                       v-model="row.referrerPhone"
@@ -891,6 +885,14 @@
                       </button>
 
                     </div>
+
+                    <button
+                      class="add-service-line-btn"
+                      :disabled="!row.serviceTypes?.length"
+                      @click.stop="addService(row)"
+                    >
+                      + افزودن خدمت
+                    </button>
 
                     <div class="wallet-payment-box">
                       <button type="button" :disabled="!moneyToNumber(row.walletBalance)" @click.stop="applyWalletBalance(row)">
@@ -927,7 +929,7 @@
                       select-label=""
                       selected-label="انتخاب شد"
                       deselect-label="حذف"
-                      class="service-multiselect service-section-multiselect"
+                      class="service-multiselect service-section-multiselect service-root-multiselect"
                       @select="onServiceRootSectionChanged(service, row)"
                       @remove="onServiceRootSectionChanged(service, row)"
                     />
@@ -946,27 +948,28 @@
                       select-label=""
                       selected-label="انتخاب شد"
                       deselect-label="حذف"
-                      class="service-multiselect service-section-multiselect"
+                      class="service-multiselect service-section-multiselect service-subsection-multiselect"
                       @select="onServiceSectionChanged(service, row)"
                       @remove="onServiceSectionChanged(service, row)"
                     />
 
-                    <Multiselect
-                      v-if="service.sectionId"
-                      v-model="service.tags"
-                      :options="serviceTagsForSection(service.sectionId)"
-                      :multiple="true"
-                      :searchable="true"
-                      :close-on-select="false"
-                      :clear-on-select="false"
-                      :allow-empty="true"
-                      placeholder="انتخاب تگ‌ها"
-                      select-label=""
-                      selected-label="انتخاب شد"
-                      deselect-label="حذف"
-                      class="service-multiselect service-tags-multiselect"
-                      @input="calculateRowAmount(row)"
-                    />
+                    <div v-if="service.sectionId" class="service-tag-picker" @click.stop>
+                      <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
+                        <span>تگ‌ها</span>
+                        <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
+                        <em v-else>انتخاب تگ</em>
+                        <i>⌄</i>
+                      </button>
+                      <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
+                        <label v-for="tag in serviceTagsForSection(service.sectionId)" :key="tag">
+                          <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, row)">
+                          <span>{{ tag }}</span>
+                        </label>
+                      </div>
+                      <div v-if="service.tags?.length" class="service-tag-chips">
+                        <button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, row)">{{ tag }} <b>×</b></button>
+                      </div>
+                    </div>
 
                     <Multiselect
                       v-model="service.name"
@@ -982,7 +985,7 @@
                       select-label=""
                       selected-label="انتخاب شده"
                       deselect-label="حذف"
-                      class="service-multiselect"
+                      class="service-multiselect service-name-multiselect"
                       @select="onServiceNameChanged(service, row)"
                       @remove="onServiceNameChanged(service, row)"
                     />
@@ -1064,7 +1067,8 @@
                       </div>
 
                       <div v-if="service.addons?.length" class="service-addons-panel">
-                        <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>امکان افزودن چند مورد</small></div>
+                        <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>{{ service.addons.length }} مورد انتخاب شده</small></div>
+                        <div class="service-addon-head" aria-hidden="true"><span>نام جانبی</span><span>تعداد</span><span>مبلغ</span><span>تخفیف / مازاد</span><span></span></div>
                         <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
                           <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, row)" @remove="onAddonChanged(service, addon, row)" />
                           <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="updateRowAmounts(row)">
@@ -1073,7 +1077,6 @@
                             <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, row)">
                             <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, row)">↻</button>
                           </div>
-                          <label v-if="addon.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="addon.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
                           <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, row)">×</button>
                         </div>
                         <button type="button" class="add-another-addon-btn" @click.stop="addServiceAddon(service)">+ افزودن جانبی دیگر</button>
@@ -1103,7 +1106,7 @@
                   class="row-tracking-btn"
                   title="گزارش زمان نوبت"
                   aria-label="گزارش زمان نوبت"
-                  @click.stop="openTrackingModal(day, row)"
+                  @click.stop="clockAppointmentArrival(day, row)"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <circle cx="12" cy="12" r="8" />
@@ -1570,7 +1573,6 @@
                             <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, activeTimelineDraft)">
                             <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, activeTimelineDraft)">↻</button>
                           </div>
-                          <label v-if="addon.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="addon.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
                     <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeTimelineDraft)">×</button>
                   </div>
 
@@ -1624,7 +1626,9 @@
 
         <footer class="timeline-modal-footer">
           <button type="button" class="timeline-modal-cancel" @click="closeTimelineModal()">انصراف</button>
-          <button type="button" class="timeline-modal-save" @click="saveTimelineModal">ثبت نوبت</button>
+          <button type="button" class="timeline-modal-save" :disabled="timelineSaving" @click="saveTimelineModal">
+            {{ timelineSaving ? 'در حال ذخیره…' : 'ثبت نوبت' }}
+          </button>
         </footer>
       </section>
     </div>
@@ -1662,7 +1666,7 @@
             <strong>{{ trackingReport.delayText }}</strong>
           </article>
           <article v-if="trackingReport.hasVisitDuration">
-            <small>مدت حضور تا انجام</small>
+            <small>میزان معطلی بیمار (ورود تا خروج)</small>
             <strong>{{ trackingReport.visitDurationText }}</strong>
           </article>
           <article v-if="trackingReport.hasTotalDuration">
@@ -2245,6 +2249,7 @@ import moment from "moment-jalaali";
 import Multiselect from "vue-multiselect";
 import "vue-multiselect/dist/vue-multiselect.css";
 import PatientAvatar from './PatientAvatar.vue';
+import { subscribeAppointmentChanges } from '../services/presence';
 
 export default {
   props: {
@@ -2410,6 +2415,8 @@ export default {
         { key: 'welcome', icon: '🌿', title: 'پیام خوش‌آمدگویی', description: 'تشکر از مراجعه و خوش‌آمدگویی به مشتری' }
       ],
       inventoryItems: [],
+      addonDefinitions: [],
+      activeServiceTagPicker: null,
 
       inventoryStock: {},
 
@@ -2430,7 +2437,10 @@ export default {
       saveInProgress: false,
       saveQueued: false,
       saveRetryCount: 0,
+      saveWaiters: [],
+      timelineSaving: false,
       draftRevision: 0,
+      lastPersistedScheduleFingerprint: '',
       isFetching: true,
       generatingNewMonth: false,
 
@@ -2648,6 +2658,8 @@ export default {
 
   mounted() {
     document.addEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
+    window.addEventListener('beforeunload', this.handleBeforeUnload);
+    this.unsubscribeAppointmentChanges = subscribeAppointmentChanges(this.handleRealtimeAppointmentChange);
 
     const savedMonths =
       localStorage.getItem("schedule_months");
@@ -2664,7 +2676,6 @@ export default {
     }
 
     this.months = this.fillMissingMonths(this.months);
-
     this.currentMonth =
       this.months.indexOf(realCurrentMonth);
 
@@ -2681,13 +2692,44 @@ export default {
 
   beforeUnmount() {
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
+    window.removeEventListener('beforeunload', this.handleBeforeUnload);
+    this.unsubscribeAppointmentChanges?.();
+    clearTimeout(this.realtimeRefreshTimer);
     clearTimeout(this.highlightedRowTimer);
     clearTimeout(this.saveTimeout);
     clearTimeout(this.saveRetryTimeout);
-    this.persistPendingDraft();
+    // دادهٔ نوبت فقط در سرور معتبر است. در خروج صفحه هیچ snapshot محلی
+    // ذخیره نمی‌کنیم که بتواند در بازدید بعدی روی سرور نوشته شود.
   },
 
   methods: {
+    handleRealtimeAppointmentChange(event) {
+      if (!event || event.month !== this.months[this.currentMonth]) return;
+      clearTimeout(this.realtimeRefreshTimer);
+      this.realtimeRefreshTimer = setTimeout(() => this.refreshAfterRealtimeChange(), 120);
+    },
+
+    async refreshAfterRealtimeChange() {
+      const hasLocalChanges = this.saveInProgress
+        || this.scheduleFingerprint() !== this.lastPersistedScheduleFingerprint;
+      if (hasLocalChanges) {
+        clearTimeout(this.realtimeRefreshTimer);
+        this.realtimeRefreshTimer = setTimeout(() => this.refreshAfterRealtimeChange(), 400);
+        return;
+      }
+      await this.fetchData();
+    },
+
+    handleBeforeUnload(event) {
+      const hasUnsavedChanges = this.saveInProgress
+        || this.scheduleFingerprint() !== this.lastPersistedScheduleFingerprint;
+      if (!hasUnsavedChanges) return;
+
+      event.preventDefault();
+      // Required for the native browser confirmation dialog.
+      event.returnValue = '';
+    },
+
     displayPatientPhone(value) {
       const text = String(value || "").trim();
       if (!text) return "";
@@ -2762,6 +2804,32 @@ export default {
       if ((this.months[this.currentMonth] || "") !== today.format("jYYYY-jMM")) return;
       const todayDay = this.ensureScheduleDay(today);
       this.activateScheduleDay(todayDay);
+    },
+
+    scheduleFingerprint() {
+      const transient = new Set([
+        'id', 'collapsed', 'dateLabel', 'holidayTitle', 'isHoliday',
+        'patientId', 'profileThumbnailUrl', 'profilePhotoUrl', 'hasPatientFile',
+        'walletBalance', 'originalDebt', 'patientOutstandingDebt', 'customerLevel',
+        'noteMessageCount', 'doctorNoteUnread', 'timelineDoctors', 'timelineConsultant'
+      ]);
+      return JSON.stringify(this.days, (key, value) => {
+        if (key.startsWith('_') || transient.has(key)) return undefined;
+        return value;
+      });
+    },
+
+    appointmentRowStateFingerprint(day, row, rowIndex) {
+      const transient = new Set([
+        'appointmentId', 'lockVersion', 'patientId', 'profileThumbnailUrl',
+        'profilePhotoUrl', 'hasPatientFile', 'walletBalance', 'originalDebt',
+        'patientOutstandingDebt', 'customerLevel', 'noteMessageCount',
+        'doctorNoteUnread', 'timelineDoctors', 'timelineConsultant'
+      ]);
+      return JSON.stringify({ dayNum: Number(day?.dayNum || 0), sortOrder: rowIndex, row }, (key, value) => {
+        if (key.startsWith('_') || transient.has(key)) return undefined;
+        return value;
+      });
     },
 
     async applyOpenViewRequest(request) {
@@ -3287,6 +3355,7 @@ export default {
 
     async saveTimelineModal() {
       if (!this.activeTimelineDay || !this.activeTimelineRow || !this.activeTimelineDraft) return;
+      if (this.timelineSaving) return;
       const draft = this.activeTimelineDraft;
       if (!this.validateTimelineDraft(draft)) {
         await Swal.fire({ icon:'warning', title:'اطلاعات نوبت کامل نیست', text:this.timelineValidationSummary || 'لطفا فیلدهای اجباری را کامل کنید.' });
@@ -3294,18 +3363,9 @@ export default {
       }
       const doctors = [...new Set((draft.timelineDoctors || []).filter(Boolean))].slice(0, 2);
       const consultant = draft.timelineConsultant || '';
-      draft.status = 'وقت داده شد';
+      draft.status = draft.status || 'وقت داده شد';
       draft.doctor = doctors.join('، ');
       draft.consultant = consultant;
-      draft.amount = '';
-      draft.originalAmount = '';
-      draft.debt = '';
-      draft.done = '';
-      draft.serviceTypes = [];
-      draft.services = (doctors.length ? doctors : ['']).map((doctor, index) => ({
-        name: '', sectionId: '', rootSectionId: '', cc: '', doctor,
-        consultant: index === 0 ? consultant : '', discount: '', _lastSavedCc: 0, addons: []
-      }));
 
       if (draft.sendAppointmentSms) draft.appointmentSms = 'انتظار';
       if (draft.sendInfoSms) draft.infoSms = 'انتظار';
@@ -3319,7 +3379,11 @@ export default {
 
       this.sortDayRowsByTime(this.activeTimelineDay);
       this.flashRowHighlight(this.activeTimelineRow._rowId);
-      this.saveData();
+      this.timelineSaving = true;
+      const saved = await this.persistDirectAppointment(this.activeTimelineRow);
+      this.timelineSaving = false;
+      if (!saved) return;
+
       const followupResult = this.activeTimelineFollowup
         ? {
             followup: this.activeTimelineFollowup,
@@ -3331,11 +3395,9 @@ export default {
         : null;
       this.closeTimelineModal(true);
 
-      const failedSms = smsTypes.filter(type => !smsResults[type]?.success);
       await Swal.fire({
-        icon: failedSms.length ? "warning" : "success",
-        title: failedSms.length ? "نوبت ثبت شد؛ بعضی پیامک‌ها ارسال نشد" : "نوبت ثبت شد",
-        text: failedSms.map(type => smsResults[type]?.message).filter(Boolean).join('\n'),
+        icon: "success",
+        title: "نوبت با موفقیت در سرور ثبت شد",
         timer: 1000,
         showConfirmButton: false
       });
@@ -3397,6 +3459,36 @@ export default {
       this.autoSetAppointmentStatus(row);
       this.clearTimelineValidationError("lastname");
       this.clearTimelineValidationError("phone");
+    },
+
+    async persistDirectAppointment(row, notify = false) {
+      const day = this.days.find(item => (item.rows || []).includes(row));
+      if (!day) return false;
+
+      let confirmed = false;
+      for (let attempt = 0; attempt < 3 && !confirmed; attempt += 1) {
+        const saved = await this.saveData(0, true);
+        const rowIndex = day.rows.indexOf(row);
+        confirmed = Boolean(
+          saved
+          && row.appointmentId
+          && row._persistedStateFingerprint === this.appointmentRowStateFingerprint(day, row, rowIndex)
+        );
+      }
+
+      if (!confirmed) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'ثبت نوبت انجام نشد',
+          text: 'آخرین وضعیت این ردیف هنوز توسط دیتابیس تأیید نشده است.'
+        });
+        return false;
+      }
+
+      if (notify) {
+        await Swal.fire({ icon: 'success', title: 'نوبت در دیتابیس ثبت شد', timer: 900, showConfirmButton: false });
+      }
+      return true;
     },
 
     handleTimelinePhoneInput() {
@@ -3526,8 +3618,12 @@ export default {
 
         const patient = res.data;
 
-        if (!patient) return;
+        if (!patient) {
+          await this.persistDirectAppointment(row);
+          return;
+        }
         this.applyPatientToAppointment(row, patient);
+        await this.persistDirectAppointment(row);
 
         // اگر خواستی نام هم داخل توضیحات بیاد:
         // row.description = patient.first_name || "";
@@ -3536,10 +3632,11 @@ export default {
         if (e.response?.status !== 404) {
           console.error("خطا در دریافت اطلاعات بیمار", e);
         }
+        await this.persistDirectAppointment(row);
       }
     },
 
-    async fillPatientByFileNumber(row) {
+    async fillPatientByFileNumber(row, notify = false) {
       const fileNumber = String(row.fileNumber || "").trim();
 
       if (!fileNumber) return;
@@ -3552,11 +3649,16 @@ export default {
 
         const patient = Array.isArray(res.data) ? res.data[0] : res.data;
 
-        if (!patient) return;
+        if (!patient) {
+          await this.persistDirectAppointment(row, notify);
+          return;
+        }
 
         this.applyPatientToAppointment(row, patient);
+        await this.persistDirectAppointment(row, notify);
       } catch (e) {
         console.error("خطا در دریافت اطلاعات بیمار با شماره پرونده", e);
+        await this.persistDirectAppointment(row, notify);
       }
     },
 
@@ -3595,7 +3697,6 @@ export default {
         }
       }
     },
-
     showDescription(text) {
 
       if (!text?.trim()) return;
@@ -3634,16 +3735,33 @@ export default {
       this.saveData(0);
     },
 
+    clockAppointmentArrival(day, row) {
+      if (!this.rowShouldPersist(row)) return;
+
+      // The clock is an arrival action. Once the patient has arrived it keeps
+      // its former role as a quick way to inspect/edit the recorded times.
+      if (!this.isArrivedAppointmentStatus(row.status)) {
+        row.status = "آمد";
+        row.arrivedAt = row.arrivedAt || this.currentDatabaseDateTime();
+        this.saveData(0);
+        return;
+      }
+
+      this.openTrackingModal(day, row);
+    },
+
     async onDoneChanged(row) {
       const done = String(row.done || '').trim();
       if (!this.isCompletedAppointmentDone(done)) {
         row.completedAt = "";
+        row.followupConfirmed = false;
         this.saveData(0);
         return;
       }
       if (!row.completedAt) {
         row.completedAt = this.currentDatabaseDateTime();
       }
+      await this.confirmServiceFollowup(row);
       this.saveData(0);
       const appointmentDay = this.days.find(day => (day.rows || []).includes(row));
       if (appointmentDay) this.ensurePaymentLink(appointmentDay, row);
@@ -3656,6 +3774,39 @@ export default {
         return;
       }
       this.completionSmsModalOpen = true;
+    },
+
+    // اگر خدمتِ نوبت در انبار «دوره پیگیری» داشته باشد، قبل از ثبت خودکار
+    // پیگیریِ دوره‌ای، تایید کاربر گرفته می‌شود.
+    async confirmServiceFollowup(row) {
+      if (row.followupConfirmed) return;
+      const eligibleItems = (row.services || [])
+        .map(service => this.getServiceData(service))
+        .filter(item => item && Number(item.followup_days) > 0);
+
+      if (!eligibleItems.length) {
+        row.followupConfirmed = false;
+        return;
+      }
+
+      const uniqueItems = [...new Map(eligibleItems.map(item => [item.id, item])).values()];
+      const summary = uniqueItems.length === 1
+        ? `${Number(uniqueItems[0].followup_days)} روز دیگر`
+        : uniqueItems.map(item => `${item.name} (${Number(item.followup_days)} روز دیگر)`).join('، ');
+      const text = uniqueItems.length === 1
+        ? `آیا می‌خواهید پیگیری دوره‌ای برای این نوبت ثبت شود و ${summary} به شما پیغام دهیم که دوره پیگیری رسیده است؟`
+        : `آیا می‌خواهید پیگیری دوره‌ای برای این نوبت ثبت شود؟ برای خدمات زیر، ${summary} به شما پیغام می‌دهیم که دوره پیگیری رسیده است.`;
+
+      const result = await Swal.fire({
+        icon: 'question',
+        title: 'ثبت پیگیری دوره‌ای',
+        text,
+        showCancelButton: true,
+        confirmButtonText: 'تأیید و ثبت',
+        cancelButtonText: 'خیر'
+      });
+
+      row.followupConfirmed = Boolean(result.isConfirmed);
     },
 
     completionSmsWasSent(type) {
@@ -3954,7 +4105,7 @@ export default {
       if (!row?.services?.length) return financial;
 
       this.expandedServices(row).forEach(service => {
-        const item = this.getServiceData(service.name);
+        const item = this.getServiceData(service);
         if (!item) return;
 
         const cc = Number(service.cc || 0);
@@ -4304,6 +4455,9 @@ export default {
         staff.data.map(s => s.name);
 
       this.inventoryItems = inventory.data;
+      this.addonDefinitions = Array.isArray(inventoryContext.data.addons)
+        ? inventoryContext.data.addons
+        : [];
 
       this.serviceSections = (inventoryContext.data.sections || []).slice();
 
@@ -4442,7 +4596,7 @@ export default {
                 adjustment_mode: s.adjustment_mode || "discount",
                 surcharge_for_doctor_commission: Boolean(s.surcharge_for_doctor_commission),
                 _lastSavedCc: parseInt(s.cc) || 0
-                ,addons: (s.addons || []).map((addon, index) => ({ name:addon.name || '', cc:addon.cc || '', discount:addon.discount ? this.formatDisplayMoney(addon.discount) : '', adjustment_mode:addon.adjustment_mode || 'discount', surcharge_for_doctor_commission:Boolean(addon.surcharge_for_doctor_commission), _key:`addon-loaded-${index}-${Date.now()}` }))
+                ,addons: (s.addons || []).map((addon, index) => ({ name:addon.name || '', addon_definition_id:addon.addon_definition_id || null, cc:addon.cc || '', discount:addon.discount ? this.formatDisplayMoney(addon.discount) : '', adjustment_mode:addon.adjustment_mode || 'discount', surcharge_for_doctor_commission:Boolean(addon.surcharge_for_doctor_commission), _key:`addon-loaded-${index}-${Date.now()}` }))
               }))
             : [{
                 name: "",
@@ -4458,6 +4612,7 @@ export default {
           day.rows.push({
             _rowId: `row-${this._rowCounter++}`,
             appointmentId: item.id || null,
+            lockVersion: Number(item.lock_version || 1),
             patientId: item.patient_id || null,
             lastname: item.lastname || "",
             gender: item.gender || "",
@@ -4469,6 +4624,7 @@ export default {
             time: item.time || "",
             status: item.status || "",
             arrivedAt: item.arrived_at || "",
+            waitMinutes: Number(item.wait_minutes || 0),
             doctor: item.doctor || "",
             consultant: item.consultant || "",
             source: item.source || "",
@@ -4506,12 +4662,17 @@ export default {
           });
         });
 
-        if (data.length === 0) {
-          this.generateClinicScheduleForCurrentMonth();
-          this.days = this.days.filter(day => !hiddenDays.has(Number(day.dayNum)));
-        }
+        // Empty time slots are UI schedule, not appointment records. Generate
+        // them locally around the small set of persisted, occupied rows.
+        this.generateClinicScheduleForCurrentMonth();
+        this.days = this.days.filter(day => !hiddenDays.has(Number(day.dayNum)));
         this.days.forEach(day => this.sortDayRowsByTime(day));
         this.days.sort((a, b) => a.dayNum - b.dayNum);
+        this.days.forEach(day => {
+          day.rows.forEach((row, rowIndex) => {
+            row._persistedStateFingerprint = this.appointmentRowStateFingerprint(day, row, rowIndex);
+          });
+        });
         const nextUnreadKeys = new Set();
         this.days.forEach(day => {
           day.rows.forEach(row => {
@@ -4531,11 +4692,11 @@ export default {
         }
       }
 
-      const restoredDraft = this.months[this.currentMonth] === targetMonth
-        ? this.restorePendingDraft()
-        : false;
+      // Draftهای نسخه‌های قدیمی هرگز نباید دادهٔ سرور را جایگزین کنند.
+      // تنها منبع حقیقت پس از بارگذاری، پاسخ API است.
+      this.clearPendingDraft(targetMonth);
+      this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
       this.isFetching = false;
-      if (restoredDraft) this.saveData(0);
     },
 
     updateRowAmounts(row) {
@@ -4545,7 +4706,7 @@ export default {
       this.expandedServices(row).forEach(service => {
 
         const item =
-          this.getServiceData(service.name);
+          this.getServiceData(service);
 
         if (!item) return;
 
@@ -4591,10 +4752,19 @@ export default {
         this.formatDisplayMoney(finalAmount);
     },
 
-    getServiceData(serviceName) {
-      return this.inventoryItems.find(
-        i => i.name === serviceName
-      ) || null;
+    getServiceData(service) {
+      const addonDefinitionId = typeof service === 'object' ? service?.addon_definition_id : null
+      if (addonDefinitionId) {
+        const item = this.addonDefinitions.find(i => Number(i.id) === Number(addonDefinitionId))
+        if (item) return item
+      }
+      const inventoryId = typeof service === 'object' ? service?.inventory_id : null
+      if (inventoryId) {
+        const item = this.inventoryItems.find(i => Number(i.id) === Number(inventoryId))
+        if (item) return item
+      }
+      const serviceName = typeof service === 'object' ? service?.name : service
+      return this.inventoryItems.find(i => i.name === serviceName) || null;
     },
 
     calculateClinicProfitRow(row) {
@@ -4610,7 +4780,7 @@ export default {
       this.expandedServices(row).forEach(service => {
 
         const item =
-          this.getServiceData(service.name);
+          this.getServiceData(service);
 
         if (!item) return;
 
@@ -4822,8 +4992,10 @@ export default {
       return true;
     },
 
-    saveData(delay = 1200, force = false) {
-      if (this.isFetching && !force) return;
+    saveData(delay = 300, force = false) {
+      if (this.isFetching && !force) return Promise.resolve(false);
+
+      const completion = new Promise(resolve => this.saveWaiters.push(resolve));
 
       clearTimeout(this.saveTimeout);
       this.persistPendingDraft();
@@ -4832,10 +5004,10 @@ export default {
       // ممکن است کاربر پیش از اجرای debounce ماه دیگری را انتخاب کند.
       const scheduledMonth = this.months[this.currentMonth];
       const scheduledDays = this.days;
-      if (!scheduledMonth) return;
-
+      if (!scheduledMonth) return Promise.resolve(false);
       this.saveTimeout =
         setTimeout(async () => {
+          this.saveTimeout = null;
 
           // ارسال هم‌زمانِ یک ماه می‌تواند باعث بازنویسی‌های متداخل شود.
           // تغییر جدید را پس از پایان درخواست فعلی، یک‌بار دیگر ذخیره می‌کنیم.
@@ -4849,16 +5021,33 @@ export default {
 
           try {
 
-            const draftRevisionAtRequest = this.draftRevision;
+            // A watcher may have queued a save while Vue was hydrating the
+            // screen.  If the scheduler state is still exactly the server
+            // snapshot, opening the page must be a read-only operation.
+            if (!force && this.scheduleFingerprint() === this.lastPersistedScheduleFingerprint) {
+              saveSucceeded = true;
+              return;
+            }
 
+            const draftRevisionAtRequest = this.draftRevision;
             const month = scheduledMonth;
 
             const payload = [];
+            const payloadRows = [];
+            const payloadFingerprints = [];
 
             scheduledDays.forEach(day => {
-
               day.rows.forEach((row, rowIndex) => {
                 if (!this.rowShouldPersist(row)) {
+                  return;
+                }
+                // Existing rows which have not changed are not part of this
+                // request. This prevents an edit/new appointment from being
+                // rejected because of an unrelated row in the same month.
+                if (
+                  row.appointmentId &&
+                  row._persistedStateFingerprint === this.appointmentRowStateFingerprint(day, row, rowIndex)
+                ) {
                   return;
                 }
                 // محاسبه مبلغ کل خدمات
@@ -4866,7 +5055,7 @@ let totalAmount = 0
 
 this.expandedServices(row).forEach(service => {
 
-  const item = this.getServiceData(service.name)
+  const item = this.getServiceData(service)
 
   if(!item) return
 
@@ -4896,12 +5085,16 @@ this.calculateFinalAmount(row)
                   appointment_id:
                     row.appointmentId || null,
 
+                  lock_version: row.appointmentId ? Number(row.lockVersion || 0) : null,
+
+                  _client_key: row._rowId,
+
                   day_num:
                     day.dayNum,
 
                   sort_order:
                     rowIndex,
-                    
+
                   lastname:
                     row.lastname,
 
@@ -4923,6 +5116,8 @@ this.calculateFinalAmount(row)
                   arrived_at:
                     row.arrivedAt || null,
 
+                  wait_minutes: Number(row.waitMinutes || 0),
+
                   doctor:
                     row.doctor,
 
@@ -4943,6 +5138,9 @@ this.calculateFinalAmount(row)
 
                   completed_at:
                     row.completedAt || null,
+
+                  followup_confirmed:
+                    Boolean(row.followupConfirmed),
 
                   amount:
                     this.moneyToNumber(row.amount),
@@ -5014,22 +5212,42 @@ this.calculateFinalAmount(row)
                       discount: this.moneyToNumber(s.discount),
                       adjustment_mode: s.adjustment_mode || 'discount',
                       surcharge_for_doctor_commission: Boolean(s.surcharge_for_doctor_commission),
-                      addons: (s.addons || []).map(addon => ({ name:addon.name || '', cc:addon.cc || '', discount:this.moneyToNumber(addon.discount), adjustment_mode: addon.adjustment_mode || 'discount', surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) }))
+                      addons: (s.addons || []).map(addon => ({ name:addon.name || '', addon_definition_id:addon.addon_definition_id || null, cc:addon.cc || '', discount:this.moneyToNumber(addon.discount), adjustment_mode: addon.adjustment_mode || 'discount', surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) }))
                     }))
 
                 });
+                payloadRows.push(row);
+                // Keep the exact client state represented by this request.
+                // The row may be edited again while the request is in flight;
+                // its newer state must never be marked as persisted by this
+                // older response.
+                payloadFingerprints.push(this.appointmentRowStateFingerprint(day, row, rowIndex));
 
               });
 
             });
 
-            await axios.post(
-              "/api/appointments",
-              {
-                month,
-                appointments: payload
-              }
+            if (!payload.length) {
+              this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
+              saveSucceeded = true;
+              return;
+            }
+            // Every changed row is now an independent write. A field change
+            // (source, status, service, payment, etc.) cannot be hidden inside
+            // or invalidated by a month-wide batch request.
+            const rowResponses = await Promise.all(
+              payload.map(appointment => axios.post('/api/appointments/row', appointment))
             );
+            const savedAppointments = rowResponses.map(item => item.data?.appointment).filter(Boolean);
+            // پاسخ سرور شامل شناسه و نسخهٔ جدید است؛ برای ویرایش بعدی
+            // همان نسخه باید ارسال شود تا دادهٔ قدیمی overwrite نشود.
+            savedAppointments.forEach((appointment, index) => {
+              const row = payloadRows[index];
+              if (!row) return;
+              row.appointmentId = appointment.id;
+              row.lockVersion = Number(appointment.lock_version || 1);
+              row._persistedStateFingerprint = payloadFingerprints[index];
+            });
             saveSucceeded = true;
             this.saveRetryCount = 0;
 
@@ -5037,6 +5255,7 @@ this.calculateFinalAmount(row)
             delete this.monthAppointmentsCache[month];
 
             if (this.draftRevision === draftRevisionAtRequest) {
+              this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
               this.clearPendingDraft(month);
             }
 
@@ -5061,12 +5280,19 @@ this.calculateFinalAmount(row)
             if (this.saveQueued) {
               this.saveQueued = false;
               // اگر هم‌زمان با ارسال تغییری آمده است، تنها یک ذخیرهٔ تازه اجرا شود.
-              if (saveSucceeded) this.saveData(0);
+              if (saveSucceeded) {
+                this.saveData(0);
+                return;
+              }
             }
+
+            const waiters = this.saveWaiters.splice(0);
+            waiters.forEach(resolve => resolve(saveSucceeded));
 
           }
 
         }, delay);
+      return completion;
     },
 
     createEmptyAppointmentRow() {
@@ -5141,7 +5367,7 @@ this.calculateFinalAmount(row)
     },
 
     serviceLinePrice(service) {
-      const item = this.getServiceData(service?.name);
+      const item = this.getServiceData(service);
       // مبلغ نوبت از «قیمت کالا»ی انبار (فیلد amount) خوانده می‌شود؛
       // فیلد price فقط هزینه مواد است و در مبلغ دریافتی بیمار دخالت ندارد.
       return item ? Number(item.amount || 0) * Math.max(Number(service?.cc || 0), 0) : 0;
@@ -6230,19 +6456,48 @@ this.calculateFinalAmount(row)
     },
 
     rowShouldPersist(row) {
-      // ردیف‌های خالیِ ساخته‌شده از ساعات کاری نیز باید بعد از بازگشت
-      // به صفحه باقی بمانند، حتی اگر هنوز بیماری برایشان ثبت نشده باشد.
-      return this.rowHasAppointment(row) || String(row?.time || "").trim() !== "";
+      // Time slots are regenerated from clinic settings. Persisting them as
+      // empty appointments made every page load and save unnecessarily heavy.
+      return this.rowHasAppointment(row);
     },
 
     addServiceAddon(service) {
       if (!service.name) return;
       if (!Array.isArray(service.addons)) service.addons = [];
       service.addons.push({
-        name: "", cc: "1", discount: "", inventory_id: null,
-        section_id: service.sectionId || null, parent_service: service.name,
+        name: "", cc: "1", discount: "", addon_definition_id: null,
+        parent_service: service.name,
         _key: `addon-${Date.now()}-${Math.random()}`
       });
+    },
+
+    inventoryForService(service, row = null) {
+      if (service?.inventory_id) {
+        const byId = this.inventoryItems.find(item => Number(item.id) === Number(service.inventory_id))
+        if (byId) return byId
+      }
+      const allowedSectionIds = new Set(this.serviceSectionScopeIds(row?.serviceTypes).map(String))
+      return this.inventoryItems.find(item => item.name === service?.name && (!allowedSectionIds.size || allowedSectionIds.has(String(item.section_id)))) || null
+    },
+
+    newAddonFromInventory(item, service) {
+      return {
+        name: item.name || '', cc: '1', discount: '', addon_definition_id: item.id || null,
+        parent_service: service.name || '',
+        adjustment_mode: 'discount', surcharge_for_doctor_commission: false,
+        _key: `addon-default-${item.id || Date.now()}-${Math.random()}`
+      }
+    },
+
+    applyDefaultAddons(service, row) {
+      const inventory = this.inventoryForService(service, row)
+      if (!inventory) return
+      if (!Array.isArray(service.addons)) service.addons = []
+      const selectedIds = new Set(service.addons.map(addon => Number(addon.addon_definition_id)).filter(Boolean))
+      ;(inventory.addon_definitions || inventory.addonDefinitions || []).forEach(addon => {
+        if (addon?.active === false || !addon?.id || selectedIds.has(Number(addon.id))) return
+        service.addons.push(this.newAddonFromInventory(addon, service))
+      })
     },
 
     removeServiceAddon(service, index, row) {
@@ -6252,15 +6507,15 @@ this.calculateFinalAmount(row)
 
     serviceAddonOptions(service, currentAddon) {
       const selected = new Set((service.addons || []).filter(addon => addon !== currentAddon).map(addon => addon.name));
-      return this.inventoryItems.filter(item => item.active !== false && String(item.section_id) === String(service.sectionId)).map(item => item.name).filter(name => name && name !== service.name && !selected.has(name));
+      return this.addonDefinitions
+        .filter(item => item.active !== false)
+        .map(item => item.name)
+        .filter(name => name && !selected.has(name));
     },
 
     onAddonChanged(service, addon, row) {
-      const inventory = this.inventoryItems.find(item =>
-        item.name === addon.name && String(item.section_id) === String(service.sectionId)
-      );
-      addon.inventory_id = inventory?.id || null;
-      addon.section_id = service.sectionId || null;
+      const definition = this.addonDefinitions.find(item => item.name === addon.name);
+      addon.addon_definition_id = definition?.id || null;
       addon.parent_service = service.name || '';
       if (!addon.name) addon.cc = '';
       this.calculateRowAmount(row);
@@ -6429,6 +6684,20 @@ this.calculateFinalAmount(row)
         .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
     },
 
+    toggleServiceTag(service, tag, row) {
+      const selected = Array.isArray(service.tags) ? [...service.tags] : [];
+      const index = selected.indexOf(tag);
+      if (index === -1) selected.push(tag);
+      else selected.splice(index, 1);
+      service.tags = selected;
+      this.calculateRowAmount(row);
+    },
+
+    removeServiceTag(service, tag, row) {
+      service.tags = (service.tags || []).filter(item => item !== tag);
+      this.calculateRowAmount(row);
+    },
+
     onServiceSectionChanged(service, row) {
       this.$nextTick(() => {
         service.tags = [];
@@ -6460,15 +6729,22 @@ this.calculateFinalAmount(row)
 
     onServiceNameChanged(service, row) {
       this.$nextTick(() => {
-        const sectionId = this.sectionIdForService(service.name, row);
+        const inventory = this.inventoryForService(service, row)
+        const sectionId = inventory?.section_id || this.sectionIdForService(service.name, row);
+        const serviceChanged = Number(service.inventory_id || 0) !== Number(inventory?.id || 0)
         if (sectionId && String(service.sectionId || "") !== String(sectionId)) {
           service.sectionId = sectionId;
           service.rootSectionId = this.rootSectionIdFor(sectionId);
           service.addons = [];
         }
+        if (serviceChanged) service.addons = []
+        service.inventory_id = inventory?.id || null
         if (!service.name) {
           service.cc = "";
           service.addons = [];
+          service.inventory_id = null
+        } else {
+          this.applyDefaultAddons(service, row)
         }
         this.calculateRowAmount(row);
       });
@@ -6515,6 +6791,19 @@ this.calculateFinalAmount(row)
         if (!confirmed) return;
       }
 
+      if (row.appointmentId) {
+        try {
+          await axios.delete(`/api/appointments/${row.appointmentId}`, {
+            data: { lock_version: Number(row.lockVersion || 0) }
+          });
+        } catch (error) {
+          if (error.response?.status === 409) {
+            await this.fetchData();
+          }
+          Swal.fire({ icon: 'error', title: 'حذف نوبت انجام نشد', text: error.response?.data?.message || 'لطفاً دوباره تلاش کنید.' });
+          return;
+        }
+      }
       day.rows.splice(index, 1);
       if (this.activeServicePopup === row._rowId) {
         this.activeServicePopup = null;
@@ -6719,7 +7008,7 @@ smsColor(val) {
       const rules = [];
       let total = 0;
       this.expandedServices(row).forEach(service => {
-        const item = this.getServiceData(service.name);
+        const item = this.getServiceData(service);
         if (!item) return;
         const quantity = Math.max(Number(service.cc || 1), 1);
         const type = item.default_commission_type === 'fixed' ? 'fixed' : 'percent';
@@ -6762,7 +7051,7 @@ smsColor(val) {
       const amount = Math.max(0, this.moneyToNumber(service.discount));
       const adjustment = service.adjustment_mode === 'surcharge' ? amount : Math.min(amount, price);
       service.discount = adjustment ? this.formatDisplayMoney(adjustment) : "";
-      this.calculateFinalAmount(row);
+      this.updateRowAmounts(row);
     },
 
     async toggleServiceAdjustment(service, row) {
@@ -6947,6 +7236,15 @@ smsColor(val) {
     days: {
 
       handler() {
+        const fingerprint = this.scheduleFingerprint();
+        if (fingerprint === this.lastPersistedScheduleFingerprint) return;
+        // Hydration is already protected by isFetching and the server
+        // fingerprint. Do not suppress a later change: it may be the user's
+        // first and only edit (for example selecting a patient in one action).
+        if (this.isFetching) {
+          this.lastPersistedScheduleFingerprint = fingerprint;
+          return;
+        }
         if (!this.isFetching) {
           const month = this.months[this.currentMonth];
           if (month) this.monthDaysCache[month] = this.days;
@@ -6955,7 +7253,6 @@ smsColor(val) {
         }
         this.saveData();
       },
-
       deep: true
 
     },
@@ -6979,7 +7276,6 @@ smsColor(val) {
       if (oldMonth && this.days.length) {
         this.monthDaysCache[oldMonth] = this.days;
       }
-
       localStorage.setItem(
         "schedule_current_month",
         val
@@ -9499,6 +9795,8 @@ tr.data-row td {
   border-bottom:1px solid rgba(0,0,0,0.12);
 }
 
+.referral-section.patient-services-referral-actions{grid-template-columns:minmax(170px,1.35fr) minmax(150px,1.1fr) minmax(130px,1fr) minmax(120px,1fr)}.patient-services-referral-actions .add-service-line-btn{width:100%;height:32px;padding:0 8px}.patient-services-referral-actions .wallet-payment-box{grid-column:auto;justify-content:stretch}.patient-services-referral-actions .wallet-payment-box button{width:100%;height:32px;white-space:nowrap}
+
 .referral-rule-label{display:none}.wallet-payment-box{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0;border:0;background:transparent;color:#166534;font-size:11px;font-weight:800}.wallet-payment-box button{min-height:30px;padding:6px 10px;border:0;border-radius:7px;background:#16a34a;color:#fff;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.wallet-payment-box button:disabled{opacity:.45;cursor:not-allowed}
 
 .money-input-wrap{
@@ -9765,8 +10063,11 @@ td.st-arrived select {
 .time-profile-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}.time-profile-section-head h4{margin:0;color:#0f172a;font-size:15px}.time-profile-section-head span{color:#64748b;font-size:10px;font-weight:800}.time-profile-details{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.time-profile-details-grid article{min-width:0;padding:9px 10px;border:1px solid #edf2f7;border-radius:10px;background:#f8fafc}.time-profile-details-grid span{display:block;margin-bottom:4px;color:#64748b;font-size:9px;font-weight:900}.time-profile-details-grid strong{display:block;overflow:hidden;color:#334155;font-size:11px;font-weight:900;line-height:1.7;text-overflow:ellipsis;white-space:nowrap}.time-profile-details-grid article:has(span:first-child:last-child){display:none}.time-profile-media{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-photo-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.time-profile-photo-list a{display:block;aspect-ratio:1;overflow:hidden;border:1px solid #e2e8f0;border-radius:10px;background:#f1f5f9}.time-profile-photo-list img{width:100%;height:100%;object-fit:cover;transition:transform .18s ease}.time-profile-photo-list a:hover img{transform:scale(1.06)}@media(max-width:700px){.time-profile-details-grid{grid-template-columns:1fr 1fr}.time-profile-photo-list{grid-template-columns:repeat(3,minmax(0,1fr))}.time-profile-details-grid strong{white-space:normal}.time-profile-modal{width:min(100%,96vw)}}
 .time-profile-history{overflow:auto}.time-profile-history table{min-width:960px}
 .financial-debt-payment{width:100%;display:grid;gap:3px;margin:0 0 13px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;font-size:13px;font-weight:1000;cursor:pointer}.financial-debt-payment small{color:#15803d;font-size:10px;font-weight:800}.financial-debt-payment:disabled{opacity:.55;cursor:wait}
-.service-main-row{display:grid!important;gap:0!important;padding:8px;border:1px solid #bfdbfe;border-radius:11px;background:#f8fbff}.service-choice-row,.service-details-row{position:relative;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:22px 0 8px;border:0;border-radius:0;background:transparent}.service-details-row{border-top:1px dashed #cbd5e1}.service-row-caption{position:absolute;top:6px;right:1px;color:#2563eb;font-size:9px;font-weight:1000}.service-details-row .service-row-caption{color:#64748b}.service-choice-row .service-multiselect:first-of-type,.service-choice-row .service-multiselect:nth-of-type(2){flex:0 1 150px!important;min-width:130px!important;max-width:none!important}.service-choice-row .service-multiselect:last-of-type{flex:1 1 260px!important;min-width:220px!important}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}
+.service-main-row{display:grid!important;gap:0!important;overflow:visible;padding:10px;border:1px solid #bfdbfe;border-radius:12px;background:#f8fbff}.service-choice-row{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,.95fr) minmax(0,1.55fr);align-items:center;gap:10px;width:100%;min-width:0;padding:24px 0 10px;border:0;border-radius:0;background:transparent}.service-choice-row:has(.multiselect--active){z-index:30}.service-details-row{position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:24px 0 10px;border:0;border-top:1px dashed #cbd5e1;border-radius:0;background:transparent}.service-row-caption{position:absolute;top:6px;right:1px;color:#2563eb;font-size:10px;font-weight:1000}.service-details-row .service-row-caption{color:#64748b}.service-choice-row .service-multiselect{min-width:0!important;width:100%!important;max-width:100%!important}.service-choice-row .service-root-multiselect{grid-column:1;grid-row:1}.service-choice-row .service-subsection-multiselect{grid-column:2;grid-row:1}.service-choice-row .service-name-multiselect{grid-column:3;grid-row:1}.service-choice-row .service-tags-multiselect{grid-column:1/-1;grid-row:2;width:min(520px,100%)!important;justify-self:start}.service-choice-row .multiselect__content-wrapper{z-index:40}.service-tags-multiselect .multiselect__tags{min-height:40px!important;padding:5px 34px 5px 8px!important;overflow:hidden!important}.service-tags-multiselect .multiselect__tag{max-width:190px!important;margin:2px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.service-tags-multiselect .multiselect__tag-icon{cursor:pointer!important}.service-tags-multiselect .multiselect__option--selected{display:none!important}.service-tags-multiselect .multiselect__content-wrapper{width:100%!important;max-height:210px!important;overflow:auto!important;border:1px solid #cbd5e1!important;border-radius:9px!important;background:#fff!important;box-shadow:0 12px 28px rgba(15,23,42,.16)!important}.service-tags-multiselect .multiselect__option{min-height:36px!important;padding:8px 11px!important;color:#334155!important;font-size:11px!important;font-weight:800!important}.service-tags-multiselect .multiselect__option--highlight{background:#eff6ff!important;color:#1d4ed8!important}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-choice-row .service-tags-multiselect{grid-column:1/-1}.service-choice-row .service-tags-multiselect{grid-row:auto;width:100%!important}}
+.service-tag-picker{position:relative;z-index:35;grid-column:1/-1;grid-row:2;width:min(430px,100%);justify-self:start}.service-tag-trigger{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;width:100%;height:38px;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.service-tag-trigger>b{justify-self:start;padding:3px 7px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:9px}.service-tag-trigger em{justify-self:start;color:#94a3b8;font-size:10px;font-style:normal}.service-tag-trigger i{color:#64748b;font-size:16px;font-style:normal}.service-tag-menu{position:absolute;top:calc(100% + 5px);right:0;z-index:80;display:grid;gap:3px;width:100%;max-height:205px;overflow:auto;padding:6px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.18)}.service-tag-menu label{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border-radius:7px;color:#334155;font-size:11px;font-weight:800;cursor:pointer}.service-tag-menu label:hover{background:#eff6ff;color:#1d4ed8}.service-tag-menu input{width:15px!important;height:15px!important;margin:0!important;accent-color:#2563eb}.service-tag-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.service-tag-chips button{display:inline-flex;align-items:center;gap:5px;max-width:190px;padding:4px 7px;border:0;border-radius:7px;background:#dcfce7;color:#15803d;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.service-tag-chips button b{font-size:15px;line-height:10px}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-tag-picker{grid-column:1/-1}.service-tag-picker{grid-row:auto;width:100%}}
+.service-addons-panel{display:grid;gap:7px;margin-top:10px;padding:12px!important;border-style:solid!important;border-color:#ddd6fe!important;background:#fbfaff!important}.service-addons-title{margin:0!important;padding-bottom:8px;border-bottom:1px solid #ede9fe;font-size:12px!important}.service-addons-title small{padding:3px 7px;border-radius:999px;background:#ede9fe;font-size:9px!important;font-weight:900!important}.service-addon-head,.service-addon-row{display:grid!important;grid-template-columns:minmax(240px,1fr) 105px 150px 170px 32px;align-items:center;gap:9px}.service-addon-head{padding:0 8px;color:#7c3aed;font-size:9px;font-weight:1000}.service-addon-row{margin:0!important;padding:7px;border:1px solid #ede9fe;border-radius:9px;background:#fff}.service-addon-multiselect{min-width:0!important;width:100%!important}.addon-cc-input{width:100%!important}.addon-price-chip{width:100%;min-width:0!important;max-width:none!important}.addon-discount-wrap{width:100%;min-width:0;flex-basis:auto!important}.remove-addon-btn{width:32px!important;height:32px!important}.add-another-addon-btn{justify-self:start;margin:3px 0 0!important}@media(max-width:720px){.service-addon-head{display:none}.service-addon-row{grid-template-columns:1fr 90px 32px}.service-addon-row .addon-price-chip,.service-addon-row .addon-discount-wrap{grid-column:1/3}.add-another-addon-btn{justify-self:stretch}.service-addons-title{align-items:flex-start;flex-direction:column}}
 .financial-deposit-lines{display:grid;gap:6px;margin-top:13px;padding:10px;border:1px solid #d7e6dd;border-radius:11px;background:#fafdfb}.financial-deposit-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-lines>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-line{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(90px,.9fr) minmax(120px,1.25fr) 135px;gap:8px;align-items:end;padding:8px 9px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}.financial-deposit-line>span,.financial-deposit-amount{display:grid;gap:3px;min-width:0}.financial-deposit-line small,.financial-deposit-amount span{color:#64748b;font-size:9px;font-weight:800}.financial-deposit-line b{overflow:hidden;color:#334155;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-amount{margin:0!important;color:#166534!important;font-size:10px!important;font-weight:900}.financial-deposit-amount input{height:35px!important;min-width:0}.financial-deposit-empty{margin:0;padding:8px;color:#64748b;font-size:10px;font-weight:800}@media(max-width:620px){.financial-deposit-line{grid-template-columns:1fr 1fr}.financial-deposit-amount{grid-column:1/-1}}
 .financial-deposit-history{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0}.financial-deposit-history>header{display:flex;align-items:center;justify-content:space-between;color:#334155;font-size:11px}.financial-deposit-history>header small,.financial-deposit-history>p{margin:0;color:#94a3b8;font-size:9px}.financial-deposit-history article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}.financial-deposit-history article>div{display:grid;gap:2px;min-width:0}.financial-deposit-history article b{color:#15803d;font-size:11px}.financial-deposit-history article small{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-history button{height:28px;padding:0 9px;border:1px solid #fecaca;border-radius:7px;background:#fff5f5;color:#dc2626;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.financial-deposit-history button:disabled{opacity:.55;cursor:wait}
 .sms-settings-link{display:inline-block;margin-right:5px;color:#2563eb;font-size:9px;font-style:normal;font-weight:1000;text-decoration:underline;text-underline-offset:2px;cursor:pointer}.sms-settings-link:hover{color:#1d4ed8}
+
 </style>

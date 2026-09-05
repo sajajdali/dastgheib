@@ -37,9 +37,9 @@ class AppointmentReferralWalletTest extends TestCase
         $this->assertSame(200000, (int) $referrer->fresh()->wallet_balance);
         $this->assertSame(1, WalletTransaction::where('source_type','referral_reward')->count());
 
-        $this->postJson('/api/appointments', ['month'=>'1405-04','appointments'=>[]])->assertOk();
-        $this->assertSame(0, (int) $referrer->fresh()->wallet_balance);
-        $this->assertDatabaseHas('wallet_transactions', ['patient_id'=>$referrer->id,'source_type'=>'reversal','type'=>'withdraw','amount'=>200000]);
+        // A blank browser draft must never mean "delete the whole month".
+        $this->postJson('/api/appointments', ['month'=>'1405-04','appointments'=>[]])->assertUnprocessable();
+        $this->assertSame(200000, (int) $referrer->fresh()->wallet_balance);
     }
 
     public function test_wallet_payment_is_withdrawn_once_and_returned_after_deleting_appointment(): void
@@ -56,9 +56,8 @@ class AppointmentReferralWalletTest extends TestCase
         $this->postJson('/api/appointments', $payload)->assertOk();
         $this->assertSame(200000, (int) $patient->fresh()->wallet_balance);
 
-        $this->postJson('/api/appointments', ['month'=>'1405-05','appointments'=>[]])->assertOk();
-        $this->assertSame(500000, (int) $patient->fresh()->wallet_balance);
-        $this->assertDatabaseHas('wallet_transactions', ['patient_id'=>$patient->id,'source_type'=>'reversal','type'=>'deposit','amount'=>300000]);
+        $this->postJson('/api/appointments', ['month'=>'1405-05','appointments'=>[]])->assertUnprocessable();
+        $this->assertSame(200000, (int) $patient->fresh()->wallet_balance);
     }
 
     public function test_each_service_discount_is_stored_and_capped_independently(): void

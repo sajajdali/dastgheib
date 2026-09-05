@@ -15,3 +15,7 @@ Broadcast::channel('clinic.online', function (User $user): array {
         'roles' => $user->getRoleNames()->values()->all(),
     ];
 });
+
+Broadcast::channel('clinic.{tenantId}.appointments', function (User $user, string $tenantId): bool {
+    return (string) tenant('id') === $tenantId;
+});

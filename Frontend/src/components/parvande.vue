@@ -320,6 +320,16 @@
                 </svg>
               </button>
               <button
+                v-if="canUseGallery"
+                type="button"
+                class="profile-compare-action"
+                title="مقایسه عکس‌های قبل و بعد"
+                aria-label="مقایسه عکس‌های قبل و بعد"
+                @click="openPatientBeforeAfterCompare(activePatientProfile)"
+              >
+                قبل / بعد
+              </button>
+              <button
                 v-if="canUseBeauty"
                 type="button"
                 class="profile-beauty-action"
@@ -345,7 +355,12 @@
                 </svg>
               </button>
             </div>
-            <div v-if="canUseGallery && (latestProfilePhotosLoading || latestProfilePhotos.length)" class="profile-latest-photos">
+            <section v-if="canUseGallery && (latestProfilePhotosLoading || latestProfilePhotos.length)" class="profile-photo-list">
+              <header>
+                <strong>عکس‌های پرونده</strong>
+                <button type="button" @click="openMediaModal(activePatientProfile)">مشاهده در گالری ({{ latestProfilePhotos.length }})</button>
+              </header>
+              <div class="profile-latest-photos">
               <button
                 v-for="photo in latestProfilePhotos"
                 :key="photo.id"
@@ -356,7 +371,8 @@
                 <img :src="photo.url" :alt="photo.original_name || 'عکس پرونده'">
               </button>
               <span v-if="latestProfilePhotosLoading"></span>
-            </div>
+              </div>
+            </section>
             <button
               type="button"
               class="problematic-profile-toggle"
@@ -1309,12 +1325,14 @@
               <figure :class="{ empty: !activeBeforeAfterPair.before }">
                 <b>قبل</b>
                 <img v-if="activeBeforeAfterPair.before" :src="activeBeforeAfterPair.before.url" :alt="activeBeforeAfterPair.before.original_name || 'عکس قبل'">
-                <button v-else type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'before')">آپلود</button>
+                <span v-if="!activeBeforeAfterPair.before" class="compare-missing-message">عکس قبل برای نمای «{{ activeBeforeAfterPair.angle || 'بدون عنوان' }}» آپلود نشده است.</span>
+                <button v-if="!activeBeforeAfterPair.before" type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'before')">ورود به گالری برای آپلود</button>
               </figure>
               <figure :class="{ empty: !activeBeforeAfterPair.after }">
                 <b>بعد</b>
                 <img v-if="activeBeforeAfterPair.after" :src="activeBeforeAfterPair.after.url" :alt="activeBeforeAfterPair.after.original_name || 'عکس بعد'">
-                <button v-else type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'after')">آپلود</button>
+                <span v-if="!activeBeforeAfterPair.after" class="compare-missing-message">عکس بعد برای نمای «{{ activeBeforeAfterPair.angle || 'بدون عنوان' }}» آپلود نشده است.</span>
+                <button v-if="!activeBeforeAfterPair.after" type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'after')">ورود به گالری برای آپلود</button>
               </figure>
             </div>
           </article>
@@ -2235,7 +2253,6 @@ export default {
         this.latestProfilePhotos = (data.media || [])
           .filter(item => item.media_type === 'image' && item.url)
           .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0))
-          .slice(0, 6)
       } catch (error) {
         console.error(error)
       } finally {
@@ -2799,7 +2816,6 @@ export default {
           this.latestProfilePhotos = (this.mediaItems || [])
             .filter(item => item.media_type === 'image' && item.url)
             .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0))
-            .slice(0, 6)
         }
       } catch (error) {
         console.error(error)
@@ -2809,13 +2825,13 @@ export default {
       }
     },
 
-    openMediaFolder(folderId) {
+    async openMediaFolder(folderId) {
       this.closeFolderContextMenu()
       this.selectedMediaFolderService = null
       this.selectedMediaTreeKey = ''
       this.showAngleCommonSettings = false
       this.mediaShowAll = false
-      this.loadPatientMedia(folderId, false)
+      return this.loadPatientMedia(folderId, false)
     },
 
     async openBeforeAfterCompare() {
@@ -2838,34 +2854,40 @@ export default {
       }
     },
 
+    async openPatientBeforeAfterCompare(patient) {
+      if (!patient?.id || !this.canUseGallery) return
+      this.activeMediaPatient = patient
+      this.currentMediaFolderId = null
+      this.mediaBreadcrumbs = []
+      await this.openBeforeAfterCompare()
+    },
+
     closeBeforeAfterCompare() {
       this.showBeforeAfterCompare = false
     },
 
-    goUploadMissingComparePhoto(pair, stage) {
-      const targetType = stage === 'before' ? 'before_photo' : 'after_photo'
-      const targetFolder = (this.mediaFolders || []).find(folder => folder.folder_type === targetType)
-      const baseFolderId = this.currentComparisonBaseFolderId()
-
+    async goUploadMissingComparePhoto(pair, stage) {
       if (pair?.angleKey) {
         this.activePhotoAngleKey = pair.angleKey
       }
       this.closeBeforeAfterCompare()
-      if (targetFolder?.id) {
-        this.openMediaFolder(targetFolder.id)
-        return
-      }
+      await this.openMediaModal(this.activeMediaPatient)
 
-      if (baseFolderId) {
-        this.openMediaFolder(baseFolderId)
-        Swal.fire({
-          icon: 'info',
-          title: stage === 'before' ? 'عکس قبل را آپلود کنید' : 'عکس بعد را آپلود کنید',
-          text: `برای زاویه ${pair?.angle || ''} وارد فولدر ${stage === 'before' ? 'عکس قبل' : 'عکس بعد'} شوید.`,
-          timer: 2200,
-          showConfirmButton: false
-        })
+      // pair.path is the date/service path. Walk that path in the gallery so
+      // the upload control opens in the exact before/after folder, not in a
+      // second modal with an unusable upload button.
+      const pathParts = String(pair?.path || '')
+        .split(' / ')
+        .map(part => part.trim())
+        .filter(part => part && part !== 'ریشه')
+      for (const part of pathParts) {
+        const folder = (this.mediaFolders || []).find(item => String(item.name || '').trim() === part)
+        if (!folder?.id) break
+        await this.openMediaFolder(folder.id)
       }
+      const targetType = stage === 'before' ? 'before_photo' : 'after_photo'
+      const targetFolder = (this.mediaFolders || []).find(folder => folder.folder_type === targetType)
+      if (targetFolder?.id) await this.openMediaFolder(targetFolder.id)
     },
 
     currentComparisonBaseFolderId() {
@@ -4704,24 +4726,69 @@ select:focus {
 }
 .profile-beauty-action:focus-visible,
 .profile-followup-action:focus-visible,
-.profile-gallery-action:focus-visible {
+.profile-gallery-action:focus-visible,
+.profile-compare-action:focus-visible {
   outline: 3px solid rgba(37, 99, 235, .2);
   outline-offset: 2px;
 }
 
-.profile-latest-photos {
+.profile-compare-action {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 11px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 1000;
+  cursor: pointer;
+  transition: .18s ease;
+}
+.profile-compare-action:hover { border-color: #60a5fa; background: #dbeafe; transform: translateY(-1px); }
+
+.profile-photo-list {
+  width: min(100%, 520px);
+  margin: 10px auto 14px;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.profile-photo-list > header {
   display: flex;
-  justify-content: center;
-  gap: 5px;
-  margin: -2px 0 9px;
-  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: #334155;
+  font-size: 11px;
+}
+
+.profile-photo-list > header strong { font-weight: 1000; }
+.profile-photo-list > header button {
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-latest-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 7px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-left: 2px;
 }
 
 .profile-latest-photos button,
 .profile-latest-photos span {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  aspect-ratio: 1;
+  min-width: 0;
   padding: 0;
   overflow: hidden;
   border: 1px solid #dbeafe;
@@ -5620,7 +5687,8 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 
 .media-overlay {
   align-items: stretch;
-  z-index: 2147483200;
+  /* Must sit above the application navigation (2147483642). */
+  z-index: 2147483645;
 }
 
 .media-modal {
@@ -7487,7 +7555,7 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 }
 
 .compare-overlay {
-  z-index: 10030;
+  z-index: 2147483646;
   padding: 22px;
   background: rgba(15, 23, 42, .64);
   backdrop-filter: blur(8px);
@@ -7616,9 +7684,21 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 }
 
 .compare-photo-grid figure.empty {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
   background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+}
+
+.compare-missing-message {
+  max-width: 260px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.9;
+  text-align: center;
 }
 
 .compare-upload-missing {
@@ -7841,7 +7921,7 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 }
 
 .media-edit-overlay {
-  z-index: 10000;
+  z-index: 2147483646;
 }
 
 .media-edit-modal {

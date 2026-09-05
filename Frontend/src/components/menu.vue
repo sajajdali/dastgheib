@@ -1055,23 +1055,11 @@ export default {
     padding: 6px 7px;
     border-radius: 16px;
   }
-
   .menu-items {
     gap: 3px;
   }
-
-  .menu-item {
-    min-height: 38px;
-    padding: 0 11px;
-    font-size: 11px;
-  }
-
-  .menu-dot {
-    width: 6px;
-    height: 6px;
-    flex-basis: 6px;
-  }
-
+  .menu-item { min-height: 38px; padding: 0 11px; font-size: 11px; }
+  .menu-dot { width: 6px; height: 6px; flex-basis: 6px; }
   .notification-badge {
     top: -6px;
     left: -6px;

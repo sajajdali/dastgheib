@@ -1,13 +1,9 @@
 <?php
 namespace App\Http\Controllers;
-use App\Models\Appointment;
-use App\Models\Inventory;
 use App\Models\ServiceFollowup;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 class ServiceFollowupController extends Controller {
  public function index(Request $request) {
-  $this->backfillCompletedAppointments();
   $followups = ServiceFollowup::query()->when($request->status, fn($q,$s)=>$q->where('status',$s))->orderBy('due_date')->get();
   $patients = \App\Models\Patient::query()
     ->whereIn('phone', $followups->pluck('patient_phone')->filter()->unique())
@@ -37,22 +33,6 @@ class ServiceFollowupController extends Controller {
   return $followups;
  }
 
- private function backfillCompletedAppointments(): void {
-  $items=Inventory::query()->where('followup_days','>',0)->get()->keyBy('name');
-  if ($items->isEmpty()) return;
-  Appointment::query()->where('done','انجام شد')->whereNotNull('services')->get()->each(function(Appointment $appointment) use($items){
-   foreach (($appointment->services ?? []) as $service) {
-    $item=$items->get(trim((string)($service['name'] ?? ''))); if (!$item) continue;
-    $completed=Carbon::parse($appointment->completed_at ?: $appointment->created_at ?: now());
-    $key=sha1(implode('|',[$appointment->phone,$appointment->month,$appointment->day_num,$item->id]));
-    ServiceFollowup::firstOrCreate(['source_key'=>$key],[
-     'appointment_id'=>$appointment->id,'inventory_id'=>$item->id,'service_name'=>$item->name,
-     'patient_name'=>$appointment->lastname,'patient_phone'=>$appointment->phone,'completed_at'=>$completed,
-     'due_date'=>$completed->copy()->addDays((int)$item->followup_days)->toDateString(),'followup_days'=>(int)$item->followup_days,'status'=>'pending'
-    ]);
-   }
-  });
- }
  public function update(Request $request, ServiceFollowup $serviceFollowup) {
   $data=$request->validate(['status'=>'required|in:pending,called,booked,declined,done','action_note'=>'nullable|string|max:2000']);
   $serviceFollowup->update([...$data,'actioned_at'=>now(),'actioned_by'=>$request->user()?->id]); return $serviceFollowup;
