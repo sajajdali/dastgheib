@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\Auditable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Inventory extends Model
 {
@@ -43,5 +44,17 @@ class Inventory extends Model
     public function commissions()
     {
         return $this->hasMany(InventoryCommission::class);
+    }
+
+    public function defaultAddons(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'inventory_addons', 'inventory_id', 'addon_inventory_id')
+            ->withTimestamps();
+    }
+
+    public function addonDefinitions(): BelongsToMany
+    {
+        return $this->belongsToMany(InventoryAddonDefinition::class, 'inventory_addon_assignments', 'inventory_id', 'inventory_addon_definition_id')
+            ->withTimestamps();
     }
 }

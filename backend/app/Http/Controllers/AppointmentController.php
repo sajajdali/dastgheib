@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\AppointmentChanged;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\AppointmentBalanceAudit;
@@ -10,6 +11,7 @@ use App\Models\ActivityLog;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Inventory;
+use App\Models\InventoryAddonDefinition;
 use App\Models\ServiceFollowup;
 use App\Models\HiddenAppointmentDay;
 use App\Models\InventoryMovement;
@@ -23,10 +25,24 @@ use App\Support\PatientPhoneVisibility;
 
 class AppointmentController extends Controller
 {
-    // دریافت نوبت‌ها (فقط کل نوبت‌ها را برمی‌گرداند)
+    // دریافت نوبت‌های واقعی؛ اسلات‌های خالی از تنظیمات ساعات کاری در فرانت ساخته می‌شوند.
     public function getAppointments(Request $request, CustomerLevelService $levels)
     {
+        $month = $request->validate([
+            'month' => ['nullable', 'string', 'regex:/^1[34]\\d{2}-(0[1-9]|1[0-2])$/'],
+        ])['month'] ?? null;
+
         $appointments = Appointment::query()
+            ->when($month, fn ($query) => $query->where('month', $month))
+            ->where(function ($query) {
+                $query->whereNotNull('lastname')->where('lastname', '<>', '')
+                    ->orWhere(function ($query) {
+                        $query->whereNotNull('file_number')->where('file_number', '<>', '');
+                    })
+                    ->orWhere(function ($query) {
+                        $query->whereNotNull('phone')->where('phone', '<>', '');
+                    });
+            })
             ->orderBy('month')
             ->orderBy('day_num')
             ->orderBy('sort_order')
@@ -155,6 +171,8 @@ class AppointmentController extends Controller
     // ذخیره هوشمند نوبت‌ها
     public function saveAppointments(Request $request)
     {
+        return $this->upsertAppointmentsSafely($request);
+
         $month = $request->input('month'); 
         $appointments = $request->input('appointments');
 
@@ -246,6 +264,11 @@ class AppointmentController extends Controller
                         $appt['services'] = json_decode($appt['services'], true);
                     }
 
+                    // این فیلد فقط برای تصمیم‌گیری دربارهٔ ثبت پیگیری دوره‌ای استفاده می‌شود
+                    // و ستونی در جدول نوبت‌ها ندارد.
+                    $followupConfirmed = filter_var($appt['followup_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                    unset($appt['followup_confirmed']);
+
                     if (! PatientPhoneVisibility::canView($request)) {
                         if ($previousAppointment) {
                             $appt['phone'] = $previousAppointment->phone;
@@ -292,7 +315,9 @@ class AppointmentController extends Controller
                     if ($previousAppointment) $matchedPreviousAppointmentIds[] = $previousAppointment->id;
                     $this->recordBalanceAudit($request, $created, $previousAppointment);
                     $this->syncResourceEarningLines($created);
-                    $this->syncServiceFollowups($created);
+                    if ($followupConfirmed) {
+                        $this->syncServiceFollowups($created);
+                    }
 
                     $auditKey = $this->appointmentAuditKey($created->toArray());
                     $referralSource = "referral|{$month}|".sha1($auditKey);
@@ -378,6 +403,320 @@ class AppointmentController extends Controller
         }
 
         return response()->json(['message' => 'تغییرات این ماه با موفقیت ثبت شد']);
+    }
+
+    /**
+     * The scheduler used to treat a browser payload as the complete truth for a
+     * month.  A stale/empty payload could therefore delete unrelated records.
+     * This endpoint is deliberately an upsert-only operation: omission is
+     * never interpreted as deletion.  Deletion has its own explicit endpoint.
+     */
+    private function upsertAppointmentsSafely(Request $request)
+    {
+        $validated = $request->validate([
+            'month' => ['required', 'string', 'regex:/^1[34]\\d{2}-(0[1-9]|1[0-2])$/'],
+            'appointments' => ['required', 'array', 'min:1'],
+            'appointments.*.appointment_id' => ['nullable', 'integer'],
+            'appointments.*.lock_version' => ['nullable', 'integer', 'min:1'],
+        ]);
+        // Laravel returns only nested keys which have explicit validation
+        // rules. Using that result directly used to discard every appointment
+        // field except id/version. Keep the submitted rows, then whitelist the
+        // writable columns below before filling the model.
+        $data = [
+            'month' => $validated['month'],
+            'appointments' => $request->input('appointments', []),
+        ];
+
+        $saved = DB::transaction(function () use ($data, $request) {
+            $saved = [];
+            foreach ($data['appointments'] as $incoming) {
+                if (! is_array($incoming)) continue;
+                $id = $incoming['appointment_id'] ?? $incoming['id'] ?? null;
+                $previous = $id ? Appointment::query()->lockForUpdate()->find($id) : null;
+                $before = null;
+
+                if ($id && ! $previous) {
+                    abort(409, 'این نوبت دیگر وجود ندارد. لطفاً صفحه را تازه‌سازی کنید.');
+                }
+                if ($previous && $previous->month !== $data['month']) {
+                    abort(422, 'نوبت ارسالی متعلق به ماه انتخاب‌شده نیست.');
+                }
+                // A delayed browser request containing an empty slot must
+                // never clear a booking which has already been persisted.
+                if (
+                    $previous
+                    && trim((string) $previous->lastname) !== ''
+                    && trim((string) ($incoming['lastname'] ?? '')) === ''
+                ) {
+                    $saved[] = $previous->fresh();
+                    continue;
+                }
+                // The client currently sends the visible month as a payload.
+                // Never write a row which is already identical: doing so would
+                // increase its version merely by opening/using another row.
+                if ($previous && $this->incomingAppointmentMatches($incoming, $previous)) {
+                    $saved[] = $previous->fresh();
+                    continue;
+                }
+                $currentLockVersion = $previous ? max(1, (int) $previous->lock_version) : null;
+                if ($previous && (int) ($incoming['lock_version'] ?? 0) !== $currentLockVersion) {
+                    // The current screen submits a month payload. A stale
+                    // version on an *unchanged* row must not reject a real
+                    // edit to another row (nor turn merely opening the page
+                    // into a conflict). Only a materially changed stale row
+                    // is a genuine concurrent-edit conflict.
+                    if ($this->incomingAppointmentMatches($incoming, $previous)) {
+                        $saved[] = $previous->fresh();
+                        continue;
+                    }
+                    abort(409, 'این نوبت در دستگاه یا مرورگر دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.');
+                }
+
+                $followupConfirmed = filter_var($incoming['followup_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                unset($incoming['id'], $incoming['appointment_id'], $incoming['lock_version'], $incoming['followup_confirmed'], $incoming['_client_key']);
+                $incoming = collect($incoming)->only([
+                    'day_num', 'sort_order', 'lastname', 'gender', 'phone',
+                    'file_number', 'time', 'status', 'arrived_at', 'wait_minutes',
+                    'doctor', 'consultant', 'source', 'campaign_id', 'description',
+                    'doctor_note', 'done', 'completed_at', 'amount',
+                    'original_amount', 'debt', 'payment_method', 'payment_account',
+                    'payment_details', 'payment_link', 'payment_link_sent_count',
+                    'payment_link_last_sent_at', 'referrer_phone', 'referral_score',
+                    'wallet_applied', 'referral_commission_type',
+                    'referral_commission_value', 'discount', 'new_customer',
+                    'appointment_sms', 'info_sms', 'completion_sms_statuses',
+                    'services', 'service_types',
+                ])->all();
+                $incoming['month'] = $data['month'];
+                if (isset($incoming['services']) && is_string($incoming['services'])) {
+                    $incoming['services'] = json_decode($incoming['services'], true) ?: [];
+                }
+
+                if (! PatientPhoneVisibility::canView($request) && $previous) {
+                    $incoming['phone'] = $previous->phone;
+                    $incoming['referrer_phone'] = $previous->referrer_phone;
+                }
+                $financial = $this->normalizeServiceDiscounts($incoming['services'] ?? []);
+                $incoming['services'] = $financial['services'];
+                if ($financial['calculated']) {
+                    $incoming['original_amount'] = $financial['original_amount'];
+                    $incoming['discount'] = $financial['discount'];
+                    $incoming['wallet_applied'] = min(max(0, $this->signedMoneyToInteger($incoming['wallet_applied'] ?? 0)), max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount']));
+                    $incoming['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount'] - $incoming['wallet_applied']);
+                }
+                $incoming = $this->normalizeAppointmentTracking($incoming);
+                $reward = $this->calculateReferralReward($incoming);
+                $incoming['referral_score'] = $reward['amount'];
+                $incoming['referral_commission_type'] = $reward['type'];
+                $incoming['referral_commission_value'] = $reward['value'];
+
+                if ($previous) {
+                    $before = clone $previous;
+                    $previous->fill($incoming);
+                    $previous->lock_version = $currentLockVersion + 1;
+                    $previous->save();
+                    $appointment = $previous;
+                    $this->recordBalanceAudit($request, $appointment, $before);
+                    $this->syncAppointmentInventoryStock([['previous' => $before, 'current' => $appointment]], collect());
+                } else {
+                    $incoming['lock_version'] = 1;
+                    $appointment = Appointment::create($incoming);
+                    $this->recordBalanceAudit($request, $appointment, null);
+                    $this->syncAppointmentInventoryStock([['previous' => null, 'current' => $appointment]], collect());
+                }
+                $this->syncResourceEarningLines($appointment);
+                $this->syncAppointmentWalletEffects($request, $appointment, $reward, $before ?? null);
+                if ($followupConfirmed) $this->syncServiceFollowups($appointment);
+                $saved[] = $appointment->fresh();
+            }
+            $this->syncMonthlySalesBonusLines($data['month']);
+            return $saved;
+        });
+
+        foreach ($saved as $appointment) {
+            $this->broadcastAppointmentChange($appointment);
+        }
+
+        return response()->json(['message' => 'نوبت‌های تغییرکرده ثبت شدند.', 'appointments' => $saved]);
+    }
+
+    /**
+     * Persist the identity/time fields of one table row synchronously.
+     * Direct table entry must not share the debounced month-save queue.
+     */
+    public function saveRow(Request $request)
+    {
+        $request->validate([
+            'appointment_id' => ['nullable', 'integer'],
+            'lock_version' => ['nullable', 'integer', 'min:1'],
+            'month' => ['required', 'string', 'regex:/^1[34]\\d{2}-(0[1-9]|1[0-2])$/'],
+            'day_num' => ['required', 'integer', 'between:1,31'],
+            'sort_order' => ['required', 'integer', 'min:0'],
+            'lastname' => ['required', 'string', 'max:255'],
+            'time' => ['required', 'date_format:H:i'],
+        ]);
+
+        $row = $request->except('appointments');
+        $request->merge(['appointments' => [$row]]);
+        $response = $this->upsertAppointmentsSafely($request);
+        $result = $response->getData(true);
+        $appointment = $result['appointments'][0] ?? null;
+
+        return response()->json([
+            'message' => 'نوبت در دیتابیس ثبت شد.',
+            'appointment' => $appointment,
+        ]);
+    }
+
+    /** Keep arrival, completion and the resulting patient waiting time authoritative on the server. */
+    private function normalizeAppointmentTracking(array $appointment): array
+    {
+        $arrived = trim((string) ($appointment['status'] ?? '')) === 'آمد';
+        $completed = trim((string) ($appointment['done'] ?? '')) === 'انجام شد';
+
+        if ($arrived && empty($appointment['arrived_at'])) {
+            $appointment['arrived_at'] = now()->toDateTimeString();
+        }
+        if (! $arrived) {
+            $appointment['arrived_at'] = null;
+        }
+        if ($completed && empty($appointment['completed_at'])) {
+            $appointment['completed_at'] = now()->toDateTimeString();
+        }
+        if (! $completed) {
+            $appointment['completed_at'] = null;
+        }
+
+        $appointment['wait_minutes'] = null;
+        if (! empty($appointment['arrived_at']) && ! empty($appointment['completed_at'])) {
+            try {
+                $arrival = now()->parse($appointment['arrived_at']);
+                $completion = now()->parse($appointment['completed_at']);
+                if (! $completion->isBefore($arrival)) {
+                    $appointment['wait_minutes'] = $arrival->diffInMinutes($completion);
+                }
+            } catch (\Throwable) {
+                // Invalid legacy values are kept from breaking an appointment save.
+            }
+        }
+
+        return $appointment;
+    }
+
+    private function incomingAppointmentMatches(array $incoming, Appointment $existing): bool
+    {
+        $fields = [
+            'day_num', 'sort_order', 'lastname', 'gender', 'phone', 'file_number',
+            'time', 'status', 'arrived_at', 'wait_minutes', 'doctor', 'consultant',
+            'source', 'campaign_id', 'description', 'doctor_note', 'done',
+            'completed_at', 'amount', 'original_amount', 'debt', 'payment_method',
+            'payment_account', 'payment_details', 'payment_link',
+            'payment_link_sent_count', 'payment_link_last_sent_at', 'referrer_phone',
+            'referral_score', 'wallet_applied', 'referral_commission_type',
+            'referral_commission_value', 'discount', 'new_customer',
+            'appointment_sms', 'info_sms', 'completion_sms_statuses',
+            'service_types', 'services',
+        ];
+
+        foreach ($fields as $field) {
+            if ($this->canonicalAppointmentValue($incoming[$field] ?? null) !== $this->canonicalAppointmentValue($existing->getAttribute($field))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function canonicalAppointmentValue(mixed $value): string
+    {
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            $value = json_last_error() === JSON_ERROR_NONE ? $decoded : trim($value);
+        }
+        if (is_array($value)) {
+            $value = $this->canonicalizeAppointmentArray($value);
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+        if (is_bool($value)) return $value ? '1' : '0';
+        return trim((string) ($value ?? ''));
+    }
+
+    private function canonicalizeAppointmentArray(array $value): array
+    {
+        foreach ($value as $key => $item) {
+            if (is_array($item)) $value[$key] = $this->canonicalizeAppointmentArray($item);
+            elseif (is_string($item)) $value[$key] = trim($item);
+        }
+        if (! array_is_list($value)) ksort($value);
+        return $value;
+    }
+
+    /** Wallet source keys are based on the immutable appointment id, not mutable fields such as time/phone. */
+    private function syncAppointmentWalletEffects(Request $request, Appointment $appointment, array $reward, ?Appointment $legacyAppointment = null): void
+    {
+        $referralKey = "appointment-referral|{$appointment->id}";
+        $walletKey = "appointment-wallet|{$appointment->id}";
+        // Transactions written by the old replace-all scheduler used a mutable
+        // month/key.  Convert their effect on first safe edit so rewards are
+        // never paid twice during the rollout.
+        if ($legacyAppointment) {
+            $legacyKey = sha1($this->appointmentAuditKey($legacyAppointment->toArray()));
+            $this->reverseAppointmentWalletSourceUnless($request, "referral|{$legacyAppointment->month}|{$legacyKey}", false);
+            $this->reverseAppointmentWalletSourceUnless($request, "wallet-use|{$legacyAppointment->month}|{$legacyKey}", false);
+        }
+        $this->reverseAppointmentWalletSourceUnless($request, $referralKey, $reward['patient'] && $reward['amount'] > 0);
+        if ($reward['patient'] && $reward['amount'] > 0) {
+            $this->syncWalletTransaction($request, $reward['patient'], $appointment, $referralKey, 'referral_reward', $reward['amount'], "پاداش معرفی برای {$appointment->lastname}", ['month' => $appointment->month, 'signature' => $reward['signature']]);
+        }
+
+        $requested = max(0, $this->signedMoneyToInteger($appointment->wallet_applied));
+        $patient = $this->appointmentPatient($appointment);
+        $existing = WalletTransaction::query()->where('source_key', $walletKey)->whereNull('reversed_at')->first();
+        $available = $patient ? max(0, (int) $patient->fresh()->wallet_balance) + ($existing && (int) $existing->patient_id === (int) $patient->id ? (int) $existing->amount : 0) : 0;
+        $applied = $patient ? min($requested, $available) : 0;
+        $this->reverseAppointmentWalletSourceUnless($request, $walletKey, $patient && $applied > 0);
+        if ($patient && $applied > 0) {
+            if ((int) $appointment->wallet_applied !== $applied) $appointment->update(['wallet_applied' => $applied]);
+            $this->syncWalletTransaction($request, $patient, $appointment, $walletKey, 'appointment_payment', $applied, "پرداخت نوبت {$appointment->lastname} از کیف پول", ['month' => $appointment->month], 'withdraw');
+        }
+    }
+
+    private function reverseAppointmentWalletSourceUnless(Request $request, string $sourceKey, bool $keep): void
+    {
+        if ($keep) return;
+        WalletTransaction::query()->where('source_key', $sourceKey)->whereNull('reversed_at')->lockForUpdate()->get()
+            ->each(fn (WalletTransaction $transaction) => $this->reverseWalletTransaction($request, $transaction, 'اصلاح یا حذف نوبت'));
+    }
+
+    /** Explicit deletion; a missing row in a browser payload can never delete data. */
+    public function destroy(Request $request, Appointment $appointment)
+    {
+        $data = $request->validate(['lock_version' => ['required', 'integer', 'min:1']]);
+        if ((int) $appointment->lock_version !== (int) $data['lock_version']) {
+            return response()->json(['message' => 'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید.'], 409);
+        }
+        $deletedAppointment = clone $appointment;
+        DB::transaction(function () use ($appointment, $request) {
+            $this->syncAppointmentInventoryStock([], collect([$appointment]));
+            ResourceEarningLine::query()->where('appointment_id', $appointment->id)->delete();
+            $this->reverseAppointmentWalletSourceUnless($request, "appointment-referral|{$appointment->id}", false);
+            $this->reverseAppointmentWalletSourceUnless($request, "appointment-wallet|{$appointment->id}", false);
+            $appointment->delete();
+            $this->syncMonthlySalesBonusLines($appointment->month);
+        });
+        $this->broadcastAppointmentChange($deletedAppointment, 'deleted');
+        return response()->noContent();
+    }
+
+    /** Realtime delivery must never turn an already committed database write into an API failure. */
+    private function broadcastAppointmentChange(Appointment $appointment, string $action = 'updated'): void
+    {
+        try {
+            broadcast(AppointmentChanged::fromAppointment($appointment, $action))->toOthers();
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
     }
 
     /**
@@ -585,6 +924,8 @@ class AppointmentController extends Controller
 
         $inventoryIds = collect($services)->flatMap(fn ($service) => collect($service['addons'] ?? [])
             ->pluck('inventory_id'))->filter()->unique()->values();
+        $addonDefinitionIds = collect($services)->flatMap(fn ($service) => collect($service['addons'] ?? [])
+            ->pluck('addon_definition_id'))->filter()->unique()->values();
         $inventory = Inventory::query()
             ->where(function ($query) use ($names, $inventoryIds) {
                 $query->whereIn('name', $names);
@@ -592,13 +933,20 @@ class AppointmentController extends Controller
             })->get();
         $prices = $inventory->pluck('amount', 'name');
         $inventoryById = $inventory->keyBy('id');
+        $addonDefinitionsById = InventoryAddonDefinition::query()
+            ->whereIn('id', $addonDefinitionIds)
+            ->where('active', true)
+            ->get()
+            ->keyBy('id');
 
         $originalAmount = 0;
         $totalDiscount = 0;
         $totalSurcharge = 0;
-        $normalizeLine = function (array $line) use ($prices, $inventoryById, &$originalAmount, &$totalDiscount, &$totalSurcharge): array {
+        $normalizeLine = function (array $line) use ($prices, $inventoryById, $addonDefinitionsById, &$originalAmount, &$totalDiscount, &$totalSurcharge): array {
             $quantity = max(0, (float) ($line['cc'] ?? 0));
-            $inventoryItem = ! empty($line['inventory_id']) ? $inventoryById->get((int) $line['inventory_id']) : null;
+            $inventoryItem = ! empty($line['addon_definition_id'])
+                ? $addonDefinitionsById->get((int) $line['addon_definition_id'])
+                : (! empty($line['inventory_id']) ? $inventoryById->get((int) $line['inventory_id']) : null);
             $lineAmount = (int) round((float) ($inventoryItem?->amount ?? $prices[$line['name'] ?? ''] ?? 0) * $quantity);
             $adjustment = max(0, $this->signedMoneyToInteger($line['discount'] ?? 0));
             $line['adjustment_mode'] = ($line['adjustment_mode'] ?? '') === 'surcharge' ? 'surcharge' : 'discount';
@@ -626,7 +974,7 @@ class AppointmentController extends Controller
 
         return [
             'services' => $normalized,
-            'calculated' => $prices->isNotEmpty(),
+            'calculated' => $prices->isNotEmpty() || $addonDefinitionsById->isNotEmpty(),
             'original_amount' => $originalAmount,
             'discount' => $totalDiscount,
             'surcharge' => $totalSurcharge,
@@ -792,6 +1140,10 @@ class AppointmentController extends Controller
         $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
 
         foreach ($lines as $line) {
+            // جانبی‌های مستقل فقط در مبلغ نوبت اثر دارند و پورسانت ندارند.
+            if (! empty($line['addon_definition_id'])) {
+                continue;
+            }
             $inventory = $inventories->get($line['name']);
             if (! $inventory) {
                 continue;
@@ -834,6 +1186,7 @@ class AppointmentController extends Controller
     {
         return [
             'name' => trim((string) ($line['name'] ?? '')),
+            'addon_definition_id' => ! empty($line['addon_definition_id']) ? (int) $line['addon_definition_id'] : null,
             'quantity' => max(1, (float) ($line['cc'] ?? 1)),
             'discount' => max(0, (float) ($line['discount'] ?? 0)),
             'surcharge' => ($line['adjustment_mode'] ?? '') === 'surcharge' ? max(0, (float) ($line['discount'] ?? 0)) : 0,

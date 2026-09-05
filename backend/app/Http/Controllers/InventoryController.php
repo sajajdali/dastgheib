@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Doctor;
 use App\Models\Inventory;
 use App\Models\InventoryCommission;
+use App\Models\InventoryAddon;
+use App\Models\InventoryAddonDefinition;
 use App\Models\InventoryMovement;
 use App\Models\InventorySection;
 use App\Models\Staff;
@@ -17,7 +19,7 @@ class InventoryController extends Controller
     public function index()
     {
         return response()->json(
-            Inventory::with(['section', 'commissions'])
+            Inventory::with(['section', 'commissions', 'defaultAddons', 'addonDefinitions'])
                 ->orderBy('section_id')
                 ->orderBy('sort_order')
                 ->orderBy('id')
@@ -36,7 +38,38 @@ class InventoryController extends Controller
             'staff' => Staff::query()->orderBy('name')->get(['id', 'name']),
             'users' => User::query()->orderBy('name')->get(['id', 'name', 'mobile']),
             'service_tags' => app(HumanResourceController::class)->serviceTags(),
+            'addons' => InventoryAddonDefinition::query()->orderBy('sort_order')->orderBy('name')->get(),
         ]);
+    }
+
+    public function storeAddonDefinitions(Request $request)
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array'],
+            'items.*.name' => ['required', 'string', 'max:255'],
+            'items.*.amount' => ['nullable'],
+            'items.*.price' => ['nullable'],
+            'items.*.stock' => ['nullable', 'integer', 'min:0'],
+            'items.*.min_stock' => ['nullable', 'integer', 'min:0'],
+            'items.*.active' => ['nullable', 'boolean'],
+        ]);
+
+        DB::transaction(function () use ($data) {
+            InventoryAddonDefinition::query()->delete();
+            foreach (array_values($data['items']) as $index => $item) {
+                InventoryAddonDefinition::create([
+                    'name' => trim($item['name']),
+                    'amount' => $item['amount'] ?? 0,
+                    'price' => $item['price'] ?? 0,
+                    'stock' => isset($item['stock']) ? (int) $item['stock'] : 0,
+                    'min_stock' => $item['min_stock'] ?? $item['minStock'] ?? 5,
+                    'active' => $item['active'] ?? true,
+                    'sort_order' => $index,
+                ]);
+            }
+        });
+
+        return response()->json(['message' => 'جانبی‌ها ذخیره شدند.']);
     }
 
     public function store(Request $request)
@@ -49,6 +82,7 @@ class InventoryController extends Controller
         $sections = $request->input('sections', []);
 
         DB::transaction(function () use ($items, $sections) {
+            InventoryAddon::query()->delete();
             InventoryCommission::query()->get()->each->delete();
             Inventory::query()->get()->each->delete();
 
@@ -108,6 +142,10 @@ class InventoryController extends Controller
                 });
             }
 
+            $inventoryIdMap = [];
+            $pendingAddonIds = [];
+            $pendingAddonDefinitionIds = [];
+
             foreach (array_values($items) as $index => $item) {
                 if (empty($item['name']) && empty($item['amount']) && empty($item['price']) && empty($item['stock'])) {
                     continue;
@@ -134,6 +172,14 @@ class InventoryController extends Controller
                     'default_commission_value' => $item['default_commission_value'] ?? $item['defaultCommissionValue'] ?? 0,
                 ]);
 
+                foreach (['id', 'client_id', 'clientId'] as $key) {
+                    if (! empty($item[$key])) {
+                        $inventoryIdMap[(string) $item[$key]] = $inventory->id;
+                    }
+                }
+                $pendingAddonIds[$inventory->id] = $item['default_addon_ids'] ?? $item['defaultAddonIds'] ?? [];
+                $pendingAddonDefinitionIds[$inventory->id] = $item['addon_definition_ids'] ?? $item['addonDefinitionIds'] ?? [];
+
                 foreach (($item['commissions'] ?? []) as $commission) {
                     if (empty($commission['recipient_type']) || empty($commission['recipient_name'])) {
                         continue;
@@ -147,6 +193,32 @@ class InventoryController extends Controller
                         'commission_value' => $commission['commission_value'] ?? 0,
                     ]);
                 }
+            }
+
+            $inventories = Inventory::query()->get()->keyBy('id');
+            foreach ($pendingAddonIds as $inventoryId => $rawAddonIds) {
+                $inventory = $inventories->get($inventoryId);
+                if (! $inventory) {
+                    continue;
+                }
+                $addonIds = collect(is_array($rawAddonIds) ? $rawAddonIds : [])
+                    ->map(fn ($id) => $inventoryIdMap[(string) $id] ?? (is_numeric($id) ? (int) $id : null))
+                    ->filter(fn ($id) => $id && $id !== $inventory->id && ($inventories->get($id)?->active ?? false))
+                    ->unique()
+                    ->values()
+                    ->all();
+                $inventory->defaultAddons()->sync($addonIds);
+            }
+
+            $activeAddonIds = InventoryAddonDefinition::query()->where('active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+            foreach ($pendingAddonDefinitionIds as $inventoryId => $rawAddonIds) {
+                $inventory = $inventories->get($inventoryId);
+                if (! $inventory) continue;
+                $addonIds = collect(is_array($rawAddonIds) ? $rawAddonIds : [])
+                    ->map(fn ($id) => is_numeric($id) ? (int) $id : null)
+                    ->filter(fn ($id) => $id && in_array($id, $activeAddonIds, true))
+                    ->unique()->values()->all();
+                $inventory->addonDefinitions()->sync($addonIds);
             }
         });
 

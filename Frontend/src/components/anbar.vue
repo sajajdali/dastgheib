@@ -146,6 +146,10 @@
             <span>🏷</span>
             تگ‌های خدمات
           </button>
+          <button class="inventory-addons-page-btn" type="button" @click="openAddonManager">
+            <span>✦</span>
+            مدیریت جانبی‌ها
+          </button>
           <span class="save-status" :class="saveState">
             {{ saveStatusText }}
           </span>
@@ -217,11 +221,12 @@
             <colgroup>
               <col class="name-col">
               <col class="tags-col">
-              <col>
-              <col>
-              <col class="small-col">
-              <col class="small-col">
-              <col class="small-col">
+              <col class="addons-col">
+              <col class="money-col">
+              <col class="money-col">
+              <col class="min-col">
+              <col class="stock-col">
+              <col class="followup-col">
               <col class="commission-col">
               <col class="active-col">
               <col class="action-col">
@@ -230,6 +235,7 @@
               <tr>
                 <th>نام کالا / خدمت</th>
                 <th>تگ‌های خدمات</th>
+                <th title="جانبی‌های پیش‌فرض">جانبی‌ها</th>
                 <th>قیمت کالا</th>
                 <th>هزینه مواد</th>
                 <th>حداقل</th>
@@ -271,6 +277,11 @@
                   </div>
                 </td>
                 <td>
+                  <button class="inventory-addons-btn" type="button" @click.stop="openDefaultAddonsModal(row)">
+                    <b>{{ row.addonDefinitionIds.length.toLocaleString('fa-IR') }}</b><span>+</span>
+                  </button>
+                </td>
+                <td>
                   <input
                     type="text"
                     :value="formatNumberWithCommas(row.amount)"
@@ -310,7 +321,7 @@
               </tr>
 
               <tr v-if="displayedRows.length === 0">
-                <td colspan="10" class="empty-cell">
+                <td colspan="11" class="empty-cell">
                   {{ inventoryEmptyMessage }}
                 </td>
               </tr>
@@ -475,6 +486,29 @@
       </section>
     </div>
 
+    <div v-if="defaultAddonsModal.open" class="modal-backdrop" @click.self="closeDefaultAddonsModal">
+      <section class="commission-modal inventory-addons-modal" role="dialog" aria-modal="true" aria-label="انتخاب جانبی‌ها">
+        <div class="modal-head"><div><h3>جانبی‌های پیش‌فرض</h3><p>{{ defaultAddonsModal.row?.name || 'کالا / خدمت' }}</p></div><button class="modal-close" type="button" @click="closeDefaultAddonsModal">×</button></div>
+        <select v-if="defaultAddonsModal.globalMode" v-model="defaultAddonsModal.parentLocalId" class="inventory-addons-parent" @change="changeDefaultAddonsParent">
+          <option v-for="item in rows.filter(item => item.name)" :key="item.localId" :value="item.localId">{{ item.name }}</option>
+        </select>
+        <input v-model.trim="defaultAddonsModal.query" class="inventory-addons-search" type="search" placeholder="جست‌وجوی کالا در انبار">
+        <p class="inventory-addons-help">با انتخاب این کالا/خدمت در وقت‌دهی، موارد انتخاب‌شده به‌صورت پیش‌فرض افزوده می‌شوند.</p>
+        <div class="inventory-addons-list">
+          <label v-for="item in filteredDefaultAddonOptions" :key="item.id" class="inventory-addon-option">
+            <input type="checkbox" :checked="isDefaultAddonSelected(item)" @change="toggleDefaultAddon(item)">
+            <span><strong>{{ item.name || 'کالای بدون نام' }}</strong><small>قیمت: {{ formatNumberWithCommas(item.amount) }} تومان · موجودی: {{ Number(item.stock || 0).toLocaleString('fa-IR') }}</small></span>
+          </label>
+          <p v-if="!filteredDefaultAddonOptions.length" class="inventory-addons-empty">کالای فعال دیگری برای انتخاب پیدا نشد.</p>
+        </div>
+        <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeDefaultAddonsModal">انصراف</button><button class="text-btn primary" type="button" @click="saveDefaultAddonsModal">ثبت جانبی‌ها</button></div>
+      </section>
+    </div>
+
+    <div v-if="addonManager.open" class="modal-backdrop" @click.self="closeAddonManager">
+      <section class="commission-modal addon-manager-modal" role="dialog" aria-modal="true"><div class="modal-head"><div><h3>مدیریت جانبی‌ها</h3><p>برای هر جانبی قیمت، هزینه مواد و موجودی مستقل ثبت کنید.</p></div><button class="modal-close" type="button" @click="closeAddonManager">×</button></div><div class="addon-manager-table"><div class="addon-manager-row addon-manager-head"><span>نام جانبی</span><span>قیمت کالا</span><span>هزینه مواد</span><span>موجودی</span><span>حداقل</span><span>فعال</span><span></span></div><div v-for="(item,index) in addonManager.items" :key="item._key" class="addon-manager-row"><input v-model.trim="item.name" placeholder="مثلاً ژل بی‌حسی"><input v-model.number="item.amount" type="number" min="0"><input v-model.number="item.price" type="number" min="0"><input v-model.number="item.stock" type="number" min="0"><input v-model.number="item.min_stock" type="number" min="0"><label class="addon-active"><input v-model="item.active" type="checkbox"><span>فعال</span></label><button class="addon-delete" type="button" title="حذف" @click="addonManager.items.splice(index,1)">×</button></div><p v-if="!addonManager.items.length" class="inventory-addons-empty">هنوز جانبی تعریف نشده است.</p></div><button class="text-btn ghost addon-add-btn" type="button" @click="addAddonDefinition">+ افزودن جانبی</button><div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeAddonManager">انصراف</button><button class="text-btn primary" type="button" @click="saveAddonManager">ذخیره جانبی‌ها</button></div></section>
+    </div>
+
     <div v-if="tagPicker.row" class="service-tag-popover-backdrop" @mousedown="closeServiceTagPicker">
       <div
         class="service-tag-popover"
@@ -535,6 +569,9 @@ export default {
         top: 0,
         left: 0,
       },
+      defaultAddonsModal: { open: false, row: null, draftIds: [], query: '', globalMode: false, parentLocalId: '' },
+      addonDefinitions: [],
+      addonManager: { open: false, items: [] },
       showDefaultCommissionModal: false,
       defaultCommissionRow: null,
       defaultCommissionDraft: {
@@ -763,6 +800,14 @@ export default {
         error: "خطا در ذخیره"
       }[this.saveState] || ""
     }
+    ,filteredDefaultAddonOptions() {
+      const query = this.normalizeSearchText(this.defaultAddonsModal.query)
+      return this.addonDefinitions.filter(item => {
+        if (item.active === false) return false
+        const text = this.normalizeSearchText(`${item.name} ${item.amount} ${item.stock}`)
+        return !query || text.includes(query)
+      })
+    }
   },
 
   watch: {
@@ -911,6 +956,7 @@ export default {
         this.serviceTagOptions = Array.isArray(contextRes.data.service_tags)
           ? contextRes.data.service_tags
           : []
+        this.addonDefinitions = Array.isArray(contextRes.data.addons) ? contextRes.data.addons : []
 
         const normalizedSections = this.normalizeInventorySections(contextRes.data.sections || [])
         this.sectionIdRedirects = normalizedSections.redirects
@@ -1016,6 +1062,8 @@ export default {
         section_id: this.resolveSectionKey(rawSectionKey) || fallbackSection,
         name: item.name || "",
         serviceTags: Array.isArray(item.service_tags || item.serviceTags) ? [...(item.service_tags || item.serviceTags)] : [],
+        defaultAddonIds: (item.default_addons || item.defaultAddons || []).map(addon => String(addon.id || addon)).filter(Boolean),
+        addonDefinitionIds: (item.addon_definitions || item.addonDefinitions || []).map(addon => String(addon.id || addon)).filter(Boolean),
         tagDraft: "",
         tagPickerOpen: false,
         amount: Number(item.amount) || 0,
@@ -1126,9 +1174,12 @@ export default {
           })),
           items: this.rows.map((row, index) => ({
             id: row.id,
+            client_id: row.localId,
             section_id: row.section_id,
             name: row.name,
             service_tags: this.normalizedServiceTags(row.serviceTags),
+            default_addon_ids: row.defaultAddonIds,
+            addon_definition_ids: row.addonDefinitionIds,
             amount: row.amount,
             price: row.price,
             count: row.count,
@@ -1366,6 +1417,8 @@ export default {
         section_id: this.activeSectionKey,
         name: "",
         serviceTags: [],
+        defaultAddonIds: [],
+        addonDefinitionIds: [],
         tagDraft: "",
         tagPickerOpen: false,
         amount: 0,
@@ -1454,6 +1507,72 @@ export default {
 
     removeServiceTag(row, tagIndex) {
       row.serviceTags.splice(tagIndex, 1)
+      this.queueSave()
+    },
+
+    defaultAddonKey(item) {
+      return String(item?.id || item?.localId || '')
+    },
+
+    openDefaultAddonsModal(row) {
+      this.closeServiceTagPicker()
+      this.defaultAddonsModal = { open: true, row, draftIds: [...(row.addonDefinitionIds || [])].map(String), query: '', globalMode: false, parentLocalId: row.localId }
+    },
+
+    openGlobalDefaultAddonsModal() {
+      const row = this.selectedRow || this.activeSectionRows.find(item => item.name) || this.rows.find(item => item.name)
+      if (!row) {
+        Swal.fire({ icon: 'info', title: 'ابتدا یک کالا ثبت کنید', text: 'بعد از ثبت کالا یا خدمت می‌توانید جانبی‌های پیش‌فرض آن را مدیریت کنید.' })
+        return
+      }
+      this.closeServiceTagPicker()
+      this.defaultAddonsModal = { open: true, row, draftIds: [...(row.defaultAddonIds || [])].map(String), query: '', globalMode: true, parentLocalId: row.localId }
+    },
+
+    openAddonManager() {
+      this.addonManager = { open: true, items: this.addonDefinitions.map(item => ({ ...item, _key: `addon-${item.id}` })) }
+    },
+
+    closeAddonManager() { this.addonManager.open = false },
+
+    addAddonDefinition() {
+      this.addonManager.items.push({ _key: `addon-${Date.now()}-${Math.random()}`, name: '', amount: 0, price: 0, stock: 0, min_stock: 5, active: true })
+    },
+
+    async saveAddonManager() {
+      await axios.post(`${API}/inventory/addons`, { items: this.addonManager.items.filter(item => String(item.name || '').trim()) })
+      await this.fetchData({ keepState: true })
+      this.closeAddonManager()
+    },
+
+    changeDefaultAddonsParent() {
+      const row = this.rows.find(item => item.localId === this.defaultAddonsModal.parentLocalId)
+      if (!row) return
+      this.defaultAddonsModal.row = row
+      this.defaultAddonsModal.draftIds = [...(row.defaultAddonIds || [])].map(String)
+      this.defaultAddonsModal.query = ''
+    },
+
+    closeDefaultAddonsModal() {
+      this.defaultAddonsModal = { open: false, row: null, draftIds: [], query: '', globalMode: false, parentLocalId: '' }
+    },
+
+    isDefaultAddonSelected(item) {
+      return this.defaultAddonsModal.draftIds.includes(this.defaultAddonKey(item))
+    },
+
+    toggleDefaultAddon(item) {
+      const id = this.defaultAddonKey(item)
+      const selected = new Set(this.defaultAddonsModal.draftIds)
+      if (selected.has(id)) selected.delete(id)
+      else selected.add(id)
+      this.defaultAddonsModal.draftIds = [...selected]
+    },
+
+    saveDefaultAddonsModal() {
+      if (!this.defaultAddonsModal.row) return
+      this.defaultAddonsModal.row.addonDefinitionIds = [...this.defaultAddonsModal.draftIds]
+      this.closeDefaultAddonsModal()
       this.queueSave()
     },
 
@@ -1646,7 +1765,11 @@ export default {
 .movement-table tr.out td:first-child { box-shadow: inset -4px 0 0 #fca5a5; }
 
 .stock-cell{display:flex;align-items:center;justify-content:center;gap:7px}.stock-cell strong{min-width:34px;text-align:center}.stock-cell button{width:28px;height:28px;border:0;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-size:18px;font-weight:900;cursor:pointer}.stock-movement-modal{width:min(570px,94vw)}.stock-current{margin:14px 0;padding:13px;border-radius:11px;background:#eff6ff;color:#1e40af;font-size:13px}.stock-current strong{font-size:19px}.stock-direction{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}.stock-direction button{height:40px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#475569;font-family:inherit;font-weight:800;cursor:pointer}.stock-direction button.active{border-color:#2563eb;background:#2563eb;color:#fff}.stock-movement-modal textarea{min-height:66px;padding:9px;resize:vertical}.movement-history{display:grid;gap:8px;margin-top:18px}.movement-history>strong{color:#334155;font-size:13px}.movement-history>p{margin:0;color:#94a3b8;font-size:12px}.movement-row{display:grid;grid-template-columns:58px 1fr auto;gap:8px;align-items:center;padding:9px;border-radius:9px;background:#f8fafc;font-size:11px}.movement-row.in b{color:#15803d}.movement-row.out b{color:#dc2626}.movement-row span{color:#475569}.movement-row time{color:#94a3b8;font-size:10px}
+.inventory-addons-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:32px;padding:0 8px;border:1px solid #c4b5fd;border-radius:8px;background:#faf5ff;color:#6d28d9;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}.inventory-addons-btn:hover{border-color:#8b5cf6;background:#f3e8ff}.inventory-addons-btn b{display:grid;place-items:center;min-width:17px;height:17px;border-radius:9px;background:#7c3aed;color:#fff}.inventory-addons-btn span{font-size:16px;line-height:1}.inventory-addons-modal{width:min(590px,94vw)}.inventory-addons-search{width:100%;box-sizing:border-box;margin-top:14px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;font-family:inherit;text-align:right}.inventory-addons-help{margin:10px 0;color:#64748b;font-size:11px;line-height:1.8}.inventory-addons-list{max-height:360px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px}.inventory-addon-option{display:flex;align-items:center;gap:10px;padding:11px;border-bottom:1px solid #edf2f7;cursor:pointer}.inventory-addon-option:last-child{border-bottom:0}.inventory-addon-option input{width:17px;height:17px;accent-color:#7c3aed}.inventory-addon-option span{display:grid;gap:3px;min-width:0}.inventory-addon-option strong{color:#1e293b;font-size:12px}.inventory-addon-option small{color:#64748b;font-size:10px}.inventory-addons-empty{margin:0;padding:20px;color:#94a3b8;text-align:center;font-size:12px}
 .movement-history-head{display:flex;align-items:center;justify-content:space-between}.movement-history-head button{border:0;background:transparent;color:#2563eb;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.movement-page{display:grid;gap:16px;padding:18px;border:1px solid #dbeafe;border-radius:18px;background:#fff}.movement-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:14px;border-radius:13px;background:#f8fafc}.movement-filters label{display:grid;gap:5px;color:#64748b;font-size:11px;font-weight:800}.movement-filters input{height:37px;border:1px solid #cbd5e1;border-radius:8px;padding:0 9px;font-family:inherit}.movement-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.movement-summary article{display:grid;gap:5px;padding:14px;border:1px solid #e2e8f0;border-radius:12px;color:#64748b;font-size:11px}.movement-summary strong{font-size:20px;color:#0f172a}.movement-summary .in{border-color:#bbf7d0;background:#f0fdf4}.movement-summary .in strong{color:#15803d}.movement-summary .out{border-color:#fecaca;background:#fff7f7}.movement-summary .out strong{color:#dc2626}.movement-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}.movement-table{width:100%;border-collapse:collapse}.movement-table th,.movement-table td{padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:12px}.movement-table th{background:#f8fafc;color:#475569}.movement-table tr.in b{color:#15803d}.movement-table tr.out b{color:#dc2626}.movement-loading{padding:14px;color:#64748b;font-size:12px}@media(max-width:700px){.movement-summary{grid-template-columns:1fr}.movement-table{min-width:620px}}
+
+.inventory-addons-page-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 11px;border:1px solid #c4b5fd;border-radius:10px;background:#faf5ff;color:#6d28d9;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.inventory-addons-page-btn:hover{border-color:#8b5cf6;background:#f3e8ff}.inventory-addons-btn{gap:2px;width:38px;height:32px;min-height:32px;padding:0}.inventory-addons-btn span{font-size:14px}.inventory-addons-parent{width:100%;box-sizing:border-box;margin-top:14px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-family:inherit;text-align:right}
+.addon-manager-modal{width:min(980px,96vw)}.addon-manager-table{margin-top:16px;overflow:auto;border:1px solid #e2e8f0;border-radius:11px}.addon-manager-row{display:grid;grid-template-columns:minmax(170px,1.7fr) repeat(4,minmax(90px,1fr)) 72px 34px;gap:8px;align-items:center;padding:9px;border-bottom:1px solid #edf2f7}.addon-manager-row:last-child{border-bottom:0}.addon-manager-head{background:#f8fafc;color:#475569;font-size:11px;font-weight:900}.addon-manager-row input[type="number"],.addon-manager-row input[type="text"]{width:100%;box-sizing:border-box;height:35px;border:1px solid #cbd5e1;border-radius:7px;padding:0 8px;font-family:inherit;text-align:right}.addon-active{display:flex;align-items:center;justify-content:center;gap:5px;color:#475569;font-size:11px;font-weight:800}.addon-active input{width:16px;height:16px;accent-color:#2563eb}.addon-delete{width:30px;height:30px;border:0;border-radius:7px;background:#fee2e2;color:#dc2626;font-size:18px;cursor:pointer}.addon-add-btn{margin-top:12px}@media(max-width:760px){.addon-manager-row{min-width:760px}}
 
 .inventory-page {
   display: grid;
@@ -2346,20 +2469,36 @@ p {
 
 table {
   width: 100%;
-  min-width: 1080px;
+  min-width: 1320px;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
 .name-col {
-  width: 17%;
+  width: 15%;
 }
 
 .tags-col {
-  width: 22%;
+  width: 20%;
 }
 
-.small-col {
+.addons-col {
+  width: 72px;
+}
+
+.money-col {
+  width: 10%;
+}
+
+.min-col {
+  width: 7%;
+}
+
+.stock-col {
+  width: 9%;
+}
+
+.followup-col {
   width: 8%;
 }
 
