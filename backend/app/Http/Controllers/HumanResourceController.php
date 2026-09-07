@@ -115,7 +115,7 @@ class HumanResourceController extends Controller
 
         AppSetting::updateOrCreate(
             ['key' => 'service_tags'],
-            ['value' => json_encode($tags !== [] ? $tags : $this->serviceTagDefaults(), JSON_UNESCAPED_UNICODE)]
+            ['value' => json_encode($tags, JSON_UNESCAPED_UNICODE)]
         );
 
         return response()->json([
@@ -131,7 +131,8 @@ class HumanResourceController extends Controller
 
     public function serviceTagDefinitions(): array
     {
-        $stored = json_decode((string) AppSetting::getByKey('service_tags', '[]'), true);
+        $value = AppSetting::getByKey('service_tags');
+        $stored = json_decode((string) $value, true);
 
         $definitions = collect(is_array($stored) ? $stored : [])
             ->map(function ($tag) {
@@ -144,7 +145,7 @@ class HumanResourceController extends Controller
             ->values()
             ->all();
 
-        return $definitions !== []
+        return $value !== null && is_array($stored)
             ? $definitions
             : collect($this->serviceTagDefaults())->map(fn ($name) => ['name' => $name, 'sms_template' => ''])->all();
     }

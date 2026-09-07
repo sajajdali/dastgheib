@@ -17,20 +17,20 @@
           name="patient_first_name"
           type="text"
           autocomplete="given-name"
-          placeholder="نام *"
+          :placeholder="`نام${patientRequiredFields.first_name ? ' *' : ''}`"
         />
         <input
           v-model="form.last_name"
           name="patient_last_name"
           type="text"
           autocomplete="family-name"
-          placeholder="نام خانوادگی *"
+          :placeholder="`نام خانوادگی${patientRequiredFields.last_name ? ' *' : ''}`"
         />
         
         <input 
           v-model="form.phone" 
           type="text" 
-          placeholder="شماره تماس * (۱۱ رقم)" 
+          :placeholder="`شماره تماس${patientRequiredFields.phone ? ' *' : ''} (۱۱ رقم)`"
           maxlength="11"
         />
         <input
@@ -38,13 +38,13 @@
           type="text"
           name="patient_file_number"
           autocomplete="off"
-          placeholder="شماره پرونده (خودکار) *"
+          :placeholder="`شماره پرونده (خودکار)${patientRequiredFields.file_number ? ' *' : ''}`"
           readonly
           required
         />
 
         <select v-model="form.gender">
-          <option value="" disabled>جنسیت *</option>
+          <option value="" disabled>{{ `جنسیت${patientRequiredFields.gender ? ' *' : ''}` }}</option>
           <option>زن</option>
           <option>مرد</option>
         </select>
@@ -55,7 +55,7 @@
           format="jYYYY-jMM-jDD"
           display-format="jYYYY-jMM-jDD"
           input-class="birthdate-picker"
-          placeholder="تاریخ تولد *"
+          :placeholder="`تاریخ تولد${patientRequiredFields.birth_date ? ' *' : ''}`"
           auto-submit
           color="#0f766e"
         />
@@ -67,7 +67,7 @@
           :options="cityOptions"
           label="displayName"
           track-by="id"
-          placeholder="انتخاب شهر"
+          :placeholder="`انتخاب شهر${patientRequiredFields.city ? ' *' : ''}`"
           :searchable="true"
           :allow-empty="false"
           :show-labels="false"
@@ -75,7 +75,7 @@
         />
 
         <select v-model="form.financial_status">
-          <option value="" disabled>وضعیت مالی *</option>
+          <option value="" disabled>{{ `وضعیت مالی${patientRequiredFields.financial_status ? ' *' : ''}` }}</option>
           <option>ضعیف</option>
           <option>متوسط</option>
           <option>خوب</option>
@@ -86,21 +86,21 @@
           v-if="activeProfileFields.national_id"
           v-model="form.national_id"
           type="text"
-          placeholder="کد ملی"
+          :placeholder="`کد ملی${patientRequiredFields.national_id ? ' *' : ''}`"
         />
 
         <input
           v-if="activeProfileFields.foreign_national_code"
           v-model="form.foreign_national_code"
           type="text"
-          placeholder="کد اتباع"
+          :placeholder="`کد اتباع${patientRequiredFields.foreign_national_code ? ' *' : ''}`"
         />
 
         <input 
           v-if="activeProfileFields.father_name" 
           v-model="form.father_name" 
           type="text" 
-          placeholder="نام پدر" 
+          :placeholder="`نام پدر${patientRequiredFields.father_name ? ' *' : ''}`"
         />
 
         <date-picker
@@ -109,7 +109,7 @@
           format="jYYYY-jMM-jDD"
           display-format="jYYYY-jMM-jDD"
           input-class="birthdate-picker"
-          placeholder="تاریخ ازدواج"
+          :placeholder="`تاریخ ازدواج${patientRequiredFields.marriage_date ? ' *' : ''}`"
           auto-submit
           color="#0f766e"
         />
@@ -118,24 +118,24 @@
           v-if="activeProfileFields.education" 
           v-model="form.education" 
           type="text" 
-          placeholder="تحصیلات" 
+          :placeholder="`تحصیلات${patientRequiredFields.education ? ' *' : ''}`"
         />
 
         <input 
           v-if="activeProfileFields.second_phone" 
           v-model="form.second_phone" 
           type="text" 
-          placeholder="شماره تماس دوم" 
+          :placeholder="`شماره تماس دوم${patientRequiredFields.second_phone ? ' *' : ''}`"
           maxlength="11"
         />
 
-        <textarea v-model="form.patient_history" placeholder="تیپ شخصیتی "></textarea>
-        <textarea v-model="form.medical_history" placeholder="سوابق پزشکی"></textarea>
+        <textarea v-model="form.patient_history" :placeholder="`تیپ شخصیتی${patientRequiredFields.patient_history ? ' *' : ''}`"></textarea>
+        <textarea v-model="form.medical_history" :placeholder="`سوابق پزشکی${patientRequiredFields.medical_history ? ' *' : ''}`"></textarea>
         
         <textarea 
           v-if="activeProfileFields.address" 
           v-model="form.address" 
-          placeholder="آدرس محل سکونت"
+          :placeholder="`آدرس محل سکونت${patientRequiredFields.address ? ' *' : ''}`"
         ></textarea>
 
         <button class="primary-btn" @click="submitForm">

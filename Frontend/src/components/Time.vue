@@ -103,8 +103,10 @@
             <th
               class="sticky-header resizable-th"
               :style="{ width: columnWidths.gender + 'px' }"
+              :class="{ 'filtered-header': selectedGenders.length > 0 }"
             >
-              جنسیت
+              <div class="header-with-filter"><span>جنسیت</span><button class="filter-btn" @click.stop="toggleGenderFilter">⚙</button></div>
+              <div v-if="showGenderFilter" class="filter-dropdown" @click.stop><label v-for="gender in ['زن','مرد']" :key="gender"><input v-model="selectedGenders" type="checkbox" :value="gender">{{ gender }}</label></div>
               <div
                 class="resize-handle"
                 @mousedown="startResize($event, 'gender')"
@@ -139,8 +141,9 @@
             <th
               class="sticky-header time-col resizable-th"
               :style="{ width: columnWidths.time + 'px' }"
+              :class="{ 'filtered-header': emptyTimeFilterActive }"
             >
-              ساعت
+              <div class="header-with-filter time-empty-filter-head"><span>ساعت<small>بر اساس وقت خالی</small></span><button class="filter-btn" @click.stop="openEmptyTimeFilterModal">⚙</button></div>
               <div
                 class="resize-handle"
                 @mousedown="startResize($event, 'time')"
@@ -376,8 +379,9 @@
             <th
               class="sticky-header amount-col resizable-th"
               :style="{ width: columnWidths.amount + 'px' }"
+              :class="{ 'filtered-header': amountFilterActive }"
             >
-              مبلغ
+              <div class="header-with-filter"><span>مبلغ</span><button type="button" class="filter-btn" :class="{ active: amountFilterActive }" title="فیلتر مبلغ پرداخت‌شده" @click.stop="openAmountFilterModal">{{ amountFilterActive ? '✓' : '⚙' }}</button></div>
 
               <div
                 class="resize-handle"
@@ -405,8 +409,10 @@
             <th
               class="sticky-header sms-col resizable-th"
               :style="{ width: columnWidths.appointmentSms + 'px' }"
+              :class="{ 'filtered-header': selectedAppointmentSms.length > 0 }"
             >
-              پیامک وقت دهی
+              <div class="header-with-filter"><span>پیامک وقت دهی</span><button class="filter-btn" @click.stop="toggleAppointmentSmsFilter">⚙</button></div>
+              <div v-if="showAppointmentSmsFilter" class="filter-dropdown" @click.stop><label v-for="item in smsFilterOptions" :key="item.value"><input v-model="selectedAppointmentSms" type="checkbox" :value="item.value">{{ item.label }}</label></div>
 
               <div
                 class="resize-handle"
@@ -418,8 +424,10 @@
             <th
               class="sticky-header sms-col resizable-th"
               :style="{ width: columnWidths.infoSms + 'px' }"
+              :class="{ 'filtered-header': selectedInfoSms.length > 0 }"
             >
-              پیامک اطلاعات
+              <div class="header-with-filter"><span>پیامک اطلاعات</span><button class="filter-btn" @click.stop="toggleInfoSmsFilter">⚙</button></div>
+              <div v-if="showInfoSmsFilter" class="filter-dropdown" @click.stop><label v-for="item in smsFilterOptions" :key="item.value"><input v-model="selectedInfoSms" type="checkbox" :value="item.value">{{ item.label }}</label></div>
 
               <div
                 class="resize-handle"
@@ -431,8 +439,14 @@
             <th
               class="sticky-header service-col resizable-th"
               :style="{ width: columnWidths.service + 'px' }"
+              :class="{ 'filtered-header': serviceFilterCount > 0 }"
             >
-              خدمات
+              <div class="header-with-filter">
+                <span>خدمات</span>
+                <button type="button" class="filter-btn" :class="{ active: serviceFilterCount > 0 }" title="فیلتر خدمات" @click.stop="openServiceFilterModal">
+                  <b v-if="serviceFilterCount">{{ serviceFilterCount }}</b><span v-else>⚙</span>
+                </button>
+              </div>
 
               <div
                 class="resize-handle"
@@ -657,9 +671,9 @@
                 :style="{ width: columnWidths.status + 'px' }"
               >
                 <select
-                  v-model="row.status"
+                  :value="row.status"
                   :class="statusColor(row.status)"
-                  @change="onStatusChanged(row)"
+                  @change="onAppointmentStatusSelected(row, $event)"
                 >
                   <option value="">-</option>
                   <option value="وقت داده شد">وقت داده شد</option>
@@ -715,8 +729,10 @@
                   <input
                     style="text-align: center !important;"
                     v-model="row.description"
+                    :title="row.description || 'بدون توضیحات'"
                     @blur="saveData(0)"
-                    @dblclick="showDescription(row.description)"
+                    @click.stop="showDescription(row)"
+                    @dblclick.stop="showDescription(row)"
                   />
                   <button
                     type="button"
@@ -914,10 +930,9 @@
                         <div class="service-choice-row">
                           <span class="service-row-caption">مسیر خدمت</span>
 
-
                     <Multiselect
-                      v-model="service.rootSectionId"
-                      :options="serviceRootSectionOptions(row)"
+                      v-model="service.sectionId"
+                      :options="serviceSubsectionOptions(service, row)"
                       :custom-label="serviceSectionLabel"
                       :multiple="false"
                       :searchable="true"
@@ -925,26 +940,7 @@
                       :clear-on-select="false"
                       :allow-empty="true"
                       :disabled="!row.serviceTypes?.length"
-                      :placeholder="row.serviceTypes?.length ? 'انتخاب بخش' : 'ابتدا بخش را انتخاب کنید'"
-                      select-label=""
-                      selected-label="انتخاب شد"
-                      deselect-label="حذف"
-                      class="service-multiselect service-section-multiselect service-root-multiselect"
-                      @select="onServiceRootSectionChanged(service, row)"
-                      @remove="onServiceRootSectionChanged(service, row)"
-                    />
-
-                    <Multiselect
-                      v-model="service.sectionId"
-                      :options="serviceSubsectionOptions(service, row)"
-                      :custom-label="serviceSectionPathLabel"
-                      :multiple="false"
-                      :searchable="true"
-                      :close-on-select="true"
-                      :clear-on-select="false"
-                      :allow-empty="true"
-                      :disabled="!service.rootSectionId"
-                      :placeholder="service.rootSectionId ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
+                      :placeholder="row.serviceTypes?.length ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
                       select-label=""
                       selected-label="انتخاب شد"
                       deselect-label="حذف"
@@ -1050,8 +1046,8 @@
                   </div>
                   <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
 
-                      <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" @click.stop="addServiceAddon(service)">
-                        جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b>+</b>
+                      <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" @click.stop="toggleServiceAddons(service)">
+                        جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b aria-hidden="true">{{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b>
                       </button>
 
                       <button
@@ -1066,7 +1062,7 @@
 
                       </div>
 
-                      <div v-if="service.addons?.length" class="service-addons-panel">
+                      <div v-if="expandedAddonServices.has(service)" class="service-addons-panel">
                         <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>{{ service.addons.length }} مورد انتخاب شده</small></div>
                         <div class="service-addon-head" aria-hidden="true"><span>نام جانبی</span><span>تعداد</span><span>مبلغ</span><span>تخفیف / مازاد</span><span></span></div>
                         <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
@@ -1131,6 +1127,43 @@
         </tbody>
 
       </table>
+    </div>
+
+    <div v-if="serviceFilterModalOpen" class="service-filter-overlay" @click.self="serviceFilterModalOpen = false">
+      <section class="service-filter-modal" role="dialog" aria-modal="true" aria-labelledby="service-filter-title" @click.stop>
+        <header><div><small>فیلتر ستون خدمات</small><h3 id="service-filter-title">چه مواردی نمایش داده شوند؟</h3></div><button type="button" @click="serviceFilterModalOpen = false">×</button></header>
+        <div class="service-filter-groups">
+          <fieldset><legend>پزشک</legend><label v-for="doctor in serviceFilterDoctorOptions" :key="doctor"><input v-model="draftServiceDoctors" type="checkbox" :value="doctor"><span>{{ doctor }}</span></label><p v-if="!serviceFilterDoctorOptions.length">پزشکی ثبت نشده است.</p></fieldset>
+          <fieldset><legend>مشاور</legend><label v-for="consultant in serviceFilterConsultantOptions" :key="consultant"><input v-model="draftServiceConsultants" type="checkbox" :value="consultant"><span>{{ consultant }}</span></label><p v-if="!serviceFilterConsultantOptions.length">مشاوری ثبت نشده است.</p></fieldset>
+          <fieldset><legend>زیربخش‌ها / تگ‌ها</legend><label v-for="tag in serviceFilterTagOptions" :key="tag"><input v-model="draftServiceTags" type="checkbox" :value="tag"><span>{{ tag }}</span></label><p v-if="!serviceFilterTagOptions.length">تگی ثبت نشده است.</p></fieldset>
+        </div>
+        <footer><button type="button" class="service-filter-clear-action" :disabled="!serviceFilterCount" @click="clearServiceFilters">پاک کردن فیلترها</button><button type="button" class="service-filter-apply" @click="applyServiceFilters">اعمال فیلتر</button></footer>
+      </section>
+    </div>
+
+    <div v-if="amountFilterModalOpen" class="service-filter-overlay" @click.self="amountFilterModalOpen = false">
+      <section class="amount-filter-modal" role="dialog" aria-modal="true" aria-labelledby="amount-filter-title" @click.stop>
+        <header><div><small>فیلتر ستون مبلغ</small><h3 id="amount-filter-title">بازه مبلغ پرداخت‌شده</h3></div><button type="button" @click="amountFilterModalOpen = false">×</button></header>
+        <div class="amount-filter-body">
+          <label><span>از مبلغ</span><div class="amount-filter-input"><input :value="amountFilterDraftMin" type="text" inputmode="numeric" placeholder="مثلاً 100,000" @input="formatAmountFilterInput('amountFilterDraftMin', $event)"><b>تومان</b></div></label>
+          <label><span>تا مبلغ</span><div class="amount-filter-input"><input :value="amountFilterDraftMax" type="text" inputmode="numeric" placeholder="مثلاً 5,000,000" @input="formatAmountFilterInput('amountFilterDraftMax', $event)"><b>تومان</b></div></label>
+          <label class="amount-card-only"><input v-model="amountFilterDraftCardOnly" type="checkbox"><span>فقط افرادی که مبلغ کارت / کارتخوان برایشان ثبت شده</span></label>
+          <p>مبلغ پرداخت‌شده از مجموع پرداخت نقدی، کارت و چک ثبت‌شده محاسبه می‌شود.</p>
+        </div>
+        <footer><button type="button" class="service-filter-clear-action" :disabled="!amountFilterActive" @click="clearAmountFilter">پاک کردن فیلتر</button><button type="button" class="service-filter-apply" @click="applyAmountFilter">اعمال فیلتر</button></footer>
+      </section>
+    </div>
+
+    <div v-if="emptyTimeFilterModalOpen" class="service-filter-overlay" @click.self="emptyTimeFilterModalOpen = false">
+      <section class="amount-filter-modal" role="dialog" aria-modal="true" aria-labelledby="empty-time-filter-title" @click.stop>
+        <header><div><small>فیلتر بر اساس وقت خالی</small><h3 id="empty-time-filter-title">نمایش زمان‌های خالی</h3></div><button type="button" @click="emptyTimeFilterModalOpen = false">×</button></header>
+        <div class="amount-filter-body time-filter-body">
+          <label><span>از ساعت</span><input v-model="emptyTimeFilterDraftFrom" type="time"></label>
+          <label><span>تا ساعت</span><input v-model="emptyTimeFilterDraftTo" type="time"></label>
+          <p>فقط ردیف‌هایی نمایش داده می‌شوند که در این بازه ساعت هستند و وضعیت نوبت ندارند. «وقت داده شد» و سایر وضعیت‌ها، نوبت پُر محسوب می‌شوند.</p>
+        </div>
+        <footer><button type="button" class="service-filter-clear-action" :disabled="!emptyTimeFilterActive" @click="clearEmptyTimeFilter">پاک کردن فیلتر</button><button type="button" class="service-filter-apply" @click="applyEmptyTimeFilter">اعمال فیلتر</button></footer>
+      </section>
     </div>
 
     <div v-if="appointmentView === 'timeline'" class="timeline-actions" @click.stop>
@@ -1278,7 +1311,36 @@
           <button type="button" title="بستن" @click="closeTimelineModal()">×</button>
         </header>
 
-        <div v-if="activeTimelineDraft" class="timeline-modal-body">
+        <div v-if="activeTimelineDraft && timelineTransferMode" class="timeline-modal-body">
+          <p>نوبت {{ activeTimelineDraft.lastname }} از {{ activeTimelineDay?.dateLabel }}، ساعت {{ activeTimelineRow?.time }} به زمان زیر منتقل می‌شود.</p>
+          <div class="timeline-form-grid compact">
+            <label>تاریخ جدید
+              <date-picker v-model="timelineTransferDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD"
+                input-class="timeline-modal-input" auto-submit append-to="body" @open="raiseTimelineTimePicker" @change="loadTransferAppointments" />
+            </label>
+            <label>ساعت جدید
+              <date-picker v-model="activeTimelineDraft.time" type="time" format="HH:mm" display-format="HH:mm"
+                input-class="timeline-modal-input" :jump-minute="appointmentMinuteStep" auto-submit
+                append-to="body" @open="raiseTimelineTimePicker" />
+            </label>
+          </div>
+          <div class="transfer-schedule">
+            <strong>نوبت‌های روز مقصد</strong>
+            <p v-if="timelineTransferLoading">در حال دریافت نوبت‌ها…</p>
+            <p v-else-if="timelineTransferLoadError" role="alert">{{ timelineTransferLoadError }} <button type="button" @click="loadTransferAppointments">تلاش مجدد</button></p>
+            <table v-else-if="timelineTransferAppointments.length">
+              <thead><tr><th>ساعت</th><th>مراجعه‌کننده</th><th>پزشک</th><th>وضعیت</th></tr></thead>
+              <tbody><tr v-for="appointment in timelineTransferAppointments" :key="appointment.id">
+                <td>{{ appointment.time }}</td><td>{{ appointment.lastname }}</td>
+                <td>{{ appointment.doctor || '—' }}</td><td>{{ appointment.status || '—' }}</td>
+              </tr></tbody>
+            </table>
+            <p v-else>نوبتی برای این روز ثبت نشده است.</p>
+          </div>
+          <p>خدمات، بخش‌ها و پرداخت‌های همین نوبت حفظ می‌شوند.</p>
+          <p v-if="timelineTransferError" class="timeline-validation-alert" role="alert">{{ timelineTransferError }}</p>
+        </div>
+        <div v-else-if="activeTimelineDraft" class="timeline-modal-body">
           <div v-if="timelineValidationSummary" class="timeline-validation-alert" role="alert">
             {{ timelineValidationSummary }}
           </div>
@@ -1475,9 +1537,10 @@
             <div class="service-popup-meta timeline-service-list">
               <div class="service-item" v-for="(service, sIndex) in activeTimelineDraft.services" :key="sIndex">
                 <div class="service-main-row">
+
                   <Multiselect
-                    v-model="service.rootSectionId"
-                    :options="serviceRootSectionOptions(activeTimelineDraft)"
+                    v-model="service.sectionId"
+                    :options="serviceSubsectionOptions(service, activeTimelineDraft)"
                     :custom-label="serviceSectionLabel"
                     :multiple="false"
                     :searchable="true"
@@ -1485,26 +1548,7 @@
                     :clear-on-select="false"
                     :allow-empty="true"
                     :disabled="!activeTimelineDraft.serviceTypes?.length"
-                    :placeholder="activeTimelineDraft.serviceTypes?.length ? 'انتخاب بخش' : 'ابتدا بخش را انتخاب کنید'"
-                    select-label=""
-                    selected-label="انتخاب شد"
-                    deselect-label="حذف"
-                    class="service-multiselect service-section-multiselect"
-                    @select="onServiceRootSectionChanged(service, activeTimelineDraft)"
-                    @remove="onServiceRootSectionChanged(service, activeTimelineDraft)"
-                  />
-
-                  <Multiselect
-                    v-model="service.sectionId"
-                    :options="serviceSubsectionOptions(service, activeTimelineDraft)"
-                    :custom-label="serviceSectionPathLabel"
-                    :multiple="false"
-                    :searchable="true"
-                    :close-on-select="true"
-                    :clear-on-select="false"
-                    :allow-empty="true"
-                    :disabled="!service.rootSectionId"
-                    :placeholder="service.rootSectionId ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
+                    :placeholder="activeTimelineDraft.serviceTypes?.length ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
                     select-label=""
                     selected-label="انتخاب شد"
                     deselect-label="حذف"
@@ -1554,8 +1598,8 @@
                   </div>
                   <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
 
-                  <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" @click.stop="addServiceAddon(service)">
-                    جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b>+</b>
+                  <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" @click.stop="toggleServiceAddons(service)">
+                    جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b aria-hidden="true">{{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b>
                   </button>
 
                   <button v-if="activeTimelineDraft.services.length > 1" type="button" class="remove-service-btn" @click.stop="removeService(activeTimelineDraft, sIndex)">
@@ -1563,7 +1607,7 @@
                   </button>
                 </div>
 
-                <div v-if="service.addons?.length" class="service-addons-panel">
+                <div v-if="expandedAddonServices.has(service)" class="service-addons-panel">
                   <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>امکان افزودن چند مورد</small></div>
                   <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
                     <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, activeTimelineDraft)" @remove="onAddonChanged(service, addon, activeTimelineDraft)" />
@@ -1627,7 +1671,7 @@
         <footer class="timeline-modal-footer">
           <button type="button" class="timeline-modal-cancel" @click="closeTimelineModal()">انصراف</button>
           <button type="button" class="timeline-modal-save" :disabled="timelineSaving" @click="saveTimelineModal">
-            {{ timelineSaving ? 'در حال ذخیره…' : 'ثبت نوبت' }}
+            {{ timelineSaving ? 'در حال ذخیره…' : (timelineTransferMode ? 'تأیید انتقال نوبت' : 'ثبت نوبت') }}
           </button>
         </footer>
       </section>
@@ -2251,6 +2295,8 @@ import "vue-multiselect/dist/vue-multiselect.css";
 import PatientAvatar from './PatientAvatar.vue';
 import { subscribeAppointmentChanges } from '../services/presence';
 
+const directAppointmentSaves = new WeakMap();
+
 export default {
   props: {
     permissions: { type: Array, default: () => [] },
@@ -2265,6 +2311,7 @@ export default {
 
   data() {
     return {
+      expandedAddonServices: new WeakSet(),
       appointmentView: "table",
       appointmentReady: false,
       handledOpenViewRequestAt: null,
@@ -2305,6 +2352,13 @@ export default {
       activeTimelineDay: null,
       activeTimelineRow: null,
       activeTimelineDraft: null,
+      timelineTransferMode: false,
+      timelineTransferDate: "",
+      timelineTransferError: "",
+      timelineTransferAppointments: [],
+      timelineTransferLoading: false,
+      timelineTransferLoadError: "",
+      timelineTransferRequest: 0,
       activeTimelineFollowup: null,
       pendingTimelineFollowup: null,
       timelineValidationErrors: {},
@@ -2425,12 +2479,38 @@ export default {
       selectedConsultants: [],
       selectedSources: [],
       selectedDone: [],
+      selectedGenders: [],
+      selectedAppointmentSms: [],
+      selectedInfoSms: [],
+      smsFilterOptions: [{ value: '', label: 'بدون وضعیت' }, { value: 'انتظار', label: 'انتظار' }, { value: 'ارسال شد', label: 'ارسال شد' }],
+      selectedServiceDoctors: [],
+      selectedServiceConsultants: [],
+      selectedServiceTags: [],
+      draftServiceDoctors: [],
+      draftServiceConsultants: [],
+      draftServiceTags: [],
+      serviceFilterModalOpen: false,
+      amountFilterModalOpen: false,
+      amountFilterMin: '',
+      amountFilterMax: '',
+      amountFilterCardOnly: false,
+      amountFilterDraftMin: '',
+      amountFilterDraftMax: '',
+      amountFilterDraftCardOnly: false,
+      emptyTimeFilterModalOpen: false,
+      emptyTimeFilterFrom: '',
+      emptyTimeFilterTo: '',
+      emptyTimeFilterDraftFrom: '',
+      emptyTimeFilterDraftTo: '',
 
       showStatusFilter: false,
       showDoctorFilter: false,
       showConsultantFilter: false,
       showSourceFilter: false,
       showDoneFilter: false,
+      showGenderFilter: false,
+      showAppointmentSmsFilter: false,
+      showInfoSmsFilter: false,
 
       saveTimeout: null,
       saveRetryTimeout: null,
@@ -2476,6 +2556,34 @@ export default {
   },
 
   computed: {
+    emptyTimeFilterActive() {
+      return Boolean(this.emptyTimeFilterFrom || this.emptyTimeFilterTo);
+    },
+    amountFilterActive() {
+      return this.moneyToNumber(this.amountFilterMin) > 0 || this.moneyToNumber(this.amountFilterMax) > 0 || this.amountFilterCardOnly;
+    },
+
+    serviceFilterCount() {
+      return this.selectedServiceDoctors.length + this.selectedServiceConsultants.length + this.selectedServiceTags.length;
+    },
+
+    serviceFilterDoctorOptions() {
+      const configured = this.doctorOptions.map(item => typeof item === 'string' ? item : item?.name);
+      const used = this.days.flatMap(day => day.rows || []).flatMap(row => (row.services || []).map(service => service.doctor));
+      return [...new Set([...configured, ...used].map(value => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
+    },
+
+    serviceFilterConsultantOptions() {
+      const used = this.days.flatMap(day => day.rows || []).flatMap(row => (row.services || []).map(service => service.consultant));
+      return [...new Set([...this.consultantOptions, ...used].map(value => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
+    },
+
+    serviceFilterTagOptions() {
+      const used = this.days.flatMap(day => day.rows || []).flatMap(row => (row.services || []).flatMap(service => service.tags || []));
+      const configured = this.inventoryItems.flatMap(item => item.service_tags || item.tags || []);
+      return [...new Set([...configured, ...used].map(value => String(value?.name || value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
+    },
+
     canViewPatientPhone() {
       return this.permissions.includes("patients.view_phone") && !this.permissions.includes("patients.hide_phone");
     },
@@ -2545,6 +2653,7 @@ export default {
     },
 
     timelineModalTitle() {
+      if (this.timelineTransferMode) return `انتقال نوبت ${this.activeTimelineDraft?.lastname || ""}`;
       if (!this.activeTimelineDraft) return "ثبت نوبت";
       return this.isEmptyAppointmentRow(this.activeTimelineDraft)
         ? "ثبت نوبت"
@@ -2710,7 +2819,7 @@ export default {
     },
 
     async refreshAfterRealtimeChange() {
-      const hasLocalChanges = this.saveInProgress
+      const hasLocalChanges = this.timelineModalOpen || this.saveInProgress
         || this.scheduleFingerprint() !== this.lastPersistedScheduleFingerprint;
       if (hasLocalChanges) {
         clearTimeout(this.realtimeRefreshTimer);
@@ -3272,6 +3381,10 @@ export default {
     },
 
     closeTimelineModal(keepRow = false) {
+      if (this.timelineSaving) return;
+      this.timelineTransferMode = false;
+      this.timelineTransferRequest++;
+      this.timelineTransferError = "";
       if (!keepRow && this.activeTimelineCreatedInModal && this.activeTimelineDay && this.activeTimelineRow) {
         const index = this.activeTimelineDay.rows.findIndex(row => row._rowId === this.activeTimelineRow._rowId);
         if (index >= 0 && !this.rowHasAppointment(this.activeTimelineRow)) {
@@ -3354,6 +3467,7 @@ export default {
     },
 
     async saveTimelineModal() {
+      if (this.timelineTransferMode) return this.saveAppointmentTransfer();
       if (!this.activeTimelineDay || !this.activeTimelineRow || !this.activeTimelineDraft) return;
       if (this.timelineSaving) return;
       const draft = this.activeTimelineDraft;
@@ -3461,30 +3575,34 @@ export default {
       this.clearTimelineValidationError("phone");
     },
 
-    async persistDirectAppointment(row, notify = false) {
+    persistDirectAppointment(row, notify = false) {
+      // Blur, patient lookup and the modal can request the same save together.
+      if (directAppointmentSaves.has(row)) return directAppointmentSaves.get(row);
+      const pending = this.confirmDirectAppointment(row, notify)
+        .finally(() => directAppointmentSaves.delete(row));
+      directAppointmentSaves.set(row, pending);
+      return pending;
+    },
+
+    async confirmDirectAppointment(row, notify = false) {
       const day = this.days.find(item => (item.rows || []).includes(row));
-      if (!day) return false;
+      // An untouched slot or a partially typed row is a draft, not a failed booking.
+      if (!day || !String(row.lastname || '').trim() || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.time || '')) return false;
 
       let confirmed = false;
       for (let attempt = 0; attempt < 3 && !confirmed; attempt += 1) {
         const saved = await this.saveData(0, true);
         const rowIndex = day.rows.indexOf(row);
         confirmed = Boolean(
-          saved
-          && row.appointmentId
+          row.appointmentId
           && row._persistedStateFingerprint === this.appointmentRowStateFingerprint(day, row, rowIndex)
         );
+        // saveData owns API errors and retry policy. Do not stack a generic
+        // dialog or retry a validation/conflict error three more times here.
+        if (!saved && !confirmed) return false;
       }
 
-      if (!confirmed) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'ثبت نوبت انجام نشد',
-          text: 'آخرین وضعیت این ردیف هنوز توسط دیتابیس تأیید نشده است.'
-        });
-        return false;
-      }
-
+      if (!confirmed) return false;
       if (notify) {
         await Swal.fire({ icon: 'success', title: 'نوبت در دیتابیس ثبت شد', timer: 900, showConfirmButton: false });
       }
@@ -3697,31 +3815,166 @@ export default {
         }
       }
     },
-    showDescription(text) {
-
-      if (!text?.trim()) return;
-
-      Swal.fire({
+    async showDescription(row) {
+      if (!row) return;
+      const value = String(row.description || '');
+      const result = await Swal.fire({
         title: 'توضیحات بیمار',
-        html: `
-          <div style="
-            text-align:right;
-            max-height:300px;
-            overflow:auto;
-            line-height:2;
-            white-space:pre-wrap;
-          ">
-            ${text}
-          </div>
-        `,
+        input: 'textarea',
+        inputValue: value,
+        inputPlaceholder: 'توضیحات این نوبت را بنویسید...',
+        inputAttributes: { dir: 'rtl', rows: '8', 'aria-label': 'توضیحات نوبت' },
         width: 700,
-        confirmButtonText: 'بستن'
+        showCancelButton: true,
+        confirmButtonText: 'ذخیره توضیحات',
+        cancelButtonText: 'انصراف',
+        reverseButtons: true,
+        focusConfirm: false,
+        preConfirm: input => String(input || '').trim()
       });
-
+      if (!result.isConfirmed) return;
+      row.description = result.value || '';
+      await this.persistDirectAppointment(row);
     },
 
     currentDatabaseDateTime() {
       return moment().format("YYYY-MM-DD HH:mm:ss");
+    },
+
+    async onAppointmentStatusSelected(row, event) {
+      const status = event.target.value;
+      if (status === 'انتقال داده شده') {
+        event.target.value = row.status || '';
+        const day = this.days.find(item => (item.rows || []).includes(row));
+        if (!day) return;
+        this.openTimelineAppointmentModal(day, row);
+        this.timelineTransferMode = true;
+        this.timelineTransferDate = this.timelineDayGregorianDate(day);
+        this.timelineTransferError = '';
+        this.loadTransferAppointments();
+        return;
+      }
+      if (['کنسل شد', 'پاسخ نداد', 'پیگیری'].includes(status)) {
+        const scheduled = await this.promptAppointmentFollowup(row, status);
+        if (!scheduled) { event.target.value = row.status || ''; return; }
+      }
+      row.status = status;
+      this.onStatusChanged(row);
+    },
+
+    activeFollowupDateOptions() {
+      const options = {};
+      const activeDays = new Set(this.clinicSchedule?.active_days || []);
+      (this.months || []).forEach(month => {
+        const parts = String(month).split('-').map(Number), year = parts[0], monthNumber = parts[1];
+        if (!year || !monthNumber) return;
+        const count = moment.jDaysInMonth(year, monthNumber - 1);
+        for (let day = 1; day <= count; day++) {
+          const date = moment(year + '/' + monthNumber + '/' + day, 'jYYYY/jM/jD');
+          if (activeDays.has(this.clinicDayKey(date))) options[date.format('YYYY-MM-DD')] = date.format('jYYYY/jMM/jDD - dddd');
+        }
+      });
+      return options;
+    },
+
+    nextActiveFollowupDate(minDays = 1) {
+      const options = this.activeFollowupDateOptions();
+      const threshold = moment().add(Math.max(1, Number(minDays) || 1), 'days');
+      return Object.keys(options).find(value => !moment(value, 'YYYY-MM-DD').isBefore(threshold, 'day')) || Object.keys(options)[0] || '';
+    },
+
+    async promptAppointmentFollowup(row, reason) {
+      if (!row?.appointmentId) {
+        if (!await this.persistDirectAppointment(row)) return false;
+      }
+      if (!row?.appointmentId) return false;
+      const days = (row.services || []).map(s => Number(this.getServiceData(s)?.followup_days || 0)).filter(Boolean);
+      const defaultDate = this.nextActiveFollowupDate(Math.max(1, days.length ? Math.max(...days) : 1));
+      const result = await Swal.fire({
+        icon: 'question', title: 'ثبت پیگیری بعدی',
+        text: `این نوبت در وضعیت «${reason}» قرار می‌گیرد. اگر تمایل دارید بعداً پیگیری کنید، تاریخ پیگیری را وارد کنید.`,
+        input: 'select', inputOptions: this.activeFollowupDateOptions(), inputValue: defaultDate,
+        showCancelButton: true, confirmButtonText: 'ثبت در پیگیری‌ها', cancelButtonText: 'انصراف'
+      });
+      if (!result.isConfirmed || !result.value) return false;
+      try {
+        const { data } = await axios.post(`/api/appointments/${row.appointmentId}/followups`, { due_date: result.value, reason });
+        const replaced = (data.followups || []).some(item => item.replaced);
+        await Swal.fire({ icon: 'success', title: replaced ? 'تاریخ پیگیری به‌روزرسانی شد' : 'پیگیری ثبت شد', timer: 1000, showConfirmButton: false });
+        row.nextFollowupDate = result.value;
+        return true;
+      } catch (error) {
+        await Swal.fire({ icon:'error', title:'ثبت پیگیری انجام نشد', text: this.saveErrorMessage(error) });
+        return false;
+      }
+    },
+
+    async loadTransferAppointments() {
+      const requestId = ++this.timelineTransferRequest;
+      const date = moment(this.timelineTransferDate, 'YYYY-MM-DD', true);
+      this.timelineTransferAppointments = [];
+      this.timelineTransferLoadError = '';
+      if (!date.isValid()) return;
+      this.timelineTransferLoading = true;
+      try {
+        const { data } = await axios.get('/api/appointments', { params: { month: date.format('jYYYY-jMM') } });
+        if (requestId !== this.timelineTransferRequest) return;
+        this.timelineTransferAppointments = (Array.isArray(data) ? data : [])
+          .filter(item => Number(item.day_num) === Number(date.format('jD')) && Number(item.id) !== Number(this.activeTimelineRow?.appointmentId))
+          .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+      } catch (error) {
+        if (requestId === this.timelineTransferRequest) this.timelineTransferLoadError = 'دریافت برنامه روز مقصد انجام نشد.';
+      } finally {
+        if (requestId === this.timelineTransferRequest) this.timelineTransferLoading = false;
+      }
+    },
+
+    async saveAppointmentTransfer() {
+      if (this.timelineSaving || !this.activeTimelineRow) return;
+      const date = moment(this.timelineTransferDate, 'YYYY-MM-DD', true);
+      const time = this.activeTimelineDraft.time;
+      if (!date.isValid() || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time || '')) {
+        this.timelineTransferError = 'تاریخ و ساعت معتبر انتخاب کنید.';
+        return;
+      }
+      if (this.timelineTransferDate === this.timelineDayGregorianDate(this.activeTimelineDay) && time === this.activeTimelineRow.time) {
+        this.timelineTransferError = 'روز یا ساعت جدید باید با زمان فعلی متفاوت باشد.';
+        return;
+      }
+      this.timelineSaving = true;
+      this.timelineTransferError = '';
+      try {
+        const row = this.activeTimelineRow;
+        if (!await this.persistDirectAppointment(row)) return;
+        const fingerprintBeforeTransfer = this.scheduleFingerprint();
+        const { data } = await axios.post(`/api/appointments/${row.appointmentId}/reschedule`, {
+          lock_version: row.lockVersion, month: date.format('jYYYY-jMM'),
+          day_num: Number(date.format('jD')), time,
+        });
+        // Remove only the confirmed moved row; leave other unsaved rows intact.
+        const unchangedDuringTransfer = this.scheduleFingerprint() === fingerprintBeforeTransfer;
+        const sourceDay = this.activeTimelineDay;
+        sourceDay.rows = sourceDay.rows.filter(item => item !== row);
+        row.time = time;
+        row.status = 'انتقال داده شده';
+        row.lockVersion = data.lock_version;
+        if (date.format('jYYYY-jMM') === this.months[this.currentMonth]) {
+          const targetDay = this.ensureScheduleDay(date);
+          targetDay.rows.push(row);
+          this.sortDayRowsByTime(targetDay);
+          row._persistedStateFingerprint = this.appointmentRowStateFingerprint(targetDay, row, targetDay.rows.indexOf(row));
+          this.activateScheduleDay(targetDay);
+          this.flashRowHighlight(row._rowId);
+        }
+        if (unchangedDuringTransfer) this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
+        this.timelineSaving = false;
+        this.closeTimelineModal(true);
+        await Swal.fire({ icon: 'success', title: 'نوبت منتقل شد', text: `زمان جدید: ${date.format('jYYYY/jMM/jDD')}، ساعت ${time}` });
+      } catch (error) {
+        this.timelineTransferError = this.saveErrorMessage(error);
+      } finally {
+        this.timelineSaving = false;
+      }
     },
 
     onStatusChanged(row) {
@@ -3752,6 +4005,10 @@ export default {
 
     async onDoneChanged(row) {
       const done = String(row.done || '').trim();
+      if (done === 'مشاوره') {
+        const scheduled = await this.promptAppointmentFollowup(row, 'مشاوره');
+        if (!scheduled) { row.done = ''; return; }
+      }
       if (!this.isCompletedAppointmentDone(done)) {
         row.completedAt = "";
         row.followupConfirmed = false;
@@ -4297,7 +4554,9 @@ export default {
 
       for (let i = 1; i <= daysInMonth; i++) {
         const date = moment(`${year}/${month}/${i}`, "jYYYY/jM/jD");
-        const event = this.holidays[i + 1] || null;
+        // Calendar API returns the event using the actual Jalali day number.
+        // Using i + 1 shifted every official holiday onto the following day.
+        const event = this.holidays[i] || null;
 
         this.days.push({
           id: this._idCounter++,
@@ -4963,6 +5222,12 @@ export default {
     },
 
     saveErrorMessage(error) {
+      const validationErrors = error?.response?.data?.errors;
+      if (error?.response?.status === 422 && validationErrors && typeof validationErrors === 'object') {
+        const messages = [...new Set(Object.values(validationErrors).flat())]
+          .filter(message => typeof message === 'string' && message.trim());
+        if (messages.length) return messages.join('\n');
+      }
       const message = String(error?.response?.data?.message || '').trim();
       if (message) return message;
 
@@ -5035,10 +5300,13 @@ export default {
             const payload = [];
             const payloadRows = [];
             const payloadFingerprints = [];
+            let hasIncompleteRows = false;
 
             scheduledDays.forEach(day => {
               day.rows.forEach((row, rowIndex) => {
-                if (!this.rowShouldPersist(row)) {
+                if (!this.rowShouldPersist(row)) return;
+                if (!String(row.lastname || "").trim() || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.time || "")) {
+                  hasIncompleteRows = true;
                   return;
                 }
                 // Existing rows which have not changed are not part of this
@@ -5235,19 +5503,28 @@ this.calculateFinalAmount(row)
             // Every changed row is now an independent write. A field change
             // (source, status, service, payment, etc.) cannot be hidden inside
             // or invalidated by a month-wide batch request.
-            const rowResponses = await Promise.all(
+            const rowResponses = await Promise.allSettled(
               payload.map(appointment => axios.post('/api/appointments/row', appointment))
             );
-            const savedAppointments = rowResponses.map(item => item.data?.appointment).filter(Boolean);
-            // پاسخ سرور شامل شناسه و نسخهٔ جدید است؛ برای ویرایش بعدی
-            // همان نسخه باید ارسال شود تا دادهٔ قدیمی overwrite نشود.
-            savedAppointments.forEach((appointment, index) => {
+            let firstError = null;
+            rowResponses.forEach((result, index) => {
+              if (result.status === 'rejected') {
+                firstError ||= result.reason;
+                return;
+              }
+              const appointment = result.value.data?.appointment;
+              if (!appointment?.id) {
+                firstError ||= new Error('Missing appointment confirmation');
+                return;
+              }
+              // A different row failing must never discard this row's ID and
+              // version, or a retry could create the same booking again.
               const row = payloadRows[index];
-              if (!row) return;
               row.appointmentId = appointment.id;
               row.lockVersion = Number(appointment.lock_version || 1);
               row._persistedStateFingerprint = payloadFingerprints[index];
             });
+            if (firstError) throw firstError;
             saveSucceeded = true;
             this.saveRetryCount = 0;
 
@@ -5256,7 +5533,7 @@ this.calculateFinalAmount(row)
 
             if (this.draftRevision === draftRevisionAtRequest) {
               this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
-              this.clearPendingDraft(month);
+              if (!hasIncompleteRows) this.clearPendingDraft(month);
             }
 
           } catch (e) {
@@ -6147,6 +6424,9 @@ this.calculateFinalAmount(row)
       this.showConsultantFilter = false;
       this.showSourceFilter = false;
       this.showDoneFilter = false;
+      this.showGenderFilter = false;
+      this.showAppointmentSmsFilter = false;
+      this.showInfoSmsFilter = false;
       this.showServiceSectionFilter = false;
       document.querySelectorAll('.service-type-picker[open]').forEach(details => { details.open = false; });
     },
@@ -6407,6 +6687,108 @@ this.calculateFinalAmount(row)
       this.showDoneFilter = shouldOpen;
     },
 
+    toggleGenderFilter() {
+      const shouldOpen = !this.showGenderFilter;
+      this.closeAllPopupsAndFilters();
+      this.showGenderFilter = shouldOpen;
+    },
+
+    toggleAppointmentSmsFilter() {
+      const shouldOpen = !this.showAppointmentSmsFilter;
+      this.closeAllPopupsAndFilters();
+      this.showAppointmentSmsFilter = shouldOpen;
+    },
+
+    toggleInfoSmsFilter() {
+      const shouldOpen = !this.showInfoSmsFilter;
+      this.closeAllPopupsAndFilters();
+      this.showInfoSmsFilter = shouldOpen;
+    },
+
+    openEmptyTimeFilterModal() {
+      this.emptyTimeFilterDraftFrom = this.emptyTimeFilterFrom;
+      this.emptyTimeFilterDraftTo = this.emptyTimeFilterTo;
+      this.emptyTimeFilterModalOpen = true;
+    },
+
+    applyEmptyTimeFilter() {
+      this.emptyTimeFilterFrom = this.emptyTimeFilterDraftFrom;
+      this.emptyTimeFilterTo = this.emptyTimeFilterDraftTo;
+      this.emptyTimeFilterModalOpen = false;
+    },
+
+    clearEmptyTimeFilter() {
+      this.emptyTimeFilterFrom = '';
+      this.emptyTimeFilterTo = '';
+      this.emptyTimeFilterDraftFrom = '';
+      this.emptyTimeFilterDraftTo = '';
+      this.emptyTimeFilterModalOpen = false;
+    },
+
+    openServiceFilterModal() {
+      this.closeAllPopupsAndFilters();
+      this.draftServiceDoctors = [...this.selectedServiceDoctors];
+      this.draftServiceConsultants = [...this.selectedServiceConsultants];
+      this.draftServiceTags = [...this.selectedServiceTags];
+      this.serviceFilterModalOpen = true;
+    },
+
+    clearServiceFilters() {
+      this.selectedServiceDoctors = [];
+      this.selectedServiceConsultants = [];
+      this.selectedServiceTags = [];
+      this.draftServiceDoctors = [];
+      this.draftServiceConsultants = [];
+      this.draftServiceTags = [];
+      this.serviceFilterModalOpen = false;
+    },
+
+    applyServiceFilters() {
+      this.selectedServiceDoctors = [...this.draftServiceDoctors];
+      this.selectedServiceConsultants = [...this.draftServiceConsultants];
+      this.selectedServiceTags = [...this.draftServiceTags];
+      this.serviceFilterModalOpen = false;
+    },
+
+    clearAmountFilter() {
+      this.amountFilterMin = '';
+      this.amountFilterMax = '';
+      this.amountFilterCardOnly = false;
+      this.amountFilterDraftMin = '';
+      this.amountFilterDraftMax = '';
+      this.amountFilterDraftCardOnly = false;
+      this.amountFilterModalOpen = false;
+    },
+
+    openAmountFilterModal() {
+      this.amountFilterDraftMin = this.amountFilterMin;
+      this.amountFilterDraftMax = this.amountFilterMax;
+      this.amountFilterDraftCardOnly = this.amountFilterCardOnly;
+      this.amountFilterModalOpen = true;
+    },
+
+    applyAmountFilter() {
+      this.amountFilterMin = this.amountFilterDraftMin;
+      this.amountFilterMax = this.amountFilterDraftMax;
+      this.amountFilterCardOnly = this.amountFilterDraftCardOnly;
+      this.amountFilterModalOpen = false;
+    },
+
+    formatAmountFilterInput(field, event) {
+      const normalized = String(event.target.value || '')
+        .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+        .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+        .replace(/\D/g, '');
+      const formatted = normalized ? Number(normalized).toLocaleString('en-US') : '';
+      this[field] = formatted;
+      event.target.value = formatted;
+    },
+
+    recordedPaymentAmount(row) {
+      const details = this.normalizePaymentDetails(row?.paymentDetails || {});
+      return Number(details.cash || 0) + Number(details.card || 0) + Number(details.check?.amount || 0);
+    },
+
     rowHasAppointment(row) {
       if (!row) return false;
 
@@ -6459,6 +6841,16 @@ this.calculateFinalAmount(row)
       // Time slots are regenerated from clinic settings. Persisting them as
       // empty appointments made every page load and save unnecessarily heavy.
       return this.rowHasAppointment(row);
+    },
+
+    toggleServiceAddons(service) {
+      if (!service.name) return;
+      if (this.expandedAddonServices.has(service)) {
+        this.expandedAddonServices.delete(service);
+      } else {
+        if (!service.addons?.length) this.addServiceAddon(service);
+        this.expandedAddonServices.add(service);
+      }
     },
 
     addServiceAddon(service) {
@@ -6563,12 +6955,23 @@ this.calculateFinalAmount(row)
     },
 
     serviceSubsectionOptions(service, row) {
-      const rootId = String(service?.rootSectionId || '');
-      if (!rootId) return [];
-      const allowed = new Set(this.serviceSectionScopeIds(row?.serviceTypes));
-      return this.serviceSectionScopeIds([rootId])
-        .filter(id => allowed.has(String(id)))
-        .filter(id => this.inventoryItems.some(item => item.active !== false && String(item.section_id) === String(id)));
+      const roots = new Set(this.normalizeServiceSectionIds(row?.serviceTypes));
+      return this.serviceSectionScopeIds(row?.serviceTypes)
+        .filter(id => !roots.has(String(id)));
+    },
+
+    serviceBranchIds(sectionId) {
+      const ids = new Set();
+      const visit = id => {
+        const key = String(id);
+        if (!key || ids.has(key)) return;
+        ids.add(key);
+        this.serviceSections
+          .filter(section => String(section.parent_id || section.parentId || '') === key)
+          .forEach(section => visit(section.id));
+      };
+      if (sectionId) visit(sectionId);
+      return [...ids];
     },
 
     normalizeServiceSectionIds(values) {
@@ -6665,7 +7068,7 @@ this.calculateFinalAmount(row)
     serviceOptionsFor(service, row = null) {
       const allowedSections = new Set(this.serviceSectionScopeIds(row?.serviceTypes));
       const serviceSections = service?.sectionId
-        ? new Set(this.serviceSectionScopeIds([service.sectionId]))
+        ? new Set(this.serviceBranchIds(service.sectionId))
         : null;
       return this.inventoryItems
         .filter(item => item.active !== false)
@@ -6676,7 +7079,7 @@ this.calculateFinalAmount(row)
     },
 
     serviceTagsForSection(sectionId) {
-      const scopedSectionIds = new Set(this.serviceSectionScopeIds([sectionId]).map(String));
+      const scopedSectionIds = new Set(this.serviceBranchIds(sectionId));
       return [...new Set(this.inventoryItems
         .filter(item => item.active !== false && scopedSectionIds.has(String(item.section_id)))
         .flatMap(item => item.service_tags || item.serviceTags || [])
@@ -6700,6 +7103,10 @@ this.calculateFinalAmount(row)
 
     onServiceSectionChanged(service, row) {
       this.$nextTick(() => {
+        service.rootSectionId = this.rootSectionIdFor(service.sectionId);
+        if (service.doctor && !this.doctorsForService(row, service).some(doctor => doctor.name === service.doctor)) {
+          service.doctor = '';
+        }
         service.tags = [];
         if (service.name && !this.serviceOptionsFor(service, row).includes(service.name)) {
           service.name = "";
@@ -6785,6 +7192,17 @@ this.calculateFinalAmount(row)
     async deleteAppointmentRow(day, row) {
       const index = day.rows.findIndex(item => item._rowId === row._rowId);
       if (index === -1) return;
+
+      // The avatar preview is rendered outside the row (fixed positioning),
+      // so removing a hovered row does not necessarily fire mouseleave.
+      // Clear it explicitly or the deleted patient's photo can remain visible.
+      this.hideAvatarPreview();
+      if (this.patientProfileModalOpen && (
+        (row.patientId && this.activePatientProfile?.id === row.patientId) ||
+        (row.fileNumber && this.activePatientProfile?.file_number === row.fileNumber)
+      )) {
+        this.closePatientProfileModal();
+      }
 
       if (this.rowHasAppointment(row)) {
         const confirmed = await this.confirmDeleteFilledRows(1);
@@ -6908,6 +7326,10 @@ this.calculateFinalAmount(row)
           !this.selectedDone.length ||
           this.selectedDone.includes(row.done);
 
+        const genderOk = !this.selectedGenders.length || this.selectedGenders.includes(row.gender);
+        const appointmentSmsOk = !this.selectedAppointmentSms.length || this.selectedAppointmentSms.includes(row.appointmentSms || '');
+        const infoSmsOk = !this.selectedInfoSms.length || this.selectedInfoSms.includes(row.infoSms || '');
+
         const sectionOk = !this.selectedServiceSections.length || (row.services || []).some(service => {
           const sectionId = service.sectionId || this.sectionIdForService(service.name, row);
           return this.selectedServiceSections.some(selected =>
@@ -6915,7 +7337,30 @@ this.calculateFinalAmount(row)
           );
         });
 
-        return statusOk && sourceOk && doneOk && sectionOk;
+        const services = row.services || [];
+        const doctorOk = !this.selectedServiceDoctors.length ||
+          this.selectedServiceDoctors.includes(String(row.doctor || '').trim()) ||
+          services.some(service => this.selectedServiceDoctors.includes(String(service.doctor || '').trim()));
+        const consultantOk = !this.selectedServiceConsultants.length ||
+          this.selectedServiceConsultants.includes(String(row.consultant || '').trim()) ||
+          services.some(service => this.selectedServiceConsultants.includes(String(service.consultant || '').trim()));
+        const tagOk = !this.selectedServiceTags.length || services.some(service =>
+          (service.tags || []).some(tag => this.selectedServiceTags.includes(String(tag?.name || tag || '').trim()))
+        );
+        const paymentAmount = this.recordedPaymentAmount(row);
+        const minimum = this.moneyToNumber(this.amountFilterMin);
+        const maximum = this.moneyToNumber(this.amountFilterMax);
+        const amountOk = (!minimum || paymentAmount >= minimum) && (!maximum || paymentAmount <= maximum);
+        const cardOk = !this.amountFilterCardOnly || this.normalizePaymentDetails(row?.paymentDetails || {}).card > 0;
+        const rowTime = String(row.time || '').slice(0, 5);
+        const emptyTimeOk = !this.emptyTimeFilterActive || (
+          !String(row.status || '').trim() &&
+          Boolean(rowTime) &&
+          (!this.emptyTimeFilterFrom || rowTime >= this.emptyTimeFilterFrom) &&
+          (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
+        );
+
+        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && tagOk && amountOk && cardOk && emptyTimeOk;
       });
 
       rows = rows
@@ -7296,6 +7741,8 @@ smsColor(val) {
 
 <style>
 @import '@/scss/main.scss';
+.transfer-schedule{margin:16px 0;max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:12px}.transfer-schedule table{width:100%;border-collapse:collapse;margin-top:10px}.transfer-schedule th,.transfer-schedule td{padding:8px;text-align:right;border-bottom:1px solid #e2e8f0}
+
 
 .main-schedule-table tbody[data-day-number],
 .timeline-day-row[data-day-number] {
@@ -8314,9 +8761,43 @@ smsColor(val) {
   flex-wrap: wrap;
 }
 
+/* نوار ابزار و کلید ارسال پیامک هنگام پیمایش همیشه در دسترس بمانند. */
+.time-page .top-actions,
+.time-page .timeline-actions {
+  position: sticky !important;
+  /* ارتفاع منوی اصلی بالای صفحه است؛ نوار نباید پشت آن قرار بگیرد. */
+  top: 72px !important;
+  z-index: 1400;
+  isolation: isolate;
+  background: #f4f7fb;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, .08);
+}
+
+.time-page .top-actions .sms-send-btn,
+.time-page .timeline-actions .sms-send-btn {
+  position: sticky;
+  top: 80px;
+  z-index: 1401;
+}
+
+/* سربرگ ستون‌ها زیر نوار ابزار ثابت بماند تا نام فیلدها هنگام اسکرول دیده شود. */
+.time-page.table-view-active .main-schedule-table thead {
+  position: sticky;
+  top: 130px;
+  z-index: 1300;
+}
+
+.time-page.table-view-active .main-schedule-table thead th {
+  position: sticky;
+  top: 130px;
+  z-index: 1301;
+  background: #eef3f9;
+  box-shadow: inset 0 -1px 0 #cbd5e1;
+}
+
 .table-view-active .top-actions {
   position: sticky;
-  top: 0;
+  top: 72px;
   /* هم‌راستا با ابزارهای هر روز در جدول؛ نوار جدول در سمت راست فضای خالی دارد. */
   padding-right: 46px;
   margin-bottom: 0;
@@ -10063,11 +10544,26 @@ td.st-arrived select {
 .time-profile-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}.time-profile-section-head h4{margin:0;color:#0f172a;font-size:15px}.time-profile-section-head span{color:#64748b;font-size:10px;font-weight:800}.time-profile-details{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.time-profile-details-grid article{min-width:0;padding:9px 10px;border:1px solid #edf2f7;border-radius:10px;background:#f8fafc}.time-profile-details-grid span{display:block;margin-bottom:4px;color:#64748b;font-size:9px;font-weight:900}.time-profile-details-grid strong{display:block;overflow:hidden;color:#334155;font-size:11px;font-weight:900;line-height:1.7;text-overflow:ellipsis;white-space:nowrap}.time-profile-details-grid article:has(span:first-child:last-child){display:none}.time-profile-media{padding:14px;border:1px solid #e2e8f0;border-radius:15px;background:#fff}.time-profile-photo-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.time-profile-photo-list a{display:block;aspect-ratio:1;overflow:hidden;border:1px solid #e2e8f0;border-radius:10px;background:#f1f5f9}.time-profile-photo-list img{width:100%;height:100%;object-fit:cover;transition:transform .18s ease}.time-profile-photo-list a:hover img{transform:scale(1.06)}@media(max-width:700px){.time-profile-details-grid{grid-template-columns:1fr 1fr}.time-profile-photo-list{grid-template-columns:repeat(3,minmax(0,1fr))}.time-profile-details-grid strong{white-space:normal}.time-profile-modal{width:min(100%,96vw)}}
 .time-profile-history{overflow:auto}.time-profile-history table{min-width:960px}
 .financial-debt-payment{width:100%;display:grid;gap:3px;margin:0 0 13px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;font-size:13px;font-weight:1000;cursor:pointer}.financial-debt-payment small{color:#15803d;font-size:10px;font-weight:800}.financial-debt-payment:disabled{opacity:.55;cursor:wait}
-.service-main-row{display:grid!important;gap:0!important;overflow:visible;padding:10px;border:1px solid #bfdbfe;border-radius:12px;background:#f8fbff}.service-choice-row{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,.95fr) minmax(0,1.55fr);align-items:center;gap:10px;width:100%;min-width:0;padding:24px 0 10px;border:0;border-radius:0;background:transparent}.service-choice-row:has(.multiselect--active){z-index:30}.service-details-row{position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:24px 0 10px;border:0;border-top:1px dashed #cbd5e1;border-radius:0;background:transparent}.service-row-caption{position:absolute;top:6px;right:1px;color:#2563eb;font-size:10px;font-weight:1000}.service-details-row .service-row-caption{color:#64748b}.service-choice-row .service-multiselect{min-width:0!important;width:100%!important;max-width:100%!important}.service-choice-row .service-root-multiselect{grid-column:1;grid-row:1}.service-choice-row .service-subsection-multiselect{grid-column:2;grid-row:1}.service-choice-row .service-name-multiselect{grid-column:3;grid-row:1}.service-choice-row .service-tags-multiselect{grid-column:1/-1;grid-row:2;width:min(520px,100%)!important;justify-self:start}.service-choice-row .multiselect__content-wrapper{z-index:40}.service-tags-multiselect .multiselect__tags{min-height:40px!important;padding:5px 34px 5px 8px!important;overflow:hidden!important}.service-tags-multiselect .multiselect__tag{max-width:190px!important;margin:2px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.service-tags-multiselect .multiselect__tag-icon{cursor:pointer!important}.service-tags-multiselect .multiselect__option--selected{display:none!important}.service-tags-multiselect .multiselect__content-wrapper{width:100%!important;max-height:210px!important;overflow:auto!important;border:1px solid #cbd5e1!important;border-radius:9px!important;background:#fff!important;box-shadow:0 12px 28px rgba(15,23,42,.16)!important}.service-tags-multiselect .multiselect__option{min-height:36px!important;padding:8px 11px!important;color:#334155!important;font-size:11px!important;font-weight:800!important}.service-tags-multiselect .multiselect__option--highlight{background:#eff6ff!important;color:#1d4ed8!important}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-choice-row .service-tags-multiselect{grid-column:1/-1}.service-choice-row .service-tags-multiselect{grid-row:auto;width:100%!important}}
+.service-main-row{display:grid!important;gap:0!important;overflow:visible;padding:10px;border:1px solid #bfdbfe;border-radius:12px;background:#f8fbff}.service-choice-row{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr);align-items:center;gap:10px;width:100%;min-width:0;padding:24px 0 10px;border:0;border-radius:0;background:transparent}.service-choice-row:has(.multiselect--active){z-index:30}.service-details-row{position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:24px 0 10px;border:0;border-top:1px dashed #cbd5e1;border-radius:0;background:transparent}.service-row-caption{position:absolute;top:6px;right:1px;color:#2563eb;font-size:10px;font-weight:1000}.service-details-row .service-row-caption{color:#64748b}.service-choice-row .service-multiselect{min-width:0!important;width:100%!important;max-width:100%!important}.service-choice-row .service-root-multiselect{grid-column:1;grid-row:1}.service-choice-row .service-subsection-multiselect{grid-column:1;grid-row:1}.service-choice-row .service-name-multiselect{grid-column:2;grid-row:1}.service-choice-row .service-tags-multiselect{grid-column:1/-1;grid-row:2;width:min(520px,100%)!important;justify-self:start}.service-choice-row .multiselect__content-wrapper{z-index:40}.service-tags-multiselect .multiselect__tags{min-height:40px!important;padding:5px 34px 5px 8px!important;overflow:hidden!important}.service-tags-multiselect .multiselect__tag{max-width:190px!important;margin:2px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.service-tags-multiselect .multiselect__tag-icon{cursor:pointer!important}.service-tags-multiselect .multiselect__option--selected{display:none!important}.service-tags-multiselect .multiselect__content-wrapper{width:100%!important;max-height:210px!important;overflow:auto!important;border:1px solid #cbd5e1!important;border-radius:9px!important;background:#fff!important;box-shadow:0 12px 28px rgba(15,23,42,.16)!important}.service-tags-multiselect .multiselect__option{min-height:36px!important;padding:8px 11px!important;color:#334155!important;font-size:11px!important;font-weight:800!important}.service-tags-multiselect .multiselect__option--highlight{background:#eff6ff!important;color:#1d4ed8!important}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-choice-row .service-tags-multiselect{grid-column:1/-1}.service-choice-row .service-tags-multiselect{grid-row:auto;width:100%!important}}
 .service-tag-picker{position:relative;z-index:35;grid-column:1/-1;grid-row:2;width:min(430px,100%);justify-self:start}.service-tag-trigger{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;width:100%;height:38px;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.service-tag-trigger>b{justify-self:start;padding:3px 7px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:9px}.service-tag-trigger em{justify-self:start;color:#94a3b8;font-size:10px;font-style:normal}.service-tag-trigger i{color:#64748b;font-size:16px;font-style:normal}.service-tag-menu{position:absolute;top:calc(100% + 5px);right:0;z-index:80;display:grid;gap:3px;width:100%;max-height:205px;overflow:auto;padding:6px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.18)}.service-tag-menu label{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border-radius:7px;color:#334155;font-size:11px;font-weight:800;cursor:pointer}.service-tag-menu label:hover{background:#eff6ff;color:#1d4ed8}.service-tag-menu input{width:15px!important;height:15px!important;margin:0!important;accent-color:#2563eb}.service-tag-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.service-tag-chips button{display:inline-flex;align-items:center;gap:5px;max-width:190px;padding:4px 7px;border:0;border-radius:7px;background:#dcfce7;color:#15803d;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.service-tag-chips button b{font-size:15px;line-height:10px}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-tag-picker{grid-column:1/-1}.service-tag-picker{grid-row:auto;width:100%}}
 .service-addons-panel{display:grid;gap:7px;margin-top:10px;padding:12px!important;border-style:solid!important;border-color:#ddd6fe!important;background:#fbfaff!important}.service-addons-title{margin:0!important;padding-bottom:8px;border-bottom:1px solid #ede9fe;font-size:12px!important}.service-addons-title small{padding:3px 7px;border-radius:999px;background:#ede9fe;font-size:9px!important;font-weight:900!important}.service-addon-head,.service-addon-row{display:grid!important;grid-template-columns:minmax(240px,1fr) 105px 150px 170px 32px;align-items:center;gap:9px}.service-addon-head{padding:0 8px;color:#7c3aed;font-size:9px;font-weight:1000}.service-addon-row{margin:0!important;padding:7px;border:1px solid #ede9fe;border-radius:9px;background:#fff}.service-addon-multiselect{min-width:0!important;width:100%!important}.addon-cc-input{width:100%!important}.addon-price-chip{width:100%;min-width:0!important;max-width:none!important}.addon-discount-wrap{width:100%;min-width:0;flex-basis:auto!important}.remove-addon-btn{width:32px!important;height:32px!important}.add-another-addon-btn{justify-self:start;margin:3px 0 0!important}@media(max-width:720px){.service-addon-head{display:none}.service-addon-row{grid-template-columns:1fr 90px 32px}.service-addon-row .addon-price-chip,.service-addon-row .addon-discount-wrap{grid-column:1/3}.add-another-addon-btn{justify-self:stretch}.service-addons-title{align-items:flex-start;flex-direction:column}}
 .financial-deposit-lines{display:grid;gap:6px;margin-top:13px;padding:10px;border:1px solid #d7e6dd;border-radius:11px;background:#fafdfb}.financial-deposit-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-lines>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-line{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(90px,.9fr) minmax(120px,1.25fr) 135px;gap:8px;align-items:end;padding:8px 9px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}.financial-deposit-line>span,.financial-deposit-amount{display:grid;gap:3px;min-width:0}.financial-deposit-line small,.financial-deposit-amount span{color:#64748b;font-size:9px;font-weight:800}.financial-deposit-line b{overflow:hidden;color:#334155;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-amount{margin:0!important;color:#166534!important;font-size:10px!important;font-weight:900}.financial-deposit-amount input{height:35px!important;min-width:0}.financial-deposit-empty{margin:0;padding:8px;color:#64748b;font-size:10px;font-weight:800}@media(max-width:620px){.financial-deposit-line{grid-template-columns:1fr 1fr}.financial-deposit-amount{grid-column:1/-1}}
 .financial-deposit-history{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0}.financial-deposit-history>header{display:flex;align-items:center;justify-content:space-between;color:#334155;font-size:11px}.financial-deposit-history>header small,.financial-deposit-history>p{margin:0;color:#94a3b8;font-size:9px}.financial-deposit-history article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}.financial-deposit-history article>div{display:grid;gap:2px;min-width:0}.financial-deposit-history article b{color:#15803d;font-size:11px}.financial-deposit-history article small{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-history button{height:28px;padding:0 9px;border:1px solid #fecaca;border-radius:7px;background:#fff5f5;color:#dc2626;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.financial-deposit-history button:disabled{opacity:.55;cursor:wait}
 .sms-settings-link{display:inline-block;margin-right:5px;color:#2563eb;font-size:9px;font-style:normal;font-weight:1000;text-decoration:underline;text-underline-offset:2px;cursor:pointer}.sms-settings-link:hover{color:#1d4ed8}
 
+.service-filter-overlay{position:fixed;inset:0;z-index:2147483644;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px);direction:rtl}.service-filter-modal{width:min(920px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;border-radius:22px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.38)}.service-filter-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:19px 22px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#eff6ff,#f8fafc)}.service-filter-modal header small{color:#2563eb;font-size:10px;font-weight:900}.service-filter-modal h3{margin:4px 0 0;color:#0f172a;font-size:19px}.service-filter-modal header button{width:35px;height:35px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;cursor:pointer}.service-filter-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;min-height:300px;padding:18px;overflow:auto}.service-filter-groups fieldset{min-width:0;max-height:430px;overflow:auto;margin:0;padding:12px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.service-filter-groups legend{padding:0 7px;color:#1d4ed8;font-size:13px;font-weight:1000}.service-filter-groups label{display:flex;align-items:center;gap:8px;min-height:37px;padding:7px 8px;border-radius:8px;color:#334155;font-size:11px;font-weight:800;cursor:pointer}.service-filter-groups label:hover{background:#eaf3ff}.service-filter-groups input{width:16px;height:16px;accent-color:#2563eb}.service-filter-groups p{color:#94a3b8;font-size:11px}.service-filter-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:13px 18px;border-top:1px solid #e2e8f0;background:#f8fafc}.service-filter-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.service-filter-clear-action{background:#fee2e2;color:#b91c1c}.service-filter-clear-action:disabled{opacity:.45}.service-filter-apply{background:#2563eb;color:#fff}@media(max-width:700px){.service-filter-groups{grid-template-columns:1fr}.service-filter-modal{max-height:96vh}}
+
+/* وضعیت فیلتر فعال باید کاملاً از حالت عادی قابل تشخیص باشد. */
+.time-page .main-schedule-table thead th.filtered-header{
+  background:#dcfce7!important;
+  color:#166534!important;
+  border-bottom:3px solid #16a34a!important;
+  box-shadow:inset 0 0 0 1px #86efac,0 4px 12px rgba(22,163,74,.16)!important;
+}
+.time-page .main-schedule-table thead th.filtered-header .header-with-filter>span:first-child{color:#166534!important;font-weight:1000!important}
+.time-page .main-schedule-table thead th.filtered-header .filter-btn{min-width:22px!important;height:22px!important;display:grid!important;place-items:center!important;padding:0 5px!important;border-radius:7px!important;background:#16a34a!important;color:#fff!important;box-shadow:0 3px 8px rgba(22,163,74,.25)!important}
+.time-page .main-schedule-table thead th.filtered-header .service-section-filter-dot{border-radius:50%!important;background:#16a34a!important}
+.amount-filter-modal{width:min(560px,94vw);overflow:hidden;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.38);direction:rtl}.amount-filter-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:19px 22px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#ecfdf5,#f8fafc)}.amount-filter-modal header small{color:#15803d;font-size:10px;font-weight:900}.amount-filter-modal h3{margin:4px 0 0;color:#0f172a;font-size:19px}.amount-filter-modal header button{width:35px;height:35px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;cursor:pointer}.amount-filter-body{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:20px}.amount-filter-body>label:not(.amount-card-only){display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}.amount-filter-body input[type=text]{height:43px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;font-family:inherit;text-align:right}.amount-card-only{grid-column:1/-1;display:flex;align-items:center;gap:9px;padding:11px;border:1px solid #bbf7d0;border-radius:11px;background:#f0fdf4;color:#166534;font-size:11px;font-weight:900}.amount-card-only input{width:17px;height:17px;accent-color:#16a34a}.amount-filter-body p{grid-column:1/-1;margin:0;color:#64748b;font-size:10px}.amount-filter-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:13px 18px;border-top:1px solid #e2e8f0;background:#f8fafc}.amount-filter-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}@media(max-width:520px){.amount-filter-body{grid-template-columns:1fr}.amount-card-only,.amount-filter-body p{grid-column:auto}}
+.amount-filter-input{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;overflow:hidden;border:1px solid #cbd5e1;border-radius:10px;background:#fff}.amount-filter-body .amount-filter-input input[type=text]{min-width:0;border:0;border-radius:0;outline:0;direction:ltr;text-align:left}.amount-filter-input b{align-self:stretch;display:grid;place-items:center;padding:0 11px;border-right:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:10px;white-space:nowrap}
+.time-empty-filter-head>span{display:grid;gap:1px}.time-empty-filter-head small{color:#94a3b8;font-size:7px;font-weight:700;line-height:1.2}.filtered-header .time-empty-filter-head small{color:#15803d!important}.time-filter-body input[type=time]{height:43px;padding:0 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:Tahoma,sans-serif;direction:ltr}.time-filter-body p{grid-column:1/-1;line-height:1.9}
 </style>

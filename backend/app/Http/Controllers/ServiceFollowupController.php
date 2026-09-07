@@ -1,6 +1,9 @@
 <?php
 namespace App\Http\Controllers;
 use App\Models\ServiceFollowup;
+use App\Models\Appointment;
+use App\Models\Inventory;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 class ServiceFollowupController extends Controller {
  public function index(Request $request) {
@@ -33,6 +36,17 @@ class ServiceFollowupController extends Controller {
   return $followups;
  }
 
+ public function scheduleFromAppointment(Request $request, Appointment $appointment) {
+  $data=$request->validate(['due_date'=>['required','date'],'reason'=>['nullable','string','max:1000']]);
+  $services=collect($appointment->services ?: [])->filter(fn($s)=>trim((string)($s['name']??''))!=='');
+  if ($services->isEmpty()) {
+   throw \Illuminate\Validation\ValidationException::withMessages([
+    'services' => 'برای ثبت پیگیری، ابتدا خدمت نوبت را ثبت کنید.',
+   ]);
+  }
+  $result=DB::transaction(function() use($appointment,$services,$data){return $services->map(function($service) use($appointment,$data){$name=trim((string)$service['name']);$inventory=Inventory::where('name',$name)->first();$key='appointment-manual-followup|'.$appointment->id.'|'.sha1(mb_strtolower($name));$f=ServiceFollowup::where('source_key',$key)->first();$v=['appointment_id'=>$appointment->id,'inventory_id'=>$inventory?->id,'service_name'=>$name,'patient_name'=>$appointment->lastname,'patient_phone'=>$appointment->phone,'completed_at'=>$appointment->completed_at?:now(),'due_date'=>$data['due_date'],'followup_days'=>max(0,(int)($inventory?->followup_days??0)),'status'=>'pending','action_note'=>$data['reason']??null,'source_key'=>$key];if($f){$f->update($v);$f=$f->fresh();$f->setAttribute('replaced',true);return $f;} $f=ServiceFollowup::create($v);$f->setAttribute('replaced',false);return $f;})->values();});
+  return response()->json(['followups'=>$result]);
+ }
  public function update(Request $request, ServiceFollowup $serviceFollowup) {
   $data=$request->validate(['status'=>'required|in:pending,called,booked,declined,done','action_note'=>'nullable|string|max:2000']);
   $serviceFollowup->update([...$data,'actioned_at'=>now(),'actioned_by'=>$request->user()?->id]); return $serviceFollowup;

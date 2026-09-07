@@ -155,6 +155,7 @@ Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->
 Route::get('/appointments/hidden-days', [AppointmentController::class, 'hiddenDays'])->middleware('permission:appointments.view');
 Route::get('/appointments/balance-audits', [AppointmentController::class, 'balanceAudits'])->middleware('permission:reports.financial');
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
+Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->middleware('permission:appointments.update');
 Route::post('/appointments/row', [AppointmentController::class, 'saveRow'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments', [AppointmentController::class, 'saveAppointments'])->middleware('permission:appointments.create|appointments.update');
 Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy'])->middleware('permission:appointments.update');
@@ -173,6 +174,7 @@ Route::post('/inventory', [InventoryController::class, 'store'])->middleware('pe
 Route::post('/inventory/adjust-stock', [InventoryController::class, 'adjustStock'])->middleware('permission:inventory.update');
 Route::get('/inventory/{inventory}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');
 Route::get('/service-followups', [ServiceFollowupController::class, 'index'])->middleware('permission:followups.view');
+Route::post('/appointments/{appointment}/followups', [ServiceFollowupController::class, 'scheduleFromAppointment'])->middleware('permission:appointments.update|followups.view');
 Route::patch('/service-followups/{serviceFollowup}', [ServiceFollowupController::class, 'update'])->middleware('permission:followups.view');
 
 // تماس‌ها (FlwUp)

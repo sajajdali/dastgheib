@@ -545,6 +545,61 @@ class AppointmentController extends Controller
      * Persist the identity/time fields of one table row synchronously.
      * Direct table entry must not share the debounced month-save queue.
      */
+    public function reschedule(Request $request, Appointment $appointment)
+    {
+        $data = $request->validate([
+            'lock_version' => ['required', 'integer', 'min:1'],
+            'month' => ['required', 'string', 'regex:/^1[34]\d{2}-(0[1-9]|1[0-2])$/'],
+            'day_num' => ['required', 'integer', 'between:1,31'],
+            'time' => ['required', 'date_format:H:i'],
+        ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
+        [$before, $updated] = DB::transaction(function () use ($appointment, $data) {
+            $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
+            abort_if((int) $current->lock_version !== (int) $data['lock_version'], 409,
+                'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید و دوباره انتقال دهید.');
+            $before = clone $current;
+            $current->update([
+                'month' => $data['month'],
+                'day_num' => $data['day_num'],
+                'time' => $data['time'],
+                'status' => 'انتقال داده شده',
+                'lock_version' => (int) $current->lock_version + 1,
+            ]);
+            return [$before, $current];
+        });
+        // Notify both calendars when moving across months, on this tenant's private channel.
+        if ($before->month !== $updated->month) {
+            $this->broadcastAppointmentChange($before, 'rescheduled');
+        }
+        $this->broadcastAppointmentChange($updated, 'rescheduled');
+        return response()->json(['appointment_id' => $updated->id, 'lock_version' => $updated->lock_version]);
+    }
+
+    private function appointmentValidationMessages(): array
+    {
+        return [
+            'required' => 'وارد کردن :attribute الزامی است.',
+            'string' => ':attribute باید به‌صورت متن وارد شود.',
+            'integer' => ':attribute باید عدد صحیح باشد.',
+            'min' => ':attribute باید حداقل :min باشد.',
+            'max' => ':attribute نباید بیشتر از :max کاراکتر باشد.',
+            'between' => ':attribute باید بین :min و :max باشد.',
+            'regex' => 'قالب :attribute معتبر نیست.',
+            'date_format' => ':attribute را به‌صورت ساعت و دقیقه وارد کنید (مثلاً 09:30).',
+        ];
+    }
+
+    private function appointmentValidationAttributes(): array
+    {
+        return [
+            'appointment_id' => 'شناسه نوبت', 'lock_version' => 'نسخه نوبت',
+            'month' => 'ماه نوبت', 'day_num' => 'روز نوبت', 'sort_order' => 'ترتیب نوبت',
+            'lastname' => 'نام و نام خانوادگی', 'time' => 'ساعت نوبت',
+            'phone' => 'شماره موبایل', 'gender' => 'جنسیت', 'doctor' => 'پزشک',
+            'consultant' => 'مشاور', 'source' => 'نحوه آشنایی', 'description' => 'توضیحات',
+        ];
+    }
+
     public function saveRow(Request $request)
     {
         $request->validate([
@@ -555,7 +610,7 @@ class AppointmentController extends Controller
             'sort_order' => ['required', 'integer', 'min:0'],
             'lastname' => ['required', 'string', 'max:255'],
             'time' => ['required', 'date_format:H:i'],
-        ]);
+        ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
         $row = $request->except('appointments');
         $request->merge(['appointments' => [$row]]);
@@ -735,7 +790,7 @@ class AppointmentController extends Controller
             'consultant' => ['nullable', 'string', 'max:255'],
             'source' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-        ]);
+        ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
         $sortOrder = ((int) Appointment::query()
             ->where('month', $data['month'])

@@ -188,7 +188,7 @@
       <table>
         <thead><tr><th>عکس</th><th>نام</th><th>تنظیمات مالی و پورسانت</th><th>حقوق ثابت (تومان)</th><th>حذف / اضافه</th></tr></thead>
         <tbody>
-          <tr v-for="(row, index) in staffRows" :key="row.id || index">
+          <tr v-for="(row, index) in staffRows" :key="row._staffKey">
             <td class="resource-photo-cell" data-label="عکس">
               <label class="resource-avatar">
                 <img v-if="resourceAvatar(row)" :src="resourceAvatar(row)" alt="" />
@@ -221,6 +221,10 @@
           </tr>
         </tbody>
       </table>
+      <div class="doctor-table-toolbar">
+        <span role="status" :class="{ error: staffSaveError, success: staffSaveMessage && !staffSaveError }">{{ savingStaff ? 'در حال ذخیره...' : staffSaveMessage }}</span>
+        <button type="button" :disabled="savingStaff" @click="autoSaveStaff">{{ savingStaff ? 'در حال ذخیره...' : 'ذخیره پرسنل' }}</button>
+      </div>
     </div>
 
     <div v-if="activeStaffIndex !== null && activeStaff" class="resource-modal-backdrop" @click.self="closeStaffSettings">
@@ -233,7 +237,7 @@
           <section class="doctor-base-commission"><label><span>درصد پورسانت پایه</span><div><input v-model.number="activeStaff.bonus" type="number" min="0" max="100" placeholder="مثلاً ۵"><b>درصد</b></div></label></section>
           <CommissionRules v-model="staffRows[activeStaffIndex]" />
         </div>
-        <footer class="doctor-settings-modal-actions"><span>تغییرات پس از بستن به‌صورت خودکار ذخیره می‌شوند.</span><button type="button" @click="closeStaffSettings">تأیید و بستن</button></footer>
+        <footer class="doctor-settings-modal-actions"><span role="status">{{ staffSaveError ? staffSaveMessage : 'تغییرات به‌صورت خودکار ذخیره می‌شوند.' }}</span><button type="button" :disabled="savingStaff" @click="closeStaffSettings">{{ savingStaff ? 'در حال ذخیره...' : 'تأیید و بستن' }}</button></footer>
       </section>
     </div>
 
@@ -285,6 +289,9 @@
 import { avatarInitial, avatarUrl } from '@/utils/avatar'
 import CommissionRules from './CommissionRules.vue'
 
+let staffRowSequence = 0;
+const staffSaves = new WeakMap();
+
 export default {
   components: { CommissionRules },
   data() {
@@ -325,6 +332,7 @@ export default {
     }],
 
     staffRows: [{
+      _staffKey: `staff-${++staffRowSequence}`,
       user_id: '',
       name: '',
       bonus: 0,
@@ -354,6 +362,11 @@ export default {
     isSyncingResourceRows: false,
     isSyncingChannelRows: false,
     doctorRowsRevision: 0,
+    staffRowsRevision: 0,
+    isSyncingStaffRows: false,
+    savingStaff: false,
+    staffSaveMessage: "",
+    staffSaveError: false,
     channelRowsRevision: 0,
     doctorsDirty: false,
     savingDoctors: false,
@@ -361,7 +374,7 @@ export default {
     doctorsSaveError: false,
   };
 },
-  
+
   mounted() {
     this.fetchData();
   },
@@ -379,7 +392,9 @@ export default {
     },
     staffRows: {
       handler() {
-        if (this.isSyncingResourceRows) return;
+        if (this.isSyncingStaffRows) return;
+        this.staffSaveMessage = 'تغییرات ذخیره‌نشده دارید.';
+        this.staffRowsRevision += 1;
         clearTimeout(this.saveTimeout);
         this.saveTimeout = setTimeout(() => {
           this.autoSaveStaff();
@@ -498,9 +513,8 @@ export default {
       this.activeStaffIndex = index;
     },
 
-    closeStaffSettings() {
-      this.activeStaffIndex = null;
-      this.autoSaveStaff();
+    async closeStaffSettings() {
+      if (await this.autoSaveStaff()) this.activeStaffIndex = null;
     },
 
     openChannelSettings(index) {
@@ -556,6 +570,7 @@ export default {
     normalizeStaffRow(row = {}) {
       return {
         ...row,
+        _staffKey: row._staffKey || `staff-${++staffRowSequence}`,
         user_id: row.user_id || '',
         commission_customer_scope: row.commission_customer_scope || 'both',
         commission_after_materials: Boolean(row.commission_after_materials),
@@ -606,10 +621,14 @@ export default {
         }
 
         // بارگذاری پرسنل
+        const staffRevision = this.staffRowsRevision;
         const staffResponse = await fetch('/api/staff');
         const staffData = await staffResponse.json();
-        if (staffData.length > 0) {
+        if (staffData.length > 0 && staffRevision === this.staffRowsRevision) {
+          this.isSyncingStaffRows = true;
           this.staffRows = staffData.map(this.normalizeStaffRow);
+          await this.$nextTick();
+          this.isSyncingStaffRows = false;
         }
 
         // بارگذاری کانال‌ها
@@ -646,7 +665,7 @@ export default {
     },
 
     addStaffRow() {
-      this.staffRows.push({
+      this.staffRows.push(this.normalizeStaffRow({
         user_id: '',
         name: '',
         bonus: 0,
@@ -658,10 +677,12 @@ export default {
         profile_photo_url: null,
         profile_thumbnail_url: null,
         avatar_url: null
-      });
+      }));
     },
     removeStaffRow(index) {
       this.staffRows.splice(index, 1);
+      if (this.activeStaffIndex === index) this.activeStaffIndex = null;
+      else if (this.activeStaffIndex > index) this.activeStaffIndex -= 1;
     },
 
     addChannelRow() {
@@ -800,7 +821,8 @@ export default {
       const data = await response.json();
       if (data.resource) {
         const rows = type === 'doctor' ? this.doctorRows : this.staffRows;
-        rows.splice(index, 1, data.resource);
+        if (type === 'staff') Object.assign(row, data.resource);
+        else rows.splice(index, 1, data.resource);
       }
     },
 
@@ -860,32 +882,70 @@ export default {
       }
     },
 
-    async autoSaveStaff() {
-      const validStaff = this.staffRows
-        .map(this.normalizeStaffRow)
-        .filter(row => row.user_id || (row.name && row.name.trim() !== ''));
-      if (validStaff.length === 0) return this.staffRows;
+    autoSaveStaff() {
+      clearTimeout(this.saveTimeout);
+      if (staffSaves.has(this)) return staffSaves.get(this);
+      const pending = this.saveStaffChanges().finally(() => staffSaves.delete(this));
+      staffSaves.set(this, pending);
+      return pending;
+    },
 
+    async saveStaffChanges() {
+      this.savingStaff = true;
+      this.staffSaveError = false;
       try {
-        const response = await fetch('/api/staff', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(validStaff)
-        });
-        const data = await response.json();
-        if (data.staff) {
-          this.isSyncingResourceRows = true;
-          this.staffRows = data.staff.map(this.normalizeStaffRow);
-          this.$nextTick(() => { this.isSyncingResourceRows = false; });
-        }
-        console.log('پرسنل با موفقیت ذخیره شدند:', data);
+        let changedDuringSave;
+        do {
+          clearTimeout(this.saveTimeout);
+          const revision = this.staffRowsRevision;
+          const submitted = this.staffRows.map(this.normalizeStaffRow)
+            .filter(row => row.user_id || String(row.name || '').trim());
+          if (!submitted.length) {
+            this.staffSaveMessage = 'برای ردیف جدید، ابتدا کاربر را انتخاب کنید.';
+            return this.staffRows;
+          }
+          const response = await fetch('/api/staff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(submitted),
+          });
+          const data = await response.json();
+          if (!response.ok || !Array.isArray(data.staff)) {
+            const message = data.errors ? Object.values(data.errors).flat()[0] : data.message;
+            throw new Error(message || 'ذخیره پرسنل انجام نشد.');
+          }
+          changedDuringSave = revision !== this.staffRowsRevision;
+          this.isSyncingStaffRows = true;
+          try {
+            submitted.forEach(sent => {
+              const local = this.staffRows.find(row => row._staffKey === sent._staffKey);
+              if (!local) return;
+              const saved = data.staff.find(row => sent.id
+                ? String(row.id) === String(sent.id)
+                : sent.user_id ? String(row.user_id) === String(sent.user_id)
+                  : String(row.name || '').trim() === String(sent.name || '').trim());
+              if (!saved) return;
+              // Keep the row object, order and DOM key stable. A delayed
+              // response may assign its ID, but cannot replace newer edits.
+              if (!changedDuringSave) {
+                Object.assign(local, this.normalizeStaffRow({ ...saved, _staffKey: local._staffKey }));
+              } else {
+                local.id = saved.id;
+              }
+            });
+            await this.$nextTick();
+          } finally {
+            this.isSyncingStaffRows = false;
+          }
+        } while (changedDuringSave);
+        this.staffSaveMessage = 'اطلاعات پرسنل با موفقیت ذخیره شد.';
         return this.staffRows;
       } catch (error) {
-        console.error('خطا در ذخیره اطلاعات پرسنل:', error);
-        return this.staffRows;
+        this.staffSaveError = true;
+        this.staffSaveMessage = error.message || 'ذخیره پرسنل انجام نشد. دوباره تلاش کنید.';
+        return null;
+      } finally {
+        this.savingStaff = false;
       }
     },
 

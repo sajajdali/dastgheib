@@ -249,15 +249,18 @@
             <div :draggable="true" @dragstart="v.dh.bills" @dragover="v.dv.bills" @drop="v.dp.bills" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.bills) + ';order:' + (v.o.bills)" data-screen-label="هزینه‌های جاری">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
-                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">هزینه‌های جاری <span style="font-size:11.5px;color:#94a3b8;font-weight:500">(قبوض و هزینه‌های ثابت)</span></span>
+                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">هزینه‌ها <span style="font-size:11.5px;color:#94a3b8;font-weight:500">(هزینه‌های ثبت‌شده در بازهٔ انتخابی)</span></span>
                 <input type="checkbox" :checked="v.ck.bills" @change="v.hide.bills" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;flex-direction:column;gap:8px">
+                <p v-if="s.reportLoading" role="status" style="font-size:12px;color:#64748b">در حال بارگذاری هزینه‌ها…</p>
+                <p v-else-if="s.reportError" role="alert" style="font-size:12px;color:#b91c1c">{{ s.reportError }} <button type="button" @click="loadReportSummary">تلاش مجدد</button></p>
+                <p v-else-if="!v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است.</p>
                 <template v-for="(b, bI) in v.billRows" :key="bI">
                   <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:9px 12px">
                     <span style="flex:1;font-weight:600;color:#334155">{{ b.n }}</span>
                     <div style="width:90px;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (b.w) + ';background:#f59e0b;border-radius:999px'"></div></div>
-                    <span style="width:60px;text-align:left;font-weight:800;color:#0f172a;white-space:nowrap">{{ b.v }}</span>
+                    <span style="min-width:60px;text-align:left;font-weight:800;color:#0f172a;white-space:nowrap">{{ b.v }}</span>
                   </div>
                 </template>
               </div>
@@ -267,8 +270,8 @@
                   <span style="font-size:17px;font-weight:800;color:#1e40af;white-space:nowrap">{{ v.billRevV }}</span>
                 </div>
                 <div style="flex:1;min-width:110px;background:#fef2f2;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
-                  <span style="font-size:11.5px;color:#b91c1c;font-weight:600">جمع هزینه‌های جاری</span>
-                  <span style="font-size:17px;font-weight:800;color:#991b1b;white-space:nowrap">− {{ v.billSumV }}</span>
+                  <span style="font-size:11.5px;color:#b91c1c;font-weight:600">جمع هزینه‌ها</span>
+                  <span style="font-size:17px;font-weight:800;color:#991b1b;white-space:nowrap">{{ v.billSumV }}</span>
                 </div>
                 <div style="flex:1;min-width:110px;background:#f0fdf4;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
                   <span style="font-size:11.5px;color:#15803d;font-weight:600">درآمد پس از کسر</span>
@@ -845,12 +848,12 @@ export default {
     const KEYS = ['ctype','staffinc','roi','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','campdes','staffapt','sect','cap','gender','newold','status'];
     return {
       KEYS: ['ctype','staffinc','roi','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','campdes','staffapt','sect','cap','gender','newold','status'],
-      NAMES: {ctype:'دسته‌بندی مشتریان',roi:'بازگشت هزینه تبلیغات',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'هزینه‌های جاری (قبوض)',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',campdes:'کمپین‌ها بر اساس درجه تمایل',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
+      NAMES: {ctype:'دسته‌بندی مشتریان',roi:'بازگشت هزینه تبلیغات',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'هزینه‌ها',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',campdes:'کمپین‌ها بر اساس درجه تمایل',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
       s: {
       tab:'r', open:(this.defaultOpen===false?false:true), filterOpen:false, mngOpen:false,
       filters:{}, bdFrom:'', bdTo:'', hidden:{}, order:KEYS.slice(), ddOpen:null, ddQ:'',
       monthSel:3, loyalRange:6, staff:'همه', cap:String(this.capacityDefault ?? 2500),
-      svcSort:'rev', campSort:'perf', from:'۱۴۰۵/۰۲/۰۱', to:'۱۴۰۵/۰۴/۳۱'}
+      reportSummary:null, reportLoading:false, reportError:'', svcSort:'rev', campSort:'perf', from:'۱۴۰۵/۰۲/۰۱', to:'۱۴۰۵/۰۴/۳۱'}
       ,cancellationReport: null, cancellationLoading: false, reportSummary: null, reportLoading: false, staffTarget: 120
     };
   },
@@ -959,23 +962,21 @@ export default {
       {t:'تعداد مراجعین', v:fa(512*k)+' نفر', g:'↑ +۱۱٪', ...gUp, bg:'#f0fdfa', bd:'#99f6e4', tc:'#0d9488', ...sm}
     ];
 
-    // running expenses (bills)
-    const BILLS = [
-      {n:'اجاره', v:45},
-      {n:'برق', v:12},
-      {n:'گاز', v:6},
-      {n:'شارژ ساختمان', v:5},
-      {n:'آب', v:4},
-      {n:'اینترنت', v:3},
-      {n:'تلفن', v:2}
-    ];
-    const billSum = BILLS.reduce((a, b) => a + b.v, 0);
-    const billMax = Math.max(...BILLS.map(b => b.v));
-    const billRows = BILLS.map(b => ({n: b.n, v: mm(b.v), w: Math.round(b.v / billMax * 100) + '%'}));
-    const billRev = 1840 * MF[S.monthSel] * ff;
-    const billRevV = mm(billRev);
-    const billSumV = mm(billSum);
-    const billNetV = mm(billRev - billSum);
+    // Expenses are already grouped and date-filtered by the report API.
+    const expenses = S.reportSummary?.expenses;
+    const billItems = expenses?.items || [];
+    const billMax = Math.max(0, ...billItems.map(item => Number(item.amount) || 0));
+    const billMoney = value => Number(value || 0).toLocaleString('fa-IR') + ' تومان';
+    const billRows = billItems.map(item => ({
+      n: item.category || 'بدون دسته‌بندی',
+      v: billMoney(item.amount),
+      w: (billMax > 0 ? Math.round(Number(item.amount) / billMax * 100) : 0) + '%',
+    }));
+    const billSum = Number(expenses?.total || 0);
+    const billRev = Number(S.reportSummary?.kpis?.recognized_revenue || 0);
+    const billRevV = expenses ? billMoney(billRev) : '—';
+    const billSumV = expenses ? billMoney(billSum) : '—';
+    const billNetV = expenses ? billMoney(billRev - billSum) : '—';
     const cancelP = this.estCancel ?? 30;
     const estV = mm(730 * k * (1 - cancelP/100));
     const estNote = 'بر اساس وقت‌های آینده با ' + fa(cancelP) + '٪ کنسلی';
@@ -1363,7 +1364,8 @@ export default {
       this.loadReportSummary();
     },
     updateReportDate(key, value) {
-      this.set({[key]: value});
+      this._reportRequestId = (this._reportRequestId || 0) + 1;
+      this.set({[key]: value, reportSummary: null, reportLoading: true, reportError: ''});
       clearTimeout(this._cancellationTimer);
       this._cancellationTimer = setTimeout(() => {
         this.loadCancellationRate();
@@ -1389,13 +1391,14 @@ export default {
     async loadReportSummary() {
       const requestId = (this._reportRequestId || 0) + 1;
       this._reportRequestId = requestId;
-      this.set({reportLoading: true});
+      this.set({reportLoading: true, reportSummary: null, reportError: ''});
       try {
         const { data } = await axios.get('/api/reports/dashboard', {
           params: { from: this.s.from, to: this.s.to },
         });
         if (requestId === this._reportRequestId) this.set({reportSummary: data});
       } catch (error) {
+        if (requestId === this._reportRequestId) this.set({reportError: 'بارگذاری گزارش ناموفق بود. بازهٔ تاریخ و اتصال را بررسی کنید.'});
         console.warn('Clinic revenue report could not be loaded.', error);
       } finally {
         if (requestId === this._reportRequestId) this.set({reportLoading: false});
@@ -1418,7 +1421,7 @@ export default {
         ['گزارش کلینیک', 'از ' + this.s.from + ' تا ' + this.s.to],
         [],
         ['شاخص', 'مقدار (میلیون تومان)'],
-        ['سود خالص', 486], ['هزینه پزشک', 512], ['حقوق پرسنل', 238], ['مواد مصرفی', 174], ['میزان تخفیف‌ها', 96], ['هزینه‌های جاری (قبوض)', 77], ['تعداد مراجعین', 512],
+        ['سود خالص', 486], ['هزینه پزشک', 512], ['حقوق پرسنل', 238], ['مواد مصرفی', 174], ['میزان تخفیف‌ها', 96], ['هزینه‌ها', this.s.reportSummary ? Number(this.s.reportSummary.expenses?.total || 0) / 1000000 : '—'], ['تعداد مراجعین', 512],
         [],
         ['کانال تبلیغاتی', 'مراجعین', 'هزینه', 'درآمد'],
         ['اینستاگرام', 210, 45, 168], ['معرفی دوستان', 90, 0, 85], ['گوگل', 60, 18, 52], ['یوتیوب', 25, 12, 20],

@@ -617,7 +617,7 @@
     </div>
 
     <div v-if="canViewSettings && activeSection === 'roles'" class="roles-settings-wrapper">
-      <Roles embedded />
+      <Roles embedded :enabled-features="props.enabledFeatures" />
     </div>
 
     <div v-if="canViewSettings && featureEnabled('satisfaction') && activeSection === 'satisfaction'" class="satisfaction-settings-wrapper">

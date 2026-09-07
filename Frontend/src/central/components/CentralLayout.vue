@@ -98,6 +98,12 @@ const navItems = [
     icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4z"/><path d="M8 9h8M8 13h5"/></svg>',
   },
   {
+    key: "calendar",
+    label: "تعطیلات",
+    title: "مدیریت تعطیلات و مناسبت‌ها",
+    icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01"/></svg>',
+  },
+  {
     key: "newsite",
     label: "ثبت سایت جدید",
     title: "ثبت سایت جدید",

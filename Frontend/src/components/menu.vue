@@ -141,7 +141,6 @@ export default {
         { label: 'هزینه‌ها', value: 'Bills', feature: 'bills' },
         { label: 'حضور غیاب', value: 'HRtimes', feature: 'attendance' },
         { label: 'حقوق و تسویه', value: 'Payroll', feature: null },
-        { label: 'رضایت‌مندی', value: 'Satisfaction', feature: 'satisfaction' },
         { label: 'پیامک اتوماتیک', value: 'AutomaticSms', feature: null }
       ]
     }
