@@ -768,8 +768,9 @@
       </div>
     </div>
 
-    <div v-if="profileCrop.open" class="profile-crop-overlay" @click.self="cancelProfileCrop">
-      <section class="profile-crop-modal" dir="rtl" @click.stop>
+    <Teleport to="body">
+      <div v-if="profileCrop.open" class="profile-crop-overlay" @click.self="cancelProfileCrop">
+        <section class="profile-crop-modal" dir="rtl" @click.stop>
         <header class="profile-crop-header">
           <div>
             <h3>تنظیم عکس پرونده</h3>
@@ -812,8 +813,9 @@
             {{ profilePhotoUploading ? 'در حال ذخیره...' : 'تأیید و ذخیره عکس' }}
           </button>
         </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </Teleport>
     <div v-if="showMediaModal" class="modal-overlay media-overlay" @click.self="closeMediaModal">
       <div class="media-modal" @click.stop>
         <div class="media-header">
@@ -1629,6 +1631,7 @@ export default {
       profilePhotoUploading: false,
       profileCrop: {
         open: false,
+        patientId: null,
         sourceUrl: '',
         image: null,
         zoom: 1,
@@ -2592,6 +2595,7 @@ export default {
         })
         this.profileCrop = {
           open: true,
+          patientId: this.activeMediaPatient.id,
           sourceUrl,
           image,
           zoom: 1,
@@ -2612,6 +2616,7 @@ export default {
       if (this.profileCrop.sourceUrl) URL.revokeObjectURL(this.profileCrop.sourceUrl)
       this.profileCrop = {
         open: false,
+        patientId: null,
         sourceUrl: '',
         image: null,
         zoom: 1,
@@ -2686,7 +2691,8 @@ export default {
     },
 
     async confirmProfileCrop() {
-      if (!this.activeMediaPatient.id || this.profilePhotoUploading) return
+      const patientId = this.profileCrop.patientId || this.activeMediaPatient.id
+      if (!patientId || this.profilePhotoUploading) return
       this.profilePhotoUploading = true
 
       try {
@@ -2694,7 +2700,7 @@ export default {
         formData.append('photo', await this.createCroppedProfileFile(800, 0.86, 'profile.webp'))
         formData.append('thumbnail', await this.createCroppedProfileFile(50, 0.48, 'thumbnail.webp'))
 
-        const res = await fetch(`/api/patients/${this.activeMediaPatient.id}/profile-photo`, {
+        const res = await fetch(`/api/patients/${patientId}/profile-photo`, {
           method: 'POST',
           body: formData
         })
@@ -2702,23 +2708,26 @@ export default {
         if (!res.ok) throw new Error(data.message || 'عکس پروفایل ذخیره نشد')
 
         const updatedPatient = data.patient || {}
-        this.activeMediaPatient = {
-          ...this.activeMediaPatient,
+        const photoUpdates = {
           ...updatedPatient,
           profile_photo_url: data.profile_photo_url || updatedPatient.profile_photo_url,
           profile_thumbnail_url: data.profile_thumbnail_url || updatedPatient.profile_thumbnail_url
         }
-        const result = this.searchResults.find(item => item.id === this.activeMediaPatient.id)
-        if (result) Object.assign(result, this.activeMediaPatient)
-        if (this.activePatientProfile?.id === this.activeMediaPatient.id) {
+        if (this.activeMediaPatient.id === patientId) {
+          this.activeMediaPatient = { ...this.activeMediaPatient, ...photoUpdates }
+        }
+        const result = this.searchResults.find(item => item.id === patientId)
+        if (result) Object.assign(result, photoUpdates)
+        if (this.activePatientProfile?.id === patientId) {
           this.activePatientProfile = {
             ...this.activePatientProfile,
-            ...this.activeMediaPatient
+            ...photoUpdates
           }
         }
 
         const sourceUrl = this.profileCrop.sourceUrl
         this.profileCrop.open = false
+        this.profileCrop.patientId = null
         this.profileCrop.sourceUrl = ''
         if (sourceUrl) URL.revokeObjectURL(sourceUrl)
         Swal.fire({ icon: 'success', title: 'عکس ذخیره شد', timer: 1500, showConfirmButton: false })
@@ -5732,9 +5741,8 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 
 .profile-crop-overlay {
   position: fixed;
-  /* This picker opens from the media gallery, so it must sit above the
-     gallery overlay rather than behind it. */
-  z-index: 2147483201;
+  /* Teleported to body and kept above gallery/compare overlays. */
+  z-index: 2147483647;
   inset: 0;
   display: grid;
   place-items: center;
