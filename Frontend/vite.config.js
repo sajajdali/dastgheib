@@ -36,7 +36,10 @@ export default defineConfig(({ mode }) => {
       },
       '/central-api': {
         target: devApiTarget,
-        changeOrigin: true,
+        // Central routes are registered only on the central domain. Preserve
+        // that host when the SPA proxies requests to the local Laravel port.
+        changeOrigin: false,
+        headers: { host: 'localhost' },
       },
       '/storage': {
         target: devApiTarget,

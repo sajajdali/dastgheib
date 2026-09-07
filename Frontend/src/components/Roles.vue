@@ -57,7 +57,7 @@
           </div>
 
           <div class="permission-groups">
-            <article v-for="group in permissionGroups" :key="group.key" class="permission-group">
+            <article v-for="group in visiblePermissionGroups" :key="group.key" class="permission-group">
               <label class="group-title">
                 <input type="checkbox" :checked="isGroupSelected(group)" @change="toggleGroup(group, $event.target.checked)" />
                 <span>{{ group.label }}</span>
@@ -87,9 +87,13 @@
 import { computed, onMounted, ref } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
+import { filterRolePermissionGroups, replaceVisiblePermissions } from "@/utils/rolePermissionModules";
 
 const API_URL = "/api";
-defineProps({ embedded: { type: Boolean, default: false } });
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+  enabledFeatures: { type: Array, default: null },
+});
 const loading = ref(true);
 const saving = ref(false);
 const roles = ref([]);
@@ -100,8 +104,11 @@ function emptyDraft() {
   return { id: null, name: "", permissions: [], users_count: 0, protected: false };
 }
 
+const visiblePermissionGroups = computed(() =>
+  filterRolePermissionGroups(permissionGroups.value, props.enabledFeatures)
+);
 const allPermissionNames = computed(() =>
-  permissionGroups.value.flatMap(group => group.permissions.map(permission => permission.name))
+  visiblePermissionGroups.value.flatMap(group => group.permissions.map(permission => permission.name))
 );
 const allPermissionsSelected = computed(() =>
   allPermissionNames.value.length > 0 && allPermissionNames.value.every(name => draft.value.permissions.includes(name))
@@ -126,7 +133,11 @@ function toggleGroup(group, checked) {
   draft.value.permissions = [...next];
 }
 function toggleAllPermissions() {
-  draft.value.permissions = allPermissionsSelected.value ? [] : [...allPermissionNames.value];
+  draft.value.permissions = replaceVisiblePermissions(
+    draft.value.permissions,
+    allPermissionNames.value,
+    allPermissionsSelected.value ? [] : allPermissionNames.value
+  );
 }
 function errorMessage(error, fallback) {
   const errors = error.response?.data?.errors;

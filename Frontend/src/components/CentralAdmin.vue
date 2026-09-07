@@ -63,6 +63,8 @@
       @update-ticket-status="updateServiceTicketStatus"
     />
 
+    <CentralCalendar v-else-if="activeTab === 'calendar'" />
+
     <CentralTenantManager
       v-else
       :mode="activeTab"
@@ -92,6 +94,7 @@ import CentralLogin from "../central/components/CentralLogin.vue";
 import CentralModules from "../central/components/CentralModules.vue";
 import CentralPackages from "../central/components/CentralPackages.vue";
 import CentralServiceTickets from "../central/components/CentralServiceTickets.vue";
+import CentralCalendar from "../central/components/CentralCalendar.vue";
 import CentralStoreTerms from "../central/components/CentralStoreTerms.vue";
 import CentralTenantManager from "../central/components/CentralTenantManager.vue";
 import { CENTRAL_MODULES } from "../central/data/modules";
