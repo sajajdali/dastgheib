@@ -33,15 +33,21 @@
           :placeholder="`شماره تماس${patientRequiredFields.phone ? ' *' : ''} (۱۱ رقم)`"
           maxlength="11"
         />
-        <input
-          v-model="form.file_number"
-          type="text"
-          name="patient_file_number"
-          autocomplete="off"
-          :placeholder="`شماره پرونده (خودکار)${patientRequiredFields.file_number ? ' *' : ''}`"
-          readonly
-          required
-        />
+        <div class="file-number-field" :class="`is-${fileNumberAvailability}`">
+          <input
+            v-model="form.file_number"
+            type="text"
+            inputmode="numeric"
+            name="patient_file_number"
+            autocomplete="off"
+            :placeholder="`شماره پرونده (خودکار یا دستی)${patientRequiredFields.file_number ? ' *' : ''}`"
+            required
+            @blur="checkFileNumberAvailability"
+          />
+          <small v-if="fileNumberAvailability === 'checking'">در حال بررسی…</small>
+          <small v-else-if="fileNumberAvailability === 'available'">شماره پرونده آزاد است</small>
+          <small v-else-if="fileNumberAvailability === 'taken'">این شماره پرونده قبلاً ثبت شده است</small>
+        </div>
 
         <select v-model="form.gender">
           <option value="" disabled>{{ `جنسیت${patientRequiredFields.gender ? ' *' : ''}` }}</option>
@@ -1527,6 +1533,9 @@ export default {
         city: false
       },
       patientRequiredFields: {},
+      fileNumberAvailability: 'idle',
+      fileNumberCheckTimer: null,
+      fileNumberCheckRequest: 0,
 
       cityOptions: iranCities,
       selectedCity: iranCities.find(city => city.name === 'تهران' && city.province === 'تهران') || null,
@@ -2084,8 +2093,16 @@ export default {
     this.fetchActiveProfileFields() // لود فیلدهای فعال در بدو ورود به صفحه
   },
 
+  beforeUnmount() {
+    if (this.fileNumberCheckTimer) clearTimeout(this.fileNumberCheckTimer)
+  },
+
   watch: {
     'form.phone'(value) { this.normalizeObjectDigits(this.form, 'phone', value) },
+    'form.file_number'(value) {
+      this.normalizeObjectDigits(this.form, 'file_number', value)
+      this.scheduleFileNumberCheck()
+    },
     'form.second_phone'(value) { this.normalizeObjectDigits(this.form, 'second_phone', value) },
     'form.national_id'(value) { this.normalizeObjectDigits(this.form, 'national_id', value) },
     'form.foreign_national_code'(value) { this.normalizeObjectDigits(this.form, 'foreign_national_code', value) },
@@ -3819,6 +3836,11 @@ export default {
 
       try {
         const duplicate = await this.checkDuplicatePatient()
+        if(duplicate.file_number_exists){
+          this.fileNumberAvailability = 'taken'
+          Swal.fire({ icon: 'error', title: 'شماره پرونده تکراری', text: 'این شماره پرونده قبلاً ثبت شده است؛ شماره دیگری وارد کنید.', confirmButtonText: 'اصلاح شماره' })
+          return
+        }
         if(duplicate.phone_exists){
           Swal.fire({ icon: 'error', title: 'شماره موبایل تکراری', text: 'این شماره موبایل قبلاً ثبت شده است', timer: 3000, showConfirmButton: false })
           return
@@ -3873,9 +3895,43 @@ export default {
     async checkDuplicatePatient(){
       const params = new URLSearchParams()
       if(this.form.phone) params.append('phone', this.form.phone)
+      if(this.form.file_number) params.append('file_number', this.form.file_number)
 
       const res = await fetch(`/api/patients/check-duplicate?${params.toString()}`)
       return await res.json()
+    },
+
+    scheduleFileNumberCheck() {
+      if (this.fileNumberCheckTimer) clearTimeout(this.fileNumberCheckTimer)
+      if (!String(this.form.file_number || '').trim()) {
+        this.fileNumberAvailability = 'idle'
+        return
+      }
+      this.fileNumberAvailability = 'checking'
+      this.fileNumberCheckTimer = setTimeout(() => this.checkFileNumberAvailability(), 350)
+    },
+
+    async checkFileNumberAvailability() {
+      if (this.fileNumberCheckTimer) clearTimeout(this.fileNumberCheckTimer)
+      const fileNumber = String(this.form.file_number || '').trim()
+      if (!fileNumber) {
+        this.fileNumberAvailability = 'idle'
+        return true
+      }
+      const requestId = ++this.fileNumberCheckRequest
+      this.fileNumberAvailability = 'checking'
+      try {
+        const params = new URLSearchParams({ file_number: fileNumber })
+        const res = await fetch(`/api/patients/check-duplicate?${params.toString()}`)
+        if (!res.ok) throw new Error('duplicate-check-failed')
+        const data = await res.json()
+        if (requestId !== this.fileNumberCheckRequest || fileNumber !== String(this.form.file_number || '').trim()) return false
+        this.fileNumberAvailability = data.file_number_exists ? 'taken' : 'available'
+        return !data.file_number_exists
+      } catch (error) {
+        if (requestId === this.fileNumberCheckRequest) this.fileNumberAvailability = 'idle'
+        return false
+      }
     },
 
     async performSearch() {
@@ -4258,6 +4314,14 @@ select:focus {
   min-width: 0;
   justify-self: stretch;
 }
+
+.file-number-field { position: relative; min-width: 0; padding-bottom: 17px; margin-bottom: -17px; }
+.file-number-field small { position: absolute; right: 8px; bottom: 0; font-size: 9px; font-weight: 800; white-space: nowrap; }
+.file-number-field.is-checking small { color: #64748b; }
+.file-number-field.is-available input { border-color: #22c55e; background: #f0fdf4; }
+.file-number-field.is-available small { color: #15803d; }
+.file-number-field.is-taken input { border-color: #ef4444; background: #fff1f2; }
+.file-number-field.is-taken small { color: #b91c1c; }
 
 /* wrapper خود date-picker */
 .create-grid .vpd-input-group {

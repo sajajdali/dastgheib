@@ -584,9 +584,6 @@
               isCreditor(row) ? 'creditor-row' : '',
               isProblematicCustomer(row) ? 'problematic-customer-row' : ''
             ]"
-            @mouseenter="showAppointmentAudit($event, row)"
-            @mousemove="moveAppointmentAudit($event)"
-            @mouseleave="hideAppointmentAudit"
           >
 
               <td :style="{ width: columnWidths.lastname + 'px' }" style="text-align: center !important;">
@@ -2314,18 +2311,6 @@
           <img :src="avatarPreview.url" alt="پیش‌نمایش عکس بیمار">
         </div>
       </Transition>
-      <Transition name="appointment-audit-tip">
-        <aside
-          v-if="appointmentAuditHover"
-          class="appointment-audit-tooltip"
-          :style="{ left: appointmentAuditHover.left + 'px', top: appointmentAuditHover.top + 'px' }"
-          dir="rtl"
-        >
-          <strong>{{ appointmentAuditHover.patientName }}</strong>
-          <p><span>ثبت</span><b>{{ appointmentAuditHover.registeredBy }}</b><time>{{ appointmentAuditHover.registeredAt }}</time></p>
-          <p v-if="appointmentAuditHover.lastEditedAt"><span>ویرایش</span><b>{{ appointmentAuditHover.lastEditedBy }}</b><time>{{ appointmentAuditHover.lastEditedAt }}</time></p>
-        </aside>
-      </Transition>
     </Teleport>
 
   </div>
@@ -2368,7 +2353,6 @@ export default {
 
       months: ["1405-01"],
       avatarPreview: null,
-      appointmentAuditHover: null,
       patientProfileModalOpen: false,
       patientProfileLoading: false,
       patientProfileError: "",
@@ -3878,44 +3862,6 @@ export default {
       return moment().format("YYYY-MM-DD HH:mm:ss");
     },
 
-    appointmentAuditDate(value) {
-      if (!value) return 'نامشخص';
-      const date = moment(value);
-      return date.isValid() ? date.format('jYYYY/jMM/jDD، HH:mm') : String(value);
-    },
-
-    showAppointmentAudit(event, row) {
-      if (!row?.appointmentId) return;
-      const registeredAt = row.registeredAt ? moment(row.registeredAt) : null;
-      const editedAt = row.lastEditedAt ? moment(row.lastEditedAt) : null;
-      const hasDistinctEdit = Boolean(
-        registeredAt?.isValid()
-        && editedAt?.isValid()
-        && !editedAt.isSame(registeredAt, 'second')
-      );
-      this.appointmentAuditHover = {
-        patientName: row.lastname || 'مراجعه‌کننده',
-        registeredBy: row.registeredBy || 'کاربر نامشخص',
-        registeredAt: this.appointmentAuditDate(row.registeredAt),
-        lastEditedBy: row.lastEditedBy || 'کاربر نامشخص',
-        lastEditedAt: hasDistinctEdit ? this.appointmentAuditDate(row.lastEditedAt) : '',
-        left: 0,
-        top: 0
-      };
-      this.moveAppointmentAudit(event);
-    },
-
-    moveAppointmentAudit(event) {
-      if (!this.appointmentAuditHover) return;
-      const width = 290;
-      const height = this.appointmentAuditHover.lastEditedAt ? 132 : 108;
-      this.appointmentAuditHover.left = Math.max(10, Math.min(event.clientX + 16, window.innerWidth - width - 10));
-      this.appointmentAuditHover.top = Math.max(10, Math.min(event.clientY + 16, window.innerHeight - height - 10));
-    },
-
-    hideAppointmentAudit() {
-      this.appointmentAuditHover = null;
-    },
 
     startPatientNameEdit(row) {
       if (!row?.appointmentId) return;
@@ -8753,52 +8699,6 @@ smsColor(val) {
   object-fit: cover;
   border-radius: 50%;
 }
-
-.appointment-audit-tooltip {
-  position: fixed;
-  z-index: 2147482999;
-  width: 290px;
-  padding: 12px 13px;
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, .98);
-  color: #334155;
-  box-shadow: 0 16px 38px rgba(15, 23, 42, .22);
-  pointer-events: none;
-  backdrop-filter: blur(8px);
-}
-.appointment-audit-tooltip > strong {
-  display: block;
-  overflow: hidden;
-  margin-bottom: 8px;
-  padding-bottom: 7px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #0f172a;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.appointment-audit-tooltip p {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 7px;
-  margin: 5px 0 0;
-  font-size: 10px;
-}
-.appointment-audit-tooltip p span {
-  padding: 3px 5px;
-  border-radius: 6px;
-  background: #eff6ff;
-  color: #2563eb;
-  font-weight: 900;
-  text-align: center;
-}
-.appointment-audit-tooltip p b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.appointment-audit-tooltip time { direction: ltr; color: #64748b; font-size: 9px; white-space: nowrap; }
-.appointment-audit-tooltip small { display: block; margin-top: 7px; color: #94a3b8; font-size: 9px; }
-.appointment-audit-tip-enter-active,.appointment-audit-tip-leave-active { transition: opacity .12s ease, transform .12s ease; }
-.appointment-audit-tip-enter-from,.appointment-audit-tip-leave-to { opacity: 0; transform: translateY(3px); }
 
 .avatar-preview-enter-active,
 .avatar-preview-leave-active { transition: opacity .18s ease, transform .2s cubic-bezier(.2,.8,.2,1); }
