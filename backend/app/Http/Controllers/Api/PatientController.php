@@ -55,6 +55,7 @@ class PatientController extends Controller
                 'max:30',
                 Rule::unique('patients', 'phone'),
             ],
+            'file_number' => ['nullable', 'string', 'max:50', Rule::unique('patients', 'file_number')],
             'gender' => $presence('gender').'|string|max:20',
             'birth_date' => $presence('birth_date').'|date_format:Y-m-d',
             'area' => $presence('area').'|string|max:255',
@@ -72,21 +73,31 @@ class PatientController extends Controller
             'address' => $presence('address').'|string',
         ], [
             'phone.unique' => 'شماره موبایل تکراری است',
+            'file_number.unique' => 'این شماره پرونده قبلاً ثبت شده است.',
         ]);
 
-        // شماره پرونده فقط در سرور صادر می‌شود تا قابل تغییر یا تکرار نباشد.
-        // هر پرونده تازه از سطح عادی/نقره‌ای شروع می‌کند.
+        // شماره پیشنهادی خودکار است، اما کاربر می‌تواند شماره آزاد دیگری
+        // انتخاب کند. قید unique دیتابیس نیز جلوی تداخل درخواست‌های هم‌زمان را می‌گیرد.
+        $requestedFileNumber = trim((string) ($data['file_number'] ?? ''));
         $data['customer_level'] = 'silver';
         $patient = null;
         for ($attempt = 0; $attempt < 5; $attempt++) {
-            $data['file_number'] = $this->nextFileNumberValue();
+            $data['file_number'] = $requestedFileNumber !== ''
+                ? $requestedFileNumber
+                : $this->nextFileNumberValue();
 
             try {
                 $patient = Patient::create($data);
                 break;
             } catch (QueryException $exception) {
                 // در ثبت هم‌زمان، شمارهٔ تازه محاسبه و دوباره امتحان می‌شود.
-                if (! str_contains(strtolower($exception->getMessage()), 'file_number') || $attempt === 4) {
+                $fileNumberCollision = str_contains(strtolower($exception->getMessage()), 'file_number');
+                if ($fileNumberCollision && $requestedFileNumber !== '') {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'file_number' => 'این شماره پرونده قبلاً ثبت شده است.',
+                    ]);
+                }
+                if (! $fileNumberCollision || $attempt === 4) {
                     throw $exception;
                 }
             }
@@ -280,11 +291,15 @@ class PatientController extends Controller
 
     private function normalizePatientRequestDigits(Request $request): void
     {
-        $fields = ['phone', 'second_phone', 'national_id', 'foreign_national_code', 'birth_date', 'marriage_date'];
+        $fields = ['file_number', 'phone', 'second_phone', 'national_id', 'foreign_national_code', 'birth_date', 'marriage_date'];
         $normalized = [];
         foreach ($fields as $field) {
             if ($request->has($field)) {
-                $normalized[$field] = $this->normalizeDigits($request->input($field));
+                $value = $this->normalizeDigits($request->input($field));
+                // ConvertEmptyStringsToNull runs before this controller. Do
+                // not turn those nullable values back into an empty string,
+                // because MySQL DATE columns reject ''.
+                $normalized[$field] = $value === '' ? null : $value;
             }
         }
         $request->merge($normalized);

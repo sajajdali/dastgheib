@@ -1635,6 +1635,10 @@ class AppointmentController extends Controller
      */
     private function withPatientHistoryRegistrationMeta($appointments)
     {
+        // Batch saves build their response as a plain PHP array, while list
+        // endpoints pass an Eloquent collection. Normalize both shapes before
+        // using collection operations such as pluck()/each().
+        $appointments = collect($appointments);
         $appointmentIds = $appointments->pluck('id')->filter()->values();
         if ($appointmentIds->isEmpty()) {
             return $appointments;
