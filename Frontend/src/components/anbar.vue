@@ -822,7 +822,7 @@ export default {
       handler() {
         this.rows.forEach(row => {
           const stock = Number(row.stock)
-          const normalizedStock = Number.isFinite(stock) ? Math.max(0, Math.trunc(stock)) : 0
+          const normalizedStock = Number.isFinite(stock) ? Math.trunc(stock) : 0
           if (row.stock !== normalizedStock) row.stock = normalizedStock
         })
         this.queueSave()
@@ -1069,7 +1069,7 @@ export default {
         amount: Number(item.amount) || 0,
         price: Number(item.price) || 0,
         count: Number(item.count) || 0,
-        stock: Math.max(0, Math.trunc(Number(item.stock) || 0)),
+        stock: Math.trunc(Number(item.stock) || 0),
         minStock: Number(item.min_stock ?? item.minStock ?? 5),
         active: item.active === undefined ? true : Boolean(item.active),
         followupDays: Math.max(0, Number(item.followup_days ?? item.followupDays ?? 0) || 0),

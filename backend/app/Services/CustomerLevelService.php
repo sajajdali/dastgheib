@@ -112,7 +112,8 @@ class CustomerLevelService
 
     private function hasUsedService(Appointment $appointment): bool
     {
-        return ! empty($appointment->services) || filled($appointment->done);
+        return trim((string) $appointment->done) === 'انجام شد'
+            || filled($appointment->completed_at);
     }
 
     private function amount(mixed $value): float

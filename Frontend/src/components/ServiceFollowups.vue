@@ -5,7 +5,7 @@
       <header class="fu-head">
         <div class="fu-head-text">
           <h1>پیگیری خدمات</h1>
-          <p>پیگیری‌های ایجادشده پس از انجام خدمت</p>
+          <p>پیگیری‌های ثبت‌شده برای نوبت‌ها و خدمات</p>
         </div>
         <div class="fu-head-actions">
           <div class="fu-chip-overdue">
@@ -67,7 +67,7 @@
       <!-- list header -->
       <div class="fu-list-head">
         <div class="fu-list-title">
-          <span class="fu-list-eyebrow">سررسیدهای خدمات</span>
+          <span class="fu-list-eyebrow">سررسیدهای پیگیری</span>
           <h2>{{ selectedLabel }}</h2>
           <span>{{ selectedCountLabel }}</span>
         </div>

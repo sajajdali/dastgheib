@@ -76,7 +76,8 @@ class InventoryController extends Controller
     {
         $request->validate([
             'items' => ['nullable', 'array'],
-            'items.*.stock' => ['nullable', 'integer', 'min:0'],
+            // موجودی منفی نشان‌دهنده کمبود ثبت‌شده توسط خدمات انجام‌شده است.
+            'items.*.stock' => ['nullable', 'integer'],
         ]);
         $items = $request->input('items', []);
         $sections = $request->input('sections', []);

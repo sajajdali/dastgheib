@@ -320,16 +320,6 @@
                 </svg>
               </button>
               <button
-                v-if="canUseGallery"
-                type="button"
-                class="profile-compare-action"
-                title="مقایسه عکس‌های قبل و بعد"
-                aria-label="مقایسه عکس‌های قبل و بعد"
-                @click="openPatientBeforeAfterCompare(activePatientProfile)"
-              >
-                قبل / بعد
-              </button>
-              <button
                 v-if="canUseBeauty"
                 type="button"
                 class="profile-beauty-action"
@@ -355,24 +345,6 @@
                 </svg>
               </button>
             </div>
-            <section v-if="canUseGallery && (latestProfilePhotosLoading || latestProfilePhotos.length)" class="profile-photo-list">
-              <header>
-                <strong>عکس‌های پرونده</strong>
-                <button type="button" @click="openMediaModal(activePatientProfile)">مشاهده در گالری ({{ latestProfilePhotos.length }})</button>
-              </header>
-              <div class="profile-latest-photos">
-              <button
-                v-for="photo in latestProfilePhotos"
-                :key="photo.id"
-                type="button"
-                :title="photo.original_name || 'عکس پرونده'"
-                @click="openMediaModal(activePatientProfile)"
-              >
-                <img :src="photo.url" :alt="photo.original_name || 'عکس پرونده'">
-              </button>
-              <span v-if="latestProfilePhotosLoading"></span>
-              </div>
-            </section>
             <button
               type="button"
               class="problematic-profile-toggle"
@@ -429,6 +401,22 @@
               <strong>{{ formatMoneyValue(activePatientProfile.outstanding_debt) }}</strong>
             </div>
           </div>
+          </div>
+        </section>
+
+        <section v-if="profileEnabledDetails.length" class="profile-extra-card">
+          <div class="profile-card-title">
+            <h3>اطلاعات تکمیلی پرونده</h3>
+            <span>فیلدهای فعال‌شده از تنظیمات پرونده</span>
+          </div>
+          <div class="profile-extra-grid">
+            <article v-for="field in profileEnabledDetails" :key="field.key">
+              <span class="profile-extra-icon" aria-hidden="true">{{ field.icon }}</span>
+              <div>
+                <small>{{ field.label }}</small>
+                <strong :class="{ empty: !field.hasValue }">{{ field.displayValue }}</strong>
+              </div>
+            </article>
           </div>
         </section>
 
@@ -634,7 +622,7 @@
       </div>
     </section>
 
-    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+    <div v-if="showEditModal" class="modal-overlay edit-modal-overlay" @click.self="showEditModal = false">
       <div class="edit-modal" @click.stop>
         <h3>ویرایش پرونده</h3>
 
@@ -674,9 +662,23 @@
             <option value="مرد">مرد</option>
           </select>
 
-          <input v-model="editPatient.birth_date" placeholder="تاریخ تولد" />
+          <date-picker
+            v-model="editPatient.birth_date"
+            format="jYYYY-jMM-jDD"
+            display-format="jYYYY-jMM-jDD"
+            input-class="birthdate-picker"
+            placeholder="تاریخ تولد"
+            auto-submit
+            color="#0f766e"
+          />
           <input v-model="editPatient.area" placeholder="محدوده سکونت" />
-          <input v-model="editPatient.financial_status" placeholder="وضعیت مالی" />
+          <select v-model="editPatient.financial_status">
+            <option value="">انتخاب وضعیت مالی</option>
+            <option value="ضعیف">وضعیت مالی: ضعیف</option>
+            <option value="متوسط">وضعیت مالی: متوسط</option>
+            <option value="خوب">وضعیت مالی: خوب</option>
+            <option value="عالی">وضعیت مالی: عالی</option>
+          </select>
 
           <input v-if="activeProfileFields.national_id" v-model="editPatient.national_id" placeholder="کد ملی" />
           <input v-if="activeProfileFields.foreign_national_code" v-model="editPatient.foreign_national_code" placeholder="کد اتباع" />
@@ -851,6 +853,7 @@
             {{ mediaShowAll ? 'نمایش پوشه فعلی' : 'مشاهده همه عکس‌ها' }}
           </button>
           <button
+            v-if="mediaFolderLevel === 'service' && !mediaShowAll"
             type="button"
             class="media-compare-btn"
             :disabled="beforeAfterCompareLoading"
@@ -887,24 +890,53 @@
             </div>
 
             <div v-else-if="mediaFolderLevel === 'date'" class="folder-create service-folder-create">
-              <strong>انتخاب تگ‌های خدمات</strong>
-              <p>تگ‌های موردنظر را انتخاب کنید؛ این تگ‌ها برای همه عکس‌ها و ویدئوهای این تاریخ ثبت می‌شوند.</p>
+              <strong>انتخاب بخش نهایی و تگ‌های خدمات</strong>
+              <p>آخرین شاخه را انتخاب کنید؛ اگر یک بخش زیرمجموعه نداشته باشد، خود همان بخش قابل انتخاب است.</p>
                 <div class="shared-upload-setup">
+                  <div class="media-inventory-head">
+                    <strong>۱. انتخاب آخرین شاخه <b>*</b></strong>
+                    <span v-if="selectedMediaFolderService">{{ selectedMediaFolderService.name }}</span>
+                    <span v-else>انتخاب نشده</span>
+                  </div>
+                  <div class="media-inventory-tree">
+                    <button
+                      v-for="node in mediaInventoryTreeNodes"
+                      :key="`media-section-${node.section.id}`"
+                      type="button"
+                      class="media-tree-node"
+                      :class="{
+                        active: selectedMediaTreeKey === mediaSectionKey(node.section),
+                        leaf: !node.hasChildren
+                      }"
+                      :style="{ '--tree-depth': Math.max(0, node.level - 1) }"
+                      @click="selectMediaTreeNode(node.section)"
+                    >
+                      <span class="media-tree-toggle" :class="{ open: isMediaSectionExpanded(node.section) }"></span>
+                      <i></i>
+                      <b>{{ node.section.name }}</b>
+                      <em>{{ mediaTreeNodeCount(node.section) }}</em>
+                    </button>
+                  </div>
+                  <div v-if="!selectedMediaFolderService" class="media-section-required">
+                    <strong>یک بخش نهایی انتخاب کنید</strong>
+                    <span>شاخه‌های دارای زیرمجموعه باز می‌شوند؛ نام فولدر از آخرین شاخه انتخاب‌شده ساخته می‌شود.</span>
+                  </div>
+
                   <div class="shared-upload-head">
                     <div>
-                      <strong>تنظیمات مشترک فایل‌ها</strong>
+                      <strong>۲. تنظیمات مشترک فایل‌ها</strong>
                       <small>این اطلاعات و تگ‌ها روی همه عکس‌ها و ویدئوهایی که در ادامه آپلود می‌کنید اعمال می‌شود.</small>
                     </div>
                   </div>
 
-                  <div class="angle-tags-head shared-tags-head">
+                  <div v-if="selectedMediaFolderService" class="angle-tags-head shared-tags-head">
                     <div>
                       <strong>تگ‌ها را انتخاب کنید <b>*</b></strong>
                       <small>می‌توانید چند تگ را هم‌زمان انتخاب کنید.</small>
                     </div>
                     <input v-model.trim="serviceTagSearch" type="search" placeholder="جست‌وجوی تگ...">
                   </div>
-                  <div class="shared-tag-toolbar">
+                  <div v-if="selectedMediaFolderService" class="shared-tag-toolbar">
                     <span>
                       <b>{{ mediaUpload.services.length }}</b>
                       تگ انتخاب شده
@@ -918,7 +950,7 @@
                       </button>
                     </div>
                   </div>
-                  <div class="angle-tag-options shared-tag-options">
+                  <div v-if="selectedMediaFolderService" class="angle-tag-options shared-tag-options">
                     <label
                       v-for="tag in filteredMediaServiceTags"
                       :key="`setup-tag-${tag.id}`"
@@ -933,14 +965,14 @@
                     </div>
                   </div>
 
-                  <div class="shared-meta-grid">
+                  <div v-if="selectedMediaFolderService" class="shared-meta-grid">
                     <textarea v-model="mediaUpload.description" placeholder="توضیحات مشترک همه عکس‌ها"></textarea>
                   </div>
-                  <label class="feature-check no-consent-check">
+                  <label v-if="selectedMediaFolderService" class="feature-check no-consent-check">
                     <input v-model="mediaUpload.no_usage_consent" type="checkbox">
                     <span>عدم رضایت استفاده از تصاویر</span>
                   </label>
-                  <label class="feature-check featured-check">
+                  <label v-if="selectedMediaFolderService" class="feature-check featured-check">
                     <input v-model="mediaUpload.is_featured" type="checkbox">
                     <span>★ برترین‌ها</span>
                   </label>
@@ -948,12 +980,12 @@
                   <button
                     type="button"
                     class="primary-btn shared-setup-submit"
-                    :disabled="mediaLoading || !mediaUpload.services.length"
+                    :disabled="mediaLoading || !selectedMediaFolderService || !mediaUpload.services.length"
                     @click="createMediaServiceFolder()"
                   >
                     ساخت فولدر و ادامه آپلود
                   </button>
-                  <small v-if="!mediaUpload.services.length" class="shared-tags-required">حداقل یک تگ انتخاب کنید.</small>
+                  <small v-if="selectedMediaFolderService && !mediaUpload.services.length" class="shared-tags-required">حداقل یک تگ انتخاب کنید.</small>
                 </div>
             </div>
 
@@ -1309,7 +1341,9 @@
             <h3>مقایسه قبل و بعد</h3>
             <p>{{ beforeAfterCompareScopeLabel }}</p>
           </div>
-          <button class="close-btn" type="button" @click="closeBeforeAfterCompare">×</button>
+          <button class="compare-back-btn" type="button" @click="closeBeforeAfterCompare">
+            بازگشت به {{ currentServiceFolderName || 'فولدر خدمت' }}
+          </button>
         </header>
 
         <div v-if="beforeAfterCompareLoading" class="compare-state">
@@ -1445,13 +1479,13 @@ const iranCities = iranCitiesData
 dayjs.extend(jalaliday)
 
 const FACE_PHOTO_ANGLES = [
-  { key: 'left_profile', label: 'نیم‌رخ چپ', degrees: 90, side: 'چپ', rotate: -90, face: -72 },
-  { key: 'left_three_quarter_60', label: 'سه‌رخ اول چپ', degrees: 60, side: 'چپ', rotate: -60, face: -60 },
-  { key: 'left_three_quarter_30', label: 'سه‌رخ دوم چپ', degrees: 30, side: 'چپ', rotate: -30, face: -30 },
-  { key: 'front', label: 'تمام‌رخ', degrees: 0, side: '', rotate: 0, face: 0 },
+  { key: 'right_profile', label: 'نیم‌رخ راست', degrees: 90, side: 'راست', rotate: 90, face: 72 },
   { key: 'right_three_quarter_30', label: 'سه‌رخ اول راست', degrees: 30, side: 'راست', rotate: 30, face: 30 },
   { key: 'right_three_quarter_60', label: 'سه‌رخ دوم راست', degrees: 60, side: 'راست', rotate: 60, face: 60 },
-  { key: 'right_profile', label: 'نیم‌رخ راست', degrees: 90, side: 'راست', rotate: 90, face: 72 },
+  { key: 'front', label: 'تمام‌رخ', degrees: 0, side: '', rotate: 0, face: 0 },
+  { key: 'left_three_quarter_60', label: 'سه‌رخ اول چپ', degrees: 60, side: 'چپ', rotate: -60, face: -60 },
+  { key: 'left_three_quarter_30', label: 'سه‌رخ دوم چپ', degrees: 30, side: 'چپ', rotate: -30, face: -30 },
+  { key: 'left_profile', label: 'نیم‌رخ چپ', degrees: 90, side: 'چپ', rotate: -90, face: -72 },
   { key: 'other', label: 'سایر', degrees: 0, side: '', rotate: 0, face: 0 },
   { key: 'body_shape', label: 'شیپ بدن', degrees: 0, side: '', rotate: 0, face: 0 }
 ]
@@ -1600,8 +1634,6 @@ export default {
       },
       profileViewOpen: false,
       activePatientProfile: null,
-      latestProfilePhotos: [],
-      latestProfilePhotosLoading: false,
 
       showWalletModal: false,
       activeWalletPatient: {},
@@ -1650,7 +1682,7 @@ export default {
       showSpecificMediaDatePicker: false,
       selectedMediaFiles: [],
       selectedMediaFolderService: null,
-      activePhotoAngleKey: FACE_PHOTO_ANGLES[3].key,
+      activePhotoAngleKey: 'front',
       angleGuideMode: 'top',
       angleDragging: false,
       angleUploadLoading: false,
@@ -1676,6 +1708,31 @@ export default {
 
     canUseBeauty() {
       return this.featureEnabled('beauty')
+    },
+
+    profileEnabledDetails() {
+      const patient = this.activePatientProfile || {}
+      const definitions = [
+        { key: 'national_id', label: 'کد ملی', icon: '⌁' },
+        { key: 'foreign_national_code', label: 'کد اتباع', icon: '◇' },
+        { key: 'father_name', label: 'نام پدر', icon: 'ش' },
+        { key: 'marriage_date', label: 'تاریخ ازدواج', icon: '♡' },
+        { key: 'education', label: 'تحصیلات', icon: '▣' },
+        { key: 'second_phone', label: 'شماره تماس دوم', icon: '☎', phone: true },
+        { key: 'address', label: 'آدرس محل سکونت', icon: '⌖', wide: true }
+      ]
+
+      return definitions
+        .filter(field => Boolean(this.activeProfileFields?.[field.key]))
+        .map(field => {
+          const rawValue = String(patient[field.key] || '').trim()
+          const value = field.phone ? this.displayPatientPhone(rawValue) : rawValue
+          return {
+            ...field,
+            hasValue: Boolean(value),
+            displayValue: value || 'ثبت نشده'
+          }
+        })
     },
 
     patientResultColumns() {
@@ -1741,13 +1798,20 @@ export default {
       return crumbs.map(item => item.name).join(' / ')
     },
 
+    currentServiceFolderName() {
+      const serviceCrumb = [...this.mediaBreadcrumbs]
+        .reverse()
+        .find(item => item.folder_type === 'service')
+      return serviceCrumb?.name || ''
+    },
+
     beforeAfterPairs() {
       const currentPath = this.currentBeforeAfterBasePath
       const scopedItems = (this.beforeAfterCompareItems || [])
         .filter(item => item.media_type === 'image' && item.url && ['before', 'after'].includes(item.comparison_stage))
         .filter(item => {
           if (!currentPath) return true
-          return this.beforeAfterBasePath(item.folder_path).startsWith(currentPath)
+          return this.beforeAfterBasePath(item.folder_path) === currentPath
         })
 
       const pairs = new Map()
@@ -1767,8 +1831,14 @@ export default {
         }
       })
 
+      const angleOrder = new Map(this.facePhotoAngles.map((angle, index) => [angle.key, index]))
       return Array.from(pairs.values())
-        .sort((a, b) => String(a.path).localeCompare(String(b.path), 'fa') || String(a.angle).localeCompare(String(b.angle), 'fa'))
+        .sort((a, b) => {
+          const pathOrder = String(a.path).localeCompare(String(b.path), 'fa')
+          if (pathOrder) return pathOrder
+          return (angleOrder.get(a.angleKey) ?? Number.MAX_SAFE_INTEGER)
+            - (angleOrder.get(b.angleKey) ?? Number.MAX_SAFE_INTEGER)
+        })
     },
 
     activeBeforeAfterPair() {
@@ -1781,13 +1851,16 @@ export default {
 
     filteredMediaServiceTags() {
       const query = this.normalizeMediaSearch(this.serviceTagSearch)
-      const services = this.mediaServiceGroups.flatMap(group => group.items || [])
+      const selectedSectionId = Number(this.selectedMediaFolderService?.id || 0)
+      const services = this.mediaServiceGroups
+        .filter(group => !selectedSectionId || Number(group.section_id) === selectedSectionId)
+        .flatMap(group => group.items || [])
       if (!query) return services
       return services.filter(service => this.normalizeMediaSearch(service.name).includes(query))
     },
 
     mediaLeafSections() {
-      return (this.mediaSections || []).filter(section => Number(section.level || 2) === 2)
+      return (this.mediaSections || []).filter(section => !this.mediaChildSections(this.mediaSectionKey(section)).length)
     },
 
     mediaNeedsLeafSection() {
@@ -1817,7 +1890,7 @@ export default {
 
     mediaRootSections() {
       return (this.mediaSections || [])
-        .filter(section => Number(section.level || 2) === 1)
+        .filter(section => !section.parent_id)
         .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || 0) - Number(b.id || 0))
     },
 
@@ -2012,6 +2085,18 @@ export default {
   },
 
   watch: {
+    'form.phone'(value) { this.normalizeObjectDigits(this.form, 'phone', value) },
+    'form.second_phone'(value) { this.normalizeObjectDigits(this.form, 'second_phone', value) },
+    'form.national_id'(value) { this.normalizeObjectDigits(this.form, 'national_id', value) },
+    'form.foreign_national_code'(value) { this.normalizeObjectDigits(this.form, 'foreign_national_code', value) },
+    'search.q'(value) { this.normalizeObjectDigits(this.search, 'q', value) },
+    'search.phone'(value) { this.normalizeObjectDigits(this.search, 'phone', value) },
+    'search.file_number'(value) { this.normalizeObjectDigits(this.search, 'file_number', value) },
+    'search.national_id'(value) { this.normalizeObjectDigits(this.search, 'national_id', value) },
+    'editPatient.phone'(value) { this.normalizeObjectDigits(this.editPatient, 'phone', value) },
+    'editPatient.second_phone'(value) { this.normalizeObjectDigits(this.editPatient, 'second_phone', value) },
+    'editPatient.national_id'(value) { this.normalizeObjectDigits(this.editPatient, 'national_id', value) },
+    'editPatient.foreign_national_code'(value) { this.normalizeObjectDigits(this.editPatient, 'foreign_national_code', value) },
     openPatientRequest: {
       immediate: true,
       deep: true,
@@ -2022,6 +2107,12 @@ export default {
   },
 
   methods: {
+    normalizeObjectDigits(target, field, value) {
+      const normalized = this.toEnglishDigits(value)
+      if (normalized === String(value ?? '')) return
+      target[field] = normalized
+    },
+
     openInventoryForTags() {
       localStorage.setItem('inventory-open-service-tags', '1')
       this.showMediaModal = false
@@ -2236,31 +2327,10 @@ export default {
     openPatientProfile(patient) {
       this.activePatientProfile = patient
       this.profileViewOpen = true
-      this.fetchLatestProfilePhotos(patient)
       this.$nextTick(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
       this.fetchPatientAppointmentsFor(patient)
-    },
-
-    async fetchLatestProfilePhotos(patient) {
-      this.latestProfilePhotos = []
-      if (!patient?.id) return
-
-      this.latestProfilePhotosLoading = true
-      try {
-        const res = await fetch(`/api/patients/${patient.id}/media?all=1`)
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.message || 'دریافت عکس‌های پرونده انجام نشد')
-
-        this.latestProfilePhotos = (data.media || [])
-          .filter(item => item.media_type === 'image' && item.url)
-          .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0))
-      } catch (error) {
-        console.error(error)
-      } finally {
-        this.latestProfilePhotosLoading = false
-      }
     },
 
     async openRequestedPatientProfile(request) {
@@ -2314,7 +2384,6 @@ export default {
     closePatientProfile() {
       this.profileViewOpen = false
       this.activePatientProfile = null
-      this.latestProfilePhotos = []
       this.$nextTick(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
@@ -2818,14 +2887,19 @@ export default {
         this.mediaItems = data.media || []
         this.mediaSections = data.sections || []
         this.mediaServiceGroups = data.service_groups || []
+        const folderSectionId = [...this.mediaBreadcrumbs]
+          .reverse()
+          .find(crumb => crumb.inventory_section_id)?.inventory_section_id
+        if (folderSectionId) {
+          this.selectedMediaFolderService = this.mediaSections.find(section => Number(section.id) === Number(folderSectionId)) || null
+          this.selectedMediaTreeKey = this.selectedMediaFolderService ? this.mediaSectionKey(this.selectedMediaFolderService) : ''
+        } else if (this.mediaBreadcrumbs.length <= 1) {
+          this.selectedMediaFolderService = null
+          this.selectedMediaTreeKey = ''
+        }
         this.expandedMediaSectionKeys = this.mediaSections
           .filter(section => Number(section.level || 2) < 2)
           .map(section => this.mediaSectionKey(section))
-        if (this.activePatientProfile?.id === this.activeMediaPatient.id && showAll) {
-          this.latestProfilePhotos = (this.mediaItems || [])
-            .filter(item => item.media_type === 'image' && item.url)
-            .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0))
-        }
       } catch (error) {
         console.error(error)
         Swal.fire({ icon: 'error', title: 'خطا', text: 'گالری پرونده بارگذاری نشد' })
@@ -2861,14 +2935,6 @@ export default {
       } finally {
         this.beforeAfterCompareLoading = false
       }
-    },
-
-    async openPatientBeforeAfterCompare(patient) {
-      if (!patient?.id || !this.canUseGallery) return
-      this.activeMediaPatient = patient
-      this.currentMediaFolderId = null
-      this.mediaBreadcrumbs = []
-      await this.openBeforeAfterCompare()
     },
 
     closeBeforeAfterCompare() {
@@ -3040,6 +3106,10 @@ export default {
 
     async createMediaServiceFolder() {
       if (!this.currentMediaFolderId || !this.activeMediaPatient.id) return
+      if (!this.selectedMediaFolderService?.id) {
+        Swal.fire({ icon: 'warning', title: 'بخش نهایی انتخاب نشده', text: 'ابتدا آخرین شاخه‌ای را که زیرمجموعه ندارد انتخاب کنید.' })
+        return
+      }
       if (!this.mediaUpload.services.length) {
         Swal.fire({ icon: 'warning', title: 'تگ انتخاب نشده', text: 'قبل از ادامه، حداقل یک تگ برای عکس‌ها انتخاب کنید.' })
         return
@@ -3052,7 +3122,8 @@ export default {
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify({
             type: 'service',
-            parent_id: this.currentMediaFolderId
+            parent_id: this.currentMediaFolderId,
+            section_id: this.selectedMediaFolderService.id
           })
         })
 
@@ -3062,7 +3133,6 @@ export default {
 
         const data = await res.json()
         const folder = data.folder || data
-        this.selectedMediaFolderService = null
         await this.loadPatientMedia(folder.id, false)
       } catch (error) {
         console.error(error)
@@ -3111,7 +3181,7 @@ export default {
 
     mediaTreeNodeCount(section) {
       const key = this.mediaSectionKey(section)
-      return Number(section?.level || 2) === 2
+      return !this.mediaChildSections(key).length
         ? this.mediaServiceGroups.filter(group => Number(group.section_id) === Number(section.id)).flatMap(group => group.items || []).length
         : this.mediaChildSections(key).length
     },
@@ -3119,10 +3189,11 @@ export default {
     selectMediaTreeNode(section) {
       const key = this.mediaSectionKey(section)
       this.selectedMediaTreeKey = key
-      if (this.mediaChildSections(key).length && !this.isMediaSectionExpanded(section)) {
+      const children = this.mediaChildSections(key)
+      if (children.length && !this.isMediaSectionExpanded(section)) {
         this.expandedMediaSectionKeys.push(key)
       }
-      if (Number(section.level || 2) !== 2) {
+      if (children.length) {
         this.selectedMediaFolderService = null
         this.serviceTagSearch = ''
         this.mediaUpload.services = []
@@ -3396,14 +3467,6 @@ export default {
 
         this.mediaItems = this.mediaItems.filter(media => media.id !== item.id)
         if (this.editMediaForm.id === item.id) this.closeMediaEdit()
-
-        Swal.fire({
-          icon: 'success',
-          title: 'حذف شد',
-          text: data.message || 'فایل با موفقیت حذف شد.',
-          timer: 1600,
-          showConfirmButton: false
-        })
       } catch (error) {
         console.error(error)
         Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'فایل حذف نشد' })
@@ -3698,9 +3761,23 @@ export default {
     },
 
     openEditModal(patient) {
-      this.editPatient = { ...patient, city: patient.city || 'تهران' }
+      this.editPatient = {
+        ...patient,
+        city: patient.city || 'تهران',
+        birth_date: this.patientDateForPicker(patient.birth_date)
+      }
       this.selectedEditCity = this.cityOptions.find(item => item.name === this.editPatient.city) || null
       this.showEditModal = true
+    },
+
+    patientDateForPicker(value) {
+      if (!value) return ''
+      const normalized = this.toEnglishDigits(String(value).trim()).replace(/\//g, '-')
+      const gregorian = moment(normalized, 'YYYY-MM-DD', true)
+      if (/^(19|20)\d{2}-/.test(normalized) && gregorian.isValid()) {
+        return gregorian.format('jYYYY-jMM-jDD')
+      }
+      return normalized
     },
 
     sanitizePatientSearchRow(row = {}) {
@@ -4735,102 +4812,9 @@ select:focus {
 }
 .profile-beauty-action:focus-visible,
 .profile-followup-action:focus-visible,
-.profile-gallery-action:focus-visible,
-.profile-compare-action:focus-visible {
+.profile-gallery-action:focus-visible {
   outline: 3px solid rgba(37, 99, 235, .2);
   outline-offset: 2px;
-}
-
-.profile-compare-action {
-  min-height: 38px;
-  padding: 0 10px;
-  border: 1px solid #bfdbfe;
-  border-radius: 11px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 1000;
-  cursor: pointer;
-  transition: .18s ease;
-}
-.profile-compare-action:hover { border-color: #60a5fa; background: #dbeafe; transform: translateY(-1px); }
-
-.profile-photo-list {
-  width: min(100%, 520px);
-  margin: 10px auto 14px;
-  padding: 10px;
-  border: 1px solid #dbeafe;
-  border-radius: 12px;
-  background: #f8fbff;
-}
-
-.profile-photo-list > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 9px;
-  color: #334155;
-  font-size: 11px;
-}
-
-.profile-photo-list > header strong { font-weight: 1000; }
-.profile-photo-list > header button {
-  border: 0;
-  background: transparent;
-  color: #2563eb;
-  font: inherit;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.profile-latest-photos {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
-  gap: 7px;
-  max-height: 250px;
-  overflow-y: auto;
-  padding-left: 2px;
-}
-
-.profile-latest-photos button,
-.profile-latest-photos span {
-  aspect-ratio: 1;
-  min-width: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid #dbeafe;
-  border-radius: 8px;
-  background: #eef6ff;
-}
-
-.profile-latest-photos button {
-  cursor: pointer;
-  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
-}
-
-.profile-latest-photos button:hover {
-  border-color: #60a5fa;
-  box-shadow: 0 5px 12px rgba(37, 99, 235, .18);
-  transform: translateY(-1px);
-}
-
-.profile-latest-photos img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-}
-
-.profile-latest-photos span {
-  background: linear-gradient(90deg, #eef6ff, #f8fbff, #eef6ff);
-  background-size: 200% 100%;
-  animation: latest-photo-shimmer 1s linear infinite;
-}
-
-@keyframes latest-photo-shimmer {
-  to { background-position: -200% 0; }
 }
 
 .profile-photo-large {
@@ -4977,6 +4961,65 @@ select:focus {
     linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
   box-shadow: 0 18px 42px rgba(15, 23, 42, .07);
   overflow: hidden;
+}
+
+.profile-extra-card {
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #fff 0%, #f8fbff 100%);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, .05);
+}
+
+.profile-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.profile-extra-grid article {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 68px;
+  padding: 11px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.profile-extra-grid article:last-child:nth-child(3n + 1) {
+  grid-column: span 3;
+}
+
+.profile-extra-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 15px;
+  font-weight: 1000;
+}
+
+.profile-extra-grid article > div { min-width: 0; display: grid; gap: 4px; }
+.profile-extra-grid small { color: #64748b; font-size: 10px; font-weight: 850; }
+.profile-extra-grid strong { overflow-wrap: anywhere; color: #0f172a; font-size: 13px; font-weight: 900; }
+.profile-extra-grid strong.empty { color: #94a3b8; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .profile-extra-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .profile-extra-grid article:last-child:nth-child(3n + 1) { grid-column: auto; }
+}
+
+@media (max-width: 620px) {
+  .profile-extra-card { padding: 14px; }
+  .profile-extra-grid { grid-template-columns: 1fr; }
 }
 
 .profile-report-card::before {
@@ -5599,12 +5642,32 @@ select:focus {
 .edit-grid select,
 .edit-grid textarea {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border: 1px solid #dbe3ea;
   border-radius: 12px;
   padding: 12px 14px;
   font-size: 14px;
   background: #f8fafc;
   outline: none;
+}
+
+.edit-grid select {
+  height: 45px;
+  padding-block: 0;
+  line-height: normal;
+}
+
+.edit-grid .vpd-input-group {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+::v-deep(.edit-grid .vpd-input-group input) {
+  width: 100% !important;
+  height: 45px !important;
+  box-sizing: border-box;
+  background: #f8fafc;
 }
 
 .edit-grid .city-select {
@@ -5710,6 +5773,11 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   display: flex;
   flex-direction: column;
   direction: rtl;
+}
+
+/* فیلدهای تقویم صفحه‌ی پشت مودال در بعضی صفحات z-index سراسری بزرگی دارند. */
+.edit-modal-overlay {
+  z-index: 2147483100;
 }
 
 .media-header,
@@ -7317,11 +7385,11 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   position: absolute;
   right: 12px;
   bottom: 12px;
-  left: 12px;
+  left: 82px;
   min-height: 44px;
   display: grid;
   place-items: center;
-  padding: 10px 78px 10px 12px;
+  padding: 10px 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, .94);
   color: #0f172a;
@@ -7604,6 +7672,25 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   color: #64748b;
   font-size: 11px;
   font-weight: 800;
+}
+
+.compare-back-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.compare-back-btn:hover {
+  border-color: #0f766e;
+  background: #f0fdfa;
+  color: #0f766e;
 }
 
 .compare-single-view {

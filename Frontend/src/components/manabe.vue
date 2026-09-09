@@ -91,7 +91,7 @@
     </td>
 
     <td class="actions-cell" data-label="عملیات">
-      <button class="btn-add" type="button" title="اضافه کردن پزشک" @click="addDoctorRow">
+      <button v-if="index === doctorRows.length - 1" class="btn-add" type="button" title="اضافه کردن پزشک" @click="addDoctorRow">
         <span>+</span><small>اضافه</small>
       </button>
 
@@ -215,7 +215,7 @@
               <label class="salary-field"><span class="salary-field-icon">﷼</span><input class="salary-input" type="text" inputmode="numeric" :value="formatSalary(row.salary)" @input="updateSalary(row, $event)" placeholder="مثلاً ۸,۰۰۰,۰۰۰"><small>تومان</small></label>
             </td>
             <td class="actions-cell" data-label="عملیات">
-              <button class="btn-add" type="button" title="اضافه کردن پرسنل" @click="addStaffRow"><span>+</span><small>اضافه</small></button>
+              <button v-if="index === staffRows.length - 1" class="btn-add" type="button" title="اضافه کردن پرسنل" @click="addStaffRow"><span>+</span><small>اضافه</small></button>
               <button v-if="staffRows.length > 1" class="btn-remove" type="button" title="حذف پرسنل" @click="removeStaffRow(index)"><span>−</span><small>حذف</small></button>
             </td>
           </tr>
@@ -253,7 +253,7 @@
             <td class="doctor-settings-cell" data-label="تنظیمات">
               <button type="button" class="doctor-settings-btn channel-settings-btn" @click="openChannelSettings(index)"><span class="doctor-settings-icon">✎</span><span><strong>تنظیم کانال</strong><small>{{ channelImageUrl(row) ? 'تصویر اختصاصی بارگذاری شده' : row.icon ? 'آیکون اختصاصی انتخاب شده' : 'نمایش با آیکون پیش‌فرض' }}</small></span><b>ویرایش</b></button>
             </td>
-            <td class="actions-cell" data-label="عملیات"><button class="btn-add" type="button" title="اضافه کردن کانال" @click="addChannelRow"><span>+</span><small>اضافه</small></button><button v-if="channelRows.length > 1" class="btn-remove" type="button" title="حذف کانال" @click="requestChannelRemoval(index)"><span>−</span><small>حذف</small></button></td>
+            <td class="actions-cell" data-label="عملیات"><button v-if="index === channelRows.length - 1" class="btn-add" type="button" title="اضافه کردن کانال" @click="addChannelRow"><span>+</span><small>اضافه</small></button><button v-if="channelRows.length > 1" class="btn-remove" type="button" title="حذف کانال" @click="requestChannelRemoval(index)"><span>−</span><small>حذف</small></button></td>
           </tr>
         </tbody>
       </table>
