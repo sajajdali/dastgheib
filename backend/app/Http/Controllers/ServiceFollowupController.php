@@ -39,11 +39,9 @@ class ServiceFollowupController extends Controller {
  public function scheduleFromAppointment(Request $request, Appointment $appointment) {
   $data=$request->validate(['due_date'=>['required','date'],'reason'=>['nullable','string','max:1000']]);
   $services=collect($appointment->services ?: [])->filter(fn($s)=>trim((string)($s['name']??''))!=='');
-  if ($services->isEmpty()) {
-   throw \Illuminate\Validation\ValidationException::withMessages([
-    'services' => 'برای ثبت پیگیری، ابتدا خدمت نوبت را ثبت کنید.',
-   ]);
-  }
+  // وضعیت‌هایی مثل کنسلی و «پیگیری» ممکن است پیش از انتخاب خدمت ثبت شوند.
+  // در این حالت نیز باید یک ردیف قابل اقدام در جدول پیگیری خدمات ایجاد شود.
+  if ($services->isEmpty()) $services=collect([['name'=>'پیگیری نوبت']]);
   $result=DB::transaction(function() use($appointment,$services,$data){return $services->map(function($service) use($appointment,$data){$name=trim((string)$service['name']);$inventory=Inventory::where('name',$name)->first();$key='appointment-manual-followup|'.$appointment->id.'|'.sha1(mb_strtolower($name));$f=ServiceFollowup::where('source_key',$key)->first();$v=['appointment_id'=>$appointment->id,'inventory_id'=>$inventory?->id,'service_name'=>$name,'patient_name'=>$appointment->lastname,'patient_phone'=>$appointment->phone,'completed_at'=>$appointment->completed_at?:now(),'due_date'=>$data['due_date'],'followup_days'=>max(0,(int)($inventory?->followup_days??0)),'status'=>'pending','action_note'=>$data['reason']??null,'source_key'=>$key];if($f){$f->update($v);$f=$f->fresh();$f->setAttribute('replaced',true);return $f;} $f=ServiceFollowup::create($v);$f->setAttribute('replaced',false);return $f;})->values();});
   return response()->json(['followups'=>$result]);
  }

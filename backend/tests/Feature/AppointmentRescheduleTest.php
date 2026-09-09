@@ -93,13 +93,4 @@ class AppointmentRescheduleTest extends TestCase
         $this->assertNotSame($first->broadcastOn()[0]->name, $second->broadcastOn()[0]->name);
     }
 
-    public function test_followup_without_services_returns_validation_error(): void
-    {
-        $appointment = $this->appointment();
-        $appointment->update(['services' => []]);
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
-        app(\App\Http\Controllers\ServiceFollowupController::class)->scheduleFromAppointment(
-            Request::create('/', 'POST', ['due_date' => '2026-10-01']), $appointment
-        );
-    }
 }

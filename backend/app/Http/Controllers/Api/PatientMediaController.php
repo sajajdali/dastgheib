@@ -138,12 +138,19 @@ class PatientMediaController extends Controller
         $section = ! empty($data['section_id'])
             ? InventorySection::query()->findOrFail($data['section_id'])
             : null;
-        $folderName = $section?->name ?: 'فایل‌های خدمات';
+
+        if (! $section || $section->children()->exists()) {
+            return response()->json([
+                'message' => 'برای ساخت فولدر باید آخرین شاخه‌ای که زیرمجموعه ندارد انتخاب شود.',
+            ], 422);
+        }
+
+        $folderName = $section->name;
 
         $existingFolder = PatientMediaFolder::query()
             ->where('patient_id', $patient->id)
             ->where('parent_id', $parent->id)
-            ->where('name', $folderName)
+            ->where('inventory_section_id', $section->id)
             ->first();
 
         if ($existingFolder) {
@@ -438,17 +445,31 @@ class PatientMediaController extends Controller
             })
             ->all();
 
-        return count($tags) ? [[
-            'section' => 'تگ‌های خدمات',
-            'section_id' => null,
-            'items' => $tags,
-        ]] : [];
+        if (! count($tags)) {
+            return [];
+        }
+
+        return InventorySection::query()
+            ->whereDoesntHave('children')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name'])
+            ->map(fn (InventorySection $section) => [
+                'section' => $section->name,
+                'section_id' => $section->id,
+                'items' => collect($tags)->map(fn (array $tag) => array_merge($tag, [
+                    'id' => $tag['id'].'-section-'.$section->id,
+                    'key' => $tag['key'].'-section-'.$section->id,
+                    'section' => $section->name,
+                    'section_id' => $section->id,
+                ]))->all(),
+            ])
+            ->all();
     }
 
     private function mediaSections(): array
     {
         return InventorySection::query()
-            ->where('level', '<=', 2)
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get(['id', 'parent_id', 'level', 'name'])

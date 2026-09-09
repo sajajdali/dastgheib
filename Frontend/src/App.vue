@@ -13,7 +13,7 @@
 
   <Login v-else-if="!user" @authenticated="handleAuthenticated" />
 
-  <div v-else id="app" :class="{ dark: isDark }">
+  <div v-else id="app" :class="{ dark: isDark, 'booking-page-active': currentPage === 'Vaghtdahi' }">
 
     <button
       class="utility-menu-toggle"
@@ -951,7 +951,6 @@ export default {
       try {
         const { data } = await axios.delete("/api/auth/user/photo", { headers: { "Accept": "application/json" } });
         if (data.user) this.user = { ...this.user, ...data.user };
-        await Swal.fire({ icon: "success", title: "عکس حذف شد", timer: 1300, showConfirmButton: false });
       } catch (error) {
         await Swal.fire({ icon: "error", title: "خطا", text: error.response?.data?.message || "حذف عکس انجام نشد." });
       }
@@ -1563,6 +1562,11 @@ body.central-host #app {
   color: #334155;
   box-shadow: 0 10px 24px rgba(15, 23, 42, .14);
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+/* در نوبت‌دهی دکمه همبرگری نیز همراه منوی اصلی از صفحه خارج شود. */
+.booking-page-active .utility-menu-toggle {
+  position: absolute;
 }
 .utility-menu-toggle svg {
   width: 24px;

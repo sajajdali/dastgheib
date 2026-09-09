@@ -110,6 +110,8 @@ Route::post('/patients/{patient}/media/files/{media}', [PatientMediaController::
 Route::delete('/patients/{patient}/media/files/{media}', [PatientMediaController::class, 'destroy']);
 Route::get('/photo-comparisons', [PhotoComparisonController::class, 'index'])->middleware('permission:photos.view');
 Route::get('/beauty/context', [BeautyAnnotationController::class, 'context']);
+Route::get('/beauty/problems', [BeautyAnnotationController::class, 'problems']);
+Route::post('/beauty/problems', [BeautyAnnotationController::class, 'saveProblems']);
 Route::get('/beauty/annotations', [BeautyAnnotationController::class, 'index']);
 Route::get('/patients/{patient}/beauty', [BeautyAnnotationController::class, 'show']);
 Route::post('/patients/{patient}/beauty/annotations', [BeautyAnnotationController::class, 'store']);

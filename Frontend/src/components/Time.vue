@@ -38,13 +38,17 @@
       >
         <span :class="['arrow-all', { collapsed: allCollapsed }]">▼</span>
       </button>
-      <input
-        type="text"
-        v-model="searchQuery"
-        @input="searchTable"
-        class="global-search-box"
-        placeholder="جستجو در کل جدول..."
-      />
+      <div class="appointment-search-wrap">
+        <div class="appointment-search-input-wrap">
+          <input type="text" v-model="searchQuery" @input="searchTable" class="global-search-box" placeholder="جستجو در کل جدول..." />
+          <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
+        </div>
+        <div v-if="searchQuery.trim()" class="appointment-search-navigation">
+          <button type="button" title="نتیجه قبلی" aria-label="نتیجه قبلی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(-1)">↑</button>
+          <span>{{ searchResults.length ? searchResultIndex + 1 : 0 }} از {{ searchResults.length }}</span>
+          <button type="button" title="نتیجه بعدی" aria-label="نتیجه بعدی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(1)">↓</button>
+        </div>
+      </div>
 
       <template v-if="appointmentView === 'table'">
 
@@ -143,7 +147,7 @@
               :style="{ width: columnWidths.time + 'px' }"
               :class="{ 'filtered-header': emptyTimeFilterActive }"
             >
-              <div class="header-with-filter time-empty-filter-head"><span>ساعت<small>بر اساس وقت خالی</small></span><button class="filter-btn" @click.stop="openEmptyTimeFilterModal">⚙</button></div>
+              <div class="header-with-filter time-empty-filter-head"><span>ساعت</span><button class="filter-btn" @click.stop="openEmptyTimeFilterModal">⚙</button></div>
               <div
                 class="resize-handle"
                 @mousedown="startResize($event, 'time')"
@@ -574,11 +578,15 @@
             :class="[
               'data-row',
               row._visibleIndex % 2 === 1 ? 'stripe' : '',
+              isAppointmentSearchResult(row) ? 'search-result-row' : '',
               highlightedRowId === row._rowId ? 'search-highlight-row' : '',
               isDebtor(row) ? 'debtor-row' : '',
               isCreditor(row) ? 'creditor-row' : '',
               isProblematicCustomer(row) ? 'problematic-customer-row' : ''
             ]"
+            @mouseenter="showAppointmentAudit($event, row)"
+            @mousemove="moveAppointmentAudit($event)"
+            @mouseleave="hideAppointmentAudit"
           >
 
               <td :style="{ width: columnWidths.lastname + 'px' }" style="text-align: center !important;">
@@ -600,13 +608,24 @@
                   <span v-if="isDebtor(row)" class="debtor-warning-icon" :title="`هشدار بدهکاری: ${formatDisplayMoney(patientDebtAmount(row))} تومان`">!</span>
                   <span v-if="isCreditor(row)" class="creditor-warning-icon" :title="`طلبکار: ${formatDisplayMoney(Math.abs(appointmentBalanceAmount(row)))} تومان`">ط</span>
                   <input
+                    v-if="!row.appointmentId || editingPatientNameRowId === row._rowId"
                     v-model="row.lastname"
                     :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
                     :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
                     @click.stop
                     @input="autoSetAppointmentStatus(row); saveData()"
-                    @blur="persistDirectAppointment(row)"
+                    @keyup.enter.prevent="$event.target.blur()"
+                    @blur="finishPatientNameEdit(row)"
                   />
+                  <span
+                    v-else
+                    class="appointment-patient-name-value"
+                    :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
+                    title="برای ویرایش کلیک کنید"
+                    tabindex="0"
+                    @click.stop="startPatientNameEdit(row)"
+                    @keyup.enter.stop.prevent="startPatientNameEdit(row)"
+                  >{{ row.lastname }}</span>
                 </div>
               </td>
 
@@ -766,12 +785,20 @@
                 class="amount-col"
                 :style="{ width: columnWidths.amount + 'px' }"
               >
-                <div class="amount-finance-cell">
-                  <input
-                    :value="row.amount"
-                    disabled
-                    class="auto-amount-input"
-                  />
+                <div class="amount-finance-cell" :class="{ 'shows-debt': appointmentDisplayedDebtAmount(row) > 0 }">
+                  <div class="amount-column-display">
+                    <input
+                      :value="appointmentAmountColumnValue(row)"
+                      :title="appointmentAmountColumnTitle(row)"
+                      disabled
+                      class="auto-amount-input"
+                      :class="{ 'debt-amount-input': appointmentDisplayedDebtAmount(row) > 0 }"
+                    />
+                    <small v-if="appointmentDisplayedDebtAmount(row) > 0" class="appointment-debt-reason" :title="appointmentDebtDescription(row) || 'مانده پرداخت‌نشده این نوبت'">
+                      <b>بدهی</b>
+                      {{ appointmentDebtDescription(row) || 'مانده پرداخت‌نشده' }}
+                    </small>
+                  </div>
                   <button
                     type="button"
                     class="finance-chat-trigger"
@@ -1135,7 +1162,7 @@
         <div class="service-filter-groups">
           <fieldset><legend>پزشک</legend><label v-for="doctor in serviceFilterDoctorOptions" :key="doctor"><input v-model="draftServiceDoctors" type="checkbox" :value="doctor"><span>{{ doctor }}</span></label><p v-if="!serviceFilterDoctorOptions.length">پزشکی ثبت نشده است.</p></fieldset>
           <fieldset><legend>مشاور</legend><label v-for="consultant in serviceFilterConsultantOptions" :key="consultant"><input v-model="draftServiceConsultants" type="checkbox" :value="consultant"><span>{{ consultant }}</span></label><p v-if="!serviceFilterConsultantOptions.length">مشاوری ثبت نشده است.</p></fieldset>
-          <fieldset><legend>زیربخش‌ها / تگ‌ها</legend><label v-for="tag in serviceFilterTagOptions" :key="tag"><input v-model="draftServiceTags" type="checkbox" :value="tag"><span>{{ tag }}</span></label><p v-if="!serviceFilterTagOptions.length">تگی ثبت نشده است.</p></fieldset>
+          <fieldset><legend>زیر‌بخش‌های دارای نوبت</legend><label v-for="subsection in serviceFilterSubsectionOptions" :key="subsection.id"><input v-model="draftServiceSubsections" type="checkbox" :value="String(subsection.id)"><span>{{ subsection.name }}</span></label><p v-if="!serviceFilterSubsectionOptions.length">زیر‌بخشی در نوبت‌ها استفاده نشده است.</p></fieldset>
         </div>
         <footer><button type="button" class="service-filter-clear-action" :disabled="!serviceFilterCount" @click="clearServiceFilters">پاک کردن فیلترها</button><button type="button" class="service-filter-apply" @click="applyServiceFilters">اعمال فیلتر</button></footer>
       </section>
@@ -1148,6 +1175,7 @@
           <label><span>از مبلغ</span><div class="amount-filter-input"><input :value="amountFilterDraftMin" type="text" inputmode="numeric" placeholder="مثلاً 100,000" @input="formatAmountFilterInput('amountFilterDraftMin', $event)"><b>تومان</b></div></label>
           <label><span>تا مبلغ</span><div class="amount-filter-input"><input :value="amountFilterDraftMax" type="text" inputmode="numeric" placeholder="مثلاً 5,000,000" @input="formatAmountFilterInput('amountFilterDraftMax', $event)"><b>تومان</b></div></label>
           <label class="amount-card-only"><input v-model="amountFilterDraftCardOnly" type="checkbox"><span>فقط افرادی که مبلغ کارت / کارتخوان برایشان ثبت شده</span></label>
+          <label class="amount-card-only amount-debtors-only"><input v-model="amountFilterDraftDebtorsOnly" type="checkbox"><span>فقط بدهکاران</span></label>
           <p>مبلغ پرداخت‌شده از مجموع پرداخت نقدی، کارت و چک ثبت‌شده محاسبه می‌شود.</p>
         </div>
         <footer><button type="button" class="service-filter-clear-action" :disabled="!amountFilterActive" @click="clearAmountFilter">پاک کردن فیلتر</button><button type="button" class="service-filter-apply" @click="applyAmountFilter">اعمال فیلتر</button></footer>
@@ -1197,14 +1225,17 @@
         <span class="best-staff-copy"><small>بهترین پرسنل ماه</small><strong>{{ bestStaffOfMonth.name }}</strong></span>
         <b>{{ bestStaffOfMonth.count.toLocaleString('fa-IR') }} نوبت</b>
       </div>
-      <input
-        v-model="searchQuery"
-        type="text"
-        class="global-search-box timeline-global-search"
-        placeholder="جستجو در کل نوبت‌ها..."
-        aria-label="جستجو در کل نوبت‌ها"
-        @input="searchTable"
-      />
+      <div class="appointment-search-wrap timeline-search-wrap">
+        <div class="appointment-search-input-wrap">
+          <input v-model="searchQuery" type="text" class="global-search-box timeline-global-search" placeholder="جستجو در کل نوبت‌ها..." aria-label="جستجو در کل نوبت‌ها" @input="searchTable" />
+          <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
+        </div>
+        <div v-if="searchQuery.trim()" class="appointment-search-navigation">
+          <button type="button" title="نتیجه قبلی" aria-label="نتیجه قبلی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(-1)">↑</button>
+          <span>{{ searchResults.length ? searchResultIndex + 1 : 0 }} از {{ searchResults.length }}</span>
+          <button type="button" title="نتیجه بعدی" aria-label="نتیجه بعدی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(1)">↓</button>
+        </div>
+      </div>
     </div>
 
     <section v-if="appointmentView === 'timeline'" class="appointment-timeline" @click.stop>
@@ -1232,9 +1263,11 @@
         <div class="timeline-slots" :aria-label="`نوبت‌های ${day.dateLabel}`">
           <template v-for="(row, index) in day.timelineRows" :key="row._rowId">
             <article
+              :id="'row-' + row._rowId"
               class="timeline-card"
               :class="[
                 timelineCardClass(row),
+                isAppointmentSearchResult(row) ? 'is-search-result' : '',
                 highlightedRowId === row._rowId ? 'is-highlighted' : ''
               ]"
               @click.stop="openTimelineAppointmentModal(day, row)"
@@ -1705,17 +1738,9 @@
               {{ trackingReport.completedTime }}
             </button>
           </article>
-          <article v-if="trackingReport.hasDelay" :class="{ late: trackingReport.delayMinutes > 0, good: trackingReport.delayMinutes <= 0 && trackingReport.delayMinutes !== null }">
-            <small>معطلی / تأخیر نسبت به نوبت</small>
-            <strong>{{ trackingReport.delayText }}</strong>
-          </article>
           <article v-if="trackingReport.hasVisitDuration">
-            <small>میزان معطلی بیمار (ورود تا خروج)</small>
+            <small>مدت حضور بیمار (از ورود تا انجام کار)</small>
             <strong>{{ trackingReport.visitDurationText }}</strong>
-          </article>
-          <article v-if="trackingReport.hasTotalDuration">
-            <small>از نوبت تا پایان کار</small>
-            <strong>{{ trackingReport.totalDurationText }}</strong>
           </article>
         </div>
 
@@ -2042,6 +2067,15 @@
         <label>
           بدهکاری این جلسه
           <input v-model="financialDebtDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialDebtDraft')">
+          <small v-if="moneyToNumber(financialDebtDraft) > 0 || financialRemainingDebtPreview() > 0" class="financial-debt-preview">
+            مانده پس از کسر پرداخت‌های ثبت‌شده:
+            <b>{{ formatDisplayMoney(financialRemainingDebtPreview()) }} تومان</b>
+          </small>
+        </label>
+        <label v-if="moneyToNumber(financialDebtDraft) > 0" class="financial-debt-description">
+          علت بدهی
+          <textarea v-model.trim="financialDebtDescriptionDraft" rows="3" maxlength="1000" placeholder="مثلاً مانده هزینه تزریق ژل این جلسه"></textarea>
+          <small>این توضیح در ردیف همین نوبت، کنار مبلغ بدهی نمایش داده می‌شود.</small>
         </label>
         <section class="financial-deposit-lines">
           <header><strong>بیعانه خدمات</strong><b>{{ formatDisplayMoney(financialDepositTotal()) }} تومان</b></header>
@@ -2280,6 +2314,18 @@
           <img :src="avatarPreview.url" alt="پیش‌نمایش عکس بیمار">
         </div>
       </Transition>
+      <Transition name="appointment-audit-tip">
+        <aside
+          v-if="appointmentAuditHover"
+          class="appointment-audit-tooltip"
+          :style="{ left: appointmentAuditHover.left + 'px', top: appointmentAuditHover.top + 'px' }"
+          dir="rtl"
+        >
+          <strong>{{ appointmentAuditHover.patientName }}</strong>
+          <p><span>ثبت</span><b>{{ appointmentAuditHover.registeredBy }}</b><time>{{ appointmentAuditHover.registeredAt }}</time></p>
+          <p v-if="appointmentAuditHover.lastEditedAt"><span>ویرایش</span><b>{{ appointmentAuditHover.lastEditedBy }}</b><time>{{ appointmentAuditHover.lastEditedAt }}</time></p>
+        </aside>
+      </Transition>
     </Teleport>
 
   </div>
@@ -2316,6 +2362,8 @@ export default {
       appointmentReady: false,
       handledOpenViewRequestAt: null,
       searchQuery: "",
+      searchResults: [],
+      searchResultIndex: -1,
       holidays: {},
       monthEventsCache: {},
       monthAppointmentsCache: {},
@@ -2323,6 +2371,7 @@ export default {
 
       months: ["1405-01"],
       avatarPreview: null,
+      appointmentAuditHover: null,
       patientProfileModalOpen: false,
       patientProfileLoading: false,
       patientProfileError: "",
@@ -2447,6 +2496,8 @@ export default {
       financialPanelOpen: false,
       activeFinancialRow: null,
       financialDebtDraft: "",
+      financialDebtDescriptionDraft: "",
+      financialOriginalRecordedPayment: 0,
       financialDepositLines: [],
       financialDepositHistory: [],
       financialDepositHistoryLoading: false,
@@ -2471,6 +2522,7 @@ export default {
       inventoryItems: [],
       addonDefinitions: [],
       activeServiceTagPicker: null,
+      editingPatientNameRowId: null,
 
       inventoryStock: {},
 
@@ -2485,18 +2537,20 @@ export default {
       smsFilterOptions: [{ value: '', label: 'بدون وضعیت' }, { value: 'انتظار', label: 'انتظار' }, { value: 'ارسال شد', label: 'ارسال شد' }],
       selectedServiceDoctors: [],
       selectedServiceConsultants: [],
-      selectedServiceTags: [],
+      selectedServiceSubsections: [],
       draftServiceDoctors: [],
       draftServiceConsultants: [],
-      draftServiceTags: [],
+      draftServiceSubsections: [],
       serviceFilterModalOpen: false,
       amountFilterModalOpen: false,
       amountFilterMin: '',
       amountFilterMax: '',
       amountFilterCardOnly: false,
+      amountFilterDebtorsOnly: false,
       amountFilterDraftMin: '',
       amountFilterDraftMax: '',
       amountFilterDraftCardOnly: false,
+      amountFilterDraftDebtorsOnly: false,
       emptyTimeFilterModalOpen: false,
       emptyTimeFilterFrom: '',
       emptyTimeFilterTo: '',
@@ -2534,19 +2588,19 @@ export default {
         doctor: 120,
         consultant: 120,
         source: 105,
-        description: 170,
-        done: 105,
-        amount: 180,
+        description: 230,
+        done: 92,
+        amount: 165,
         debt: 120,
         paymentMethod: 110,
         paymentAccount: 120,
         paymentLink: 96,
-        service: 76,
+        service: 68,
         serviceType: 120,
 
         newCustomer: 100,
-        appointmentSms: 100,
-        infoSms: 100
+        appointmentSms: 88,
+        infoSms: 88
       },
 
       resizingColumn: null,
@@ -2560,11 +2614,11 @@ export default {
       return Boolean(this.emptyTimeFilterFrom || this.emptyTimeFilterTo);
     },
     amountFilterActive() {
-      return this.moneyToNumber(this.amountFilterMin) > 0 || this.moneyToNumber(this.amountFilterMax) > 0 || this.amountFilterCardOnly;
+      return this.moneyToNumber(this.amountFilterMin) > 0 || this.moneyToNumber(this.amountFilterMax) > 0 || this.amountFilterCardOnly || this.amountFilterDebtorsOnly;
     },
 
     serviceFilterCount() {
-      return this.selectedServiceDoctors.length + this.selectedServiceConsultants.length + this.selectedServiceTags.length;
+      return this.selectedServiceDoctors.length + this.selectedServiceConsultants.length + this.selectedServiceSubsections.length;
     },
 
     serviceFilterDoctorOptions() {
@@ -2578,10 +2632,17 @@ export default {
       return [...new Set([...this.consultantOptions, ...used].map(value => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
     },
 
-    serviceFilterTagOptions() {
-      const used = this.days.flatMap(day => day.rows || []).flatMap(row => (row.services || []).flatMap(service => service.tags || []));
-      const configured = this.inventoryItems.flatMap(item => item.service_tags || item.tags || []);
-      return [...new Set([...configured, ...used].map(value => String(value?.name || value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
+    serviceFilterSubsectionOptions() {
+      const usedIds = new Set(
+        this.days.flatMap(day => day.rows || []).flatMap(row =>
+          (row.services || []).map(service => service.sectionId || service.section_id || this.sectionIdForService(service.name, row))
+        ).map(String).filter(Boolean)
+      );
+
+      return (this.serviceSections || [])
+        .filter(section => usedIds.has(String(section.id)) && Boolean(section.parent_id || section.parentId))
+        .map(section => ({ id: section.id, name: section.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'fa'));
     },
 
     canViewPatientPhone() {
@@ -2873,6 +2934,7 @@ export default {
         // تاریخچه پرداخت بدهی در سمت سرور ثبت می‌شود؛ هنگام ذخیره دوباره
         // نوبت نباید این تاریخچه ناخواسته حذف شود.
         debt_payments: Array.isArray(details?.debt_payments) ? details.debt_payments : [],
+        debtDescription: String(details?.debtDescription || details?.debt_description || "").trim(),
       };
     },
 
@@ -3841,6 +3903,62 @@ export default {
       return moment().format("YYYY-MM-DD HH:mm:ss");
     },
 
+    appointmentAuditDate(value) {
+      if (!value) return 'نامشخص';
+      const date = moment(value);
+      return date.isValid() ? date.format('jYYYY/jMM/jDD، HH:mm') : String(value);
+    },
+
+    showAppointmentAudit(event, row) {
+      if (!row?.appointmentId) return;
+      const registeredAt = row.registeredAt ? moment(row.registeredAt) : null;
+      const editedAt = row.lastEditedAt ? moment(row.lastEditedAt) : null;
+      const hasDistinctEdit = Boolean(
+        registeredAt?.isValid()
+        && editedAt?.isValid()
+        && !editedAt.isSame(registeredAt, 'second')
+      );
+      this.appointmentAuditHover = {
+        patientName: row.lastname || 'مراجعه‌کننده',
+        registeredBy: row.registeredBy || 'کاربر نامشخص',
+        registeredAt: this.appointmentAuditDate(row.registeredAt),
+        lastEditedBy: row.lastEditedBy || 'کاربر نامشخص',
+        lastEditedAt: hasDistinctEdit ? this.appointmentAuditDate(row.lastEditedAt) : '',
+        left: 0,
+        top: 0
+      };
+      this.moveAppointmentAudit(event);
+    },
+
+    moveAppointmentAudit(event) {
+      if (!this.appointmentAuditHover) return;
+      const width = 290;
+      const height = this.appointmentAuditHover.lastEditedAt ? 132 : 108;
+      this.appointmentAuditHover.left = Math.max(10, Math.min(event.clientX + 16, window.innerWidth - width - 10));
+      this.appointmentAuditHover.top = Math.max(10, Math.min(event.clientY + 16, window.innerHeight - height - 10));
+    },
+
+    hideAppointmentAudit() {
+      this.appointmentAuditHover = null;
+    },
+
+    startPatientNameEdit(row) {
+      if (!row?.appointmentId) return;
+      this.editingPatientNameRowId = row._rowId;
+      this.$nextTick(() => {
+        const input = document.querySelector(`#row-${row._rowId} .appointment-patient-name input`);
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      });
+    },
+
+    async finishPatientNameEdit(row) {
+      if (this.editingPatientNameRowId === row?._rowId) this.editingPatientNameRowId = null;
+      await this.persistDirectAppointment(row);
+    },
+
     async onAppointmentStatusSelected(row, event) {
       const status = event.target.value;
       if (status === 'انتقال داده شده') {
@@ -3860,6 +3978,9 @@ export default {
       }
       row.status = status;
       this.onStatusChanged(row);
+      if (['کنسل شد', 'پاسخ نداد', 'پیگیری'].includes(status)) {
+        await this.persistDirectAppointment(row);
+      }
     },
 
     activeFollowupDateOptions() {
@@ -4182,15 +4303,9 @@ export default {
         completedTime: "-",
         hasArrived: false,
         hasCompleted: false,
-        hasDelay: false,
         hasVisitDuration: false,
-        hasTotalDuration: false,
-        delayMinutes: null,
-        delayText: "-",
         visitDurationMinutes: null,
         visitDurationText: "-",
-        totalDurationMinutes: null,
-        totalDurationText: "-",
         financial: {
           materialCost: 0,
           doctorWage: 0,
@@ -4411,26 +4526,10 @@ export default {
       report.arrivedTime = arrived ? arrived.format("HH:mm") : "-";
       report.completedTime = completed ? completed.format("HH:mm") : "-";
 
-      if (scheduled && arrived) {
-        report.hasDelay = true;
-        report.delayMinutes = arrived.diff(scheduled, "minutes");
-        report.delayText = report.delayMinutes > 0
-          ? `${this.formatTrackingDuration(report.delayMinutes)} تأخیر`
-          : report.delayMinutes < 0
-          ? `${this.formatTrackingDuration(report.delayMinutes)} زودتر`
-          : "بدون تأخیر";
-      }
-
       if (arrived && completed && !completed.isBefore(arrived)) {
         report.hasVisitDuration = true;
         report.visitDurationMinutes = completed.diff(arrived, "minutes");
         report.visitDurationText = this.formatTrackingDuration(report.visitDurationMinutes);
-      }
-
-      if (scheduled && completed) {
-        report.hasTotalDuration = true;
-        report.totalDurationMinutes = completed.diff(scheduled, "minutes");
-        report.totalDurationText = this.formatTrackingDuration(report.totalDurationMinutes);
       }
 
       return report;
@@ -4872,6 +4971,10 @@ export default {
             _rowId: `row-${this._rowCounter++}`,
             appointmentId: item.id || null,
             lockVersion: Number(item.lock_version || 1),
+            registeredBy: item.registered_by || "",
+            registeredAt: item.registered_at || item.created_at || "",
+            lastEditedBy: item.last_edited_by || "",
+            lastEditedAt: item.last_edited_at || "",
             patientId: item.patient_id || null,
             lastname: item.lastname || "",
             gender: item.gender || "",
@@ -5522,6 +5625,10 @@ this.calculateFinalAmount(row)
               const row = payloadRows[index];
               row.appointmentId = appointment.id;
               row.lockVersion = Number(appointment.lock_version || 1);
+              row.registeredBy = appointment.registered_by || row.registeredBy || '';
+              row.registeredAt = appointment.registered_at || row.registeredAt || appointment.created_at || '';
+              row.lastEditedBy = appointment.last_edited_by || row.lastEditedBy || '';
+              row.lastEditedAt = appointment.last_edited_at || row.lastEditedAt || '';
               row._persistedStateFingerprint = payloadFingerprints[index];
             });
             if (firstError) throw firstError;
@@ -5669,6 +5776,35 @@ this.calculateFinalAmount(row)
       return this.moneyToNumber(row?.debt);
     },
 
+    appointmentDebtAmount(row) {
+      return Math.max(0, this.appointmentBalanceAmount(row));
+    },
+
+    appointmentDebtDescription(row) {
+      return this.normalizePaymentDetails(row?.paymentDetails || {}).debtDescription;
+    },
+
+    appointmentDisplayedDebtAmount(row) {
+      const explicitDebt = this.appointmentDebtAmount(row);
+      if (explicitDebt > 0) return explicitDebt;
+
+      const serviceAmount = Math.max(0, this.moneyToNumber(row?.amount));
+      return Math.max(0, serviceAmount - this.recordedPaymentAmount(row));
+    },
+
+    appointmentAmountColumnValue(row) {
+      return this.formatDisplayMoney(this.appointmentDisplayedDebtAmount(row));
+    },
+
+    appointmentAmountColumnTitle(row) {
+      const debt = this.appointmentDisplayedDebtAmount(row);
+      if (debt <= 0) return "تسویه‌شده — مانده بدهی صفر تومان";
+      const description = this.appointmentDebtDescription(row);
+      return description
+        ? `بدهی این نوبت: ${this.formatDisplayMoney(debt)} تومان — ${description}`
+        : `بدهی این نوبت: ${this.formatDisplayMoney(debt)} تومان`;
+    },
+
     appointmentBalanceClass(row) {
       if (this.isCreditor(row)) return "creditor-balance-input";
       if (this.isDebtor(row)) return "debtor-balance-input";
@@ -5811,10 +5947,12 @@ this.calculateFinalAmount(row)
       this.financialDebtDraft = this.moneyToNumber(row?.debt)
         ? this.formatDisplayMoney(this.moneyToNumber(row.debt))
         : "";
+      this.financialDebtDescriptionDraft = this.appointmentDebtDescription(row);
       this.financialDepositLines = this.depositLinesForRow(row);
       this.financialDepositHistory = [];
       this.loadFinancialDepositHistory();
       const details = this.normalizePaymentDetails(row?.paymentDetails || {});
+      this.financialOriginalRecordedPayment = this.recordedPaymentAmount(row);
       this.financialPaymentMethodDraft = row?.paymentMethod || "";
       this.financialPaymentAccountDraft = row?.paymentAccount || "";
       this.financialCashDraft = details.cash ? this.formatDisplayMoney(details.cash) : "";
@@ -5830,6 +5968,8 @@ this.calculateFinalAmount(row)
       this.financialPanelOpen = false;
       this.activeFinancialRow = null;
       this.financialDebtDraft = "";
+      this.financialDebtDescriptionDraft = "";
+      this.financialOriginalRecordedPayment = 0;
       this.financialDepositLines = [];
       this.financialDepositHistory = [];
       this.financialDepositHistoryLoading = false;
@@ -5847,6 +5987,23 @@ this.calculateFinalAmount(row)
     formatFinancialDraft(field) {
       const amount = this.moneyToNumber(this[field]);
       this[field] = amount ? this.formatDisplayMoney(amount) : "";
+    },
+
+    financialDraftPaymentTotal() {
+      return Math.max(0, this.moneyToNumber(this.financialCashDraft))
+        + Math.max(0, this.moneyToNumber(this.financialCardDraft))
+        + Math.max(0, this.moneyToNumber(this.financialCheckAmountDraft));
+    },
+
+    financialRemainingDebtPreview() {
+      const enteredDebt = Math.max(0, this.moneyToNumber(this.financialDebtDraft));
+      const previousDebt = Math.max(0, this.moneyToNumber(this.activeFinancialRow?.debt));
+      const currentPayments = this.financialDraftPaymentTotal();
+      const paymentToDeduct = enteredDebt !== previousDebt
+        ? currentPayments
+        : currentPayments - Number(this.financialOriginalRecordedPayment || 0);
+
+      return Math.max(0, enteredDebt - paymentToDeduct);
     },
 
     depositLinesForRow(row) {
@@ -5916,7 +6073,7 @@ this.calculateFinalAmount(row)
       const row = this.activeFinancialRow;
       if (!row) return;
 
-      const newDebt = Math.max(0, this.moneyToNumber(this.financialDebtDraft));
+      const newDebt = this.financialRemainingDebtPreview();
       const depositLines = this.financialDepositLines
         .map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)) }))
         .filter(line => line.amount > 0);
@@ -5941,6 +6098,7 @@ this.calculateFinalAmount(row)
           ...row.paymentDetails,
           cash,
           card,
+          debtDescription: newDebt > 0 ? this.financialDebtDescriptionDraft : "",
           check: {
             amount: checkAmount,
             number: this.financialCheckNumberDraft,
@@ -6472,72 +6630,80 @@ this.calculateFinalAmount(row)
       this.showServiceSectionFilter = shouldOpen;
     },
 
-    searchTable() {
-      const search = (this.searchQuery || "").trim().toLowerCase();
+    normalizeAppointmentSearchText(value) {
+      return String(value ?? '')
+        .toLowerCase()
+        .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+        .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+        .replace(/ي/g, 'ی')
+        .replace(/ك/g, 'ک')
+        .replace(/\s+/g, ' ')
+        .trim();
+    },
 
-      this.highlightedRowId = null;
+    appointmentSearchText(row) {
+      const servicesText = (row.services || [])
+        .map(service => `${service.name || ''} ${service.doctor || ''} ${service.consultant || ''} ${(service.addons || []).map(addon => addon.name).join(' ')}`)
+        .join(' ');
 
-      if (!search) return;
+      return this.normalizeAppointmentSearchText([
+        row.lastname, row.gender, row.phone, row.fileNumber, row.time,
+        row.status, row.source, row.description, row.doctorNote, row.done,
+        row.amount, row.debt, row.appointmentSms, row.infoSms, servicesText
+      ].filter(Boolean).join(' '));
+    },
 
-      let foundRow = null;
-      let foundDay = null;
+    isAppointmentSearchResult(row) {
+      return Boolean(this.searchQuery.trim())
+        && this.searchResults.some(result => result.row._rowId === row?._rowId);
+    },
 
-      for (const day of this.days) {
-        for (const row of day.rows) {
-
-          const servicesText =
-            (row.services || [])
-              .map(s =>
-                `${s.name || ''} ${s.doctor || ''} ${s.consultant || ''} ${(s.addons || []).map(addon => addon.name).join(' ')}`
-              )
-              .join(' ');
-
-          const rowText = [
-            row.lastname,
-            row.gender,
-            row.phone,
-            row.fileNumber,
-            row.time,
-            row.status,
-            row.source,
-            row.description,
-            row.doctorNote,
-            row.done,
-            row.amount,
-            row.debt,
-            row.appointmentSms,
-            row.infoSms,
-            servicesText
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-          if (rowText.includes(search)) {
-            foundRow = row;
-            foundDay = day;
-            break;
-          }
-        }
-
-        if (foundRow) break;
+    showSearchResult(index) {
+      if (!this.searchResults.length) {
+        this.searchResultIndex = -1;
+        this.highlightedRowId = null;
+        return;
       }
 
-      if (!foundRow) return;
-
-      foundDay.collapsed = false;
-      this.flashRowHighlight(foundRow._rowId);
+      this.searchResultIndex = (index + this.searchResults.length) % this.searchResults.length;
+      const result = this.searchResults[this.searchResultIndex];
+      clearTimeout(this.highlightedRowTimer);
+      result.day.collapsed = false;
+      this.highlightedRowId = result.row._rowId;
 
       this.$nextTick(() => {
-        const el = document.getElementById('row-' + foundRow._rowId);
-
-        if (el) {
-          el.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-        }
+        const el = document.getElementById(`row-${result.row._rowId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       });
+    },
+
+    navigateSearch(direction) {
+      if (!this.searchResults.length) return;
+      this.showSearchResult(this.searchResultIndex + direction);
+    },
+
+    clearAppointmentSearch() {
+      clearTimeout(this.highlightedRowTimer);
+      this.searchQuery = '';
+      this.searchResults = [];
+      this.searchResultIndex = -1;
+      this.highlightedRowId = null;
+    },
+
+    searchTable() {
+      const search = this.normalizeAppointmentSearchText(this.searchQuery);
+      clearTimeout(this.highlightedRowTimer);
+      this.highlightedRowId = null;
+      this.searchResults = [];
+      this.searchResultIndex = -1;
+      if (!search) return;
+
+      this.searchResults = this.days.flatMap(day =>
+        (day.rows || [])
+          .filter(row => this.appointmentSearchText(row).includes(search))
+          .map(row => ({ day, row }))
+      );
+      this.showSearchResult(0);
     },
 
     openSmsPanel() {
@@ -6616,9 +6782,9 @@ this.calculateFinalAmount(row)
         paymentMethod: 95,
         paymentAccount: 100,
         paymentLink: 88,
-        appointmentSms: 92,
-        infoSms: 92,
-        service: 70
+        appointmentSms: 80,
+        infoSms: 80,
+        service: 64
       };
 
       const onMove = (moveEvent) => {
@@ -6662,7 +6828,7 @@ this.calculateFinalAmount(row)
       const context = canvas.getContext('2d');
       context.font = '12px Vazir, sans-serif';
       const contentWidth = Math.max(...values.map((value) => context.measureText(String(value).trim()).width));
-      const minimums = { lastname: 110, gender: 52, time: 82, amount: 165, service: 70 };
+      const minimums = { lastname: 110, gender: 52, time: 82, amount: 155, service: 64, appointmentSms: 80, infoSms: 80 };
       const extras = { lastname: 48, amount: 62, description: 48, serviceType: 30 };
       this.columnWidths[column] = Math.ceil(
         Math.min(280, Math.max(minimums[column] || 64, contentWidth + (extras[column] || 24)))
@@ -6729,24 +6895,24 @@ this.calculateFinalAmount(row)
       this.closeAllPopupsAndFilters();
       this.draftServiceDoctors = [...this.selectedServiceDoctors];
       this.draftServiceConsultants = [...this.selectedServiceConsultants];
-      this.draftServiceTags = [...this.selectedServiceTags];
+      this.draftServiceSubsections = [...this.selectedServiceSubsections];
       this.serviceFilterModalOpen = true;
     },
 
     clearServiceFilters() {
       this.selectedServiceDoctors = [];
       this.selectedServiceConsultants = [];
-      this.selectedServiceTags = [];
+      this.selectedServiceSubsections = [];
       this.draftServiceDoctors = [];
       this.draftServiceConsultants = [];
-      this.draftServiceTags = [];
+      this.draftServiceSubsections = [];
       this.serviceFilterModalOpen = false;
     },
 
     applyServiceFilters() {
       this.selectedServiceDoctors = [...this.draftServiceDoctors];
       this.selectedServiceConsultants = [...this.draftServiceConsultants];
-      this.selectedServiceTags = [...this.draftServiceTags];
+      this.selectedServiceSubsections = [...this.draftServiceSubsections];
       this.serviceFilterModalOpen = false;
     },
 
@@ -6754,9 +6920,11 @@ this.calculateFinalAmount(row)
       this.amountFilterMin = '';
       this.amountFilterMax = '';
       this.amountFilterCardOnly = false;
+      this.amountFilterDebtorsOnly = false;
       this.amountFilterDraftMin = '';
       this.amountFilterDraftMax = '';
       this.amountFilterDraftCardOnly = false;
+      this.amountFilterDraftDebtorsOnly = false;
       this.amountFilterModalOpen = false;
     },
 
@@ -6764,6 +6932,7 @@ this.calculateFinalAmount(row)
       this.amountFilterDraftMin = this.amountFilterMin;
       this.amountFilterDraftMax = this.amountFilterMax;
       this.amountFilterDraftCardOnly = this.amountFilterCardOnly;
+      this.amountFilterDraftDebtorsOnly = this.amountFilterDebtorsOnly;
       this.amountFilterModalOpen = true;
     },
 
@@ -6771,6 +6940,7 @@ this.calculateFinalAmount(row)
       this.amountFilterMin = this.amountFilterDraftMin;
       this.amountFilterMax = this.amountFilterDraftMax;
       this.amountFilterCardOnly = this.amountFilterDraftCardOnly;
+      this.amountFilterDebtorsOnly = this.amountFilterDraftDebtorsOnly;
       this.amountFilterModalOpen = false;
     },
 
@@ -7030,7 +7200,7 @@ this.calculateFinalAmount(row)
     serviceTypeSummary(row) {
       const names = this.normalizeServiceSectionIds(row?.serviceTypes)
         .map(id => this.serviceSectionLabel(id)).filter(Boolean);
-      if (!names.length) return 'انتخاب چند بخش';
+      if (!names.length) return '';
       // نام دو بخش می‌توانست از عرض ستون بیشتر شود و کل ردیف را جابه‌جا کند.
       // نامِ یک بخش خواناست؛ از دو بخش به بعد خلاصهٔ ثابت نمایش می‌دهیم.
       return names.length === 1 ? names[0] : `${names.length} بخش انتخاب شده`;
@@ -7344,14 +7514,16 @@ this.calculateFinalAmount(row)
         const consultantOk = !this.selectedServiceConsultants.length ||
           this.selectedServiceConsultants.includes(String(row.consultant || '').trim()) ||
           services.some(service => this.selectedServiceConsultants.includes(String(service.consultant || '').trim()));
-        const tagOk = !this.selectedServiceTags.length || services.some(service =>
-          (service.tags || []).some(tag => this.selectedServiceTags.includes(String(tag?.name || tag || '').trim()))
-        );
+        const subsectionOk = !this.selectedServiceSubsections.length || services.some(service => {
+          const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
+          return this.selectedServiceSubsections.includes(String(sectionId || ''));
+        });
         const paymentAmount = this.recordedPaymentAmount(row);
         const minimum = this.moneyToNumber(this.amountFilterMin);
         const maximum = this.moneyToNumber(this.amountFilterMax);
         const amountOk = (!minimum || paymentAmount >= minimum) && (!maximum || paymentAmount <= maximum);
         const cardOk = !this.amountFilterCardOnly || this.normalizePaymentDetails(row?.paymentDetails || {}).card > 0;
+        const debtorOk = !this.amountFilterDebtorsOnly || this.appointmentDisplayedDebtAmount(row) > 0;
         const rowTime = String(row.time || '').slice(0, 5);
         const emptyTimeOk = !this.emptyTimeFilterActive || (
           !String(row.status || '').trim() &&
@@ -7360,7 +7532,7 @@ this.calculateFinalAmount(row)
           (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
         );
 
-        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && tagOk && amountOk && cardOk && emptyTimeOk;
+        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk;
       });
 
       rows = rows
@@ -7750,6 +7922,7 @@ smsColor(val) {
 }
 
 .amount-finance-cell{display:flex;align-items:center;justify-content:center;gap:6px}.amount-finance-cell .auto-amount-input{min-width:0;flex:1}.finance-chat-trigger{position:relative;width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;padding:0;border:1px solid #bfdbfe;border-radius:50%;background:#eff6ff;color:#2563eb;box-shadow:0 5px 13px rgba(37,99,235,.13);transition:.16s}.finance-chat-trigger:hover{background:#dbeafe;transform:translateY(-1px)}.finance-chat-trigger svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.finance-chat-trigger>span{position:absolute;top:-6px;left:-5px;width:18px;height:18px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:1000;animation:debtorPulse 1.8s infinite}.finance-chat-trigger.danger{border-color:#fca5a5;background:#fee2e2;color:#dc2626;box-shadow:0 5px 15px rgba(220,38,38,.2)}.finance-chat-trigger.credit{border-color:#86efac;background:#dcfce7;color:#15803d}
+.amount-column-display{min-width:0;flex:1;display:grid;gap:3px}.amount-finance-cell .amount-column-display .auto-amount-input{width:100%;min-width:0}.amount-finance-cell.shows-debt{align-items:flex-start}.debt-amount-input{color:#b91c1c!important;background:#fff1f2!important;border-color:#fca5a5!important;font-weight:1000!important}.appointment-debt-reason{display:block;overflow:hidden;padding:2px 5px;border-radius:5px;background:#fee2e2;color:#991b1b;font-size:8px;line-height:1.5;text-align:right;text-overflow:ellipsis;white-space:nowrap}.appointment-debt-reason b{margin-left:3px;color:#dc2626}.financial-debt-description textarea{min-height:76px;box-sizing:border-box;padding:10px 12px;border:1px solid #fecaca;border-radius:11px;background:#fffafa;font-family:inherit;line-height:1.8;resize:vertical}
 .financial-panel-overlay{position:fixed;inset:0;z-index:1000003;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.financial-panel{width:min(620px,96vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:20px;border:1px solid rgba(255,255,255,.75);border-radius:23px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.34);direction:rtl}.financial-panel>header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}.financial-panel header small{color:#2563eb;font-size:10px;font-weight:900}.financial-panel h3{margin:4px 0;color:#0f172a}.financial-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:#f1f5f9;color:#64748b;font-size:23px}.financial-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.financial-summary article{display:grid;gap:4px;padding:13px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.financial-summary article.debt{border-color:#fecaca;background:#fff7f7}.financial-summary article.deposit{border-color:#bbf7d0;background:#f0fdf4}.financial-summary span{color:#64748b;font-size:10px;font-weight:900}.financial-summary strong{font-size:20px}.financial-summary .debt strong{color:#dc2626}.financial-summary .deposit strong{color:#15803d}.financial-summary small{color:#94a3b8;font-size:9px}.financial-panel>label,.financial-payment-grid label,.financial-check-grid label{display:grid;gap:7px;margin-top:11px;color:#334155;font-size:12px;font-weight:900}.financial-panel input,.financial-panel select{height:43px;box-sizing:border-box;padding:0 12px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right;font-family:inherit}.financial-panel>label small{color:#64748b;font-size:9px;font-weight:600}.financial-payment-grid,.financial-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;margin-top:6px}.financial-advanced-toggle{width:100%;height:42px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:13px;padding:0 12px;border:1px solid #dbeafe;border-radius:12px;background:#f8fbff;color:#2563eb;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.financial-advanced-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.financial-advanced-toggle span{margin-left:auto}.financial-advanced-toggle b{padding:4px 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:9px}.financial-advanced-toggle.active{border-color:#93c5fd;background:#eff6ff}.financial-check-grid{padding:10px;margin-top:8px;border:1px dashed #bfdbfe;border-radius:13px;background:#f8fbff}.financial-patient-warning{margin-top:12px;padding:10px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:10px;font-weight:900}.financial-panel>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.financial-panel>footer button{height:40px;padding:0 16px;border-radius:11px;font-family:inherit;font-size:11px;font-weight:900}.financial-cancel{border:1px solid #e2e8f0;background:#f8fafc;color:#64748b}.financial-save{border:1px solid #2563eb;background:#2563eb;color:#fff;box-shadow:var(--ui-action-shadow)}@media(max-width:520px){.financial-summary,.financial-payment-grid,.financial-check-grid{grid-template-columns:1fr}}
 .finance-chat-trigger.has-financial-balance{width:auto;min-width:76px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 9px;border-radius:10px}.finance-chat-trigger.has-financial-balance svg{width:15px;height:15px}.finance-chat-trigger>em{font-size:10px;font-style:normal;font-weight:1000;white-space:nowrap}.financial-wallet-settle{width:100%;display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 12px;margin:0 0 14px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;cursor:pointer;transition:.18s ease}.financial-wallet-settle:hover{border-color:#22c55e;transform:translateY(-1px);box-shadow:0 8px 20px rgba(34,197,94,.14)}.financial-wallet-settle span{font-size:12px;font-weight:1000}.financial-wallet-settle strong{font-size:14px}.financial-wallet-settle small{grid-column:1/-1;color:#15803d;font-size:9px}.financial-wallet-settle:disabled{opacity:.55;cursor:wait;transform:none}
 
@@ -8653,6 +8826,52 @@ smsColor(val) {
   border-radius: 50%;
 }
 
+.appointment-audit-tooltip {
+  position: fixed;
+  z-index: 2147482999;
+  width: 290px;
+  padding: 12px 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .98);
+  color: #334155;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, .22);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+.appointment-audit-tooltip > strong {
+  display: block;
+  overflow: hidden;
+  margin-bottom: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.appointment-audit-tooltip p {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  margin: 5px 0 0;
+  font-size: 10px;
+}
+.appointment-audit-tooltip p span {
+  padding: 3px 5px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 900;
+  text-align: center;
+}
+.appointment-audit-tooltip p b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.appointment-audit-tooltip time { direction: ltr; color: #64748b; font-size: 9px; white-space: nowrap; }
+.appointment-audit-tooltip small { display: block; margin-top: 7px; color: #94a3b8; font-size: 9px; }
+.appointment-audit-tip-enter-active,.appointment-audit-tip-leave-active { transition: opacity .12s ease, transform .12s ease; }
+.appointment-audit-tip-enter-from,.appointment-audit-tip-leave-to { opacity: 0; transform: translateY(3px); }
+
 .avatar-preview-enter-active,
 .avatar-preview-leave-active { transition: opacity .18s ease, transform .2s cubic-bezier(.2,.8,.2,1); }
 .avatar-preview-enter-from,
@@ -8661,6 +8880,24 @@ smsColor(val) {
 .appointment-patient-name input {
   min-width: 0;
   flex: 1;
+}
+.appointment-patient-name-value {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 5px 2px;
+  color: #111827;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: cell;
+  outline: 0;
+}
+.appointment-patient-name-value:focus-visible {
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 2px #93c5fd;
 }
 .appointment-patient-name input.problematic-customer-name,
 .problematic-customer-name {
@@ -8765,8 +9002,7 @@ smsColor(val) {
 .time-page .top-actions,
 .time-page .timeline-actions {
   position: sticky !important;
-  /* ارتفاع منوی اصلی بالای صفحه است؛ نوار نباید پشت آن قرار بگیرد. */
-  top: 72px !important;
+  top: 0 !important;
   z-index: 1400;
   isolation: isolate;
   background: #f4f7fb;
@@ -8776,20 +9012,20 @@ smsColor(val) {
 .time-page .top-actions .sms-send-btn,
 .time-page .timeline-actions .sms-send-btn {
   position: sticky;
-  top: 80px;
+  top: 8px;
   z-index: 1401;
 }
 
 /* سربرگ ستون‌ها زیر نوار ابزار ثابت بماند تا نام فیلدها هنگام اسکرول دیده شود. */
 .time-page.table-view-active .main-schedule-table thead {
   position: sticky;
-  top: 130px;
+  top: var(--appointment-toolbar-height);
   z-index: 1300;
 }
 
 .time-page.table-view-active .main-schedule-table thead th {
   position: sticky;
-  top: 130px;
+  top: var(--appointment-toolbar-height);
   z-index: 1301;
   background: #eef3f9;
   box-shadow: inset 0 -1px 0 #cbd5e1;
@@ -8797,7 +9033,7 @@ smsColor(val) {
 
 .table-view-active .top-actions {
   position: sticky;
-  top: 72px;
+  top: 0;
   /* هم‌راستا با ابزارهای هر روز در جدول؛ نوار جدول در سمت راست فضای خالی دارد. */
   padding-right: 46px;
   margin-bottom: 0;
@@ -8839,6 +9075,65 @@ smsColor(val) {
 }
 
 /* استایل کادر جستجو */
+.appointment-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.appointment-search-input-wrap { position:relative; display:flex; align-items:center; }
+.appointment-search-input-wrap .global-search-box { padding-left:34px; }
+.appointment-search-clear {
+  position:absolute;
+  left:9px;
+  width:16px;
+  height:16px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:0;
+  border-radius:4px;
+  background:transparent;
+  color:#94a3b8;
+  font-family:inherit;
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+}
+.appointment-search-clear:hover { background:#f1f5f9; color:#475569; }
+
+.appointment-search-navigation {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.appointment-search-navigation button {
+  width:24px;
+  height:24px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border: 0;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #334155;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.appointment-search-navigation button:hover:not(:disabled) { background: #cbd5e1; }
+.appointment-search-navigation button:disabled { opacity: .42; cursor: default; }
+.appointment-search-navigation span { min-width: 42px; color: #475569; font-size: 10px; font-weight: 900; text-align: center; }
+
 .global-search-box {
   padding: 8px 12px;
   border: 1px solid #ccc;
@@ -8974,8 +9269,8 @@ smsColor(val) {
 }
 
 .sticky-header {
-  position: relative;
-  top: auto;
+  position: sticky;
+  top: var(--appointment-toolbar-height);
   z-index: 1301;
   height: 46px;
   background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
@@ -9292,6 +9587,14 @@ th.sticky-header.time-col {
 
 .service-col {
   white-space: nowrap;
+}
+
+th.sms-col .header-with-filter { gap: 3px; }
+th.sms-col .header-with-filter > span:first-child {
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .row-action-col {
@@ -10495,6 +10798,7 @@ td.st-arrived select {
   .appointment-timeline .timeline-card,
   .appointment-timeline .timeline-add-card { flex-basis: 118px !important; width: 118px !important; }
   .timeline-actions .timeline-global-search { width: 100%; min-width: 0; }
+  .timeline-search-wrap { width: 100%; flex-wrap: wrap; }
 }
 /* Ordered and stable service-section menus */
 .section-filter{z-index:1505;isolation:isolate}
@@ -10545,6 +10849,24 @@ td.st-arrived select {
 .time-profile-history{overflow:auto}.time-profile-history table{min-width:960px}
 .financial-debt-payment{width:100%;display:grid;gap:3px;margin:0 0 13px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;font-size:13px;font-weight:1000;cursor:pointer}.financial-debt-payment small{color:#15803d;font-size:10px;font-weight:800}.financial-debt-payment:disabled{opacity:.55;cursor:wait}
 .service-main-row{display:grid!important;gap:0!important;overflow:visible;padding:10px;border:1px solid #bfdbfe;border-radius:12px;background:#f8fbff}.service-choice-row{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr);align-items:center;gap:10px;width:100%;min-width:0;padding:24px 0 10px;border:0;border-radius:0;background:transparent}.service-choice-row:has(.multiselect--active){z-index:30}.service-details-row{position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:24px 0 10px;border:0;border-top:1px dashed #cbd5e1;border-radius:0;background:transparent}.service-row-caption{position:absolute;top:6px;right:1px;color:#2563eb;font-size:10px;font-weight:1000}.service-details-row .service-row-caption{color:#64748b}.service-choice-row .service-multiselect{min-width:0!important;width:100%!important;max-width:100%!important}.service-choice-row .service-root-multiselect{grid-column:1;grid-row:1}.service-choice-row .service-subsection-multiselect{grid-column:1;grid-row:1}.service-choice-row .service-name-multiselect{grid-column:2;grid-row:1}.service-choice-row .service-tags-multiselect{grid-column:1/-1;grid-row:2;width:min(520px,100%)!important;justify-self:start}.service-choice-row .multiselect__content-wrapper{z-index:40}.service-tags-multiselect .multiselect__tags{min-height:40px!important;padding:5px 34px 5px 8px!important;overflow:hidden!important}.service-tags-multiselect .multiselect__tag{max-width:190px!important;margin:2px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}.service-tags-multiselect .multiselect__tag-icon{cursor:pointer!important}.service-tags-multiselect .multiselect__option--selected{display:none!important}.service-tags-multiselect .multiselect__content-wrapper{width:100%!important;max-height:210px!important;overflow:auto!important;border:1px solid #cbd5e1!important;border-radius:9px!important;background:#fff!important;box-shadow:0 12px 28px rgba(15,23,42,.16)!important}.service-tags-multiselect .multiselect__option{min-height:36px!important;padding:8px 11px!important;color:#334155!important;font-size:11px!important;font-weight:800!important}.service-tags-multiselect .multiselect__option--highlight{background:#eff6ff!important;color:#1d4ed8!important}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-choice-row .service-tags-multiselect{grid-column:1/-1}.service-choice-row .service-tags-multiselect{grid-row:auto;width:100%!important}}
+
+.amount-card-only.amount-debtors-only{border-color:#fecaca;background:#fff7f7;color:#b91c1c}.amount-card-only.amount-debtors-only input{accent-color:#dc2626}
+
+/* تمام نتایج جستجو کم‌رنگ و نتیجه فعال واضح‌تر نمایش داده می‌شود. */
+.main-schedule-table tr.search-result-row > td { position:relative; }
+.main-schedule-table tr.search-result-row > td::after {
+  content:"";
+  position:absolute;
+  z-index:20;
+  inset:0;
+  background:rgba(254,240,138,.11);
+  pointer-events:none;
+}
+.main-schedule-table tr.search-highlight-row { box-shadow:inset 0 0 0 2px #60a5fa!important; }
+.main-schedule-table tr.search-highlight-row > td::after { background:rgba(254,240,138,.19); }
+.main-schedule-table tr.search-highlight-row > td:first-child { border-left:4px solid #3b82f6!important; }
+.appointment-timeline .timeline-card.is-search-result { background:#fffef2!important; border-color:#fde68a!important; }
+.appointment-timeline .timeline-card.is-search-result.is-highlighted { background:#fffbea!important; border-color:#60a5fa!important; box-shadow:0 0 0 3px rgba(96,165,250,.20),0 12px 22px rgba(15,23,42,.10)!important; }
 .service-tag-picker{position:relative;z-index:35;grid-column:1/-1;grid-row:2;width:min(430px,100%);justify-self:start}.service-tag-trigger{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;width:100%;height:38px;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.service-tag-trigger>b{justify-self:start;padding:3px 7px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:9px}.service-tag-trigger em{justify-self:start;color:#94a3b8;font-size:10px;font-style:normal}.service-tag-trigger i{color:#64748b;font-size:16px;font-style:normal}.service-tag-menu{position:absolute;top:calc(100% + 5px);right:0;z-index:80;display:grid;gap:3px;width:100%;max-height:205px;overflow:auto;padding:6px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.18)}.service-tag-menu label{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border-radius:7px;color:#334155;font-size:11px;font-weight:800;cursor:pointer}.service-tag-menu label:hover{background:#eff6ff;color:#1d4ed8}.service-tag-menu input{width:15px!important;height:15px!important;margin:0!important;accent-color:#2563eb}.service-tag-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.service-tag-chips button{display:inline-flex;align-items:center;gap:5px;max-width:190px;padding:4px 7px;border:0;border-radius:7px;background:#dcfce7;color:#15803d;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.service-tag-chips button b{font-size:15px;line-height:10px}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-tag-picker{grid-column:1/-1}.service-tag-picker{grid-row:auto;width:100%}}
 .service-addons-panel{display:grid;gap:7px;margin-top:10px;padding:12px!important;border-style:solid!important;border-color:#ddd6fe!important;background:#fbfaff!important}.service-addons-title{margin:0!important;padding-bottom:8px;border-bottom:1px solid #ede9fe;font-size:12px!important}.service-addons-title small{padding:3px 7px;border-radius:999px;background:#ede9fe;font-size:9px!important;font-weight:900!important}.service-addon-head,.service-addon-row{display:grid!important;grid-template-columns:minmax(240px,1fr) 105px 150px 170px 32px;align-items:center;gap:9px}.service-addon-head{padding:0 8px;color:#7c3aed;font-size:9px;font-weight:1000}.service-addon-row{margin:0!important;padding:7px;border:1px solid #ede9fe;border-radius:9px;background:#fff}.service-addon-multiselect{min-width:0!important;width:100%!important}.addon-cc-input{width:100%!important}.addon-price-chip{width:100%;min-width:0!important;max-width:none!important}.addon-discount-wrap{width:100%;min-width:0;flex-basis:auto!important}.remove-addon-btn{width:32px!important;height:32px!important}.add-another-addon-btn{justify-self:start;margin:3px 0 0!important}@media(max-width:720px){.service-addon-head{display:none}.service-addon-row{grid-template-columns:1fr 90px 32px}.service-addon-row .addon-price-chip,.service-addon-row .addon-discount-wrap{grid-column:1/3}.add-another-addon-btn{justify-self:stretch}.service-addons-title{align-items:flex-start;flex-direction:column}}
 .financial-deposit-lines{display:grid;gap:6px;margin-top:13px;padding:10px;border:1px solid #d7e6dd;border-radius:11px;background:#fafdfb}.financial-deposit-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-lines>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-line{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(90px,.9fr) minmax(120px,1.25fr) 135px;gap:8px;align-items:end;padding:8px 9px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}.financial-deposit-line>span,.financial-deposit-amount{display:grid;gap:3px;min-width:0}.financial-deposit-line small,.financial-deposit-amount span{color:#64748b;font-size:9px;font-weight:800}.financial-deposit-line b{overflow:hidden;color:#334155;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-amount{margin:0!important;color:#166534!important;font-size:10px!important;font-weight:900}.financial-deposit-amount input{height:35px!important;min-width:0}.financial-deposit-empty{margin:0;padding:8px;color:#64748b;font-size:10px;font-weight:800}@media(max-width:620px){.financial-deposit-line{grid-template-columns:1fr 1fr}.financial-deposit-amount{grid-column:1/-1}}

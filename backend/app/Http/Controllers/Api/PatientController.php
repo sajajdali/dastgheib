@@ -27,22 +27,23 @@ class PatientController extends Controller
 
     public function checkDuplicate(Request $request)
     {
-        $fileNumber = $request->query('file_number');
-        $phone = $request->query('phone');
+        $fileNumber = $this->normalizeDigits($request->query('file_number'));
+        $phone = $this->normalizeDigits($request->query('phone'));
 
         return response()->json([
             'file_number_exists' => $fileNumber
-                ? Patient::where('file_number', $fileNumber)->exists()
+                ? Patient::whereRaw($this->normalizedDigitColumn('file_number').' = ?', [$fileNumber])->exists()
                 : false,
 
             'phone_exists' => $phone
-                ? Patient::where('phone', $phone)->exists()
+                ? Patient::whereRaw($this->normalizedDigitColumn('phone').' = ?', [$phone])->exists()
                 : false,
         ]);
     }
 
     public function store(Request $request)
     {
+        $this->normalizePatientRequestDigits($request);
         $requiredFields = json_decode((string) AppSetting::getByKey('patient_required_fields', '{}'), true) ?: [];
         $presence = fn (string $field) => ! empty($requiredFields[$field]) ? 'required' : 'nullable';
         $data = $request->validate([
@@ -55,10 +56,10 @@ class PatientController extends Controller
                 Rule::unique('patients', 'phone'),
             ],
             'gender' => $presence('gender').'|string|max:20',
-            'birth_date' => $presence('birth_date').'|string|max:20',
+            'birth_date' => $presence('birth_date').'|date_format:Y-m-d',
             'area' => $presence('area').'|string|max:255',
             'city' => $presence('city').'|string|max:255',
-            'financial_status' => $presence('financial_status').'|string|max:255',
+            'financial_status' => $presence('financial_status').'|string|in:ضعیف,متوسط,خوب,عالی',
             'customer_level' => 'nullable|in:problematic,blue,silver,gold',
             'patient_history' => $presence('patient_history').'|string',
             'medical_history' => $presence('medical_history').'|string',
@@ -99,7 +100,8 @@ class PatientController extends Controller
 
     public function findByPhone(Request $request, $phone, CustomerLevelService $levels)
     {
-        $patient = Patient::where('phone', $phone)->first();
+        $phone = $this->normalizeDigits($phone);
+        $patient = Patient::whereRaw($this->normalizedDigitColumn('phone').' = ?', [$phone])->first();
 
         if (!$patient) {
             return response()->json(null, 404);
@@ -128,26 +130,30 @@ class PatientController extends Controller
 
         if ($request->filled('q')) {
             $term = trim((string) $request->q);
-            $query->where(function ($inner) use ($term) {
+            $digitTerm = $this->normalizeDigits($term);
+            $query->where(function ($inner) use ($term, $digitTerm) {
                 $inner->where('first_name', 'like', "%{$term}%")
                     ->orWhere('last_name', 'like', "%{$term}%")
                     ->orWhereRaw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) LIKE ?", ["%{$term}%"])
-                    ->orWhere('file_number', 'like', "%{$term}%")
-                    ->orWhere('national_id', 'like', "%{$term}%")
-                    ->orWhere('phone', 'like', "%{$term}%");
+                    ->orWhereRaw($this->normalizedDigitColumn('file_number').' LIKE ?', ["%{$digitTerm}%"])
+                    ->orWhereRaw($this->normalizedDigitColumn('national_id').' LIKE ?', ["%{$digitTerm}%"])
+                    ->orWhereRaw($this->normalizedDigitColumn('phone').' LIKE ?', ["%{$digitTerm}%"]);
             });
         }
 
         if ($request->filled('file_number')) {
-            $query->where('file_number', $request->file_number);
+            $value = $this->normalizeDigits($request->file_number);
+            $query->whereRaw($this->normalizedDigitColumn('file_number').' = ?', [$value]);
         }
 
         if ($request->filled('phone')) {
-            $query->where('phone', $request->phone);
+            $value = $this->normalizeDigits($request->phone);
+            $query->whereRaw($this->normalizedDigitColumn('phone').' = ?', [$value]);
         }
 
         if ($request->filled('national_id')) {
-            $query->where('national_id', $request->national_id);
+            $value = $this->normalizeDigits($request->national_id);
+            $query->whereRaw($this->normalizedDigitColumn('national_id').' = ?', [$value]);
         }
 
         $patients = $levels->decorate($query->limit(25)->get());
@@ -233,6 +239,7 @@ class PatientController extends Controller
     public function update(Request $request, $id)
     {
         $patient = Patient::findOrFail($id);
+        $this->normalizePatientRequestDigits($request);
 
         $requiredFields = json_decode((string) AppSetting::getByKey('patient_required_fields', '{}'), true) ?: [];
         $presence = fn (string $field) => ! empty($requiredFields[$field]) ? 'required' : 'nullable';
@@ -241,10 +248,10 @@ class PatientController extends Controller
             'last_name' => [$presence('last_name'), 'string', 'max:255'],
             'phone' => [$presence('phone'), 'string', 'max:30', Rule::unique('patients', 'phone')->ignore($patient->id)],
             'gender' => [$presence('gender'), 'string', 'max:20'],
-            'birth_date' => [$presence('birth_date'), 'string', 'max:20'],
+            'birth_date' => [$presence('birth_date'), 'date_format:Y-m-d'],
             'area' => [$presence('area'), 'string', 'max:255'],
             'city' => [$presence('city'), 'string', 'max:255'],
-            'financial_status' => [$presence('financial_status'), 'string', 'max:255'],
+            'financial_status' => [$presence('financial_status'), 'string', Rule::in(['ضعیف', 'متوسط', 'خوب', 'عالی'])],
             'customer_level' => ['nullable', 'in:problematic,blue,silver,gold'],
             'patient_history' => [$presence('patient_history'), 'string'],
             'medical_history' => [$presence('medical_history'), 'string'],
@@ -269,6 +276,85 @@ class PatientController extends Controller
         return response()->json([
             'success' => true
         ]);
+    }
+
+    private function normalizePatientRequestDigits(Request $request): void
+    {
+        $fields = ['phone', 'second_phone', 'national_id', 'foreign_national_code', 'birth_date', 'marriage_date'];
+        $normalized = [];
+        foreach ($fields as $field) {
+            if ($request->has($field)) {
+                $normalized[$field] = $this->normalizeDigits($request->input($field));
+            }
+        }
+        $request->merge($normalized);
+        if ($request->filled('birth_date')) {
+            $request->merge(['birth_date' => $this->normalizeBirthDateForStorage((string) $request->input('birth_date'))]);
+        }
+    }
+
+    /** Convert the Persian date-picker value to the Gregorian DATE stored by MySQL. */
+    private function normalizeBirthDateForStorage(string $value): string
+    {
+        $normalized = str_replace('/', '-', $this->normalizeDigits($value));
+        if (! preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $normalized, $parts)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['birth_date' => 'تاریخ تولد معتبر نیست.']);
+        }
+
+        [$year, $month, $day] = [(int) $parts[1], (int) $parts[2], (int) $parts[3]];
+        if ($year >= 1700) {
+            if (! checkdate($month, $day, $year)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['birth_date' => 'تاریخ تولد معتبر نیست.']);
+            }
+            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+        }
+
+        $maxDay = $month <= 6 ? 31 : 30;
+        if ($year < 1200 || $year > 1600 || $month < 1 || $month > 12 || $day < 1 || $day > $maxDay) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['birth_date' => 'تاریخ تولد شمسی معتبر نیست.']);
+        }
+
+        $jy = $year + 1595;
+        $days = -355668 + (365 * $jy) + (intdiv($jy, 33) * 8)
+            + intdiv(($jy % 33) + 3, 4) + $day
+            + ($month < 7 ? ($month - 1) * 31 : (($month - 7) * 30) + 186);
+        $gy = 400 * intdiv($days, 146097);
+        $days %= 146097;
+        if ($days > 36524) {
+            $gy += 100 * intdiv(--$days, 36524);
+            $days %= 36524;
+            if ($days >= 365) $days++;
+        }
+        $gy += 4 * intdiv($days, 1461);
+        $days %= 1461;
+        if ($days > 365) {
+            $gy += intdiv($days - 1, 365);
+            $days = ($days - 1) % 365;
+        }
+        $gd = $days + 1;
+        $monthDays = [0, 31, (($gy % 4 === 0 && $gy % 100 !== 0) || $gy % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        for ($gm = 1; $gm <= 12 && $gd > $monthDays[$gm]; $gm++) $gd -= $monthDays[$gm];
+
+        return sprintf('%04d-%02d-%02d', $gy, $gm, $gd);
+    }
+
+    private function normalizeDigits(mixed $value): string
+    {
+        return strtr(trim((string) $value), [
+            '۰'=>'0', '۱'=>'1', '۲'=>'2', '۳'=>'3', '۴'=>'4',
+            '۵'=>'5', '۶'=>'6', '۷'=>'7', '۸'=>'8', '۹'=>'9',
+            '٠'=>'0', '١'=>'1', '٢'=>'2', '٣'=>'3', '٤'=>'4',
+            '٥'=>'5', '٦'=>'6', '٧'=>'7', '٨'=>'8', '٩'=>'9',
+        ]);
+    }
+
+    private function normalizedDigitColumn(string $column): string
+    {
+        $expression = $column;
+        foreach (['۰'=>'0', '۱'=>'1', '۲'=>'2', '۳'=>'3', '۴'=>'4', '۵'=>'5', '۶'=>'6', '۷'=>'7', '۸'=>'8', '۹'=>'9', '٠'=>'0', '١'=>'1', '٢'=>'2', '٣'=>'3', '٤'=>'4', '٥'=>'5', '٦'=>'6', '٧'=>'7', '٨'=>'8', '٩'=>'9'] as $from => $to) {
+            $expression = "REPLACE({$expression}, '{$from}', '{$to}')";
+        }
+        return $expression;
     }
 
     private function nextFileNumberValue(): string

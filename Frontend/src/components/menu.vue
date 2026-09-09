@@ -1,5 +1,5 @@
 <template>
-  <div class="menu">
+  <div class="menu" :class="{ 'menu-unpinned': currentPage === 'Vaghtdahi' }">
     <ul class="menu-items">
       <!-- آیتم‌ها -->
       <li
@@ -903,6 +903,12 @@ export default {
   backdrop-filter: blur(18px) saturate(150%);
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
+}
+
+/* در نوبت‌دهی، منوی اصلی با صفحه حرکت می‌کند تا فضای کاری بازتر باشد. */
+.menu.menu-unpinned {
+  position: relative;
+  top: auto;
 }
 
 .menu::-webkit-scrollbar {

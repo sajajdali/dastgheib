@@ -53,6 +53,8 @@ class AppointmentController extends Controller
             return response()->json($this->hideAppointmentPhones($appointments, $request));
         }
 
+        $appointments = $this->withPatientHistoryRegistrationMeta($appointments);
+
         $appointmentKeys = $appointments->map(fn (Appointment $appointment) => $this->appointmentNoteKey($appointment))->unique()->values();
         $noteStats = AppointmentNoteMessage::query()
             ->whereIn('appointment_key', $appointmentKeys)
@@ -537,6 +539,8 @@ class AppointmentController extends Controller
         foreach ($saved as $appointment) {
             $this->broadcastAppointmentChange($appointment);
         }
+
+        $saved = $this->withPatientHistoryRegistrationMeta($saved);
 
         return response()->json(['message' => 'نوبت‌های تغییرکرده ثبت شدند.', 'appointments' => $saved]);
     }
@@ -1104,21 +1108,10 @@ class AppointmentController extends Controller
         foreach ($totals as $name => $quantity) {
             $inventory = $inventories->get($name);
             if (! $inventory) continue;
-            // آیتم‌های صفرمبلغ در این پروژه برای دسته/تگ خدمات هم استفاده
-            // می‌شوند و نباید با موجودی صفر مانع ثبت نوبت شوند.
             if ((float) $inventory->amount <= 0) continue;
-            if ((float) $inventory->stock + $quantity < -0.0001) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'inventory' => ["موجودی «{$name}» برای ثبت این خدمت کافی نیست."],
-                ]);
-            }
-        }
-
-        foreach ($totals as $name => $quantity) {
-            $inventory = $inventories->get($name);
-            if (! $inventory) continue;
-            if ((float) $inventory->amount <= 0) continue;
-            $inventory->update(['stock' => max(0, (float) $inventory->stock + $quantity)]);
+            // کمبود موجودی نباید ثبت یا تکمیل نوبت را متوقف کند. مقدار منفی
+            // کمبود واقعی را نگه می‌دارد تا برگشت/ویرایش بعدی نیز دقیق باشد.
+            $inventory->update(['stock' => (float) $inventory->stock + $quantity]);
         }
 
         foreach ($movements as $movement) {
@@ -1647,19 +1640,22 @@ class AppointmentController extends Controller
             return $appointments;
         }
 
-        $creationLogs = ActivityLog::query()
+        $logs = ActivityLog::query()
             ->where('subject_type', Appointment::class)
-            ->where('event', 'created')
+            ->whereIn('event', ['created', 'updated'])
             ->whereIn('subject_id', $appointmentIds)
             ->orderBy('id')
-            ->get(['subject_id', 'user_name', 'created_at'])
-            ->unique('subject_id')
-            ->keyBy('subject_id');
+            ->get(['subject_id', 'event', 'user_name', 'created_at'])
+            ->groupBy('subject_id');
 
-        return $appointments->each(function (Appointment $appointment) use ($creationLogs) {
-            $log = $creationLogs->get($appointment->id);
-            $appointment->setAttribute('registered_by', $log?->user_name ?: null);
-            $appointment->setAttribute('registered_at', $log?->created_at?->toDateTimeString() ?: $appointment->created_at?->toDateTimeString());
+        return $appointments->each(function (Appointment $appointment) use ($logs) {
+            $appointmentLogs = $logs->get($appointment->id, collect());
+            $created = $appointmentLogs->firstWhere('event', 'created');
+            $updated = $appointmentLogs->where('event', 'updated')->last();
+            $appointment->setAttribute('registered_by', $created?->user_name ?: null);
+            $appointment->setAttribute('registered_at', $created?->created_at?->toDateTimeString() ?: $appointment->created_at?->toDateTimeString());
+            $appointment->setAttribute('last_edited_by', $updated?->user_name ?: null);
+            $appointment->setAttribute('last_edited_at', $updated?->created_at?->toDateTimeString());
         });
     }
 }

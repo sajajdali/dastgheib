@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HumanResourceController;
+use App\Models\AppSetting;
 use App\Models\BeautyAnnotation;
-use App\Models\Inventory;
-use App\Models\InventorySection;
 use App\Models\Patient;
 use App\Models\PatientMedia;
 use App\Support\PatientPhoneVisibility;
@@ -14,27 +14,6 @@ use Illuminate\Support\Facades\Storage;
 
 class BeautyAnnotationController extends Controller
 {
-    private const DEFAULT_AREAS = [
-        'لب',
-        'بینی',
-        'زاویه فک',
-        'چانه',
-        'گونه',
-        'پیشانی',
-        'خط اخم',
-        'غبغب',
-        'مو',
-        'شقیقه',
-        'خط لبخند',
-        'اطراف چشم',
-        'اطراف لب',
-        'ماریونت',
-        'ابرو',
-        'کل صورت',
-        'بدن',
-        'گوش',
-    ];
-
     private const DEFAULT_PROBLEMS = [
         'تیرگی',
         'لک',
@@ -54,34 +33,56 @@ class BeautyAnnotationController extends Controller
 
     public function context()
     {
-        $areas = InventorySection::query()
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->pluck('name')
-            ->filter()
-            ->merge(self::DEFAULT_AREAS)
-            ->unique()
-            ->values();
-
-        $problems = Inventory::query()
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get(['name', 'service_tags'])
-            ->flatMap(function (Inventory $item) {
-                return collect($item->service_tags ?: [])
-                    ->push($item->name)
-                    ->filter();
-            })
+        $areas = collect(app(HumanResourceController::class)->serviceTags())
             ->map(fn ($value) => trim((string) $value))
             ->filter()
-            ->merge(self::DEFAULT_PROBLEMS)
             ->unique()
             ->values();
 
         return response()->json([
             'areas' => $areas,
-            'problems' => $problems,
+            'problems' => $this->faceProblems(),
         ]);
+    }
+
+    public function problems()
+    {
+        return response()->json(['problems' => $this->faceProblems()]);
+    }
+
+    public function saveProblems(Request $request)
+    {
+        $validated = $request->validate([
+            'problems' => ['present', 'array', 'max:200'],
+            'problems.*' => ['string', 'max:160'],
+        ]);
+
+        $problems = collect($validated['problems'])
+            ->map(fn ($value) => trim((string) $value))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        AppSetting::updateOrCreate(
+            ['key' => 'beauty_face_problems'],
+            ['value' => json_encode($problems, JSON_UNESCAPED_UNICODE)]
+        );
+
+        return response()->json(['problems' => $problems]);
+    }
+
+    private function faceProblems(): array
+    {
+        $value = AppSetting::getByKey('beauty_face_problems');
+        $stored = json_decode((string) $value, true);
+
+        return collect($value !== null && is_array($stored) ? $stored : self::DEFAULT_PROBLEMS)
+            ->map(fn ($item) => trim((string) $item))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function index(Request $request)
@@ -141,8 +142,13 @@ class BeautyAnnotationController extends Controller
             ->latest()
             ->get();
 
-        $selectedPhoto = $frontPhotos
-            ->firstWhere('comparison_stage', 'before')
+        // A newly opened beauty record always starts on a front-facing photo.
+        // Prefer its "before" version, while still keeping every other angle
+        // available in the selector for an intentional user change.
+        $frontFacingPhotos = $frontPhotos->where('photo_angle_key', 'front');
+        $selectedPhoto = $frontFacingPhotos->firstWhere('comparison_stage', 'before')
+            ?: $frontFacingPhotos->first()
+            ?: $frontPhotos->firstWhere('comparison_stage', 'before')
             ?: $frontPhotos->first();
 
         $selectedPhotoId = $request->integer('media_id') ?: $selectedPhoto?->id;

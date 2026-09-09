@@ -90,6 +90,15 @@
             <label><input type="checkbox" v-model="profileFields.address" /> <span> آدرس</span></label>
             <label><input type="checkbox" v-model="followupConsultantPhoneRestricted" /> <span>نمایش شماره لید فقط برای مشاور انتخاب‌شده</span></label>
           </div>
+          <div class="required-fields-settings">
+            <div class="required-fields-head"><strong>اجباری یا اختیاری بودن اطلاعات تشکیل پرونده</strong><small>فیلد اجباری بدون تکمیل قابل ثبت نیست.</small></div>
+            <label v-for="field in patientFieldOptions" :key="field.key">
+              <span>{{ field.label }}</span>
+              <select v-model="patientRequiredFields[field.key]">
+                <option :value="false">اختیاری</option><option :value="true">اجباری</option>
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -134,15 +143,6 @@
             <label><input type="checkbox" v-model="appointmentColumns.payment_account" /> <span>حساب واریز</span></label>
             <label><input type="checkbox" v-model="appointmentColumns.payment_link" /> <span>لینک پرداخت</span></label>
             <label><input type="checkbox" v-model="appointmentColumns.best_staff" /> <span>نمایش بهترین پرسنل ماه</span></label>
-          </div>
-          <div v-if="featureEnabled('patients')" class="required-fields-settings">
-            <div class="required-fields-head"><strong>اجباری یا اختیاری بودن اطلاعات تشکیل پرونده</strong><small>فیلد اجباری بدون تکمیل قابل ثبت نیست.</small></div>
-            <label v-for="field in patientFieldOptions" :key="field.key">
-              <span>{{ field.label }}</span>
-              <select v-model="patientRequiredFields[field.key]">
-                <option :value="false">اختیاری</option><option :value="true">اجباری</option>
-              </select>
-            </label>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
   <main class="beauty-flow" dir="rtl">
     <section v-if="!activePatient" class="beauty-flow-card">
       <div class="beauty-flow-main-toolbar">
+        <button type="button" class="beauty-flow-settings-btn" title="تنظیم مشکلات چهره" aria-label="تنظیم مشکلات چهره" @click="openProblemsSettings">⚙</button>
         <button
           type="button"
           class="beauty-flow-create-btn"
@@ -125,6 +126,7 @@
           <p>{{ patientName(activePatient) }} - پرونده {{ activePatient.file_number || '-' }}</p>
         </div>
         <div class="beauty-flow-record-actions">
+          <button type="button" class="beauty-flow-back beauty-flow-problems-settings-btn" @click="openProblemsSettings">مشکلات چهره</button>
           <button type="button" class="beauty-flow-back" @click="$emit('back-to-patient-profile', activePatient)">بازگشت به پرونده</button>
           <button type="button" class="beauty-flow-back" @click="closeRecord">بازگشت</button>
         </div>
@@ -323,6 +325,31 @@
         </section>
       </div>
     </section>
+
+    <div v-if="problemsSettingsOpen" class="beauty-problems-backdrop" @click.self="closeProblemsSettings">
+      <section class="beauty-problems-modal" role="dialog" aria-modal="true" aria-labelledby="beauty-problems-title">
+        <header>
+          <div><small>تنظیمات زیبایار</small><h3 id="beauty-problems-title">مشکلات چهره</h3><p>موارد این فهرست هنگام ثبت نقطه روی چهره نمایش داده می‌شوند.</p></div>
+          <button type="button" aria-label="بستن" @click="closeProblemsSettings">×</button>
+        </header>
+        <form @submit.prevent="addFaceProblem">
+          <input v-model.trim="problemDraft" type="text" maxlength="160" placeholder="مثلاً لک یا افتادگی">
+          <button type="submit">افزودن</button>
+        </form>
+        <div class="beauty-problems-list">
+          <span v-for="(problem, index) in problemsSettingsDraft" :key="problem">
+            {{ problem }}
+            <button type="button" :aria-label="`حذف ${problem}`" @click="removeFaceProblem(index)">×</button>
+          </span>
+          <p v-if="!problemsSettingsDraft.length">هنوز مشکلی تعریف نشده است.</p>
+        </div>
+        <p v-if="problemsSettingsError" class="beauty-problems-error">{{ problemsSettingsError }}</p>
+        <footer>
+          <button type="button" @click="closeProblemsSettings">انصراف</button>
+          <button type="button" :disabled="problemsSettingsSaving" @click="saveFaceProblems">{{ problemsSettingsSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات' }}</button>
+        </footer>
+      </section>
+    </div>
   </main>
 </template>
 
@@ -365,6 +392,11 @@ export default {
     worklistFilters: { date_from: '', date_to: '' },
     areas: [],
     problems: [],
+    problemsSettingsOpen: false,
+    problemsSettingsDraft: [],
+    problemsSettingsSaving: false,
+    problemsSettingsError: '',
+    problemDraft: '',
     draftPoint: null,
     selectedAnnotation: null,
     savingPoint: false,
@@ -489,6 +521,56 @@ export default {
     },
     hasMoreAnnotationText(point) {
       return String(point?.note || '').length > 46
+    },
+    normalizeFaceProblem(value) {
+      return String(value || '').trim().replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' ')
+    },
+    openProblemsSettings() {
+      this.problemsSettingsDraft = [...this.problems]
+      this.problemDraft = ''
+      this.problemsSettingsError = ''
+      this.problemsSettingsOpen = true
+    },
+    closeProblemsSettings() {
+      if (this.problemsSettingsSaving) return
+      this.problemsSettingsOpen = false
+      this.problemDraft = ''
+      this.problemsSettingsError = ''
+    },
+    addFaceProblem() {
+      const problem = this.normalizeFaceProblem(this.problemDraft)
+      if (!problem) return
+      if (this.problemsSettingsDraft.some(item => this.normalizeFaceProblem(item) === problem)) {
+        this.problemsSettingsError = 'این مشکل قبلاً اضافه شده است.'
+        return
+      }
+      this.problemsSettingsDraft.push(problem)
+      this.problemDraft = ''
+      this.problemsSettingsError = ''
+    },
+    removeFaceProblem(index) {
+      this.problemsSettingsDraft.splice(index, 1)
+      this.problemsSettingsError = ''
+    },
+    async saveFaceProblems() {
+      this.problemsSettingsSaving = true
+      this.problemsSettingsError = ''
+      try {
+        const res = await fetch(`${API}/beauty/problems`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ problems: this.problemsSettingsDraft })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'ذخیره مشکلات چهره انجام نشد.')
+        this.problems = Array.isArray(data.problems) ? data.problems : []
+        this.problemsSettingsDraft = [...this.problems]
+        this.problemsSettingsOpen = false
+      } catch (error) {
+        this.problemsSettingsError = error.message || 'ذخیره مشکلات چهره انجام نشد.'
+      } finally {
+        this.problemsSettingsSaving = false
+      }
     },
     async loadContext() {
       try {
@@ -1560,6 +1642,7 @@ export default {
 @keyframes beautyVoicePulse {
   50% { box-shadow: 0 0 0 5px rgba(220, 38, 38, .14); }
 }
+.beauty-flow-settings-btn{width:42px;height:42px;flex:0 0 42px;padding:0!important;border:1px solid #bfdbfe!important;border-radius:12px!important;background:#eff6ff!important;color:#2563eb!important;font-size:18px!important;cursor:pointer}.beauty-flow-problems-settings-btn{border-color:#bfdbfe!important;background:#eff6ff!important;color:#2563eb!important}.beauty-problems-backdrop{position:fixed;z-index:4000;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.52);backdrop-filter:blur(4px)}.beauty-problems-modal{width:min(620px,95vw);max-height:88vh;overflow:auto;box-sizing:border-box;padding:20px;border:1px solid #dbeafe;border-radius:22px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.3)}.beauty-problems-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}.beauty-problems-modal>header small{color:#2563eb;font-size:10px;font-weight:900}.beauty-problems-modal h3{margin:4px 0;color:#172554;font-size:22px}.beauty-problems-modal>header p{margin:0;color:#64748b;font-size:11px}.beauty-problems-modal>header>button{width:32px;height:32px;padding:0;border:0;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:20px}.beauty-problems-modal>form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:18px}.beauty-problems-modal>form input{height:43px;padding:0 12px;border:1px solid #cbd5e1;border-radius:11px;background:#f8fafc;font-family:inherit}.beauty-problems-modal>form button{padding:0 18px;border:0;border-radius:11px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900}.beauty-problems-list{min-height:100px;display:flex;align-content:flex-start;gap:8px;flex-wrap:wrap;margin-top:14px;padding:13px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.beauty-problems-list>span{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 10px;border:1px solid #bfdbfe;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:11px;font-weight:900}.beauty-problems-list>span button{width:19px;height:19px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:#dbeafe;color:#2563eb;font-size:14px;cursor:pointer}.beauty-problems-list>p{width:100%;margin:auto;color:#94a3b8;text-align:center;font-size:11px}.beauty-problems-error{margin:10px 0 0;padding:9px;border-radius:9px;background:#fef2f2;color:#b91c1c;font-size:11px}.beauty-problems-modal>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.beauty-problems-modal>footer button{height:40px;padding:0 15px;border:0;border-radius:10px;background:#e2e8f0;color:#475569;font-family:inherit;font-weight:900}.beauty-problems-modal>footer button:last-child{background:#2563eb;color:#fff}.beauty-problems-modal button:disabled{opacity:.55;cursor:wait}
 @media (max-width: 1100px) {
   .beauty-flow-search-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
