@@ -21,7 +21,7 @@
             v-model.trim="form.login"
             type="text"
             autocomplete="username"
-            placeholder="مثلاً 09122978167"
+            placeholder="مثلاً 09121236686"
             required
           />
         </div>
@@ -80,7 +80,7 @@
 
         <button class="quick-login-button" type="button" :disabled="loading" @click="loginAsSuperAdmin">
           ورود سریع مدیرکل
-          <span class="quick-login-credentials">09122978167 / 1234</span>
+          <span class="quick-login-credentials">09121236686 / 09121236686</span>
         </button>
       </form>
 
@@ -97,8 +97,8 @@ const emit = defineEmits(["authenticated"]);
 const BACKEND_URL = "";
 
 const superAdminCredentials = {
-  login: "09122978167",
-  password: "1234",
+  login: "09121236686",
+  password: "09121236686",
 };
 
 const form = reactive({ login: "", password: "", remember: false });
