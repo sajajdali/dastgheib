@@ -610,7 +610,7 @@
                     :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
                     :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
                     @click.stop
-                    @input="autoSetAppointmentStatus(row); saveData()"
+                    @input="onPatientNameInput(row)"
                     @keyup.enter.prevent="$event.target.blur()"
                     @blur="finishPatientNameEdit(row)"
                   />
@@ -3068,6 +3068,21 @@ export default {
       const hasName = String(row.lastname || '').trim().length > 0;
       const hasPhone = String(row.phone || '').replace(/\D/g, '').length >= 10;
       if (hasName && hasPhone) row.status = 'وقت داده شد';
+    },
+
+    onPatientNameInput(row) {
+      if (!String(row?.lastname || '').trim()) {
+        this.hideAvatarPreview();
+        row.profileThumbnailUrl = '';
+        row.profilePhotoUrl = '';
+        row.hasPatientFile = false;
+        row.patientId = null;
+        row.patientOutstandingDebt = 0;
+        row.walletBalance = 0;
+        row.customerLevel = 'silver';
+      }
+      this.autoSetAppointmentStatus(row);
+      this.saveData();
     },
     async openPatientProfileFromRow(row) {
       // اطلاعات نوبت به‌تنهایی پرونده نیست. فقط برای بیماری که وجود

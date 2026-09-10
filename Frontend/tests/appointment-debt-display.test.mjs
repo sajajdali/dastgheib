@@ -52,3 +52,12 @@ test("pending SMS rows without a valid mobile number are blocked in Persian", ()
   assert.match(source, /title: 'شماره موبایل وارد نشده است'/);
   assert.match(source, /شماره موبایل این ردیف وارد نشده یا معتبر نیست/);
 });
+
+test("clearing an appointment name also clears its stale patient avatar", () => {
+  assert.match(source, /@input="onPatientNameInput\(row\)"/);
+  assert.match(source, /onPatientNameInput\(row\)[\s\S]*?if \(!String\(row\?\.lastname \|\| ''\)\.trim\(\)\)/);
+  assert.match(source, /row\.profileThumbnailUrl = ''/);
+  assert.match(source, /row\.profilePhotoUrl = ''/);
+  assert.match(source, /row\.hasPatientFile = false/);
+  assert.match(source, /row\.patientId = null/);
+});
