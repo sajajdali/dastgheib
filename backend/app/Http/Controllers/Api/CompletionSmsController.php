@@ -147,10 +147,13 @@ class CompletionSmsController extends Controller
     {
         $data = $request->validate([
             'types' => ['required', 'array', 'min:1'], 'types.*' => ['in:appointment,info'],
-            'patient_phone' => ['required', 'string', 'max:30'], 'patient_name' => ['nullable', 'string', 'max:255'],
+            'patient_phone' => ['bail', 'required', 'string', 'regex:/^09\d{9}$/'], 'patient_name' => ['nullable', 'string', 'max:255'],
             'date' => ['nullable', 'string', 'max:50'], 'time' => ['nullable', 'string', 'max:20'],
             'doctors' => ['nullable', 'array', 'max:2'], 'doctors.*' => ['string', 'max:255'],
             'consultant' => ['nullable', 'string', 'max:255'],
+        ], [
+            'patient_phone.required' => 'شماره موبایل مراجعه‌کننده وارد نشده است.',
+            'patient_phone.regex' => 'شماره موبایل مراجعه‌کننده باید ۱۱ رقم و با ۰۹ شروع شود.',
         ]);
         if (! $this->sms->hasCredentials()) {
             return response()->json(['message'=>'اتصال SHSMS برای این کلینیک تنظیم نشده است. توکن API را از تنظیمات پیامک وارد کنید.'], 422);

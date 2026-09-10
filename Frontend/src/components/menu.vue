@@ -6,7 +6,7 @@
         v-for="item in primaryItems"
         :key="item.value"
         class="menu-item"
-        :class="{ active: currentPage === item.value }"
+        :class="{ active: currentPage === item.value || (item.value === 'Peygiri' && currentPage === 'ServiceFollowups') }"
         @click="select(item.value)"
       >
         <div class="menu-dot"></div>
@@ -130,7 +130,6 @@ export default {
         { label: 'پرونده', value: 'Parvande', feature: 'patients' },
         { label: 'وقت دهی', value: 'Vaghtdahi', feature: 'booking' },
         { label: 'پیگیری', value: 'Peygiri', feature: 'followups' },
-        { label: 'پیگیری خدمات', value: 'ServiceFollowups', feature: 'service_followups' },
         { label: 'زیبایار', value: 'dermatracker', feature: 'beauty' },
         { label: 'عکس‌ها', value: 'Photos', feature: 'gallery' },
         { label: 'گزارش', value: 'Gozaresh', feature: 'report' },

@@ -465,12 +465,27 @@ class PatientController extends Controller
         $data = $request->validate([
             'amount' => 'required|numeric|min:1',
             'description' => 'nullable|string|max:255',
+            'allocations' => 'nullable|array|max:50',
+            'allocations.*.amount' => 'required_with:allocations|numeric|min:1',
+            'allocations.*.section' => 'nullable|string|max:255',
+            'allocations.*.subsection' => 'nullable|string|max:255',
+            'allocations.*.service' => 'required_with:allocations|string|max:255',
+            'allocations.*.parent_service' => 'nullable|string|max:255',
             'services' => 'nullable|array|max:50',
             'services.*.section' => 'nullable|string|max:255',
             'services.*.subsection' => 'nullable|string|max:255',
             'services.*.service' => 'required_with:services|string|max:255',
             'services.*.amount' => 'required_with:services|numeric|min:1',
         ]);
+
+        if (! empty($data['allocations'])) {
+            $allocationsTotal = collect($data['allocations'])->sum(fn (array $allocation) => (float) $allocation['amount']);
+            if (round($allocationsTotal, 2) !== round((float) $data['amount'], 2)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'allocations' => ['جمع بیعانهٔ زیرخدمت‌ها باید با مبلغ کل برابر باشد.'],
+                ]);
+            }
+        }
 
         if (! empty($data['services'])) {
             $servicesTotal = collect($data['services'])->sum(fn (array $service) => (float) $service['amount']);
@@ -483,23 +498,49 @@ class PatientController extends Controller
 
         $patient = Patient::findOrFail($id);
 
-        $transaction = $patient->walletTransactions()->create([
-            'amount' => $data['amount'],
-            'type' => 'deposit',
-            'description' => $data['description'] ?? 'واریز به کیف پول',
-            'source_type' => ! empty($data['services']) ? 'booking_deposit' : 'manual',
-            'created_by' => $request->user()?->id,
-            'metadata' => [
-                'ip' => $request->ip(),
-                'services' => collect($data['services'] ?? [])
-                    ->map(fn (array $service) => [
+        DB::transaction(function () use ($patient, $data, $request) {
+            $allocations = collect($data['allocations'] ?? []);
+            if ($allocations->isNotEmpty()) {
+                $allocations->each(function (array $allocation) use ($patient, $data, $request) {
+                    $service = [
+                        'section' => trim((string) ($allocation['section'] ?? '')),
+                        'subsection' => trim((string) ($allocation['subsection'] ?? '')),
+                        'service' => trim((string) ($allocation['service'] ?? '')),
+                        'parent_service' => trim((string) ($allocation['parent_service'] ?? '')),
+                        'amount' => (float) $allocation['amount'],
+                    ];
+                    $patient->walletTransactions()->create([
+                        'amount' => $allocation['amount'],
+                        'type' => 'deposit',
+                        'description' => 'بیعانه '.$service['service'],
+                        'source_type' => 'booking_deposit',
+                        'created_by' => $request->user()?->id,
+                        'metadata' => ['ip' => $request->ip(), 'services' => [$service]],
+                    ]);
+                });
+
+                return;
+            }
+
+            $patient->walletTransactions()->create([
+                'amount' => $data['amount'],
+                'type' => 'deposit',
+                'description' => $data['description'] ?? 'واریز به کیف پول',
+                'source_type' => ! empty($data['services']) ? 'booking_deposit' : 'manual',
+                'created_by' => $request->user()?->id,
+                'metadata' => [
+                    'ip' => $request->ip(),
+                    'services' => collect($data['services'] ?? [])->map(fn (array $service) => [
                         'section' => trim((string) ($service['section'] ?? '')),
                         'subsection' => trim((string) ($service['subsection'] ?? '')),
                         'service' => trim((string) ($service['service'] ?? '')),
                         'amount' => (float) ($service['amount'] ?? 0),
                     ])->values()->all(),
-            ],
-        ]);
+                ],
+            ]);
+        });
+
+        $patient->refresh();
 
         return response()->json([
             'success' => true,
