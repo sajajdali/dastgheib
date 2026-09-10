@@ -10753,19 +10753,39 @@ td.st-arrived select {
 
 .amount-card-only.amount-debtors-only{border-color:#fecaca;background:#fff7f7;color:#b91c1c}.amount-card-only.amount-debtors-only input{accent-color:#dc2626}
 
-/* نتیجهٔ جست‌وجو باید در جدول شلوغ فوراً به چشم بیاید. */
-.main-schedule-table tr.search-result-row > td { position:relative; }
+/* نتیجهٔ جست‌وجو واضح باشد، بدون اینکه لایهٔ زرد روی نوشته‌ها بیفتد. */
+.main-schedule-table tr.search-result-row > td {
+  position:relative;
+  background:#fde047!important;
+  color:#111827!important;
+}
 .main-schedule-table tr.search-result-row > td::after {
-  content:"";
-  position:absolute;
-  z-index:20;
-  inset:0;
-  background:rgba(250,204,21,.48);
-  pointer-events:none;
+  display:none!important;
 }
 .main-schedule-table tr.search-highlight-row { box-shadow:inset 0 0 0 3px #f59e0b!important; }
-.main-schedule-table tr.search-highlight-row > td::after { background:rgba(250,204,21,.66); }
+.main-schedule-table tr.search-highlight-row > td { background:#facc15!important; }
 .main-schedule-table tr.search-highlight-row > td:first-child { border-left:5px solid #ea580c!important; }
+.main-schedule-table tr.search-result-row input,
+.main-schedule-table tr.search-result-row select,
+.main-schedule-table tr.search-result-row textarea {
+  opacity:1!important;
+  border-color:#a16207!important;
+  background:#fff!important;
+  color:#111827!important;
+  -webkit-text-fill-color:#111827!important;
+  font-weight:900!important;
+}
+.main-schedule-table tr.search-result-row input:disabled,
+.main-schedule-table tr.search-result-row select:disabled,
+.main-schedule-table tr.search-result-row textarea:disabled {
+  opacity:1!important;
+}
+.main-schedule-table tr.search-result-row td,
+.main-schedule-table tr.search-result-row td span,
+.main-schedule-table tr.search-result-row td b,
+.main-schedule-table tr.search-result-row td small {
+  text-shadow:none!important;
+}
 .appointment-timeline .timeline-card.is-search-result { background:#fde047!important; border-color:#eab308!important; box-shadow:0 0 0 2px rgba(234,179,8,.28)!important; }
 .appointment-timeline .timeline-card.is-search-result.is-highlighted { background:#facc15!important; border-color:#ea580c!important; box-shadow:0 0 0 4px rgba(245,158,11,.38),0 12px 22px rgba(15,23,42,.16)!important; }
 .service-tag-picker{position:relative;z-index:35;grid-column:1/-1;grid-row:2;width:min(430px,100%);justify-self:start}.service-tag-trigger{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;width:100%;height:38px;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.service-tag-trigger>b{justify-self:start;padding:3px 7px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:9px}.service-tag-trigger em{justify-self:start;color:#94a3b8;font-size:10px;font-style:normal}.service-tag-trigger i{color:#64748b;font-size:16px;font-style:normal}.service-tag-menu{position:absolute;top:calc(100% + 5px);right:0;z-index:80;display:grid;gap:3px;width:100%;max-height:205px;overflow:auto;padding:6px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.18)}.service-tag-menu label{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border-radius:7px;color:#334155;font-size:11px;font-weight:800;cursor:pointer}.service-tag-menu label:hover{background:#eff6ff;color:#1d4ed8}.service-tag-menu input{width:15px!important;height:15px!important;margin:0!important;accent-color:#2563eb}.service-tag-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.service-tag-chips button{display:inline-flex;align-items:center;gap:5px;max-width:190px;padding:4px 7px;border:0;border-radius:7px;background:#dcfce7;color:#15803d;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.service-tag-chips button b{font-size:15px;line-height:10px}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-tag-picker{grid-column:1/-1}.service-tag-picker{grid-row:auto;width:100%}}
