@@ -21,3 +21,43 @@ test("new cash, card and check payments reduce the remaining appointment debt", 
   assert.match(source, /const newDebt = this\.financialRemainingDebtPreview\(\)/);
   assert.match(source, /currentPayments - Number\(this\.financialOriginalRecordedPayment/);
 });
+
+test("financial panel separates session debt and creates one deposit allocation per service", () => {
+  assert.match(source, /بدهی همین جلسه/);
+  assert.match(source, /بدهی کل بیمار با این جلسه/);
+  assert.match(source, /ثبت بیعانه برای هر خدمت/);
+  assert.match(source, /\(service\.addons \|\| \[\]\).*?return \[base, \.\.\.addons\]/s);
+  assert.match(source, /allocations: depositLines\.map/);
+  assert.match(source, /parent_service: line\.parentService/);
+});
+
+test("the amount field and payment icon reflect debt and settled payment states", () => {
+  assert.match(source, /'debt-amount-input': appointmentDisplayedDebtAmount\(row\) > 0/);
+  assert.match(source, /'paid-amount-input': appointmentPaymentIsSettled\(row\)/);
+  assert.match(source, /danger: appointmentDisplayedDebtAmount\(row\) > 0/);
+  assert.match(source, /paid: appointmentPaymentIsSettled\(row\)/);
+  assert.match(source, /appointmentPaymentIsSettled\(row\)[\s\S]*?recordedPaymentAmount\(row\) > 0/);
+});
+
+test("empty scheduler select fields do not render dash placeholders", () => {
+  assert.doesNotMatch(source, /<option value="">-<\/option>/);
+  for (const field of ['status', 'done', 'appointment_sms', 'info_sms']) {
+    assert.match(source, new RegExp(`${field.replace('_', '\\_')}\\)?,?\\s*?`));
+  }
+  assert.match(source, /return \['-', '–', '—'\]\.includes\(normalized\) \? '' : normalized/);
+});
+
+test("pending SMS rows without a valid mobile number are blocked in Persian", () => {
+  assert.match(source, /invalidPhones = pending\.filter/);
+  assert.match(source, /title: 'شماره موبایل وارد نشده است'/);
+  assert.match(source, /شماره موبایل این ردیف وارد نشده یا معتبر نیست/);
+});
+
+test("clearing an appointment name also clears its stale patient avatar", () => {
+  assert.match(source, /@input="onPatientNameInput\(row\)"/);
+  assert.match(source, /onPatientNameInput\(row\)[\s\S]*?if \(!String\(row\?\.lastname \|\| ''\)\.trim\(\)\)/);
+  assert.match(source, /row\.profileThumbnailUrl = ''/);
+  assert.match(source, /row\.profilePhotoUrl = ''/);
+  assert.match(source, /row\.hasPatientFile = false/);
+  assert.match(source, /row\.patientId = null/);
+});

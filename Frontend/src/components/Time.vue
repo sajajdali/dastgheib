@@ -93,7 +93,7 @@
           <tr>
 
             <th
-              class="sticky-header resizable-th"
+              class="sticky-header resizable-th soft-column-divider"
               :style="{ width: columnWidths.lastname + 'px' }"
             >
                نام و نام خانوادگی
@@ -119,7 +119,7 @@
             </th>
 
             <th
-              class="sticky-header resizable-th"
+              class="sticky-header resizable-th soft-column-divider"
               :style="{ width: columnWidths.phone + 'px' }"
             >
               شماره تماس
@@ -586,7 +586,7 @@
             ]"
           >
 
-              <td :style="{ width: columnWidths.lastname + 'px' }" style="text-align: center !important;">
+              <td class="soft-column-divider" :style="{ width: columnWidths.lastname + 'px' }" style="text-align: center !important;">
                 <div class="appointment-patient-name">
                   <PatientAvatar
                     v-if="row.hasPatientFile"
@@ -610,7 +610,7 @@
                     :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
                     :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
                     @click.stop
-                    @input="autoSetAppointmentStatus(row); saveData()"
+                    @input="onPatientNameInput(row)"
                     @keyup.enter.prevent="$event.target.blur()"
                     @blur="finishPatientNameEdit(row)"
                   />
@@ -628,13 +628,13 @@
 
               <td :style="{ width: columnWidths.gender + 'px' }">
                 <select v-model="row.gender" @change="saveData(0)">
-                  <option value="">-</option>
+                  <option value=""></option>
                   <option>زن</option>
                   <option>مرد</option>
                 </select>
               </td>
 
-              <td :style="{ width: columnWidths.phone + 'px' }">
+              <td class="soft-column-divider" :style="{ width: columnWidths.phone + 'px' }">
                 <input
                   v-if="canViewPatientPhone"
                   v-model="row.phone"
@@ -691,7 +691,7 @@
                   :class="statusColor(row.status)"
                   @change="onAppointmentStatusSelected(row, $event)"
                 >
-                  <option value="">-</option>
+                  <option value=""></option>
                   <option value="وقت داده شد">وقت داده شد</option>
                   <option value="آمد">آمد</option>
                   <option value="کنسل شد">کنسل شد</option>
@@ -723,7 +723,7 @@
 
                 <select v-model="row.source" @change="saveData(0)">
 
-                  <option value="">-</option>
+                  <option value=""></option>
 
                   <option
                     v-for="src in sourceOptions"
@@ -769,7 +769,7 @@
 >
 
   <select v-model="row.done" @change="onDoneChanged(row)">
-                  <option value="">-</option>
+                  <option value=""></option>
                   <option>انجام شد</option>
                   <option>انجام نشد</option>
                   <option>ترمیم</option>
@@ -782,14 +782,23 @@
                 class="amount-col"
                 :style="{ width: columnWidths.amount + 'px' }"
               >
-                <div class="amount-finance-cell" :class="{ 'shows-debt': appointmentDisplayedDebtAmount(row) > 0 }">
+                <div
+                  class="amount-finance-cell"
+                  :class="{
+                    'shows-debt': appointmentDisplayedDebtAmount(row) > 0,
+                    'is-paid': appointmentPaymentIsSettled(row)
+                  }"
+                >
                   <div class="amount-column-display">
                     <input
                       :value="appointmentAmountColumnValue(row)"
                       :title="appointmentAmountColumnTitle(row)"
                       disabled
                       class="auto-amount-input"
-                      :class="{ 'debt-amount-input': appointmentDisplayedDebtAmount(row) > 0 }"
+                      :class="{
+                        'debt-amount-input': appointmentDisplayedDebtAmount(row) > 0,
+                        'paid-amount-input': appointmentPaymentIsSettled(row)
+                      }"
                     />
                     <small v-if="appointmentDisplayedDebtAmount(row) > 0" class="appointment-debt-reason" :title="appointmentDebtDescription(row) || 'مانده پرداخت‌نشده این نوبت'">
                       <b>بدهی</b>
@@ -800,17 +809,18 @@
                     type="button"
                     class="finance-chat-trigger"
                     :class="{
-                      danger: patientDebtAmount(row) > 0,
-                      credit: Number(row.walletBalance || 0) > 0 && patientDebtAmount(row) <= 0,
-                      'has-financial-balance': patientDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0
+                      danger: appointmentDisplayedDebtAmount(row) > 0,
+                      paid: appointmentPaymentIsSettled(row),
+                      credit: Number(row.walletBalance || 0) > 0 && appointmentDisplayedDebtAmount(row) <= 0 && !appointmentPaymentIsSettled(row),
+                      'has-financial-balance': appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0
                     }"
                     :title="financialTriggerTitle(row)"
                     :aria-label="financialTriggerTitle(row)"
                     @click.stop="openFinancialPanel(row)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5z"/><path d="M9 9h6M9 12h4"/></svg>
-                    <em v-if="patientDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row)">پرداخت</em>
-                    <span v-if="patientDebtAmount(row) > 0">!</span>
+                    <em v-if="appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row)">پرداخت</em>
+                    <span v-if="appointmentDisplayedDebtAmount(row) > 0">!</span>
                   </button>
                 </div>
 
@@ -841,7 +851,7 @@
                   v-model="row.appointmentSms"
                   :class="smsColor(row.appointmentSms)"
                 >
-                  <option value="">-</option>
+                  <option value=""></option>
                   <option>انتظار</option>
                   <option>ارسال شد</option>
                 </select>
@@ -857,7 +867,7 @@
                   v-model="row.infoSms"
                   :class="smsColor(row.infoSms)"
                 >
-                  <option value="">-</option>
+                  <option value=""></option>
                   <option>انتظار</option>
                   <option>ارسال شد</option>
                 </select>
@@ -1400,7 +1410,7 @@
             <label v-if="false">
               وضعیت
               <select v-model="activeTimelineDraft.status" :class="statusColor(activeTimelineDraft.status)">
-                <option value="">-</option>
+                <option value=""></option>
                 <option value="ÙˆÙ‚Øª Ø¯Ø§Ø¯Ù‡ Ø´Ø¯">وقت داده شد</option>
                 <option value="آمد">آمد</option>
                 <option value="Ú©Ù†Ø³Ù„ Ø´Ø¯">کنسل شد</option>
@@ -1412,7 +1422,7 @@
             <label v-if="false">
               منبع
               <select v-model="activeTimelineDraft.source">
-                <option value="">-</option>
+                <option value=""></option>
                 <option v-for="src in sourceOptions" :key="src.id" :value="src.name">
                   {{ src.icon ? `${src.icon} ${src.name}` : src.name }}
                 </option>
@@ -1486,7 +1496,7 @@
             <label>
               جنسیت
               <select v-model="activeTimelineDraft.gender">
-                <option value="">-</option>
+                <option value=""></option>
                 <option>زن</option>
                 <option>مرد</option>
               </select>
@@ -1683,7 +1693,7 @@
             <label>
               انجام کار
               <select v-model="activeTimelineDraft.done" :class="doneColor(activeTimelineDraft.done)">
-                <option value="">-</option>
+                <option value=""></option>
                 <option>انجام شد</option>
                 <option>انجام نشد</option>
                 <option>ترمیم</option>
@@ -2043,7 +2053,10 @@
           <button type="button" title="بستن" aria-label="بستن" @click="closeFinancialPanel">×</button>
         </header>
         <div class="financial-summary">
-          <article class="debt"><span>بدهکاری کل</span><strong>{{ formatDisplayMoney(patientDebtAmount(activeFinancialRow)) }}</strong><small>تومان</small></article>
+          <article><span>مبلغ این جلسه</span><strong>{{ formatDisplayMoney(moneyToNumber(activeFinancialRow?.amount)) }}</strong><small>تومان</small></article>
+          <article class="paid"><span>پرداخت ثبت‌شده</span><strong>{{ formatDisplayMoney(financialDraftPaymentTotal()) }}</strong><small>تومان</small></article>
+          <article class="session-debt"><span>بدهی همین جلسه</span><strong>{{ formatDisplayMoney(financialRemainingDebtPreview()) }}</strong><small>تومان</small></article>
+          <article class="debt"><span>بدهی کل بیمار با این جلسه</span><strong>{{ formatDisplayMoney(financialTotalDebtPreview()) }}</strong><small>تومان</small></article>
           <article class="deposit"><span>بیعانه / اعتبار</span><strong>{{ formatDisplayMoney(activeFinancialRow?.walletBalance || 0) }}</strong><small>تومان</small></article>
         </div>
         <button v-if="patientDebtAmount(activeFinancialRow) > 0" type="button" class="financial-debt-payment" :disabled="financialSaving" @click="registerDebtPayment">
@@ -2075,14 +2088,16 @@
           <small>این توضیح در ردیف همین نوبت، کنار مبلغ بدهی نمایش داده می‌شود.</small>
         </label>
         <section class="financial-deposit-lines">
-          <header><strong>بیعانه خدمات</strong><b>{{ formatDisplayMoney(financialDepositTotal()) }} تومان</b></header>
-          <p v-if="!financialDepositLines.length" class="financial-deposit-empty">خدمتی انتخاب نشده است.</p>
+          <header><div><strong>ثبت بیعانه برای هر خدمت</strong><small>مبلغ هر مورد جدا ثبت می‌شود تا دقیقاً مشخص باشد برای کدام خدمت است.</small></div><b>{{ formatDisplayMoney(financialDepositTotal()) }} تومان</b></header>
+          <p v-if="!financialDepositLines.length" class="financial-deposit-empty">برای این نوبت هنوز خدمتی انتخاب نشده است.</p>
           <div v-else class="financial-deposit-line" v-for="line in financialDepositLines" :key="line.key">
-            <span><small>بخش</small><b>{{ line.section || '-' }}</b></span>
-            <span><small>زیر‌بخش</small><b>{{ line.subsection || '-' }}</b></span>
-            <span><small>خدمت</small><b>{{ line.service }}</b></span>
+            <div class="financial-deposit-identity">
+              <small>{{ line.isAddon ? 'خدمت جانبی' : 'خدمت' }}</small>
+              <b>{{ line.service }}</b>
+              <span>{{ [line.section, line.subsection, line.parentService].filter(Boolean).join(' / ') }}</span>
+            </div>
             <label class="financial-deposit-amount">
-              <span>مبلغ</span>
+              <span>بیعانه این خدمت</span>
               <input v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDepositLine(line)">
             </label>
           </div>
@@ -2482,6 +2497,7 @@ export default {
       financialDebtDraft: "",
       financialDebtDescriptionDraft: "",
       financialOriginalRecordedPayment: 0,
+      financialOpeningDebt: 0,
       financialDepositLines: [],
       financialDepositHistory: [],
       financialDepositHistoryLoading: false,
@@ -3062,6 +3078,21 @@ export default {
       const hasName = String(row.lastname || '').trim().length > 0;
       const hasPhone = String(row.phone || '').replace(/\D/g, '').length >= 10;
       if (hasName && hasPhone) row.status = 'وقت داده شد';
+    },
+
+    onPatientNameInput(row) {
+      if (!String(row?.lastname || '').trim()) {
+        this.hideAvatarPreview();
+        row.profileThumbnailUrl = '';
+        row.profilePhotoUrl = '';
+        row.hasPatientFile = false;
+        row.patientId = null;
+        row.patientOutstandingDebt = 0;
+        row.walletBalance = 0;
+        row.customerLevel = 'silver';
+      }
+      this.autoSetAppointmentStatus(row);
+      this.saveData();
     },
     async openPatientProfileFromRow(row) {
       // اطلاعات نوبت به‌تنهایی پرونده نیست. فقط برای بیماری که وجود
@@ -4930,7 +4961,7 @@ export default {
             profilePhotoUrl: this.patientOriginalPhotoUrl(item),
             hasPatientFile: !!item.has_patient_file,
             time: item.time || "",
-            status: item.status || "",
+            status: this.emptyScheduleCellValue(item.status),
             arrivedAt: item.arrived_at || "",
             waitMinutes: Number(item.wait_minutes || 0),
             doctor: item.doctor || "",
@@ -4940,7 +4971,7 @@ export default {
             doctorNote: item.doctor_note || "",
             noteMessageCount: Number(item.note_message_count || 0),
             doctorNoteUnread: Boolean(item.doctor_note_unread),
-            done: item.done || "",
+            done: this.emptyScheduleCellValue(item.done),
             completedAt: item.completed_at || "",
             amount: item.amount ? this.formatDisplayMoney(item.amount) : "",
             originalAmount: item.original_amount ? this.formatDisplayMoney(item.original_amount) : "",
@@ -4962,8 +4993,8 @@ export default {
             discount: item.discount ? this.formatDisplayMoney(item.discount) : "",
             newCustomer: !!item.new_customer,
             customerLevel: this.normalizeCustomerLevel(item.customer_level),
-            appointmentSms: item.appointment_sms || "",
-            infoSms: item.info_sms || "",
+            appointmentSms: this.emptyScheduleCellValue(item.appointment_sms),
+            infoSms: this.emptyScheduleCellValue(item.info_sms),
             completionSmsStatuses: item.completion_sms_statuses || {},
             serviceTypes: this.normalizeServiceSectionIds(item.service_types),
             services
@@ -5738,6 +5769,11 @@ this.calculateFinalAmount(row)
       return Math.max(0, serviceAmount - this.recordedPaymentAmount(row));
     },
 
+    appointmentPaymentIsSettled(row) {
+      if (this.appointmentDisplayedDebtAmount(row) > 0) return false;
+      return this.recordedPaymentAmount(row) > 0 || this.moneyToNumber(row?.walletApplied) > 0;
+    },
+
     appointmentAmountColumnValue(row) {
       return this.formatDisplayMoney(this.appointmentDisplayedDebtAmount(row));
     },
@@ -5890,8 +5926,9 @@ this.calculateFinalAmount(row)
 
     openFinancialPanel(row) {
       this.activeFinancialRow = row;
-      this.financialDebtDraft = this.moneyToNumber(row?.debt)
-        ? this.formatDisplayMoney(this.moneyToNumber(row.debt))
+      this.financialOpeningDebt = this.appointmentDisplayedDebtAmount(row);
+      this.financialDebtDraft = this.financialOpeningDebt
+        ? this.formatDisplayMoney(this.financialOpeningDebt)
         : "";
       this.financialDebtDescriptionDraft = this.appointmentDebtDescription(row);
       this.financialDepositLines = this.depositLinesForRow(row);
@@ -5916,6 +5953,7 @@ this.calculateFinalAmount(row)
       this.financialDebtDraft = "";
       this.financialDebtDescriptionDraft = "";
       this.financialOriginalRecordedPayment = 0;
+      this.financialOpeningDebt = 0;
       this.financialDepositLines = [];
       this.financialDepositHistory = [];
       this.financialDepositHistoryLoading = false;
@@ -5943,30 +5981,40 @@ this.calculateFinalAmount(row)
 
     financialRemainingDebtPreview() {
       const enteredDebt = Math.max(0, this.moneyToNumber(this.financialDebtDraft));
-      const previousDebt = Math.max(0, this.moneyToNumber(this.activeFinancialRow?.debt));
       const currentPayments = this.financialDraftPaymentTotal();
-      const paymentToDeduct = enteredDebt !== previousDebt
-        ? currentPayments
-        : currentPayments - Number(this.financialOriginalRecordedPayment || 0);
+      const paymentDifference = currentPayments - Number(this.financialOriginalRecordedPayment || 0);
+      return Math.max(0, enteredDebt - paymentDifference);
+    },
 
-      return Math.max(0, enteredDebt - paymentToDeduct);
+    financialTotalDebtPreview() {
+      const persistedTotal = this.patientDebtAmount(this.activeFinancialRow);
+      const persistedSessionDebt = Math.max(0, this.moneyToNumber(this.activeFinancialRow?.debt));
+      return Math.max(0, persistedTotal - persistedSessionDebt + this.financialRemainingDebtPreview());
     },
 
     depositLinesForRow(row) {
-      return (row?.services || [])
-        .filter(service => String(service?.name || "").trim())
-        .map((service, index) => {
+      return (row?.services || []).flatMap((service, index) => {
+          if (!String(service?.name || "").trim()) return [];
           const section = this.serviceSections.find(item => String(item.id) === String(service.sectionId || service.section_id || this.sectionIdForService(service.name, row)));
           const parentId = section?.parent_id || section?.parentId;
           const parent = parentId ? this.serviceSections.find(item => String(item.id) === String(parentId)) : null;
-
-          return {
+          const base = {
             key: `${service.name}-${section?.id || "none"}-${index}`,
             section: parent?.name || section?.name || "",
             subsection: parent ? section?.name || "" : "",
             service: String(service.name).trim(),
+            parentService: "",
+            isAddon: false,
             amount: ""
           };
+          const addons = (service.addons || []).filter(addon => String(addon?.name || '').trim()).map((addon, addonIndex) => ({
+            ...base,
+            key: `${base.key}-addon-${addon.addon_definition_id || addonIndex}`,
+            service: String(addon.name).trim(),
+            parentService: String(service.name).trim(),
+            isAddon: true,
+          }));
+          return [base, ...addons];
         });
     },
 
@@ -5997,7 +6045,7 @@ this.calculateFinalAmount(row)
     },
 
     financialDepositServicesLabel(item) {
-      return (item?.metadata?.services || []).map(service => [service.section, service.subsection, service.service].filter(Boolean).join(' / ')).filter(Boolean).join('، ') || 'خدمت ثبت نشده';
+      return (item?.metadata?.services || []).map(service => [service.section, service.subsection, service.parent_service, service.service].filter(Boolean).join(' / ')).filter(Boolean).join('، ') || 'خدمت ثبت نشده';
     },
 
     async deleteFinancialDeposit(item) {
@@ -6056,7 +6104,13 @@ this.calculateFinalAmount(row)
           const { data } = await axios.post(`/api/patients/${row.patientId}/wallet/deposit`, {
             amount: deposit,
             description: `ثبت بیعانه خدمات از نوبت‌دهی برای ${row.lastname || "بیمار"}`,
-            services: depositLines
+            allocations: depositLines.map(line => ({
+              section: line.section,
+              subsection: line.subsection,
+              service: line.service,
+              parent_service: line.parentService || '',
+              amount: line.amount,
+            }))
           });
           row.walletBalance = Number(data.wallet_balance || 0);
         }
@@ -6522,6 +6576,7 @@ this.calculateFinalAmount(row)
     closeAllPopupsAndFilters() {
 
       this.activeServicePopup = null;
+      this.activeServiceTagPicker = null;
 
       this.showStatusFilter = false;
       this.showDoctorFilter = false;
@@ -6546,6 +6601,11 @@ this.calculateFinalAmount(row)
     handleAppointmentOutsideClick(event) {
       const target = event.target;
       if (!(target instanceof Element)) return;
+
+      // کلیک روی سایر کنترل‌های پنجرهٔ خدمات نیز باید فهرست تگ را ببندد.
+      if (this.activeServiceTagPicker && !target.closest('.service-tag-picker')) {
+        this.activeServiceTagPicker = null;
+      }
 
       const isInsideOpenControl = target.closest([
         '.filter-dropdown',
@@ -6653,7 +6713,21 @@ this.calculateFinalAmount(row)
     },
 
     openSmsPanel() {
-      this.smsQueue = this.pendingSmsQueue.map(item => ({ ...item, status: 'waiting', message: '' }));
+      const pending = this.pendingSmsQueue;
+      const invalidPhones = pending.filter(item => !/^09\d{9}$/.test(this.normalizePhoneDigits(item.row?.phone)));
+      if (invalidPhones.length) {
+        const first = invalidPhones[0];
+        const label = first.row?.lastname || `ردیف ساعت ${first.row?.time || ''}`.trim() || 'یکی از ردیف‌ها';
+        const more = invalidPhones.length > 1 ? ` و ${invalidPhones.length - 1} ردیف دیگر` : '';
+        Swal.fire({
+          icon: 'warning',
+          title: 'شماره موبایل وارد نشده است',
+          text: `${label}${more} شماره موبایل معتبر ندارد. ابتدا شماره ۱۱ رقمی را وارد کنید و سپس پیامک را ارسال کنید.`,
+          confirmButtonText: 'متوجه شدم'
+        });
+        return;
+      }
+      this.smsQueue = pending.map(item => ({ ...item, status: 'waiting', message: '' }));
       this.smsQueueCompleted = 0;
       this.smsQueueConfirmed = false;
       this.smsQueueModalOpen = true;
@@ -6679,6 +6753,9 @@ this.calculateFinalAmount(row)
       for (const item of this.smsQueue) {
         item.status = 'sending';
         try {
+          if (!/^09\d{9}$/.test(this.normalizePhoneDigits(item.row?.phone))) {
+            throw new Error('شماره موبایل این ردیف وارد نشده یا معتبر نیست.');
+          }
           const doctors = String(item.row.doctor || '').split('،').map(value => value.trim()).filter(Boolean).slice(0, 2);
           const { data } = await axios.post('/api/sms/appointment', {
             types: [item.type],
@@ -6697,7 +6774,12 @@ this.calculateFinalAmount(row)
           if (item.type === 'info') item.row.infoSms = 'ارسال شد';
         } catch (error) {
           item.status = 'failed';
-          item.message = error.response?.data?.message || error.message || 'ارسال پیامک ناموفق بود.';
+          const validationMessage = error.response?.data?.errors?.patient_phone?.[0];
+          item.message = validationMessage
+            || (error.response?.status === 422 && !error.response?.data?.message ? 'شماره موبایل این ردیف وارد نشده یا معتبر نیست.' : '')
+            || error.response?.data?.message
+            || error.message
+            || 'ارسال پیامک ناموفق بود.';
         } finally {
           this.smsQueueCompleted += 1;
         }
@@ -7150,6 +7232,11 @@ this.calculateFinalAmount(row)
       // نام دو بخش می‌توانست از عرض ستون بیشتر شود و کل ردیف را جابه‌جا کند.
       // نامِ یک بخش خواناست؛ از دو بخش به بعد خلاصهٔ ثابت نمایش می‌دهیم.
       return names.length === 1 ? names[0] : `${names.length} بخش انتخاب شده`;
+    },
+
+    emptyScheduleCellValue(value) {
+      const normalized = String(value ?? '').trim();
+      return ['-', '–', '—'].includes(normalized) ? '' : normalized;
     },
 
     serviceSectionOptionsForRow(row) {
@@ -7867,9 +7954,9 @@ smsColor(val) {
   scroll-margin-top: 92px;
 }
 
-.amount-finance-cell{display:flex;align-items:center;justify-content:center;gap:6px}.amount-finance-cell .auto-amount-input{min-width:0;flex:1}.finance-chat-trigger{position:relative;width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;padding:0;border:1px solid #bfdbfe;border-radius:50%;background:#eff6ff;color:#2563eb;box-shadow:0 5px 13px rgba(37,99,235,.13);transition:.16s}.finance-chat-trigger:hover{background:#dbeafe;transform:translateY(-1px)}.finance-chat-trigger svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.finance-chat-trigger>span{position:absolute;top:-6px;left:-5px;width:18px;height:18px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:1000;animation:debtorPulse 1.8s infinite}.finance-chat-trigger.danger{border-color:#fca5a5;background:#fee2e2;color:#dc2626;box-shadow:0 5px 15px rgba(220,38,38,.2)}.finance-chat-trigger.credit{border-color:#86efac;background:#dcfce7;color:#15803d}
-.amount-column-display{min-width:0;flex:1;display:grid;gap:3px}.amount-finance-cell .amount-column-display .auto-amount-input{width:100%;min-width:0}.amount-finance-cell.shows-debt{align-items:flex-start}.debt-amount-input{color:#b91c1c!important;background:#fff1f2!important;border-color:#fca5a5!important;font-weight:1000!important}.appointment-debt-reason{display:block;overflow:hidden;padding:2px 5px;border-radius:5px;background:#fee2e2;color:#991b1b;font-size:8px;line-height:1.5;text-align:right;text-overflow:ellipsis;white-space:nowrap}.appointment-debt-reason b{margin-left:3px;color:#dc2626}.financial-debt-description textarea{min-height:76px;box-sizing:border-box;padding:10px 12px;border:1px solid #fecaca;border-radius:11px;background:#fffafa;font-family:inherit;line-height:1.8;resize:vertical}
-.financial-panel-overlay{position:fixed;inset:0;z-index:1000003;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.financial-panel{width:min(620px,96vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:20px;border:1px solid rgba(255,255,255,.75);border-radius:23px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.34);direction:rtl}.financial-panel>header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}.financial-panel header small{color:#2563eb;font-size:10px;font-weight:900}.financial-panel h3{margin:4px 0;color:#0f172a}.financial-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:#f1f5f9;color:#64748b;font-size:23px}.financial-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.financial-summary article{display:grid;gap:4px;padding:13px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.financial-summary article.debt{border-color:#fecaca;background:#fff7f7}.financial-summary article.deposit{border-color:#bbf7d0;background:#f0fdf4}.financial-summary span{color:#64748b;font-size:10px;font-weight:900}.financial-summary strong{font-size:20px}.financial-summary .debt strong{color:#dc2626}.financial-summary .deposit strong{color:#15803d}.financial-summary small{color:#94a3b8;font-size:9px}.financial-panel>label,.financial-payment-grid label,.financial-check-grid label{display:grid;gap:7px;margin-top:11px;color:#334155;font-size:12px;font-weight:900}.financial-panel input,.financial-panel select{height:43px;box-sizing:border-box;padding:0 12px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right;font-family:inherit}.financial-panel>label small{color:#64748b;font-size:9px;font-weight:600}.financial-payment-grid,.financial-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;margin-top:6px}.financial-advanced-toggle{width:100%;height:42px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:13px;padding:0 12px;border:1px solid #dbeafe;border-radius:12px;background:#f8fbff;color:#2563eb;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.financial-advanced-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.financial-advanced-toggle span{margin-left:auto}.financial-advanced-toggle b{padding:4px 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:9px}.financial-advanced-toggle.active{border-color:#93c5fd;background:#eff6ff}.financial-check-grid{padding:10px;margin-top:8px;border:1px dashed #bfdbfe;border-radius:13px;background:#f8fbff}.financial-patient-warning{margin-top:12px;padding:10px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:10px;font-weight:900}.financial-panel>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.financial-panel>footer button{height:40px;padding:0 16px;border-radius:11px;font-family:inherit;font-size:11px;font-weight:900}.financial-cancel{border:1px solid #e2e8f0;background:#f8fafc;color:#64748b}.financial-save{border:1px solid #2563eb;background:#2563eb;color:#fff;box-shadow:var(--ui-action-shadow)}@media(max-width:520px){.financial-summary,.financial-payment-grid,.financial-check-grid{grid-template-columns:1fr}}
+.amount-finance-cell{display:flex;align-items:center;justify-content:center;gap:6px}.amount-finance-cell .auto-amount-input{min-width:0;flex:1}.finance-chat-trigger{position:relative;width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;padding:0;border:1px solid #bfdbfe;border-radius:50%;background:#eff6ff;color:#2563eb;box-shadow:0 5px 13px rgba(37,99,235,.13);transition:.16s}.finance-chat-trigger:hover{background:#dbeafe;transform:translateY(-1px)}.finance-chat-trigger svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.finance-chat-trigger>span{position:absolute;top:-6px;left:-5px;width:18px;height:18px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:1000;animation:debtorPulse 1.8s infinite}.finance-chat-trigger.danger{border-color:#fca5a5;background:#fee2e2;color:#dc2626;box-shadow:0 5px 15px rgba(220,38,38,.2)}.finance-chat-trigger.credit,.finance-chat-trigger.paid{border-color:#86efac;background:#dcfce7;color:#15803d;box-shadow:0 5px 15px rgba(22,163,74,.18)}
+.amount-column-display{min-width:0;flex:1;display:grid;gap:3px}.amount-finance-cell .amount-column-display .auto-amount-input{width:100%;min-width:0}.amount-finance-cell.shows-debt{align-items:flex-start}.debt-amount-input{color:#b91c1c!important;background:#fff1f2!important;border-color:#fca5a5!important;font-weight:1000!important}.paid-amount-input{color:#15803d!important;background:#f0fdf4!important;border-color:#86efac!important;font-weight:1000!important}.appointment-debt-reason{display:block;overflow:hidden;padding:2px 5px;border-radius:5px;background:#fee2e2;color:#991b1b;font-size:8px;line-height:1.5;text-align:right;text-overflow:ellipsis;white-space:nowrap}.appointment-debt-reason b{margin-left:3px;color:#dc2626}.financial-debt-description textarea{min-height:76px;box-sizing:border-box;padding:10px 12px;border:1px solid #fecaca;border-radius:11px;background:#fffafa;font-family:inherit;line-height:1.8;resize:vertical}
+.financial-panel-overlay{position:fixed;inset:0;z-index:1000003;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.financial-panel{width:min(620px,96vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:20px;border:1px solid rgba(255,255,255,.75);border-radius:23px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.34);direction:rtl}.financial-panel>header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}.financial-panel header small{color:#2563eb;font-size:10px;font-weight:900}.financial-panel h3{margin:4px 0;color:#0f172a}.financial-panel header button{width:36px;height:36px;border:0;border-radius:11px;background:#f1f5f9;color:#64748b;font-size:23px}.financial-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.financial-summary article{display:grid;gap:4px;padding:13px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.financial-summary article.debt,.financial-summary article.session-debt{border-color:#fecaca;background:#fff7f7}.financial-summary article.deposit{border-color:#bbf7d0;background:#f0fdf4}.financial-summary article.paid{border-color:#bfdbfe;background:#eff6ff}.financial-summary article.deposit:last-child{grid-column:1/-1}.financial-summary span{color:#64748b;font-size:10px;font-weight:900}.financial-summary strong{font-size:20px}.financial-summary .debt strong,.financial-summary .session-debt strong{color:#dc2626}.financial-summary .deposit strong{color:#15803d}.financial-summary .paid strong{color:#2563eb}.financial-summary small{color:#94a3b8;font-size:9px}.financial-panel>label,.financial-payment-grid label,.financial-check-grid label{display:grid;gap:7px;margin-top:11px;color:#334155;font-size:12px;font-weight:900}.financial-panel input,.financial-panel select{height:43px;box-sizing:border-box;padding:0 12px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right;font-family:inherit}.financial-panel>label small{color:#64748b;font-size:9px;font-weight:600}.financial-payment-grid,.financial-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;margin-top:6px}.financial-advanced-toggle{width:100%;height:42px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:13px;padding:0 12px;border:1px solid #dbeafe;border-radius:12px;background:#f8fbff;color:#2563eb;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.financial-advanced-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.financial-advanced-toggle span{margin-left:auto}.financial-advanced-toggle b{padding:4px 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:9px}.financial-advanced-toggle.active{border-color:#93c5fd;background:#eff6ff}.financial-check-grid{padding:10px;margin-top:8px;border:1px dashed #bfdbfe;border-radius:13px;background:#f8fbff}.financial-patient-warning{margin-top:12px;padding:10px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:10px;font-weight:900}.financial-panel>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}.financial-panel>footer button{height:40px;padding:0 16px;border-radius:11px;font-family:inherit;font-size:11px;font-weight:900}.financial-cancel{border:1px solid #e2e8f0;background:#f8fafc;color:#64748b}.financial-save{border:1px solid #2563eb;background:#2563eb;color:#fff;box-shadow:var(--ui-action-shadow)}@media(max-width:520px){.financial-summary,.financial-payment-grid,.financial-check-grid{grid-template-columns:1fr}.financial-summary article.deposit:last-child{grid-column:auto}}
 .finance-chat-trigger.has-financial-balance{width:auto;min-width:76px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 9px;border-radius:10px}.finance-chat-trigger.has-financial-balance svg{width:15px;height:15px}.finance-chat-trigger>em{font-size:10px;font-style:normal;font-weight:1000;white-space:nowrap}.financial-wallet-settle{width:100%;display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 12px;margin:0 0 14px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);color:#166534;font-family:inherit;text-align:right;cursor:pointer;transition:.18s ease}.financial-wallet-settle:hover{border-color:#22c55e;transform:translateY(-1px);box-shadow:0 8px 20px rgba(34,197,94,.14)}.financial-wallet-settle span{font-size:12px;font-weight:1000}.financial-wallet-settle strong{font-size:14px}.financial-wallet-settle small{grid-column:1/-1;color:#15803d;font-size:9px}.financial-wallet-settle:disabled{opacity:.55;cursor:wait;transform:none}
 
 .appointment-view-switch {
@@ -9340,6 +9427,12 @@ smsColor(val) {
   overflow: visible;
 }
 
+/* فقط مرز گروه‌های اطلاعات هویتی؛ کمی واضح‌تر از خطوط عادی جدول. */
+.main-schedule-table th.soft-column-divider,
+.main-schedule-table td.soft-column-divider {
+  border-left: 1px solid #cbd5e1 !important;
+}
+
 .main-schedule-table tbody tr.data-row:hover > td {
   background-color: #f0f7ff !important;
 }
@@ -9421,12 +9514,7 @@ smsColor(val) {
   direction: ltr;
 }
 
-th.sticky-header.time-col {
-  background: #f8f9fa !important;
-  color: inherit !important;
-}
-
-.time-col {
+.main-schedule-table td.time-col {
   color: #334155 !important;
   text-align: center !important;
 }
@@ -10752,24 +10840,44 @@ td.st-arrived select {
 
 .amount-card-only.amount-debtors-only{border-color:#fecaca;background:#fff7f7;color:#b91c1c}.amount-card-only.amount-debtors-only input{accent-color:#dc2626}
 
-/* تمام نتایج جستجو کم‌رنگ و نتیجه فعال واضح‌تر نمایش داده می‌شود. */
-.main-schedule-table tr.search-result-row > td { position:relative; }
-.main-schedule-table tr.search-result-row > td::after {
-  content:"";
-  position:absolute;
-  z-index:20;
-  inset:0;
-  background:rgba(254,240,138,.11);
-  pointer-events:none;
+/* نتیجهٔ جست‌وجو واضح باشد، بدون اینکه لایهٔ زرد روی نوشته‌ها بیفتد. */
+.main-schedule-table tr.search-result-row > td {
+  position:relative;
+  background:#fde047!important;
+  color:#111827!important;
 }
-.main-schedule-table tr.search-highlight-row { box-shadow:inset 0 0 0 2px #60a5fa!important; }
-.main-schedule-table tr.search-highlight-row > td::after { background:rgba(254,240,138,.19); }
-.main-schedule-table tr.search-highlight-row > td:first-child { border-left:4px solid #3b82f6!important; }
-.appointment-timeline .timeline-card.is-search-result { background:#fffef2!important; border-color:#fde68a!important; }
-.appointment-timeline .timeline-card.is-search-result.is-highlighted { background:#fffbea!important; border-color:#60a5fa!important; box-shadow:0 0 0 3px rgba(96,165,250,.20),0 12px 22px rgba(15,23,42,.10)!important; }
+.main-schedule-table tr.search-result-row > td::after {
+  display:none!important;
+}
+.main-schedule-table tr.search-highlight-row { box-shadow:inset 0 0 0 3px #f59e0b!important; }
+.main-schedule-table tr.search-highlight-row > td { background:#facc15!important; }
+.main-schedule-table tr.search-highlight-row > td:first-child { border-left:5px solid #ea580c!important; }
+.main-schedule-table tr.search-result-row input,
+.main-schedule-table tr.search-result-row select,
+.main-schedule-table tr.search-result-row textarea {
+  opacity:1!important;
+  border-color:#a16207!important;
+  background:#fff!important;
+  color:#111827!important;
+  -webkit-text-fill-color:#111827!important;
+  font-weight:900!important;
+}
+.main-schedule-table tr.search-result-row input:disabled,
+.main-schedule-table tr.search-result-row select:disabled,
+.main-schedule-table tr.search-result-row textarea:disabled {
+  opacity:1!important;
+}
+.main-schedule-table tr.search-result-row td,
+.main-schedule-table tr.search-result-row td span,
+.main-schedule-table tr.search-result-row td b,
+.main-schedule-table tr.search-result-row td small {
+  text-shadow:none!important;
+}
+.appointment-timeline .timeline-card.is-search-result { background:#fde047!important; border-color:#eab308!important; box-shadow:0 0 0 2px rgba(234,179,8,.28)!important; }
+.appointment-timeline .timeline-card.is-search-result.is-highlighted { background:#facc15!important; border-color:#ea580c!important; box-shadow:0 0 0 4px rgba(245,158,11,.38),0 12px 22px rgba(15,23,42,.16)!important; }
 .service-tag-picker{position:relative;z-index:35;grid-column:1/-1;grid-row:2;width:min(430px,100%);justify-self:start}.service-tag-trigger{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;width:100%;height:38px;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.service-tag-trigger>b{justify-self:start;padding:3px 7px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:9px}.service-tag-trigger em{justify-self:start;color:#94a3b8;font-size:10px;font-style:normal}.service-tag-trigger i{color:#64748b;font-size:16px;font-style:normal}.service-tag-menu{position:absolute;top:calc(100% + 5px);right:0;z-index:80;display:grid;gap:3px;width:100%;max-height:205px;overflow:auto;padding:6px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.18)}.service-tag-menu label{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border-radius:7px;color:#334155;font-size:11px;font-weight:800;cursor:pointer}.service-tag-menu label:hover{background:#eff6ff;color:#1d4ed8}.service-tag-menu input{width:15px!important;height:15px!important;margin:0!important;accent-color:#2563eb}.service-tag-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.service-tag-chips button{display:inline-flex;align-items:center;gap:5px;max-width:190px;padding:4px 7px;border:0;border-radius:7px;background:#dcfce7;color:#15803d;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.service-tag-chips button b{font-size:15px;line-height:10px}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-tag-picker{grid-column:1/-1}.service-tag-picker{grid-row:auto;width:100%}}
 .service-addons-panel{display:grid;gap:7px;margin-top:10px;padding:12px!important;border-style:solid!important;border-color:#ddd6fe!important;background:#fbfaff!important}.service-addons-title{margin:0!important;padding-bottom:8px;border-bottom:1px solid #ede9fe;font-size:12px!important}.service-addons-title small{padding:3px 7px;border-radius:999px;background:#ede9fe;font-size:9px!important;font-weight:900!important}.service-addon-head,.service-addon-row{display:grid!important;grid-template-columns:minmax(240px,1fr) 105px 150px 170px 32px;align-items:center;gap:9px}.service-addon-head{padding:0 8px;color:#7c3aed;font-size:9px;font-weight:1000}.service-addon-row{margin:0!important;padding:7px;border:1px solid #ede9fe;border-radius:9px;background:#fff}.service-addon-multiselect{min-width:0!important;width:100%!important}.addon-cc-input{width:100%!important}.addon-price-chip{width:100%;min-width:0!important;max-width:none!important}.addon-discount-wrap{width:100%;min-width:0;flex-basis:auto!important}.remove-addon-btn{width:32px!important;height:32px!important}.add-another-addon-btn{justify-self:start;margin:3px 0 0!important}@media(max-width:720px){.service-addon-head{display:none}.service-addon-row{grid-template-columns:1fr 90px 32px}.service-addon-row .addon-price-chip,.service-addon-row .addon-discount-wrap{grid-column:1/3}.add-another-addon-btn{justify-self:stretch}.service-addons-title{align-items:flex-start;flex-direction:column}}
-.financial-deposit-lines{display:grid;gap:6px;margin-top:13px;padding:10px;border:1px solid #d7e6dd;border-radius:11px;background:#fafdfb}.financial-deposit-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-lines>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-line{display:grid;grid-template-columns:minmax(90px,.9fr) minmax(90px,.9fr) minmax(120px,1.25fr) 135px;gap:8px;align-items:end;padding:8px 9px;border:1px solid #e2e8f0;border-radius:9px;background:#fff}.financial-deposit-line>span,.financial-deposit-amount{display:grid;gap:3px;min-width:0}.financial-deposit-line small,.financial-deposit-amount span{color:#64748b;font-size:9px;font-weight:800}.financial-deposit-line b{overflow:hidden;color:#334155;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-amount{margin:0!important;color:#166534!important;font-size:10px!important;font-weight:900}.financial-deposit-amount input{height:35px!important;min-width:0}.financial-deposit-empty{margin:0;padding:8px;color:#64748b;font-size:10px;font-weight:800}@media(max-width:620px){.financial-deposit-line{grid-template-columns:1fr 1fr}.financial-deposit-amount{grid-column:1/-1}}
+.financial-deposit-lines{display:grid;gap:8px;margin-top:13px;padding:11px;border:1px solid #d7e6dd;border-radius:11px;background:#fafdfb}.financial-deposit-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-lines>header>div{display:grid;gap:3px}.financial-deposit-lines>header>div>small{color:#64748b;font-size:9px;font-weight:700}.financial-deposit-lines>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-line{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:12px;align-items:center;padding:10px 11px;border:1px solid #dbe7df;border-radius:10px;background:#fff}.financial-deposit-identity{display:grid;gap:3px;min-width:0}.financial-deposit-identity small,.financial-deposit-amount span{color:#64748b;font-size:9px;font-weight:800}.financial-deposit-identity b{overflow:hidden;color:#172554;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-identity span{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-amount{display:grid;gap:3px;min-width:0;margin:0!important;color:#166534!important;font-size:10px!important;font-weight:900}.financial-deposit-amount input{height:38px!important;min-width:0;border-color:#bbf7d0!important;background:#f0fdf4!important}.financial-deposit-empty{margin:0;padding:8px;color:#64748b;font-size:10px;font-weight:800}@media(max-width:620px){.financial-deposit-lines>header{align-items:flex-start;flex-direction:column}.financial-deposit-line{grid-template-columns:1fr}.financial-deposit-amount{grid-column:1/-1}}
 .financial-deposit-history{display:grid;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0}.financial-deposit-history>header{display:flex;align-items:center;justify-content:space-between;color:#334155;font-size:11px}.financial-deposit-history>header small,.financial-deposit-history>p{margin:0;color:#94a3b8;font-size:9px}.financial-deposit-history article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}.financial-deposit-history article>div{display:grid;gap:2px;min-width:0}.financial-deposit-history article b{color:#15803d;font-size:11px}.financial-deposit-history article small{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-history button{height:28px;padding:0 9px;border:1px solid #fecaca;border-radius:7px;background:#fff5f5;color:#dc2626;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.financial-deposit-history button:disabled{opacity:.55;cursor:wait}
 .sms-settings-link{display:inline-block;margin-right:5px;color:#2563eb;font-size:9px;font-style:normal;font-weight:1000;text-decoration:underline;text-underline-offset:2px;cursor:pointer}.sms-settings-link:hover{color:#1d4ed8}
 
@@ -10788,4 +10896,42 @@ td.st-arrived select {
 .amount-filter-modal{width:min(560px,94vw);overflow:hidden;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.38);direction:rtl}.amount-filter-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:19px 22px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#ecfdf5,#f8fafc)}.amount-filter-modal header small{color:#15803d;font-size:10px;font-weight:900}.amount-filter-modal h3{margin:4px 0 0;color:#0f172a;font-size:19px}.amount-filter-modal header button{width:35px;height:35px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;cursor:pointer}.amount-filter-body{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:20px}.amount-filter-body>label:not(.amount-card-only){display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}.amount-filter-body input[type=text]{height:43px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;font-family:inherit;text-align:right}.amount-card-only{grid-column:1/-1;display:flex;align-items:center;gap:9px;padding:11px;border:1px solid #bbf7d0;border-radius:11px;background:#f0fdf4;color:#166534;font-size:11px;font-weight:900}.amount-card-only input{width:17px;height:17px;accent-color:#16a34a}.amount-filter-body p{grid-column:1/-1;margin:0;color:#64748b;font-size:10px}.amount-filter-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:13px 18px;border-top:1px solid #e2e8f0;background:#f8fafc}.amount-filter-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}@media(max-width:520px){.amount-filter-body{grid-template-columns:1fr}.amount-card-only,.amount-filter-body p{grid-column:auto}}
 .amount-filter-input{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;overflow:hidden;border:1px solid #cbd5e1;border-radius:10px;background:#fff}.amount-filter-body .amount-filter-input input[type=text]{min-width:0;border:0;border-radius:0;outline:0;direction:ltr;text-align:left}.amount-filter-input b{align-self:stretch;display:grid;place-items:center;padding:0 11px;border-right:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:10px;white-space:nowrap}
 .time-empty-filter-head>span{display:grid;gap:1px}.time-empty-filter-head small{color:#94a3b8;font-size:7px;font-weight:700;line-height:1.2}.filtered-header .time-empty-filter-head small{color:#15803d!important}.time-filter-body input[type=time]{height:43px;padding:0 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:Tahoma,sans-serif;direction:ltr}.time-filter-body p{grid-column:1/-1;line-height:1.9}
+
+/* مسیر خدمت در حالت معمول سه کنترل دارد؛ هر سه در یک ردیف بمانند. */
+.service-choice-row {
+  grid-template-columns: minmax(170px, .9fr) minmax(250px, 1.45fr) minmax(190px, .85fr) !important;
+  align-items: start !important;
+}
+.service-choice-row .service-subsection-multiselect {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+.service-choice-row .service-name-multiselect {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+}
+.service-choice-row .service-tag-picker {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  align-self: start;
+}
+.service-choice-row .service-tag-chips {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+.service-choice-row .service-tag-chips button {
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .service-choice-row { grid-template-columns: 1fr 1fr !important; }
+  .service-choice-row .service-subsection-multiselect { grid-column: 1 !important; }
+  .service-choice-row .service-name-multiselect { grid-column: 2 !important; }
+  .service-choice-row .service-tag-picker { grid-column: 1 / -1 !important; grid-row: 2 !important; }
+}
 </style>

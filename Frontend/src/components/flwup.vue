@@ -10,6 +10,7 @@
             <button type="button" class="followup-action create-action" title="ایجاد کمپین" aria-label="ایجاد کمپین" @click.stop="openCreateCampaignModal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>ایجاد کمپین</span></button>
             <button type="button" class="followup-action archive-action" :class="{ active: showArchived }" title="نمایش آرشیوشده‌ها" aria-label="نمایش آرشیوشده‌ها" @click.stop="toggleArchivedView"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg><span>آرشیو</span><b v-if="archivedCampaigns.length">{{ archivedCampaigns.length }}</b></button>
             <button type="button" class="followup-action missed-action" :class="{ active: showMissedFollowups }" title="نمایش عدم پیگیری‌ها" aria-label="نمایش عدم پیگیری‌ها" @click.stop="showMissedFollowups = !showMissedFollowups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg><span>عدم پیگیری</span><b v-if="missedFollowups.length">{{ missedFollowups.length }}</b></button>
+            <button v-if="serviceFollowupsEnabled" type="button" class="followup-action appointment-followups-action" title="ورود به پیگیری نوبت‌ها" aria-label="پیگیری نوبت‌ها" @click.stop="$emit('open-service-followups')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14l2 2 5-5"/></svg><span>پیگیری نوبت‌ها</span></button>
           </div>
         </div>
       </header>
@@ -1425,6 +1426,7 @@ export default {
     currentUser: { type: Object, default: () => ({}) },
     appointmentResult: { type: Object, default: null },
     openFollowupRequest: { type: Object, default: null },
+    enabledFeatures: { type: Array, default: null },
   },
 
   components: {
@@ -1551,6 +1553,9 @@ export default {
   },
 
   computed: {
+    serviceFollowupsEnabled() {
+      return !Array.isArray(this.enabledFeatures) || this.enabledFeatures.includes('service_followups');
+    },
     canViewCampaignCost() { return this.permissions.includes('followups.campaign_cost'); },
     canViewPatientPhone() { return this.permissions.includes('patients.view_phone') && !this.permissions.includes('patients.hide_phone'); },
     followupProfileName() {
@@ -4506,6 +4511,8 @@ export default {
 .followup-action.missed-action{color:#b91c1c}
 .followup-action.missed-action.active{border-color:#fca5a5;background:#fee2e2;color:#b91c1c}
 .followup-action.missed-action b{background:#fee2e2;color:#b91c1c}
+.followup-action.appointment-followups-action{border-color:#99f6e4;background:#f0fdfa;color:#0f766e}
+.followup-action.appointment-followups-action:hover{border-color:#2dd4bf;background:#ccfbf1;color:#115e59}
 @media(min-width:1500px){.header{padding:10px 14px}.title{font-size:19px}.followup-action{height:34px;padding:0 9px}}
 @media(max-width:760px){.header{padding:11px}.title-wrap{align-items:flex-start;flex-direction:column}.header .top-actions{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.followup-action{width:100%}}
 @media(max-width:420px){.header .top-actions{grid-template-columns:1fr}.title{font-size:18px}}

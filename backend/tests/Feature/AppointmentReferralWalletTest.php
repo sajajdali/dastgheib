@@ -90,6 +90,42 @@ class AppointmentReferralWalletTest extends TestCase
         $this->assertSame(240000, (int) $appointment->discount);
         $this->assertSame(210000, (int) $appointment->amount);
     }
+
+    public function test_each_booking_deposit_allocation_is_stored_as_a_separate_service_transaction(): void
+    {
+        $patient = Patient::create(['first_name' => 'بیمار', 'last_name' => 'بیعانه', 'phone' => '09120000009', 'file_number' => 'DEP-1', 'gender' => 'زن']);
+
+        $this->postJson("/api/patients/{$patient->id}/wallet/deposit", [
+            'amount' => 350000,
+            'allocations' => [
+                ['section' => 'پوست', 'subsection' => 'تزریق', 'service' => 'ژل لب', 'amount' => 200000],
+                ['section' => 'پوست', 'subsection' => 'تزریق', 'parent_service' => 'ژل لب', 'service' => 'بی‌حسی', 'amount' => 150000],
+            ],
+        ])->assertOk()->assertJsonPath('wallet_balance', 350000);
+
+        $transactions = WalletTransaction::where('patient_id', $patient->id)->orderBy('id')->get();
+        $this->assertCount(2, $transactions);
+        $this->assertSame([200000, 150000], $transactions->map(fn ($item) => (int) $item->amount)->all());
+        $this->assertSame('ژل لب', $transactions[0]->metadata['services'][0]['service']);
+        $this->assertSame('بی‌حسی', $transactions[1]->metadata['services'][0]['service']);
+        $this->assertSame('ژل لب', $transactions[1]->metadata['services'][0]['parent_service']);
+    }
+
+    public function test_booking_deposit_rejects_an_allocation_total_mismatch_without_creating_transactions(): void
+    {
+        $patient = Patient::create(['first_name' => 'بیمار', 'last_name' => 'نامعتبر', 'phone' => '09120000010', 'file_number' => 'DEP-2', 'gender' => 'مرد']);
+
+        $this->postJson("/api/patients/{$patient->id}/wallet/deposit", [
+            'amount' => 300000,
+            'allocations' => [
+                ['service' => 'خدمت اول', 'amount' => 100000],
+                ['service' => 'خدمت دوم', 'amount' => 100000],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors('allocations');
+
+        $this->assertDatabaseCount('wallet_transactions', 0);
+    }
+
     private function appointmentPayload(): array
     {
         return [

@@ -199,11 +199,13 @@
         v-if="currentPage === 'Peygiri'"
         :permissions="user.permissions || []"
         :current-user="user"
+        :enabled-features="tenantEnabledFeatures"
         :appointment-result="pendingFollowupAppointmentResult"
         :open-followup-request="pendingFollowupOpenRequest"
         @open-appointments-timeline="openAppointmentsTimeline"
+        @open-service-followups="changePage('ServiceFollowups')"
       />
-      <ServiceFollowups v-if="currentPage === 'ServiceFollowups'" />
+      <ServiceFollowups v-if="currentPage === 'ServiceFollowups'" @back-to-followups="changePage('Peygiri')" />
 
       <Notif
         v-if="legacyLeadsEnabled && currentPage === 'Notif'"

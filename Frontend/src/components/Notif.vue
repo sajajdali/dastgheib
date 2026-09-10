@@ -202,10 +202,6 @@ export default {
 
       this.loadInventoryNotifications()
 
-      await this.loadTodayAppointmentSummaryNotification()
-
-      await this.loadTodayVipAppointmentNotification()
-
       await this.loadConsultationOnlyNotifications()
 
       await this.loadUnconvertedAppointmentNotifications()
@@ -284,65 +280,8 @@ export default {
       return "خانم"
     },
 
-    async loadTodayAppointmentSummaryNotification() {
-      try {
-        const response = await fetch(`${API}/appointments`, { headers: { Accept: "application/json" } })
-        if (!response.ok) return
-
-        const appointments = await response.json()
-        const count = (Array.isArray(appointments) ? appointments : [])
-          .filter(appointment => this.isTodayAppointment(appointment))
-          .filter(appointment => this.isMeaningfulAppointment(appointment))
-          .length
-
-        if (!count) return
-
-        this.notifications.push({
-          id: `today-appointments-summary-${this.jalaliToday()}`,
-          type: "وقت‌دهی",
-          title: "نوبت‌های امروز",
-          message: `امروز ${Number(count).toLocaleString("fa-IR")} نوبت دارید، براتون آرزوی موفقیت می‌کنم`,
-          action: "appointment-material"
-        })
-      } catch {
-        // Today appointment summary is only shown when appointment data is available.
-      }
-    },
-
     isVipAppointment(appointment) {
       return String(appointment?.customer_level || appointment?.customerLevel || "").trim() === "gold"
-    },
-
-    async loadTodayVipAppointmentNotification() {
-      if (!this.isAfterEightMorning()) return
-
-      try {
-        const response = await fetch(`${API}/appointments`, { headers: { Accept: "application/json" } })
-        if (!response.ok) return
-
-        const appointments = await response.json()
-        const people = new Set()
-
-        ;(Array.isArray(appointments) ? appointments : [])
-          .filter(appointment => this.isTodayAppointment(appointment))
-          .filter(appointment => this.isMeaningfulAppointment(appointment))
-          .filter(appointment => this.isVipAppointment(appointment))
-          .forEach((appointment, index) => {
-            people.add(this.appointmentIdentity(appointment, index))
-          })
-
-        if (!people.size) return
-
-        this.notifications.push({
-          id: `today-vip-appointments-${this.jalaliToday()}`,
-          type: "وقت‌دهی",
-          title: "مشتری‌های ویژه امروز",
-          message: `امروز ${Number(people.size).toLocaleString("fa-IR")} مشتری ویژه داری، هواشونو داشته باش`,
-          action: "appointment-material"
-        })
-      } catch {
-        // VIP appointment reminder is only shown when appointment data is available.
-      }
     },
 
     numericValue(value) {

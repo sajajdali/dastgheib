@@ -4,6 +4,10 @@
       <!-- header -->
       <header class="fu-head">
         <div class="fu-head-text">
+          <button type="button" class="fu-back-btn" title="بازگشت به صفحه پیگیری" aria-label="بازگشت به صفحه پیگیری" @click="$emit('back-to-followups')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+            <span>بازگشت</span>
+          </button>
           <h1>پیگیری خدمات</h1>
           <p>پیگیری‌های ثبت‌شده برای نوبت‌ها و خدمات</p>
         </div>
@@ -312,6 +316,9 @@ onMounted(refresh)
 /* header */
 .fu-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .fu-head-text { display: flex; flex-direction: column; gap: 6px; }
+.fu-back-btn{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;height:27px;padding:0 8px;border:1px solid #dbe3ed;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer;transition:.16s ease}
+.fu-back-btn:hover{border-color:#99f6e4;background:#f0fdfa;color:#0f766e;transform:translateX(2px)}
+.fu-back-btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .fu-eyebrow { font-size: 12px; letter-spacing: .06em; color: var(--faint); font-weight: 500; }
 .fu-head-text h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.01em; }
 .fu-head-text p { margin: 0; font-size: 14px; color: var(--muted); }
