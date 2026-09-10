@@ -853,8 +853,7 @@ export default {
       this.notificationCounts.Anbar = this.countInventoryZeroNotifications()
       this.notificationCounts.Gozaresh = await this.countHighCancellationWarning()
       this.notificationCounts.HRtimes = await this.countMissingAttendanceExits()
-      this.notificationCounts.Vaghtdahi = await this.countTodayAppointmentSummary()
-      this.notificationCounts.Vaghtdahi += await this.countTodayVipAppointmentWarning()
+      this.notificationCounts.Vaghtdahi = 0
       this.notificationCounts.Vaghtdahi += await this.countMissingMaterialAppointments()
       this.notificationCounts.Vaghtdahi += await this.countMissingPhoneAppointments()
       this.notificationCounts.Vaghtdahi += await this.countPendingSmsQueue()

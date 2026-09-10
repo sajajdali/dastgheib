@@ -125,7 +125,6 @@ class Component extends DCLogic {
     this.IC = IC;
     this.ITEMS = this.buildDynamicItems();
     this.state = {filter: 'all', done: {}};
-    window.setTimeout(() => this.loadAppointmentItems(), 0);
   }
 
   fa(n) {
@@ -161,15 +160,6 @@ class Component extends DCLogic {
 
   hasText(value) {
     return String(value || '').trim().length > 0;
-  }
-
-  isRealAppointment(item) {
-    return [
-      item && item.firstname,
-      item && item.lastname,
-      item && item.phone,
-      item && item.file_number
-    ].some(value => this.hasText(value));
   }
 
   readJson(key, fallback) {
@@ -217,30 +207,6 @@ class Component extends DCLogic {
       ...this.buildFollowupItems(),
       ...this.buildTicketItems()
     ];
-  }
-
-  async loadAppointmentItems() {
-    try {
-      const res = await fetch('/api/appointments', {headers: {Accept: 'application/json'}, cache: 'no-store'});
-      if (!res.ok) return;
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      const items = list
-        .filter(item => this.isTodayDate(`${item.month}-${String(item.day_num || '').padStart(2, '0')}`) || this.isTodayDate(item.date))
-        .filter(item => this.isRealAppointment(item))
-        .slice(0, 20)
-        .map(item => ({
-          p: 'r',
-          ic: this.IC.cal,
-          tag: 'وقت‌دهی',
-          d: item.time || 'امروز',
-          t: `امروز وقت ${item.firstname || ''} ${item.lastname || 'مراجعه‌کننده'} هست`.replace(/\s+/g, ' ').trim()
-        }));
-      if (items.length) {
-        this.ITEMS = [...this.ITEMS, ...items];
-        this.setState(s => ({...s}));
-      }
-    } catch {}
   }
 
   renderVals() {
