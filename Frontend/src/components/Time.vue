@@ -678,7 +678,7 @@
                   :round-minute="appointmentMinuteStep > 1"
                   input-class="time-picker-input"
                   popover-class="time-picker-popover"
-                  @update:model-value="sortDayRowsByTime(day); saveData(0)"
+                  @update:model-value="sortDayRowsByTime(day); persistDirectAppointment(row)"
                 />
 
               </td>
@@ -800,10 +800,6 @@
                         'paid-amount-input': appointmentPaymentIsSettled(row)
                       }"
                     />
-                    <small v-if="appointmentDisplayedDebtAmount(row) > 0" class="appointment-debt-reason" :title="appointmentDebtDescription(row) || 'مانده پرداخت‌نشده این نوبت'">
-                      <b>بدهی</b>
-                      {{ appointmentDebtDescription(row) || 'مانده پرداخت‌نشده' }}
-                    </small>
                   </div>
                   <button
                     type="button"
@@ -812,14 +808,14 @@
                       danger: appointmentDisplayedDebtAmount(row) > 0,
                       paid: appointmentPaymentIsSettled(row),
                       credit: Number(row.walletBalance || 0) > 0 && appointmentDisplayedDebtAmount(row) <= 0 && !appointmentPaymentIsSettled(row),
-                      'has-financial-balance': appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0
+                      'has-financial-balance': !appointmentPaymentIsSettled(row) && (appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0)
                     }"
                     :title="financialTriggerTitle(row)"
                     :aria-label="financialTriggerTitle(row)"
                     @click.stop="openFinancialPanel(row)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5z"/><path d="M9 9h6M9 12h4"/></svg>
-                    <em v-if="appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row)">پرداخت</em>
+                    <em v-if="!appointmentPaymentIsSettled(row) && (appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row))">پرداخت</em>
                     <span v-if="appointmentDisplayedDebtAmount(row) > 0">!</span>
                   </button>
                 </div>
@@ -2043,6 +2039,7 @@
       </section>
     </div>
 
+    <Teleport to="body">
     <div v-if="financialPanelOpen" class="financial-panel-overlay" @click.self="closeFinancialPanel">
       <section class="financial-panel" @click.stop>
         <header>
@@ -2059,10 +2056,16 @@
           <article class="debt"><span>بدهی کل بیمار با این جلسه</span><strong>{{ formatDisplayMoney(financialTotalDebtPreview()) }}</strong><small>تومان</small></article>
           <article class="deposit"><span>بیعانه / اعتبار</span><strong>{{ formatDisplayMoney(activeFinancialRow?.walletBalance || 0) }}</strong><small>تومان</small></article>
         </div>
-        <button v-if="patientDebtAmount(activeFinancialRow) > 0" type="button" class="financial-debt-payment" :disabled="financialSaving" @click="registerDebtPayment">
-          ثبت پرداخت بدهی
-          <small>مانده: {{ formatDisplayMoney(patientDebtAmount(activeFinancialRow)) }} تومان</small>
-        </button>
+        <section class="financial-invoice-card">
+          <button type="button" class="financial-accordion-head" @click="financialServicesOpen = !financialServicesOpen"><span>خدمات انتخابی</span><b>{{ financialServicesOpen ? '⌃' : '⌄' }}</b></button>
+          <div v-if="financialServicesOpen" class="financial-invoice-table-wrap">
+            <table><thead><tr><th>خدمت</th><th>تعداد</th><th>مبلغ</th><th>تخفیف</th><th>خالص</th></tr></thead><tbody>
+              <tr v-for="line in financialInvoiceLines" :key="line.key"><td>{{ line.isAddon ? '↳ ' : '' }}{{ line.service }}<small>{{ [line.section,line.subsection].filter(Boolean).join(' / ') }}</small></td><td>{{ line.quantity }}</td><td>{{ formatDisplayMoney(line.grossAmount) }}</td><td>{{ formatDisplayMoney(line.discountAmount) }}</td><td>{{ formatDisplayMoney(line.netAmount) }}</td></tr>
+              <tr v-if="!financialInvoiceLines.length"><td colspan="5">خدمتی برای این نوبت ثبت نشده است.</td></tr>
+            </tbody></table>
+            <div class="financial-payable-total"><span>مبلغ قابل پرداخت</span><strong>{{ formatDisplayMoney(moneyToNumber(activeFinancialRow?.amount)) }} تومان</strong></div>
+          </div>
+        </section>
         <button
           v-if="walletSettlementAmount(activeFinancialRow) > 0"
           type="button"
@@ -2074,19 +2077,26 @@
           <strong>{{ formatDisplayMoney(walletSettlementAmount(activeFinancialRow)) }} تومان</strong>
           <small>با یک کلیک از اعتبار بیمار کسر می‌شود</small>
         </button>
-        <label>
-          بدهکاری این جلسه
+        <section class="financial-accordion-section">
+        <button type="button" class="financial-accordion-head" @click="financialDebtOpen = !financialDebtOpen"><span>بدهی</span><b>{{ financialDebtOpen ? '⌃' : '⌄' }}</b></button>
+        <div v-if="financialDebtOpen" class="financial-accordion-body financial-debt-body">
+        <label class="financial-field financial-debt-amount-field">
+          <span>بدهکاری این جلسه</span>
           <input v-model="financialDebtDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialDebtDraft')">
           <small v-if="moneyToNumber(financialDebtDraft) > 0 || financialRemainingDebtPreview() > 0" class="financial-debt-preview">
             مانده پس از کسر پرداخت‌های ثبت‌شده:
             <b>{{ formatDisplayMoney(financialRemainingDebtPreview()) }} تومان</b>
           </small>
         </label>
-        <label v-if="moneyToNumber(financialDebtDraft) > 0" class="financial-debt-description">
-          علت بدهی
+        <label v-if="moneyToNumber(financialDebtDraft) > 0" class="financial-field financial-debt-description">
+          <span>علت بدهی</span>
           <textarea v-model.trim="financialDebtDescriptionDraft" rows="3" maxlength="1000" placeholder="مثلاً مانده هزینه تزریق ژل این جلسه"></textarea>
-          <small>این توضیح در ردیف همین نوبت، کنار مبلغ بدهی نمایش داده می‌شود.</small>
         </label>
+        <div v-if="financialPreviousDebts.length" class="financial-previous-debts"><h4>بدهی‌های قبلی بیمار</h4><article v-for="item in financialPreviousDebts" :key="item.appointment_id"><span>{{ item.services.join('، ') || 'نوبت قبلی' }} <small>{{ item.date }}</small></span><b>{{ formatDisplayMoney(item.amount) }} تومان</b><button type="button" @click="confirmPreviousDebtSettlement(item)">تسویه</button></article></div>
+        </div></section>
+        <section class="financial-accordion-section">
+        <button type="button" class="financial-accordion-head" @click="financialDepositOpen = !financialDepositOpen"><span>بیعانه قبلی و جدید</span><b>{{ financialDepositOpen ? '⌃' : '⌄' }}</b></button>
+        <div v-if="financialDepositOpen" class="financial-accordion-body financial-deposit-body">
         <section class="financial-deposit-lines">
           <header><div><strong>ثبت بیعانه برای هر خدمت</strong><small>مبلغ هر مورد جدا ثبت می‌شود تا دقیقاً مشخص باشد برای کدام خدمت است.</small></div><b>{{ formatDisplayMoney(financialDepositTotal()) }} تومان</b></header>
           <p v-if="!financialDepositLines.length" class="financial-deposit-empty">برای این نوبت هنوز خدمتی انتخاب نشده است.</p>
@@ -2110,6 +2120,27 @@
             <button type="button" :disabled="financialDepositDeletingId === item.id" @click="deleteFinancialDeposit(item)">{{ financialDepositDeletingId === item.id ? '...' : 'حذف' }}</button>
           </article>
         </section>
+        </div></section>
+        <section class="financial-accordion-section payment-open">
+        <button type="button" class="financial-accordion-head"><span>پرداخت</span><b>باز</b></button>
+        <div class="financial-accordion-body financial-payment-body">
+        <section v-if="financialTransactions.length" class="financial-transaction-history">
+          <header><strong>سوابق ثبت مالی این نوبت</strong><small>{{ financialTransactions.length.toLocaleString('fa-IR') }} رویداد</small></header>
+          <article v-for="transaction in financialTransactions" :key="transaction.id">
+            <span class="financial-transaction-type" :class="`type-${transaction.type}`">{{ financialTransactionTypeLabel(transaction.type) }}</span>
+            <div>
+              <b>{{ formatDisplayMoney(transaction.amount) }} تومان</b>
+              <small>{{ [transaction.payment_method, transaction.payment_account].filter(Boolean).join(' · ') || financialTransactionTypeLabel(transaction.type) }}</small>
+            </div>
+            <div class="financial-transaction-audit">
+              <span>{{ transaction.created_by_name || 'سیستم' }}</span>
+              <time>{{ formatFinancialTransactionDate(transaction.occurred_at || transaction.created_at) }}</time>
+            </div>
+          </article>
+        </section>
+        <div class="financial-method-choices">
+          <button v-for="method in ['card','cash','check']" :key="method" type="button" :class="{ active: financialPaymentTypes[method] }" @click="toggleFinancialPaymentType(method)"><span>{{ financialPaymentTypes[method] ? '✓' : '+' }}</span>{{ {card:'کارت به کارت / کارتخوان',cash:'نقدی',check:'چک'}[method] }}</button>
+        </div>
         <div class="financial-payment-grid">
           <label>
             روش پرداخت
@@ -2125,16 +2156,16 @@
               <option v-for="account in paymentOptions.accounts" :key="account" :value="account">{{ account }}</option>
             </select>
           </label>
-          <label>
+          <label v-if="financialPaymentTypes.cash">
             مبلغ نقدی
             <input v-model="financialCashDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialCashDraft')">
           </label>
-          <label>
+          <label v-if="financialPaymentTypes.card">
             مبلغ کارت / کارتخوان
             <input v-model="financialCardDraft" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDraft('financialCardDraft')">
           </label>
         </div>
-        <button type="button" class="financial-advanced-toggle" :class="{ active: financialCheckOpen }" @click="financialCheckOpen = !financialCheckOpen">
+        <button v-if="financialPaymentTypes.check" type="button" class="financial-advanced-toggle" :class="{ active: financialCheckOpen }" @click="financialCheckOpen = !financialCheckOpen">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v10H4z"/><path d="M7 11h5M16 11h1M7 14h10"/></svg>
           <span>جزئیات چک</span>
           <b>{{ financialCheckOpen ? 'بستن' : 'باز کردن' }}</b>
@@ -2161,6 +2192,8 @@
             />
           </label>
         </div>
+        </div>
+        </section>
         <div v-if="!activeFinancialRow?.patientId" class="financial-patient-warning">برای ثبت بیعانه، ابتدا بیمار را از پرونده‌های موجود انتخاب کنید.</div>
         <footer>
           <button type="button" class="financial-cancel" @click="closeFinancialPanel">انصراف</button>
@@ -2168,6 +2201,7 @@
         </footer>
       </section>
     </div>
+    </Teleport>
 
     <div v-if="patientProfileModalOpen" class="time-profile-overlay" @click.self="closePatientProfileModal">
       <section class="time-profile-modal" role="dialog" aria-modal="true" aria-labelledby="time-profile-title">
@@ -2491,6 +2525,12 @@ export default {
       balanceAuditRows: [],
       financialPanelOpen: false,
       activeFinancialRow: null,
+      financialServicesOpen: true,
+      financialDebtOpen: false,
+      financialDepositOpen: false,
+      financialPreviousDebts: [],
+      financialInvoiceLines: [],
+      financialTransactions: [],
       financialDebtDraft: "",
       financialDebtDescriptionDraft: "",
       financialOriginalRecordedPayment: 0,
@@ -2501,6 +2541,7 @@ export default {
       financialDepositDeletingId: null,
       financialPaymentMethodDraft: "",
       financialPaymentAccountDraft: "",
+      financialPaymentTypes: { card: true, cash: false, check: false },
       financialCashDraft: "",
       financialCardDraft: "",
       financialCheckOpen: false,
@@ -3653,8 +3694,10 @@ export default {
 
     async confirmDirectAppointment(row, notify = false) {
       const day = this.days.find(item => (item.rows || []).includes(row));
-      // An untouched slot or a partially typed row is a draft, not a failed booking.
-      if (!day || !String(row.lastname || '').trim() || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.time || '')) return false;
+      // A name is enough to create the booking. Time and services may be
+      // completed later; keeping those optional prevents a refresh from
+      // discarding a real patient entry.
+      if (!day || !String(row.lastname || '').trim()) return false;
 
       let confirmed = false;
       for (let attempt = 0; attempt < 3 && !confirmed; attempt += 1) {
@@ -5278,7 +5321,7 @@ export default {
       return true;
     },
 
-    saveData(delay = 300, force = false) {
+    saveData(delay = 0, force = false) {
       if (this.isFetching && !force) return Promise.resolve(false);
 
       const completion = new Promise(resolve => this.saveWaiters.push(resolve));
@@ -5322,7 +5365,7 @@ export default {
 
               day.rows.forEach((row, rowIndex) => {
                 if (!this.rowShouldPersist(row)) return;
-                if (!String(row.lastname || "").trim() || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.time || "")) {
+                if (!String(row.lastname || "").trim()) {
                   hasIncompleteRows = true;
                   return;
                 }
@@ -5795,7 +5838,6 @@ this.calculateFinalAmount(row)
         row.patientOutstandingDebt = Math.max(0, Number(row.patientOutstandingDebt || 0) - amount);
         this.financialDebtDraft = remainingDebt ? this.formatDisplayMoney(remainingDebt) : "";
 
-        await this.saveData();
         this.closeFinancialPanel();
         await Swal.fire({
           icon: "success",
@@ -5866,19 +5908,27 @@ this.calculateFinalAmount(row)
         : "";
       this.financialDebtDescriptionDraft = this.appointmentDebtDescription(row);
       this.financialDepositLines = this.depositLinesForRow(row);
+      this.financialInvoiceLines = this.financialLinesForRow(row);
+      this.financialPreviousDebts = [];
+      this.financialTransactions = [];
+      this.financialServicesOpen = true;
+      this.financialDebtOpen = false;
+      this.financialDepositOpen = false;
       this.financialDepositHistory = [];
       this.loadFinancialDepositHistory();
       const details = this.normalizePaymentDetails(row?.paymentDetails || {});
       this.financialOriginalRecordedPayment = this.recordedPaymentAmount(row);
-      this.financialPaymentMethodDraft = row?.paymentMethod || "";
-      this.financialPaymentAccountDraft = row?.paymentAccount || "";
-      this.financialCashDraft = details.cash ? this.formatDisplayMoney(details.cash) : "";
-      this.financialCardDraft = details.card ? this.formatDisplayMoney(details.card) : "";
-      this.financialCheckAmountDraft = details.check.amount ? this.formatDisplayMoney(details.check.amount) : "";
-      this.financialCheckNumberDraft = details.check.number || "";
-      this.financialCheckDueDateDraft = details.check.dueDate || "";
-      this.financialCheckOpen = Boolean(details.check.amount || details.check.number || details.check.dueDate);
+      this.financialPaymentMethodDraft = "";
+      this.financialPaymentAccountDraft = "";
+      this.financialCashDraft = "";
+      this.financialCardDraft = "";
+      this.financialCheckAmountDraft = "";
+      this.financialCheckNumberDraft = "";
+      this.financialCheckDueDateDraft = "";
+      this.financialCheckOpen = false;
+      this.financialPaymentTypes = { card: true, cash: false, check: false };
       this.financialPanelOpen = true;
+      this.loadFinancialContext();
     },
 
     closeFinancialPanel() {
@@ -5889,6 +5939,9 @@ this.calculateFinalAmount(row)
       this.financialOriginalRecordedPayment = 0;
       this.financialOpeningDebt = 0;
       this.financialDepositLines = [];
+      this.financialInvoiceLines = [];
+      this.financialPreviousDebts = [];
+      this.financialTransactions = [];
       this.financialDepositHistory = [];
       this.financialDepositHistoryLoading = false;
       this.financialDepositDeletingId = null;
@@ -5900,6 +5953,18 @@ this.calculateFinalAmount(row)
       this.financialCheckAmountDraft = "";
       this.financialCheckNumberDraft = "";
       this.financialCheckDueDateDraft = "";
+      this.financialPaymentTypes = { card: true, cash: false, check: false };
+    },
+
+    toggleFinancialPaymentType(type) {
+      const active = !this.financialPaymentTypes[type];
+      this.financialPaymentTypes = { ...this.financialPaymentTypes, [type]: active };
+      if (type === 'cash' && !active) this.financialCashDraft = '';
+      if (type === 'card') {
+        if (!active) this.financialCardDraft = '';
+        else if (!this.moneyToNumber(this.financialCardDraft)) this.financialCardDraft = this.formatDisplayMoney(Math.max(0, this.moneyToNumber(this.activeFinancialRow?.amount) - this.financialDraftPaymentTotal()));
+      }
+      if (type === 'check') { this.financialCheckOpen = active; if (!active) { this.financialCheckAmountDraft = ''; this.financialCheckNumberDraft = ''; this.financialCheckDueDateDraft = ''; } }
     },
 
     formatFinancialDraft(field) {
@@ -5908,7 +5973,8 @@ this.calculateFinalAmount(row)
     },
 
     financialDraftPaymentTotal() {
-      return Math.max(0, this.moneyToNumber(this.financialCashDraft))
+      return Number(this.financialOriginalRecordedPayment || 0)
+        + Math.max(0, this.moneyToNumber(this.financialCashDraft))
         + Math.max(0, this.moneyToNumber(this.financialCardDraft))
         + Math.max(0, this.moneyToNumber(this.financialCheckAmountDraft));
     },
@@ -5950,6 +6016,47 @@ this.calculateFinalAmount(row)
           }));
           return [base, ...addons];
         });
+    },
+
+    financialLinesForRow(row) {
+      return (row?.services || []).flatMap((service, index) => {
+        if (!String(service?.name || '').trim()) return [];
+        const baseAmount = this.serviceLinePrice(service);
+        const base = { key: `${service.name}-${index}`, service: String(service.name).trim(), section: '', subsection: '', parent_service: '', is_addon: false, quantity: Math.max(1, Number(service.cc || 1)), grossAmount: baseAmount, discountAmount: this.moneyToNumber(service.discount), netAmount: this.serviceNetAmount(service, baseAmount) };
+        return [base, ...(service.addons || []).filter(addon => String(addon?.name || '').trim()).map((addon, addonIndex) => ({ ...base, key: `${base.key}-addon-${addon.addon_definition_id || addonIndex}`, service: String(addon.name).trim(), parent_service: base.service, is_addon: true, grossAmount: this.serviceLinePrice(addon), discountAmount: this.moneyToNumber(addon.discount), netAmount: this.serviceNetAmount(addon, this.serviceLinePrice(addon)) }))];
+      });
+    },
+
+    async loadFinancialContext() {
+      if (!this.activeFinancialRow?.appointmentId) return;
+      try {
+        const { data } = await axios.get(`/api/appointments/${this.activeFinancialRow.appointmentId}/financial-context`);
+        this.financialPreviousDebts = data.previous_debts || [];
+        this.financialTransactions = data.transactions || [];
+        if (this.activeFinancialRow) {
+          this.activeFinancialRow.walletBalance = Number(data.wallet_balance || this.activeFinancialRow.walletBalance || 0);
+          this.activeFinancialRow.patientOutstandingDebt = Number(data.outstanding_debt || this.activeFinancialRow.patientOutstandingDebt || 0);
+        }
+      } catch { this.financialPreviousDebts = []; this.financialTransactions = []; }
+    },
+
+    financialTransactionTypeLabel(type) {
+      return ({ payment: 'پرداخت', deposit: 'بیعانه', debt: 'بدهی', debt_settlement: 'تسویه بدهی' })[type] || 'رویداد مالی';
+    },
+
+    formatFinancialTransactionDate(value) {
+      if (!value) return 'زمان نامشخص';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+    },
+
+    async confirmPreviousDebtSettlement(item) {
+      const result = await Swal.fire({ icon: 'warning', title: 'تسویه بدهی قبلی؟', text: `آیا می‌خواهید بدهی قبلی خود که برای ${item.services.join('، ') || 'این نوبت'} هست به مبلغ ${this.formatDisplayMoney(item.amount)} تومان تسویه شود؟`, showCancelButton: true, confirmButtonText: 'بله، تسویه شود', cancelButtonText: 'انصراف', confirmButtonColor: '#16a34a' });
+      if (!result.isConfirmed || !this.activeFinancialRow?.appointmentId) return;
+      const { value: form } = await Swal.fire({ title: 'روش تسویه', html: `<select id="settle-method" class="swal2-select">${this.paymentOptions.methods.map(method => `<option>${method}</option>`).join('')}</select><select id="settle-account" class="swal2-select"><option value="">حساب واریز</option>${this.paymentOptions.accounts.map(account => `<option>${account}</option>`).join('')}</select>`, showCancelButton: true, confirmButtonText: 'ثبت تسویه', cancelButtonText: 'انصراف', preConfirm: () => ({ payment_method: document.getElementById('settle-method')?.value || 'نقدی', payment_account: document.getElementById('settle-account')?.value || '' }) });
+      if (!form) return;
+      try { await axios.post(`/api/appointments/${this.activeFinancialRow.appointmentId}/settle-previous-debt`, { debt_appointment_id: item.appointment_id, ...form }); await this.loadFinancialContext(); await Swal.fire({ icon: 'success', title: 'تسویه ثبت شد', timer: 1300, showConfirmButton: false }); } catch (error) { await Swal.fire({ icon: 'error', title: 'تسویه انجام نشد', text: error.response?.data?.message || 'خطا در ثبت تسویه' }); }
     },
 
     formatFinancialDepositLine(line) {
@@ -5999,7 +6106,7 @@ this.calculateFinalAmount(row)
 
     async saveFinancialPanel() {
       const row = this.activeFinancialRow;
-      if (!row) return;
+      if (!row || !row.appointmentId) { await Swal.fire({ icon: 'warning', title: 'نوبت هنوز ذخیره نشده', text: 'ابتدا اطلاعات نوبت را ثبت کنید.' }); return; }
 
       const newDebt = this.financialRemainingDebtPreview();
       const depositLines = this.financialDepositLines
@@ -6016,6 +6123,17 @@ this.calculateFinalAmount(row)
 
       this.financialSaving = true;
       try {
+        const payments = [
+          cash ? { method: 'نقدی', amount: cash, account: this.financialPaymentAccountDraft, allocations: this.allocateFinancialAmount(cash) } : null,
+          card ? { method: this.financialPaymentMethodDraft || 'کارت / کارتخوان', amount: card, account: this.financialPaymentAccountDraft, allocations: this.allocateFinancialAmount(card) } : null,
+          checkAmount ? { method: 'چک', amount: checkAmount, account: this.financialPaymentAccountDraft, reference_number: this.financialCheckNumberDraft, due_date: this.financialCheckDueDateDraft || null, allocations: this.allocateFinancialAmount(checkAmount) } : null,
+        ].filter(Boolean);
+        const debtAllocations = newDebt > 0 ? [{ key: this.financialInvoiceLines[0]?.key || '', amount: newDebt, reason: this.financialDebtDescriptionDraft || 'بدهی خدمات این نوبت' }] : [];
+        const { data } = await axios.post(`/api/appointments/${row.appointmentId}/financial-checkout`, {
+          payments, debt_allocations: debtAllocations,
+          deposit_allocations: depositLines.map(line => ({ key: line.key, amount: line.amount })),
+          service_lines: this.financialInvoiceLines.map(line => ({ key: line.key, service: line.service, section: line.section, subsection: line.subsection, parent_service: line.parent_service, is_addon: line.is_addon, quantity: line.quantity, gross_amount: line.grossAmount, discount_amount: line.discountAmount })),
+        });
         const previousDebt = Number(row.originalDebt || 0);
         row.debt = newDebt ? this.formatDisplayMoney(newDebt) : "";
         row.patientOutstandingDebt = Math.max(0, Number(row.patientOutstandingDebt || 0) - previousDebt + newDebt);
@@ -6034,30 +6152,29 @@ this.calculateFinalAmount(row)
           },
         });
 
-        if (deposit > 0) {
-          const { data } = await axios.post(`/api/patients/${row.patientId}/wallet/deposit`, {
-            amount: deposit,
-            description: `ثبت بیعانه خدمات از نوبت‌دهی برای ${row.lastname || "بیمار"}`,
-            allocations: depositLines.map(line => ({
-              section: line.section,
-              subsection: line.subsection,
-              service: line.service,
-              parent_service: line.parentService || '',
-              amount: line.amount,
-            }))
-          });
-          row.walletBalance = Number(data.wallet_balance || 0);
-        }
-
-        await this.saveData();
+        if (data.appointment?.lock_version) row.lockVersion = Number(data.appointment.lock_version);
+        if (data.appointment?.payment_details) row.paymentDetails = this.normalizePaymentDetails(data.appointment.payment_details);
+        row.walletBalance = Number(data.wallet_balance || row.walletBalance || 0);
         this.financialDepositLines = this.depositLinesForRow(row);
+        this.financialInvoiceLines = this.financialLinesForRow(row);
+        await this.loadFinancialContext();
         await this.loadFinancialDepositHistory();
+        this.closeFinancialPanel();
         await Swal.fire({ icon: "success", title: "وضعیت مالی ثبت شد", timer: 1100, showConfirmButton: false });
       } catch (error) {
         await Swal.fire({ icon: "error", title: "ثبت انجام نشد", text: error.response?.data?.message || "خطا در ثبت وضعیت مالی بیمار" });
       } finally {
         this.financialSaving = false;
       }
+    },
+
+    allocateFinancialAmount(amount) {
+      let remaining = Math.max(0, Number(amount || 0));
+      return this.financialInvoiceLines.filter(line => line.netAmount > 0).map(line => {
+        const allocated = Math.min(remaining, Math.max(0, Number(line.netAmount || 0)));
+        remaining -= allocated;
+        return allocated > 0 ? { key: line.key, amount: allocated } : null;
+      }).filter(Boolean);
     },
 
     hasDoctorNote(row) {
@@ -10862,4 +10979,19 @@ td.st-arrived select {
   .service-choice-row .service-name-multiselect { grid-column: 2 !important; }
   .service-choice-row .service-tag-picker { grid-column: 1 / -1 !important; grid-row: 2 !important; }
 }
+.financial-invoice-card,.financial-accordion-section{margin-top:12px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;overflow:hidden}.financial-accordion-head{width:100%;display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border:0;background:#f8fafc;color:#172554;font-family:inherit;font-size:12px;font-weight:1000;cursor:pointer}.financial-accordion-head b{color:#2563eb;font-size:11px}.financial-invoice-table-wrap{padding:10px}.financial-invoice-table-wrap table{width:100%;border-collapse:collapse;font-size:10px}.financial-invoice-table-wrap th,.financial-invoice-table-wrap td{padding:9px 7px;border-bottom:1px solid #eef2f7;text-align:right}.financial-invoice-table-wrap th{color:#64748b;background:#f8fafc;font-size:9px}.financial-invoice-table-wrap td small{display:block;color:#94a3b8;font-size:8px;margin-top:3px}.financial-payable-total{display:flex;justify-content:space-between;padding:12px 6px 3px;color:#475569;font-size:11px;font-weight:900}.financial-payable-total strong{color:#2563eb;font-size:15px}.financial-previous-debts{display:grid;gap:7px;margin-top:11px}.financial-previous-debts article{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;padding:9px;border:1px solid #fecaca;border-radius:10px;background:#fff7f7;color:#7f1d1d;font-size:10px}.financial-previous-debts button{height:29px;padding:0 9px;border:0;border-radius:8px;background:#16a34a;color:#fff;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}.payment-open>.financial-accordion-head{background:#eff6ff;color:#1d4ed8}
+.financial-method-choices{display:flex;flex-wrap:wrap;gap:7px;padding:12px 12px 2px}.financial-method-choices button{height:34px;display:flex;align-items:center;gap:6px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#475569;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.financial-method-choices button span{width:17px;height:17px;display:grid;place-items:center;border-radius:5px;background:#e2e8f0}.financial-method-choices button.active{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.financial-method-choices button.active span{background:#2563eb;color:#fff}
+.financial-panel-overlay{z-index:2147483600!important;padding:clamp(76px,9vh,110px) 16px 18px!important;place-items:start center!important;overflow:auto}.financial-panel{width:min(760px,96vw)!important;max-height:calc(100vh - 94px)!important;padding:0!important;border-radius:24px!important;overflow:auto!important}.financial-panel>header{position:sticky;top:0;z-index:5;margin:0!important;padding:19px 23px 16px!important;background:linear-gradient(135deg,#eff6ff,#fff 55%,#ecfdf5);border-bottom:1px solid #e2e8f0}.financial-panel>.financial-summary,.financial-panel>.financial-invoice-card,.financial-panel>.financial-accordion-section,.financial-panel>.financial-wallet-settle,.financial-panel>.financial-debt-payment,.financial-panel>footer,.financial-panel>.financial-patient-warning{margin-left:22px;margin-right:22px}.financial-panel>.financial-summary{margin-top:18px}.financial-panel>footer{padding-bottom:20px}
+
+/* Financial workspace: spacious, predictable cards instead of compressed inline controls. */
+.financial-panel{width:min(860px,96vw)!important;background:#f8fafc!important;color:#0f172a}.financial-panel>header{align-items:center!important;padding:22px 28px!important;background:linear-gradient(135deg,#eff6ff 0%,#fff 58%,#ecfdf5 100%)!important}.financial-panel>header h3{margin:6px 0 0!important;font-size:21px}.financial-panel>header button{display:grid;place-items:center;cursor:pointer;transition:.18s ease}.financial-panel>header button:hover{background:#e2e8f0;color:#0f172a;transform:rotate(4deg)}
+.financial-panel>.financial-summary,.financial-panel>.financial-invoice-card,.financial-panel>.financial-accordion-section,.financial-panel>.financial-wallet-settle,.financial-panel>.financial-debt-payment,.financial-panel>footer,.financial-panel>.financial-patient-warning{margin-left:28px!important;margin-right:28px!important}.financial-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;margin-top:24px!important;margin-bottom:20px!important}.financial-summary article{min-height:92px;padding:15px 16px!important;border-radius:16px!important;align-content:center}.financial-summary article.deposit:last-child{grid-column:auto!important}.financial-summary span{font-size:10px!important}.financial-summary strong{font-size:19px!important;line-height:1.4}.financial-summary small{font-size:9px!important}
+.financial-invoice-card,.financial-accordion-section{margin-top:16px!important;border-color:#dbe3ee!important;border-radius:17px!important;box-shadow:0 4px 14px rgba(15,23,42,.035)}.financial-accordion-head{min-height:54px;padding:0 18px!important;background:#fff!important;font-size:13px!important;border-bottom:0!important}.financial-accordion-head b{display:grid;place-items:center;min-width:27px;height:27px;padding:0 7px;border-radius:9px;background:#eff6ff;color:#2563eb!important}.financial-accordion-body{padding:20px;border-top:1px solid #e7edf5;background:#fff}.financial-invoice-table-wrap{padding:4px 18px 16px!important;background:#fff}.financial-invoice-table-wrap table{font-size:11px!important}.financial-invoice-table-wrap th,.financial-invoice-table-wrap td{padding:12px 10px!important}.financial-payable-total{align-items:center;padding:16px 8px 4px!important;border-top:1px solid #e2e8f0}.financial-payable-total strong{font-size:17px!important}
+.financial-debt-body{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(320px,1.2fr);align-items:start;gap:18px}.financial-field{display:grid!important;gap:9px!important;margin:0!important;color:#334155!important;font-size:11px!important;font-weight:900!important}.financial-field>span{display:block}.financial-debt-amount-field input{height:48px!important;border-color:#fecaca!important;background:#fffafa!important;color:#b91c1c;font-size:15px;font-weight:1000}.financial-debt-description textarea{width:100%;min-height:112px!important;padding:12px 14px!important;border-radius:12px!important;font-size:11px}.financial-debt-preview{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;padding:10px 11px;border-radius:10px;background:#fff7ed;color:#9a3412!important;font-size:9px!important;line-height:1.7}.financial-debt-preview b{font-size:10px}.financial-previous-debts{grid-column:1/-1;gap:9px!important;margin-top:2px!important;padding-top:16px;border-top:1px dashed #fecaca}.financial-previous-debts h4{margin:0 0 2px;color:#991b1b;font-size:11px}.financial-previous-debts article{grid-template-columns:minmax(0,1fr) auto 64px!important;gap:14px!important;min-height:52px;padding:10px 12px!important}.financial-previous-debts article>span{display:grid;gap:4px;font-weight:900}.financial-previous-debts article>span small{color:#9f6b6b;font-size:9px}.financial-previous-debts article>b{white-space:nowrap;font-size:11px}.financial-previous-debts button{height:34px!important;border-radius:9px!important;font-size:10px!important}
+.financial-deposit-body{padding:18px!important}.financial-deposit-lines{margin:0!important;padding:16px!important;border-radius:14px!important}.financial-deposit-lines>header{margin-bottom:5px}.financial-deposit-line{grid-template-columns:minmax(0,1fr) 190px!important;padding:13px 14px!important;border-radius:12px!important}.financial-deposit-amount input{height:43px!important}.financial-deposit-history{margin-top:16px!important;padding-top:16px!important;gap:9px!important}.financial-deposit-history article{min-height:45px;padding:9px 12px!important}
+.payment-open>.financial-accordion-head{background:#f7fbff!important}.financial-payment-body{padding-top:16px}.financial-method-choices{gap:9px!important;padding:0 0 17px!important}.financial-method-choices button{height:40px!important;padding:0 14px!important;border-radius:11px!important;font-size:10px!important}.financial-payment-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important;margin:0!important;padding:16px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.financial-payment-grid label,.financial-check-grid label{gap:8px!important;margin:0!important}.financial-payment-grid input,.financial-payment-grid select,.financial-check-grid input{height:46px!important;background:#fff!important}.financial-advanced-toggle{margin-top:14px!important}.financial-check-grid{gap:14px!important;margin-top:12px!important;padding:16px!important}
+.financial-transaction-history{display:grid;gap:8px;margin-bottom:18px;padding:14px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.financial-transaction-history>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;color:#172554;font-size:11px}.financial-transaction-history>header small{padding:4px 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:9px}.financial-transaction-history article{display:grid;grid-template-columns:72px minmax(0,1fr) auto;align-items:center;gap:12px;padding:11px 12px;border:1px solid #e2e8f0;border-radius:11px;background:#fff}.financial-transaction-type{display:grid;place-items:center;min-height:28px;padding:0 7px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:9px;font-weight:1000}.financial-transaction-type.type-debt{background:#fee2e2;color:#b91c1c}.financial-transaction-type.type-deposit{background:#ede9fe;color:#6d28d9}.financial-transaction-type.type-debt_settlement{background:#fef3c7;color:#92400e}.financial-transaction-history article>div{display:grid;gap:4px}.financial-transaction-history article>div>b{color:#0f172a;font-size:12px}.financial-transaction-history article>div>small{color:#64748b;font-size:9px}.financial-transaction-audit{text-align:left}.financial-transaction-audit span{color:#334155;font-size:9px;font-weight:900}.financial-transaction-audit time{color:#94a3b8;font-size:8px;direction:ltr}
+.financial-debt-payment,.financial-wallet-settle{box-sizing:border-box!important;width:auto!important;margin-top:16px!important;margin-bottom:0!important;padding:15px 17px!important}.financial-debt-payment{grid-template-columns:40px minmax(0,1fr) 32px!important;align-items:center;gap:12px!important;min-height:76px;border:1px solid #86efac!important;border-radius:16px!important;background:linear-gradient(135deg,#ecfdf5,#dcfce7)!important;box-shadow:0 5px 16px rgba(22,163,74,.12);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}.financial-debt-payment:hover{border-color:#22c55e!important;box-shadow:0 9px 24px rgba(22,163,74,.2);transform:translateY(-1px)}.financial-debt-payment:active{transform:translateY(0)}.financial-debt-payment-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#16a34a;color:#fff;font-size:23px;font-weight:700;box-shadow:0 4px 10px rgba(22,163,74,.22)}.financial-debt-payment-copy{display:grid;gap:5px;text-align:right}.financial-debt-payment-copy b{color:#166534;font-size:13px}.financial-debt-payment-copy small{color:#15803d!important;font-size:10px!important}.financial-debt-payment-arrow{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.7);color:#15803d;font-size:17px}.financial-panel>footer{position:sticky;bottom:0;z-index:4;box-sizing:border-box;width:100%;justify-content:flex-start!important;margin:22px 0 0!important;padding:16px 28px 22px!important;border-top:1px solid #dbe3ee;background:rgba(248,250,252,.96);backdrop-filter:blur(8px)}.financial-panel>footer button{min-width:128px;height:44px!important;font-size:11px!important}.financial-save{min-width:180px!important}.financial-cancel{background:#fff!important}
+@media(max-width:760px){.financial-panel-overlay{padding:10px!important}.financial-panel{width:100%!important;max-height:calc(100vh - 20px)!important;border-radius:18px!important}.financial-panel>header{padding:18px 20px!important}.financial-panel>.financial-summary,.financial-panel>.financial-invoice-card,.financial-panel>.financial-accordion-section,.financial-panel>.financial-wallet-settle,.financial-panel>.financial-debt-payment,.financial-panel>.financial-patient-warning{margin-left:14px!important;margin-right:14px!important}.financial-summary{grid-template-columns:1fr 1fr!important}.financial-summary article.deposit:last-child{grid-column:1/-1!important}.financial-debt-body{grid-template-columns:1fr}.financial-previous-debts{grid-column:1}.financial-payment-grid,.financial-check-grid{grid-template-columns:1fr!important}.financial-deposit-line{grid-template-columns:1fr!important}.financial-panel>footer{padding:14px!important}.financial-panel>footer button{flex:1;min-width:0}.financial-save{min-width:0!important}}
+@media(max-width:480px){.financial-summary{grid-template-columns:1fr!important}.financial-summary article.deposit:last-child{grid-column:auto!important}.financial-accordion-body{padding:14px}.financial-previous-debts article{grid-template-columns:1fr auto!important}.financial-previous-debts button{grid-column:1/-1;width:100%}.financial-method-choices button{flex:1;justify-content:center}.financial-invoice-table-wrap{overflow-x:auto}.financial-invoice-table-wrap table{min-width:560px}.financial-transaction-history article{grid-template-columns:64px 1fr}.financial-transaction-audit{grid-column:1/-1;display:flex!important;justify-content:space-between;text-align:right}}
 </style>

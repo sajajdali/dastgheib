@@ -6,6 +6,7 @@ use App\Events\AppointmentChanged;
 use Illuminate\Http\Request;
 use App\Models\Appointment;
 use App\Models\AppointmentBalanceAudit;
+use App\Models\AppointmentFinancialTransaction;
 use App\Models\AppointmentNoteMessage;
 use App\Models\ActivityLog;
 use App\Models\Doctor;
@@ -613,10 +614,11 @@ class AppointmentController extends Controller
             'day_num' => ['required', 'integer', 'between:1,31'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'lastname' => ['required', 'string', 'max:255'],
-            'time' => ['required', 'date_format:H:i'],
+            'time' => ['nullable', 'date_format:H:i'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
         $row = $request->except('appointments');
+        $row['time'] = filled($row['time'] ?? null) ? $row['time'] : null;
         $request->merge(['appointments' => [$row]]);
         $response = $this->upsertAppointmentsSafely($request);
         $result = $response->getData(true);
@@ -854,6 +856,176 @@ class AppointmentController extends Controller
                 'created_at' => $audit->created_at,
             ])
         );
+    }
+
+    public function financialContext(Request $request, Appointment $appointment)
+    {
+        $patient = $this->appointmentPatient($appointment);
+        $previousDebts = collect();
+        if ($patient) {
+            $previousDebts = Appointment::query()
+                ->where('id', '<>', $appointment->id)
+                ->where(function ($query) use ($patient) {
+                    if ($patient->file_number) $query->where('file_number', $patient->file_number);
+                    if ($patient->phone) $query->{$patient->file_number ? 'orWhere' : 'where'}('phone', $patient->phone);
+                })
+                ->orderBy('id')->get()->filter(fn ($item) => $this->signedMoneyToInteger($item->debt) > 0)
+                ->map(fn ($item) => [
+                    'appointment_id' => $item->id, 'amount' => $this->signedMoneyToInteger($item->debt),
+                    'date' => trim($item->month.'-'.str_pad((string) $item->day_num, 2, '0', STR_PAD_LEFT), '-'),
+                    'services' => collect($item->services ?: [])->pluck('name')->filter()->values(),
+                    'reason' => data_get($item->payment_details, 'debtDescription') ?: data_get($item->payment_details, 'debt_description'),
+                ])->values();
+        }
+
+        $ledger = AppointmentFinancialTransaction::query()->with(['allocations', 'createdBy:id,name'])
+            ->where('appointment_id', $appointment->id)->latest('occurred_at')->latest('id')->get()
+            ->map(fn (AppointmentFinancialTransaction $transaction) => [
+                'id' => $transaction->id,
+                'type' => $transaction->type,
+                'amount' => (int) $transaction->amount,
+                'payment_method' => $transaction->payment_method,
+                'payment_account' => $transaction->payment_account,
+                'reference_number' => $transaction->reference_number,
+                'due_date' => $transaction->due_date?->format('Y-m-d'),
+                'reason' => $transaction->reason,
+                'allocations' => $transaction->allocations,
+                'created_by_id' => $transaction->created_by,
+                'created_by_name' => $transaction->createdBy?->name ?: 'سیستم',
+                'occurred_at' => $transaction->occurred_at?->toISOString(),
+                'created_at' => $transaction->created_at?->toISOString(),
+            ]);
+
+        return response()->json([
+            'previous_debts' => $previousDebts,
+            'wallet_balance' => (int) ($patient?->wallet_balance ?? 0),
+            'outstanding_debt' => (int) ($patient?->outstanding_debt ?? 0),
+            'transactions' => $ledger,
+        ]);
+    }
+
+    public function financialCheckout(Request $request, Appointment $appointment)
+    {
+        $data = $request->validate([
+            'payments' => ['array', 'max:10'], 'payments.*.method' => ['required', 'string', 'max:100'],
+            'payments.*.amount' => ['required', 'integer', 'min:1'], 'payments.*.account' => ['nullable', 'string', 'max:100'],
+            'payments.*.reference_number' => ['nullable', 'string', 'max:190'], 'payments.*.due_date' => ['nullable', 'date_format:Y-m-d'],
+            'payments.*.allocations' => ['array', 'max:50'], 'payments.*.allocations.*.key' => ['required', 'string', 'max:190'], 'payments.*.allocations.*.amount' => ['required', 'integer', 'min:1'],
+            'debt_allocations' => ['array', 'max:50'], 'debt_allocations.*.amount' => ['required', 'integer', 'min:1'],
+            'debt_allocations.*.reason' => ['required', 'string', 'max:1000'], 'debt_allocations.*.key' => ['nullable', 'string', 'max:190'],
+            'deposit_allocations' => ['array', 'max:50'], 'deposit_allocations.*.amount' => ['required', 'integer', 'min:1'],
+            'deposit_allocations.*.key' => ['required', 'string', 'max:190'],
+            'service_lines' => ['array', 'max:50'], 'service_lines.*.key' => ['required', 'string', 'max:190'],
+            'service_lines.*.service' => ['required', 'string', 'max:255'], 'service_lines.*.section' => ['nullable', 'string', 'max:255'],
+            'service_lines.*.subsection' => ['nullable', 'string', 'max:255'], 'service_lines.*.parent_service' => ['nullable', 'string', 'max:255'],
+            'service_lines.*.is_addon' => ['boolean'], 'service_lines.*.quantity' => ['numeric', 'min:0'],
+            'service_lines.*.gross_amount' => ['integer', 'min:0'], 'service_lines.*.discount_amount' => ['integer', 'min:0'],
+        ]);
+
+        $result = DB::transaction(function () use ($request, $appointment, $data) {
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
+            $patient = $this->appointmentPatient($appointment);
+            $lines = collect($data['service_lines'] ?? [])->keyBy('key');
+            $payments = collect($data['payments'] ?? []);
+            $debtRows = collect($data['debt_allocations'] ?? []);
+            $depositRows = collect($data['deposit_allocations'] ?? []);
+            $totalPayment = (int) $payments->sum('amount');
+            $totalDebt = (int) $debtRows->sum('amount');
+            $totalDeposit = (int) $depositRows->sum('amount');
+            $payable = max(0, $this->signedMoneyToInteger($appointment->amount));
+            $existingPaymentTotal = (int) AppointmentFinancialTransaction::query()
+                ->where('appointment_id', $appointment->id)
+                ->where('type', 'payment')
+                ->sum('amount');
+            if ($existingPaymentTotal + $totalPayment + $totalDebt > $payable) abort(422, 'جمع پرداخت‌های قبلی، پرداخت جدید و بدهی از مبلغ قابل پرداخت بیشتر است.');
+            if ($totalDeposit > 0 && ! $patient) abort(422, 'برای ثبت بیعانه، پرونده بیمار باید مشخص باشد.');
+
+            $create = function (string $type, int $amount, array $extra = [], array $allocations = []) use ($request, $appointment, $patient, $lines) {
+                $transaction = AppointmentFinancialTransaction::create([
+                    'appointment_id' => $appointment->id, 'patient_id' => $patient?->id,
+                    'created_by' => $request->user()?->id, 'type' => $type, 'amount' => $amount,
+                    'payment_method' => $extra['method'] ?? null, 'payment_account' => $extra['account'] ?? null,
+                    'reference_number' => $extra['reference_number'] ?? null, 'due_date' => $extra['due_date'] ?? null,
+                    'reason' => $extra['reason'] ?? null,
+                    'metadata' => ['ip' => $request->ip(), 'user_agent' => substr((string) $request->userAgent(), 0, 255)],
+                    'occurred_at' => now(),
+                ]);
+                foreach ($allocations as $allocation) {
+                    $line = $lines->get($allocation['key'] ?? '') ?: [];
+                    $transaction->allocations()->create([
+                        'service_key' => $allocation['key'] ?? null, 'section' => $line['section'] ?? null,
+                        'subsection' => $line['subsection'] ?? null, 'service' => $line['service'] ?? null,
+                        'parent_service' => $line['parent_service'] ?? null, 'is_addon' => (bool) ($line['is_addon'] ?? false),
+                        'quantity' => $line['quantity'] ?? 1, 'gross_amount' => $line['gross_amount'] ?? 0,
+                        'discount_amount' => $line['discount_amount'] ?? 0, 'allocated_amount' => $allocation['amount'],
+                    ]);
+                }
+                return $transaction;
+            };
+
+            foreach ($payments as $payment) $create('payment', (int) $payment['amount'], $payment, $payment['allocations'] ?? []);
+            foreach ($debtRows as $row) $create('debt', (int) $row['amount'], ['reason' => $row['reason']], [$row]);
+            foreach ($depositRows as $row) {
+                $tx = $create('deposit', (int) $row['amount'], [], [$row]);
+                WalletTransaction::create([
+                    'patient_id' => $patient->id, 'type' => 'deposit', 'amount' => $row['amount'],
+                    'description' => 'بیعانه خدمت '.($lines->get($row['key'])['service'] ?? ''), 'source_type' => 'booking_deposit',
+                    'source_key' => 'financial-ledger|'.$tx->id, 'appointment_id' => $appointment->id,
+                    'created_by' => $request->user()?->id, 'metadata' => ['financial_transaction_id' => $tx->id],
+                ]);
+            }
+
+            $before = clone $appointment;
+            $details = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+            $paymentLedger = AppointmentFinancialTransaction::query()
+                ->where('appointment_id', $appointment->id)
+                ->where('type', 'payment')
+                ->get();
+            $details['ledger_total'] = (int) $paymentLedger->sum('amount');
+            $details['debtDescription'] = $debtRows->pluck('reason')->filter()->join('؛ ');
+            $details['last_checkout_at'] = now()->toDateTimeString();
+            $firstPayment = $payments->first();
+            $details['cash'] = (int) $paymentLedger->where('payment_method', 'نقدی')->sum('amount');
+            $details['card'] = (int) $paymentLedger->filter(fn ($payment) => in_array($payment->payment_method, ['کارت', 'کارت به کارت', 'کارتخوان', 'کارت / کارتخوان'], true))->sum('amount');
+            $check = $paymentLedger->firstWhere('payment_method', 'چک');
+            $details['check'] = ['amount' => (int) ($check['amount'] ?? 0), 'number' => $check['reference_number'] ?? '', 'dueDate' => $check['due_date'] ?? ''];
+            $appointment->update([
+                'debt' => $totalDebt, 'payment_method' => $firstPayment['method'] ?? $appointment->payment_method,
+                'payment_account' => $firstPayment['account'] ?? $appointment->payment_account,
+                'payment_details' => $details, 'lock_version' => max(1, (int) $appointment->lock_version) + 1,
+            ]);
+            $this->recordBalanceAudit($request, $appointment, $before);
+            return ['appointment' => $appointment->fresh(), 'wallet_balance' => (int) ($patient?->fresh()->wallet_balance ?? 0), 'outstanding_debt' => (int) ($patient?->fresh()->outstanding_debt ?? 0)];
+        });
+        $this->broadcastAppointmentChange($result['appointment']);
+        return response()->json($result);
+    }
+
+    public function settlePreviousDebt(Request $request, Appointment $appointment)
+    {
+        $data = $request->validate(['debt_appointment_id' => ['required', 'integer'], 'payment_method' => ['required', 'string', 'max:100'], 'payment_account' => ['nullable', 'string', 'max:100']]);
+        $patient = $this->appointmentPatient($appointment);
+        abort_unless($patient, 422, 'پرونده بیمار مشخص نیست.');
+        $debtAppointment = Appointment::query()->findOrFail($data['debt_appointment_id']);
+        abort_if($debtAppointment->id === $appointment->id, 422, 'این گزینه فقط برای بدهی قبلی است.');
+        abort_unless(($patient->file_number && $patient->file_number === $debtAppointment->file_number) || ($patient->phone && $patient->phone === $debtAppointment->phone), 403);
+        $amount = $this->signedMoneyToInteger($debtAppointment->debt);
+        abort_if($amount <= 0, 422, 'این بدهی قبلاً تسویه شده است.');
+
+        DB::transaction(function () use ($request, $appointment, $debtAppointment, $patient, $data, $amount) {
+            $locked = Appointment::query()->lockForUpdate()->findOrFail($debtAppointment->id);
+            abort_if($this->signedMoneyToInteger($locked->debt) !== $amount, 409, 'مبلغ بدهی تغییر کرده است؛ دوباره بررسی کنید.');
+            $before = clone $locked;
+            $locked->update(['debt' => 0]);
+            AppointmentFinancialTransaction::create([
+                'appointment_id' => $appointment->id, 'patient_id' => $patient->id, 'created_by' => $request->user()?->id,
+                'type' => 'debt_settlement', 'amount' => $amount, 'payment_method' => $data['payment_method'],
+                'payment_account' => $data['payment_account'] ?? null, 'reason' => 'تسویه بدهی نوبت #'.$locked->id,
+                'metadata' => ['debt_appointment_id' => $locked->id, 'previous_debt' => $amount, 'ip' => $request->ip()], 'occurred_at' => now(),
+            ]);
+            $this->recordBalanceAudit($request, $locked, $before);
+        });
+        return response()->json(['message' => 'بدهی قبلی با جزئیات کامل تسویه شد.', 'outstanding_debt' => (int) $patient->fresh()->outstanding_debt]);
     }
 
     public function payPatientDebt(Request $request, Patient $patient)
