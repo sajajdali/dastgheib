@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const productionApiOrigin = (env.VITE_API_ORIGIN || 'https://api.s8n.ir').replace(/\/$/, '')
   const devApiTarget = (env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/$/, '')
+  const devTenantHost = (env.VITE_TENANT_HOST || 'clinic1.localhost').trim()
 
   return {
   plugins: [
@@ -32,7 +33,7 @@ export default defineConfig(({ mode }) => {
       '/api': {
         target: devApiTarget,
         changeOrigin: false,
-        headers: { host: 'clinic1.localhost' },
+        headers: { host: devTenantHost },
       },
       '/central-api': {
         target: devApiTarget,
@@ -48,22 +49,22 @@ export default defineConfig(({ mode }) => {
       '/csrf-cookie': {
         target: devApiTarget,
         changeOrigin: false,
-        headers: { host: 'clinic1.localhost' },
+        headers: { host: devTenantHost },
       },
       '/login': {
         target: devApiTarget,
         changeOrigin: false,
-        headers: { host: 'clinic1.localhost' },
+        headers: { host: devTenantHost },
       },
       '/logout': {
         target: devApiTarget,
         changeOrigin: false,
-        headers: { host: 'clinic1.localhost' },
+        headers: { host: devTenantHost },
       },
       '/broadcasting/auth': {
         target: devApiTarget,
         changeOrigin: false,
-        headers: { host: 'clinic1.localhost' },
+        headers: { host: devTenantHost },
       },
     },
   },

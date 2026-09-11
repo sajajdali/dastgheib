@@ -15,7 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withBroadcasting(
         __DIR__.'/../routes/channels.php',
-        ['middleware' => ['web', 'auth']],
+        ['middleware' => [
+            \Stancl\Tenancy\Middleware\InitializeTenancyByDomain::class,
+            \Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains::class,
+            'tenant.active',
+            'web',
+            'auth',
+        ]],
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
