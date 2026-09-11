@@ -156,6 +156,9 @@ Route::post('/service-tags', [HumanResourceController::class, 'saveServiceTags']
 Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->middleware('permission:appointments.view');
 Route::get('/appointments/hidden-days', [AppointmentController::class, 'hiddenDays'])->middleware('permission:appointments.view');
 Route::get('/appointments/balance-audits', [AppointmentController::class, 'balanceAudits'])->middleware('permission:reports.financial');
+Route::get('/appointments/{appointment}/financial-context', [AppointmentController::class, 'financialContext'])->middleware('permission:appointments.view');
+Route::post('/appointments/{appointment}/financial-checkout', [AppointmentController::class, 'financialCheckout'])->middleware('permission:appointments.create|appointments.update');
+Route::post('/appointments/{appointment}/settle-previous-debt', [AppointmentController::class, 'settlePreviousDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->middleware('permission:appointments.update');
 Route::post('/appointments/row', [AppointmentController::class, 'saveRow'])->middleware('permission:appointments.create|appointments.update');

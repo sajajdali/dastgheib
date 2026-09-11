@@ -26,6 +26,28 @@ class AppointmentConcurrencyTest extends TestCase
         $this->assertDatabaseHas('appointments', ['id' => $appointment->id, 'lastname' => 'ثبت‌شده']);
     }
 
+    public function test_named_appointment_is_saved_without_time_or_services(): void
+    {
+        $this->actingAs($this->user());
+
+        $response = $this->postJson('/api/appointments/row', [
+            'month' => '1405-06',
+            'day_num' => 20,
+            'sort_order' => 0,
+            'lastname' => 'مراجعه‌کننده بدون ساعت',
+            'time' => '',
+            'services' => [],
+        ]);
+
+        $response->assertOk()->assertJsonPath('appointment.lastname', 'مراجعه‌کننده بدون ساعت');
+        $this->assertDatabaseHas('appointments', [
+            'month' => '1405-06',
+            'day_num' => 20,
+            'lastname' => 'مراجعه‌کننده بدون ساعت',
+            'time' => null,
+        ]);
+    }
+
     private function user(): User
     {
         $user = User::factory()->create();
