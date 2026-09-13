@@ -1,4 +1,4 @@
-@import "@/scss/prepared/_variables.scss";
+@use "@/scss/prepared/variables" as *;
 
 @font-face {
   font-family: 'Vazir';

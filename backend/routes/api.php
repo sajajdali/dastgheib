@@ -89,6 +89,7 @@ Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->middleware('
 Route::post('/patients/{id}/wallet/deposit', [PatientController::class, 'depositWallet']);
 Route::post('/patients/{id}/wallet/withdraw', [PatientController::class, 'withdrawWallet']);
 Route::get('/patients/{patient}/wallet/transactions', [PatientController::class, 'walletTransactions']);
+Route::post('/appointments/{appointment}/settle-debt-with-wallet', [AppointmentController::class, 'settleDebtWithWallet']);
 Route::delete('/patients/{patient}/wallet/deposits/{transaction}', [PatientController::class, 'deleteBookingDeposit']);
 
 // بیماران
@@ -158,6 +159,7 @@ Route::get('/appointments/hidden-days', [AppointmentController::class, 'hiddenDa
 Route::get('/appointments/balance-audits', [AppointmentController::class, 'balanceAudits'])->middleware('permission:reports.financial');
 Route::get('/appointments/{appointment}/financial-context', [AppointmentController::class, 'financialContext'])->middleware('permission:appointments.view');
 Route::post('/appointments/{appointment}/financial-checkout', [AppointmentController::class, 'financialCheckout'])->middleware('permission:appointments.create|appointments.update');
+Route::delete('/appointments/{appointment}/financial-payments/{transaction}', [AppointmentController::class, 'deleteFinancialPayment'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/{appointment}/settle-previous-debt', [AppointmentController::class, 'settlePreviousDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->middleware('permission:appointments.update');

@@ -18,8 +18,8 @@ class HumanResourceController extends Controller
     private function paymentDefaults(): array
     {
         return [
-            'methods' => ['کارتخوان', 'کارت به کارت', 'شبا'],
-            'accounts' => ['حساب اصلی'],
+            'methods' => [],
+            'accounts' => [],
             'service_categories' => ['زیبایی', 'درمانی', 'لیزر', 'پوست و مو'],
             'service_types' => ['خدمت اصلی', 'خدمت جانبی', 'مشاوره'],
             'service_statuses' => ['فعال', 'غیرفعال', 'نیازمند بررسی'],

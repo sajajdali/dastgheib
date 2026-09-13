@@ -3082,7 +3082,7 @@ export default {
 <style scoped>
 @font-face {
   font-family: "Vazir";
-  src: url("assets/fonts/vazir-vazir-medium-FD.woff") format("woff");
+  src: url("@/assets/fonts/vazir/Vazir-Medium-FD.woff") format("woff");
   font-weight: 500;
   font-style: normal;
 }

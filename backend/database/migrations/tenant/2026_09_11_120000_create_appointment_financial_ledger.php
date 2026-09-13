@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('appointment_id')->constrained()->cascadeOnDelete();
             $table->foreignId('patient_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('type', 30); // payment, deposit, debt, debt_settlement
+            $table->string('type', 30); // payment, payment_void, deposit, debt, debt_settlement
             $table->decimal('amount', 15, 0);
             $table->string('payment_method', 100)->nullable();
             $table->string('payment_account', 100)->nullable();
