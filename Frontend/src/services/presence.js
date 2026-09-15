@@ -18,6 +18,7 @@ let activeUserId = null;
 let activeTenantId = null;
 let appointmentChannel = null;
 const appointmentListeners = new Set();
+const reportChannels = new Map();
 
 const joinAppointmentChannel = () => {
   if (!echo || !activeTenantId || appointmentChannel) return;
@@ -31,6 +32,22 @@ export function subscribeAppointmentChanges(listener) {
   appointmentListeners.add(listener);
   joinAppointmentChannel();
   return () => appointmentListeners.delete(listener);
+}
+
+export function subscribeReportProgress(reportId, listener) {
+  if (!echo || !activeTenantId || !reportId) return () => {};
+  const name = `clinic.${activeTenantId}.reports.${reportId}`;
+  const channel = echo.private(name);
+  channel.listen('.report.progressed', listener);
+  reportChannels.set(String(reportId), { name, channel, listener });
+
+  return () => {
+    const subscription = reportChannels.get(String(reportId));
+    if (!subscription || !echo) return;
+    subscription.channel.stopListening('.report.progressed', subscription.listener);
+    echo.leave(subscription.name);
+    reportChannels.delete(String(reportId));
+  };
 }
 
 const normalizeUser = (user) => ({
@@ -132,6 +149,8 @@ export function startPresence(user) {
 
 export function stopPresence() {
   if (echo) {
+    reportChannels.forEach(({ name }) => echo.leave(name));
+    reportChannels.clear();
     if (activeTenantId) echo.leave(`clinic.${activeTenantId}.appointments`);
     echo.leave(channelName);
     echo.disconnect();

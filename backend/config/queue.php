@@ -44,6 +44,18 @@ return [
             'after_commit' => false,
         ],
 
+        'database-central' => [
+            'driver' => 'database',
+            'connection' => env('CENTRAL_QUEUE_DB_CONNECTION', env('DB_CONNECTION', 'mysql')),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'default',
+            'retry_after' => (int) env('REPORT_QUEUE_RETRY_AFTER', 1260),
+            'after_commit' => true,
+            // False means queued jobs retain tenant_id in their payload. The
+            // storage table itself still lives on the central connection.
+            'central' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AutomaticSmsScenarioController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ClinicReportController;
+use App\Http\Controllers\Api\DynamicReportController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\CampaignController;
 
@@ -77,6 +78,10 @@ Route::post('/sms/appointment', [CompletionSmsController::class, 'sendAppointmen
 Route::post('/sms/landing', [CompletionSmsController::class, 'sendLanding'])->middleware('permission:followups.view');
 Route::post('/settings/access', [SettingController::class, 'saveAccessSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/activity-logs', [ActivityLogController::class, 'index'])->middleware('permission:activity_logs.view');
+Route::post('/report-builder/reports', [DynamicReportController::class, 'store'])->middleware('permission:reports.view');
+Route::get('/report-builder/options', [DynamicReportController::class, 'options'])->middleware('permission:reports.view');
+Route::get('/report-builder/reports/{dynamicReport}', [DynamicReportController::class, 'show'])->middleware('permission:reports.view');
+Route::get('/report-builder/reports/{dynamicReport}/rows', [DynamicReportController::class, 'rows'])->middleware('permission:reports.view');
 
 // نقش‌ها و دسترسی‌ها
 Route::get('/roles', [RoleController::class, 'index'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
