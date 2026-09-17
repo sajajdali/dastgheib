@@ -19,6 +19,11 @@ class StoreDynamicReportRequest extends FormRequest
             'columns' => ['required', 'array', 'min:1', 'max:'.count(config('dynamic_reports.fields', []))],
             'columns.*' => ['required', 'string', 'distinct', Rule::in(array_keys(config('dynamic_reports.fields', [])))],
             'filters' => ['sometimes', 'array'],
+            'filters.reportDate' => ['required', 'array'],
+            'filters.reportDate.from' => ['required', 'array', 'size:3'],
+            'filters.reportDate.from.*' => ['required', 'integer'],
+            'filters.reportDate.to' => ['required', 'array', 'size:3'],
+            'filters.reportDate.to.*' => ['required', 'integer'],
             'filters.values' => ['sometimes', 'array'],
             'filters.values.name' => ['nullable', 'string', 'max:100'],
             'filters.values.family' => ['nullable', 'string', 'max:100'],
@@ -75,6 +80,13 @@ class StoreDynamicReportRequest extends FormRequest
             'from' => $this->jalaliDate(data_get($data, 'filters.birthDate.from')),
             'to' => $this->jalaliDate(data_get($data, 'filters.birthDate.to')),
         ];
+        $reportDate = [
+            'from' => $this->jalaliDate(data_get($data, 'filters.reportDate.from'), 'filters.reportDate'),
+            'to' => $this->jalaliDate(data_get($data, 'filters.reportDate.to'), 'filters.reportDate'),
+        ];
+        if ($reportDate['from'] > $reportDate['to']) {
+            throw ValidationException::withMessages(['filters.reportDate' => 'تاریخ شروع گزارش باید قبل از تاریخ پایان باشد.']);
+        }
         if ($birthDate['from'] && $birthDate['to'] && $birthDate['from'] > $birthDate['to']) {
             throw ValidationException::withMessages(['filters.birthDate' => 'ابتدای بازه تاریخ تولد باید قبل از انتهای بازه باشد.']);
         }
@@ -93,6 +105,7 @@ class StoreDynamicReportRequest extends FormRequest
                 'noreturnMonths' => $this->noReturnMonths($this->text($data, 'noreturn')),
             ],
             'birthDate' => $birthDate,
+            'reportDate' => $reportDate,
             'range' => ['amount' => ['from' => $this->money(data_get($data, 'filters.range.amount.from')), 'to' => $this->money(data_get($data, 'filters.range.amount.to'))]],
             'multi' => [
                 'custseg' => collect(data_get($data, 'filters.multi.custseg', []))
@@ -126,14 +139,14 @@ class StoreDynamicReportRequest extends FormRequest
         ]);
     }
 
-    private function jalaliDate(mixed $date): ?string
+    private function jalaliDate(mixed $date, string $errorKey = 'filters.birthDate'): ?string
     {
         if (! is_array($date) || count($date) !== 3) return null;
         [$year, $month, $day] = array_map('intval', array_values($date));
         $isLeap = in_array(($year + 12) % 33, [1, 5, 9, 13, 17, 22, 26, 30], true);
         $maxDay = $month <= 6 ? 31 : ($month <= 11 ? 30 : ($isLeap ? 30 : 29));
         if ($year < 1200 || $year > 1500 || $month < 1 || $month > 12 || $day < 1 || $day > $maxDay) {
-            throw ValidationException::withMessages(['filters.birthDate' => 'تاریخ تولد انتخاب‌شده معتبر نیست.']);
+            throw ValidationException::withMessages([$errorKey => 'تاریخ انتخاب‌شده معتبر نیست.']);
         }
         return sprintf('%04d-%02d-%02d', $year, $month, $day);
     }

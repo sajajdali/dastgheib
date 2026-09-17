@@ -9,7 +9,7 @@ final class AppointmentAmountRangeFilter implements DynamicReportQueryFilter
         $from = $this->number($range['from'] ?? null);
         $to = $this->number($range['to'] ?? null);
         if ($from === null && $to === null) return;
-        $query->whereExists(function ($appointments) use ($from, $to) {
+        $query->whereExists(function ($appointments) use ($from, $to, $filters) {
             $amount = "CAST(REPLACE(REPLACE(REPLACE(COALESCE(amount, '0'), ',', ''), '٬', ''), ' ', '') AS DECIMAL(18,2))";
             $appointments->selectRaw('1')->from('appointments as amount_appointments')
                 ->where(function ($link) {
@@ -18,6 +18,7 @@ final class AppointmentAmountRangeFilter implements DynamicReportQueryFilter
                 });
             if ($from !== null) $appointments->whereRaw($amount.' >= ?', [$from]);
             if ($to !== null) $appointments->whereRaw($amount.' <= ?', [$to]);
+            AppointmentReportDate::constrain($appointments, 'amount_appointments', $filters);
         });
     }
     private function number(mixed $value): ?float

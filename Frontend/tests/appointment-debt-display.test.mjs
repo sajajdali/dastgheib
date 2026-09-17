@@ -22,6 +22,12 @@ test("new cash, card and check payments reduce the remaining appointment debt", 
   assert.match(source, /currentPayments - Number\(this\.financialOriginalRecordedPayment/);
 });
 
+test("payments made against old debt settle the original appointment row", () => {
+  assert.match(source, /const settledDebt = \(details\.debt_payments \|\| \[\]\)\.reduce/);
+  assert.match(source, /payment\?\.amount/);
+  assert.match(source, /Number\(details\.check\?\.amount \|\| 0\) \+ settledDebt/);
+});
+
 test("financial panel separates session debt and creates one deposit allocation per service", () => {
   assert.match(source, /بدهی همین جلسه/);
   assert.match(source, /بدهی کل بیمار با این جلسه/);

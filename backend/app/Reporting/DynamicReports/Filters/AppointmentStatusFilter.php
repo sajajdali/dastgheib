@@ -11,7 +11,7 @@ final class AppointmentStatusFilter implements DynamicReportQueryFilter
         $statuses = collect(data_get($filters, 'multi.status', []))->filter()->unique()->values();
         if ($statuses->isEmpty()) return;
 
-        $query->whereExists(function ($appointments) use ($statuses) {
+        $query->whereExists(function ($appointments) use ($statuses, $filters) {
             $appointments->selectRaw('1')
                 ->from('appointments as status_appointments')
                 ->whereIn('status_appointments.status', $statuses)
@@ -28,6 +28,7 @@ final class AppointmentStatusFilter implements DynamicReportQueryFilter
                             ->whereColumn('status_appointments.phone', 'patients.phone');
                     });
                 });
+            AppointmentReportDate::constrain($appointments, 'status_appointments', $filters);
         });
     }
 }

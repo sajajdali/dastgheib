@@ -103,7 +103,7 @@ class GenerateDynamicReport implements ShouldQueue
     {
         $report->update($values);
         try {
-            DynamicReportProgressed::dispatch($report->refresh());
+            event(DynamicReportProgressed::fromReport($report->refresh()));
         } catch (Throwable $exception) {
             report($exception);
         }

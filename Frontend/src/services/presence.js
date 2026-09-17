@@ -4,7 +4,7 @@ import Pusher from "pusher-js";
 import { reactive } from "vue";
 
 const backendOrigin = "";
-const channelName = "clinic.online";
+const presenceChannelName = () => `clinic.${activeTenantId}.online`;
 
 export const presenceState = reactive({
   users: [],
@@ -120,16 +120,31 @@ export function startPresence(user) {
   });
 
   const connection = echo.connector.pusher.connection;
+  const syncSocketIdHeader = () => {
+    const socketId = connection.socket_id;
+    if (socketId) {
+      axios.defaults.headers.common["X-Socket-ID"] = socketId;
+    } else {
+      delete axios.defaults.headers.common["X-Socket-ID"];
+    }
+  };
   presenceState.connected = connection.state === "connected";
   presenceState.connecting = ["initialized", "connecting", "unavailable"].includes(connection.state);
+  syncSocketIdHeader();
   connection.bind("state_change", ({ current }) => {
     presenceState.connected = current === "connected";
     presenceState.connecting = ["connecting", "unavailable"].includes(current);
-    if (current === "connected") presenceState.error = "";
-    if (["disconnected", "failed"].includes(current)) setUsers([]);
+    if (current === "connected") {
+      presenceState.error = "";
+      syncSocketIdHeader();
+    }
+    if (["disconnected", "failed"].includes(current)) {
+      delete axios.defaults.headers.common["X-Socket-ID"];
+      setUsers([]);
+    }
   });
 
-  echo.join(channelName)
+  echo.join(presenceChannelName())
     .here((users) => {
       setUsers(users);
       presenceState.connected = true;
@@ -148,11 +163,12 @@ export function startPresence(user) {
 }
 
 export function stopPresence() {
+  delete axios.defaults.headers.common["X-Socket-ID"];
   if (echo) {
     reportChannels.forEach(({ name }) => echo.leave(name));
     reportChannels.clear();
     if (activeTenantId) echo.leave(`clinic.${activeTenantId}.appointments`);
-    echo.leave(channelName);
+    if (activeTenantId) echo.leave(presenceChannelName());
     echo.disconnect();
   }
   echo = null;

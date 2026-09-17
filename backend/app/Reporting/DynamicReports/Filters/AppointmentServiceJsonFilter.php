@@ -14,7 +14,7 @@ abstract class AppointmentServiceJsonFilter implements DynamicReportQueryFilter
         $values = collect(data_get($filters, 'multi.'.$this->key(), []))->map(fn ($v) => trim((string) $v))->filter()->unique()->values();
         if ($values->isEmpty()) return;
         $alias = $this->key().'_service_appointments';
-        $query->whereExists(function ($appointments) use ($values, $alias) {
+        $query->whereExists(function ($appointments) use ($values, $alias, $filters) {
             $appointments->selectRaw('1')->from('appointments as '.$alias)
                 ->where(function ($match) use ($values, $alias) {
                     foreach ($values as $value) {
@@ -28,6 +28,7 @@ abstract class AppointmentServiceJsonFilter implements DynamicReportQueryFilter
                             ->whereNotNull('patients.phone')->where('patients.phone', '<>', '')
                             ->whereColumn($alias.'.phone', 'patients.phone'));
                 });
+            AppointmentReportDate::constrain($appointments, $alias, $filters);
         });
     }
 }

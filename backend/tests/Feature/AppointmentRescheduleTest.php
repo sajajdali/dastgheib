@@ -85,6 +85,26 @@ class AppointmentRescheduleTest extends TestCase
         $this->assertSame(2, $appointment->fresh()->lock_version);
     }
 
+    public function test_transfer_cannot_overwrite_an_occupied_time_slot(): void
+    {
+        $appointment = $this->appointment();
+        Appointment::create([
+            'month' => '1405-07', 'day_num' => 2, 'time' => '11:30',
+            'lastname' => 'already booked', 'status' => 'booked',
+            'services' => [], 'payment_details' => [],
+        ]);
+
+        try {
+            $this->move($appointment);
+            $this->fail('An occupied slot must reject another appointment.');
+        } catch (HttpException $exception) {
+            $this->assertSame(409, $exception->getStatusCode());
+        }
+
+        $this->assertSame('1405-06', $appointment->fresh()->month);
+        $this->assertSame('09:00', $appointment->fresh()->time);
+    }
+
     public function test_events_use_distinct_private_tenant_channels(): void
     {
         $first = new AppointmentChanged('clinic-a', 'rescheduled', 1, '1405-07', 2);

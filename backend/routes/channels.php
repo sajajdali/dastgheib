@@ -8,7 +8,9 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
 
-Broadcast::channel('clinic.online', function (User $user): array {
+Broadcast::channel('clinic.{tenantId}.online', function (User $user, string $tenantId): array|bool {
+    if ((string) tenant('id') !== $tenantId) return false;
+
     return [
         'id' => $user->id,
         'name' => $user->name,

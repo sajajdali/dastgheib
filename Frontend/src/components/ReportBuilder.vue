@@ -67,26 +67,48 @@
           </div>
         </div>
 
-        <div class="rb-addrow">
-          <div class="rb-btn rb-btn--dashed" role="button" tabindex="0" @click.stop="newOpen = true" @keydown.enter.stop="newOpen = true">
-            <span class="rb-plus">＋</span><span>اضافه به گزارش‌ساز</span>
+      </div>
+    </div>
+
+    <!-- قالب‌های مستقل گزارش‌ساز -->
+    <div class="rb-card rb-builder-card rb-mb">
+      <div class="rb-builder-head">
+        <div class="rb-report-range-copy">
+          <div class="rb-icon">▤</div>
+          <div>
+            <div class="rb-title">گزارش‌ساز</div>
+            <div class="rb-sub">قالب‌های ذخیره‌شده — با انتخاب هر قالب، فیلتر گزارشات باز و فیلدهای آن انتخاب می‌شوند</div>
           </div>
         </div>
-
-        <div class="rb-hr"></div>
-
-        <div class="rb-secrow rb-secrow--tight">
-          <div class="rb-h2">گزارش‌ساز</div>
-          <div class="rb-sub">قالب‌های ذخیره‌شده — با انتخاب هر قالب، فیلدهای آن به‌صورت خودکار در نمایش قرار می‌گیرند</div>
+        <div class="rb-btn rb-btn--dashed rb-push" role="button" tabindex="0" @click.stop="newOpen = true" @keydown.enter.stop="newOpen = true">
+          <span class="rb-plus">＋</span><span>اضافه به گزارش‌ساز</span>
         </div>
-        <div class="rb-presets">
-          <div v-for="p in visiblePresets" :key="p.id" class="rb-preset"
-               :class="{ 'rb-preset--on': activePreset === p.id }" @click="applyPreset(p)">
-            <span>{{ p.label }}</span>
-            <span class="rb-presetcount">{{ pd(p.fields.length) }} فیلد</span>
-            <span class="rb-presetx" @click.stop="askRemove(p)">✕</span>
-          </div>
+      </div>
+      <div class="rb-presets">
+        <div v-for="p in visiblePresets" :key="p.id" class="rb-preset"
+             :class="{ 'rb-preset--on': activePreset === p.id }" @click="applyPreset(p)">
+          <span>{{ p.label }}</span>
+          <span class="rb-presetcount">{{ pd(p.fields.length) }} فیلد</span>
+          <span class="rb-presetx" @click.stop="askRemove(p)">✕</span>
         </div>
+      </div>
+    </div>
+
+    <!-- بازه زمانی اجباری گزارش -->
+    <div class="rb-card rb-report-range-card rb-mb">
+      <div class="rb-report-range-copy">
+        <div class="rb-icon">▦</div>
+        <div>
+          <div class="rb-title">بازه گزارش <span class="rb-required">اجباری</span></div>
+          <div class="rb-sub">فقط اطلاعات و نوبت‌های داخل این بازه در گزارش محاسبه می‌شوند.</div>
+        </div>
+      </div>
+      <div class="rb-picker rb-report-range-picker" role="button" tabindex="0" @click="openReportDate" @keydown.enter.prevent="openReportDate">
+        <div class="rb-date-summary">
+          <span><small>از تاریخ</small>{{ fmt(reportDate.from) }}</span><i></i>
+          <span><small>تا تاریخ</small>{{ fmt(reportDate.to) }}</span>
+        </div>
+        <span class="rb-pickericon">▦</span>
       </div>
     </div>
 
@@ -124,6 +146,9 @@
       </div>
 
       <div v-if="reportError" class="rb-report-error" role="alert">{{ reportError }}</div>
+      <div v-if="builtReportDate" class="rb-built-range">
+        بازه گزارش: از تاریخ <strong>{{ fmt(builtReportDate.from) }}</strong> تا تاریخ <strong>{{ fmt(builtReportDate.to) }}</strong>
+      </div>
 
       <template v-if="cols.length">
         <div class="rb-tablewrap">
@@ -157,16 +182,47 @@
             </select>
           </div>
           <div class="rb-pagenums">
-            <div class="rb-pg" @click="goToPage(page - 1)">›</div>
+            <div class="rb-pg" title="صفحه قبل" aria-label="صفحه قبل" @click="goToPage(page - 1)">‹</div>
             <div v-for="(p, i) in pageNums" :key="i" class="rb-pg"
                  :class="{ 'rb-pg--on': p === page, 'rb-pg--gap': p === '…' }"
                  @click="p !== '…' && goToPage(p)">{{ p === '…' ? '…' : pd(p) }}</div>
-            <div class="rb-pg" @click="goToPage(page + 1)">‹</div>
+            <div class="rb-pg" title="صفحه بعد" aria-label="صفحه بعد" @click="goToPage(page + 1)">›</div>
           </div>
         </div>
       </template>
       <div v-else class="rb-empty">
         هنوز فیلدی برای نمایش انتخاب نشده است — تیک «نمایش» هر فیلد را بزنید تا ستون آن در گزارش درج شود.
+      </div>
+    </div>
+
+    <!-- تقویم شمسی بازه گزارش -->
+    <div v-if="reportDateOpen" class="rb-scrim" @click="reportDateOpen = false">
+      <div class="rb-modal rb-modal--sm" @click.stop>
+        <div class="rb-modalhead">
+          <div class="rb-modaltitle">بازه گزارش — از / تا</div>
+          <div class="rb-x rb-push" @click="reportDateOpen = false">✕</div>
+        </div>
+        <div class="rb-tabs">
+          <div class="rb-tab" :class="{ 'rb-tab--on': reportDateTarget === 'from' }" @click="selectReportDateTarget('from')">از: {{ fmt(reportDate.from) }}</div>
+          <div class="rb-tab" :class="{ 'rb-tab--on': reportDateTarget === 'to' }" @click="selectReportDateTarget('to')">تا: {{ fmt(reportDate.to) }}</div>
+        </div>
+        <div class="rb-calhead">
+          <div class="rb-navbtn" @click="shiftReportMonth(-1)">‹</div>
+          <div class="rb-cal-selects">
+            <label><span>ماه</span><select v-model.number="reportCalM" class="rb-cal-select"><option v-for="(month, index) in JM" :key="month" :value="index + 1">{{ month }}</option></select></label>
+            <label><span>سال</span><select v-model.number="reportCalY" class="rb-cal-select"><option v-for="year in reportYears" :key="year" :value="year">{{ pd(year) }}</option></select></label>
+          </div>
+          <div class="rb-navbtn" @click="shiftReportMonth(1)">›</div>
+        </div>
+        <div class="rb-cal rb-cal--dow"><div v-for="w in ['ش','ی','د','س','چ','پ','ج']" :key="w">{{ w }}</div></div>
+        <div class="rb-cal">
+          <div v-for="(c, i) in reportCalCells" :key="i" class="rb-day" :class="{ 'rb-day--on': c.selected, 'rb-day--range': c.inRange, 'rb-day--void': !c.day }" @click="c.day && pickReportDay(c.day)">{{ c.day ? pd(c.day) : '' }}</div>
+        </div>
+        <div v-if="reportDateError" class="rb-date-error">{{ reportDateError }}</div>
+        <div class="rb-modalactions">
+          <div class="rb-sub rb-flex">انتخاب هر دو تاریخ الزامی است.</div>
+          <div class="rb-btn rb-btn--teal rb-flex" @click="confirmReportDate">تایید بازه</div>
+        </div>
       </div>
     </div>
 
@@ -322,6 +378,16 @@ const currentJalaliYear = () => {
     .formatToParts(new Date()).find(item => item.type === 'year')?.value || '1405';
   return Number(part.replace(/[۰-۹]/g, digit => String(FA.indexOf(digit)))) || 1405;
 };
+const jalaliParts = date => {
+  const parts = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(date);
+  const number = type => Number((parts.find(item => item.type === type)?.value || '').replace(/[۰-۹]/g, digit => String(FA.indexOf(digit))));
+  return [number('year'), number('month'), number('day')];
+};
+const defaultReportDate = () => {
+  const today = new Date();
+  const from = new Date(today); from.setDate(from.getDate() - 30);
+  return { from: jalaliParts(from), to: jalaliParts(today) };
+};
 
 const jIsLeap = jy => [1, 5, 9, 13, 17, 22, 26, 30].indexOf((jy + 12) % 33) > -1;
 const jDays = (jy, jm) => (jm <= 6 ? 31 : jm <= 11 ? 30 : jIsLeap(jy) ? 30 : 29);
@@ -449,6 +515,7 @@ export default {
   data() {
     const vals = {};
     FIELDS.forEach(f => { if (f.type === 'text') vals[f.id] = ''; if (f.type === 'select') vals[f.id] = f.options[0]; });
+    const initialReportDate = defaultReportDate();
     return {
       JM, FIELDS,
       filtersOpen: true,
@@ -460,6 +527,8 @@ export default {
       reportPaymentAccounts: OPT.account.slice(),
       reportDoctors: OPT.doctor.slice(), reportConsultants: OPT.consultant.slice(),
       date: { from: null, to: null }, dateOpen: false, dateTarget: 'from', dateError: '',
+      reportDate: initialReportDate, reportDateOpen: false, reportDateTarget: 'from', reportDateError: '',
+      reportCalY: initialReportDate.from[0], reportCalM: initialReportDate.from[1], builtReportDate: null,
       calY: currentJalaliYear() - 30, calM: 1,
       pickerId: null, pickerSearch: '', rangeId: null,
       custom: [], removed: [], activePreset: null,
@@ -486,6 +555,11 @@ export default {
     birthYears() {
       const years = [];
       for (let year = currentJalaliYear(); year >= 1250; year--) years.push(year);
+      return years;
+    },
+    reportYears() {
+      const years = [];
+      for (let year = currentJalaliYear() + 1; year >= 1300; year--) years.push(year);
       return years;
     },
     cols() { return FIELDS.filter(f => this.show[f.id]).map(f => ({ key: f.id, label: f.label })); },
@@ -534,6 +608,18 @@ export default {
         });
       }
       return cells;
+    },
+    reportCalCells() {
+      const g = j2g(this.reportCalY, this.reportCalM, 1);
+      const off = (new Date(g[0], g[1] - 1, g[2]).getDay() + 1) % 7;
+      const selected = this.reportDate[this.reportDateTarget];
+      const cells = [];
+      for (let i = 0; i < off; i++) cells.push({ day: 0, selected: false, inRange: false });
+      for (let day = 1; day <= jDays(this.reportCalY, this.reportCalM); day++) {
+        const value = this.dateValue([this.reportCalY, this.reportCalM, day]);
+        cells.push({ day, selected: !!selected && selected[0] === this.reportCalY && selected[1] === this.reportCalM && selected[2] === day, inRange: value >= this.dateValue(this.reportDate.from) && value <= this.dateValue(this.reportDate.to) });
+      }
+      return cells;
     }
   },
   methods: {
@@ -560,10 +646,9 @@ export default {
     selectAll() { const s = {}; FIELDS.forEach(f => { s[f.id] = true; }); this.show = s; this.activePreset = null; },
     clearAll() { this.show = {}; this.activePreset = null; },
     applyPreset(p) {
-      if (this.activePreset === p.id) { this.show = {}; this.activePreset = null; return; }
       const s = {};
       p.fields.forEach(id => { s[id] = true; });
-      this.show = s; this.activePreset = p.id; this.page = 1;
+      this.show = s; this.activePreset = p.id; this.page = 1; this.filtersOpen = true;
     },
     savePreset() {
       const fields = this.cols.map(c => c.key);
@@ -628,7 +713,7 @@ export default {
       }
       return { text: '', muted: true };
     },
-    fmt(d) { return pd(d[0] + '/' + String(d[1]).padStart(2, '0') + '/' + String(d[2]).padStart(2, '0')); },
+    fmt(d) { return d ? pd(d[0] + '/' + String(d[1]).padStart(2, '0') + '/' + String(d[2]).padStart(2, '0')) : '—'; },
     formatMoney(id) { const v = String(this.vals[id] || '').replace(/[۰-۹]/g, d => String(FA.indexOf(d))).replace(/[٬,\s]/g, ''); if (v && /^\d+(\.\d+)?$/.test(v)) this.vals[id] = Number(v).toLocaleString('en-US'); },
     formatRangeMoney(side) { const v = String(this.rangeModel[side] || '').replace(/[۰-۹]/g, d => String(FA.indexOf(d))).replace(/[٬,\s]/g, ''); if (v && /^\d+(\.\d+)?$/.test(v)) this.rangeModel[side] = Number(v).toLocaleString('en-US'); },
     dateValue(d) { return d ? d[0] * 10000 + d[1] * 100 + d[2] : 0; },
@@ -659,6 +744,34 @@ export default {
       }
       this.dateOpen = false;
     },
+    openReportDate() {
+      this.reportDateOpen = true; this.reportDateTarget = 'from'; this.reportDateError = '';
+      this.reportCalY = this.reportDate.from[0]; this.reportCalM = this.reportDate.from[1];
+    },
+    selectReportDateTarget(target) {
+      this.reportDateTarget = target;
+      const selected = this.reportDate[target];
+      if (selected) { this.reportCalY = selected[0]; this.reportCalM = selected[1]; }
+    },
+    shiftReportMonth(n) {
+      let month = this.reportCalM + n, year = this.reportCalY;
+      if (month < 1) { month = 12; year--; } else if (month > 12) { month = 1; year++; }
+      this.reportCalM = month; this.reportCalY = year;
+    },
+    pickReportDay(day) {
+      const picked = [this.reportCalY, this.reportCalM, day]; this.reportDateError = '';
+      if (this.reportDateTarget === 'from') {
+        this.reportDate = { from: picked, to: this.dateValue(this.reportDate.to) >= this.dateValue(picked) ? this.reportDate.to : null };
+        this.reportDateTarget = 'to';
+      } else if (this.dateValue(picked) < this.dateValue(this.reportDate.from)) {
+        this.reportDate = { from: picked, to: this.reportDate.from };
+      } else this.reportDate = { from: this.reportDate.from, to: picked };
+    },
+    confirmReportDate() {
+      if (!this.reportDate.from || !this.reportDate.to) { this.reportDateError = 'تاریخ شروع و پایان گزارش هر دو الزامی هستند.'; return; }
+      if (this.dateValue(this.reportDate.from) > this.dateValue(this.reportDate.to)) { this.reportDateError = 'تاریخ شروع باید قبل از تاریخ پایان باشد.'; return; }
+      this.reportDateOpen = false;
+    },
     runSteps(kind, steps, done) {
       if (this.busy) return;
       this.busy = kind; this.busyStep = steps[0];
@@ -675,9 +788,11 @@ export default {
     },
     async buildReport() {
       if (!this.cols.length || this.busy) return;
+      if (!this.reportDate.from || !this.reportDate.to) { this.reportError = 'برای ایجاد گزارش، تاریخ شروع و پایان بازه گزارش را انتخاب کنید.'; this.openReportDate(); return; }
       clearTimeout(this.timer);
       this.busy = 'build'; this.busyStep = 'ارسال گزارش به صف پردازش…';
       this.reportProgress = 0; this.reportError = ''; this.resultRows = []; this.totalRows = 0; this.page = 1;
+      this.builtReportDate = { from: [...this.reportDate.from], to: [...this.reportDate.to] };
       try {
         const { data } = await axios.post('/api/report-builder/reports', this.payload());
         this.reportId = data.report.id;
@@ -780,7 +895,7 @@ export default {
     payload() {
       return {
         columns: this.cols.map(c => c.key),
-        filters: { values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, comparators: this.comparators },
+        filters: { values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, reportDate: this.reportDate, comparators: this.comparators },
         pagination: { page: this.page, pageSize: this.pageSize }
       };
     }
@@ -803,6 +918,15 @@ export default {
 .rb-push { margin-inline-start: auto; }
 .rb-flex { flex: 1; text-align: center; }
 .rb-nowrap { white-space: nowrap; }
+.rb-builder-card { padding: 20px 26px 22px; }
+.rb-builder-head { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+.rb-report-range-card { padding: 18px 26px; display: flex; align-items: center; gap: 22px; }
+.rb-report-range-copy { display: flex; align-items: center; gap: 12px; min-width: 280px; }
+.rb-report-range-picker { max-width: 430px; margin-inline-start: auto; background: #F9FCFB; border-color: #CFE3DD; }
+.rb-report-range-picker .rb-pickericon { margin-inline-start: auto; }
+.rb-required { display: inline-block; margin-inline-start: 6px; padding: 2px 7px; border-radius: 999px; background: #FDECEA; color: #B7352A; font-size: 10px; vertical-align: middle; }
+.rb-built-range { margin: -4px 0 16px; padding: 10px 14px; border: 1px solid #CFE3DD; border-radius: 11px; background: #F1F8F6; color: #315B54; font-size: 13px; }
+.rb-built-range strong { color: #0E6B5E; }
 
 .rb-head { display: flex; align-items: center; gap: 12px; padding: 20px 26px; cursor: pointer; user-select: none; }
 .rb-icon { width: 34px; height: 34px; border-radius: 10px; background: #E8F3F0; color: #0E6B5E;
@@ -1002,6 +1126,16 @@ export default {
 .rb-day--void { cursor: default; }
 .rb-day--void:hover { background: transparent; }
 .rb-date-error { margin: -5px 18px 14px; color: #B91C1C; font-size: 11.5px; font-weight: 700; }
+
+@media (max-width: 700px) {
+  .rb-builder-card { padding: 16px; }
+  .rb-builder-head { align-items: stretch; flex-direction: column; }
+  .rb-builder-head .rb-push { margin-inline-start: 0; }
+  .rb-report-range-card { padding: 16px; align-items: stretch; flex-direction: column; gap: 14px; }
+  .rb-report-range-copy { min-width: 0; }
+  .rb-report-range-picker { max-width: none; margin-inline-start: 0; }
+  .rb-report-range-picker .rb-date-summary { flex: 1; justify-content: space-between; }
+}
 
 @keyframes rb-spin { to { transform: rotate(360deg); } }
 @keyframes rb-bar { 0% { transform: translateX(100%); } 100% { transform: translateX(-260%); } }

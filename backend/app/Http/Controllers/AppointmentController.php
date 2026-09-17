@@ -431,7 +431,8 @@ class AppointmentController extends Controller
             'appointments' => $request->input('appointments', []),
         ];
 
-        $saved = DB::transaction(function () use ($data, $request) {
+        $saved = $this->withAppointmentSlotLocks($data['appointments'], $data['month'], function () use ($data, $request) {
+            return DB::transaction(function () use ($data, $request) {
             $saved = [];
             foreach ($data['appointments'] as $incoming) {
                 if (! is_array($incoming)) continue;
@@ -445,6 +446,8 @@ class AppointmentController extends Controller
                 if ($previous && $previous->month !== $data['month']) {
                     abort(422, 'نوبت ارسالی متعلق به ماه انتخاب‌شده نیست.');
                 }
+
+                $this->assertAppointmentSlotAvailable($incoming, $data['month'], $previous);
                 // A delayed browser request containing an empty slot must
                 // never clear a booking which has already been persisted.
                 if (
@@ -535,6 +538,7 @@ class AppointmentController extends Controller
             }
             $this->syncMonthlySalesBonusLines($data['month']);
             return $saved;
+            });
         });
 
         foreach ($saved as $appointment) {
@@ -544,6 +548,82 @@ class AppointmentController extends Controller
         $saved = $this->withPatientHistoryRegistrationMeta($saved);
 
         return response()->json(['message' => 'نوبت‌های تغییرکرده ثبت شدند.', 'appointments' => $saved]);
+    }
+
+    /**
+     * Lock logical calendar slots before checking/inserting them. Row locks
+     * cannot protect an empty slot because there is no database row to lock.
+     */
+    private function withAppointmentSlotLocks(array $appointments, string $month, callable $callback): mixed
+    {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return $callback();
+        }
+
+        $tenantId = (string) tenant('id');
+        $locks = collect($appointments)
+            ->filter(fn ($appointment) => is_array($appointment))
+            ->map(function (array $appointment) use ($month, $tenantId): string {
+                $day = (int) ($appointment['day_num'] ?? 0);
+                $time = trim((string) ($appointment['time'] ?? ''));
+                $slot = $time !== '' ? "time:{$time}" : 'row:'.(int) ($appointment['sort_order'] ?? 0);
+
+                return 'appt-slot:'.sha1("{$tenantId}|{$month}|{$day}|{$slot}");
+            })
+            ->unique()
+            ->sort()
+            ->values();
+
+        $acquired = [];
+        try {
+            foreach ($locks as $lockName) {
+                $result = DB::selectOne('SELECT GET_LOCK(?, 10) AS acquired', [$lockName]);
+                abort_unless((int) ($result->acquired ?? 0) === 1, 423,
+                    'این ردیف در حال ثبت توسط کاربر دیگری است؛ چند لحظه دیگر دوباره تلاش کنید.');
+                $acquired[] = $lockName;
+            }
+
+            return $callback();
+        } finally {
+            foreach (array_reverse($acquired) as $lockName) {
+                DB::select('SELECT RELEASE_LOCK(?)', [$lockName]);
+            }
+        }
+    }
+
+    /** Reject a new booking or move when another appointment owns the slot. */
+    private function assertAppointmentSlotAvailable(array $incoming, string $month, ?Appointment $previous): void
+    {
+        $day = (int) ($incoming['day_num'] ?? 0);
+        $time = trim((string) ($incoming['time'] ?? ''));
+        $sortOrder = (int) ($incoming['sort_order'] ?? 0);
+
+        $sameSlot = $previous
+            && (string) $previous->month === $month
+            && (int) $previous->day_num === $day
+            && ($time !== ''
+                ? trim((string) $previous->time) === $time
+                : trim((string) $previous->time) === '' && (int) $previous->sort_order === $sortOrder);
+
+        // Existing historical duplicates must remain editable in place. The
+        // guard applies when claiming a new slot or moving to another slot.
+        if ($sameSlot) return;
+
+        $occupied = Appointment::query()
+            ->where('month', $month)
+            ->where('day_num', $day)
+            ->when(
+                $time !== '',
+                fn ($query) => $query->where('time', $time),
+                fn ($query) => $query->where(fn ($slot) => $slot->whereNull('time')->orWhere('time', ''))
+                    ->where('sort_order', $sortOrder),
+            )
+            ->when($previous, fn ($query) => $query->whereKeyNot($previous->getKey()))
+            ->lockForUpdate()
+            ->exists();
+
+        abort_if($occupied, 409,
+            'این ساعت همین حالا توسط کاربر دیگری رزرو شده است. اطلاعات صفحه به‌روزرسانی می‌شود.');
     }
 
     /**
@@ -558,19 +638,22 @@ class AppointmentController extends Controller
             'day_num' => ['required', 'integer', 'between:1,31'],
             'time' => ['required', 'date_format:H:i'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
-        [$before, $updated] = DB::transaction(function () use ($appointment, $data) {
-            $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
-            abort_if((int) $current->lock_version !== (int) $data['lock_version'], 409,
-                'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید و دوباره انتقال دهید.');
-            $before = clone $current;
-            $current->update([
-                'month' => $data['month'],
-                'day_num' => $data['day_num'],
-                'time' => $data['time'],
-                'status' => 'انتقال داده شده',
-                'lock_version' => (int) $current->lock_version + 1,
-            ]);
-            return [$before, $current];
+        [$before, $updated] = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($appointment, $data) {
+            return DB::transaction(function () use ($appointment, $data) {
+                $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
+                abort_if((int) $current->lock_version !== (int) $data['lock_version'], 409,
+                    'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید و دوباره انتقال دهید.');
+                $this->assertAppointmentSlotAvailable($data, $data['month'], $current);
+                $before = clone $current;
+                $current->update([
+                    'month' => $data['month'],
+                    'day_num' => $data['day_num'],
+                    'time' => $data['time'],
+                    'status' => 'انتقال داده شده',
+                    'lock_version' => (int) $current->lock_version + 1,
+                ]);
+                return [$before, $current];
+            });
         });
         // Notify both calendars when moving across months, on this tenant's private channel.
         if ($before->month !== $updated->month) {
@@ -798,23 +881,30 @@ class AppointmentController extends Controller
             'description' => ['nullable', 'string'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
-        $sortOrder = ((int) Appointment::query()
-            ->where('month', $data['month'])
-            ->where('day_num', $data['day_num'])
-            ->max('sort_order')) + 1;
+        $appointment = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($data) {
+            return DB::transaction(function () use ($data) {
+                $this->assertAppointmentSlotAvailable($data, $data['month'], null);
+                $sortOrder = ((int) Appointment::query()
+                    ->where('month', $data['month'])
+                    ->where('day_num', $data['day_num'])
+                    ->max('sort_order')) + 1;
 
-        $appointment = Appointment::create([
-            ...$data,
-            'sort_order' => $sortOrder,
-            'status' => 'وقت داده شد',
-            'services' => [],
-            'service_types' => [],
-            'amount' => 0,
-            'original_amount' => 0,
-            'discount' => 0,
-            'debt' => 0,
-            'new_customer' => false,
-        ]);
+                return Appointment::create([
+                    ...$data,
+                    'sort_order' => $sortOrder,
+                    'status' => 'وقت داده شد',
+                    'services' => [],
+                    'service_types' => [],
+                    'amount' => 0,
+                    'original_amount' => 0,
+                    'discount' => 0,
+                    'debt' => 0,
+                    'new_customer' => false,
+                ]);
+            });
+        });
+
+        $this->broadcastAppointmentChange($appointment, 'created');
 
         return response()->json(['appointment' => $appointment], 201);
     }
@@ -1364,6 +1454,12 @@ class AppointmentController extends Controller
                     'paid_by_id' => $request->user()?->id,
                     'paid_by_name' => $request->user()?->name,
                 ]]);
+                if ($debt - $paid === 0) {
+                    $details['debtDescription'] = '';
+                    $details['debt_settled_at'] = now()->toISOString();
+                    $details['debt_settled_by_id'] = $request->user()?->id;
+                    $details['debt_settled_by_name'] = $request->user()?->name ?: 'سیستم';
+                }
                 $appointment->update([
                     'debt' => $debt - $paid,
                     'payment_method' => $data['payment_method'] ?? $appointment->payment_method,
@@ -1396,6 +1492,9 @@ class AppointmentController extends Controller
 
             return $updated;
         });
+
+        Appointment::query()->whereIn('id', collect($result)->pluck('id'))->get()
+            ->each(fn (Appointment $appointment) => $this->broadcastAppointmentChange($appointment));
 
         return response()->json([
             'message' => 'پرداخت بدهی با موفقیت ثبت شد.',

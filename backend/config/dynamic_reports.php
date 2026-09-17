@@ -22,6 +22,7 @@ use App\Reporting\DynamicReports\Filters\LastNameFilter;
 use App\Reporting\DynamicReports\Filters\NoReturnFilter;
 use App\Reporting\DynamicReports\Filters\PhoneFilter;
 use App\Reporting\DynamicReports\Filters\ReferrerFilter;
+use App\Reporting\DynamicReports\Filters\ReportDateRangeFilter;
 use App\Reporting\DynamicReports\Resolvers\AppointmentFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\FinancialFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\PatientFieldResolver;
@@ -40,6 +41,7 @@ return [
 
     // Future searchable fields are registered here; the report Job does not change.
     'query_filters' => [
+        ReportDateRangeFilter::class,
         FirstNameFilter::class,
         LastNameFilter::class,
         GenderFilter::class,

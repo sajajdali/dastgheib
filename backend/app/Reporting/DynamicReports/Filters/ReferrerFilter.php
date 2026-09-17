@@ -16,7 +16,7 @@ class ReferrerFilter extends AbstractPrefixValueFilter
         if ($term === '') return;
         $pattern = $this->pattern($term);
 
-        $query->whereExists(function ($subquery) use ($pattern) {
+        $query->whereExists(function ($subquery) use ($pattern, $filters) {
             $subquery->selectRaw('1')
                 ->from('appointments as referral_appointments')
                 ->leftJoin('patients as referrers', 'referrers.phone', '=', 'referral_appointments.referrer_phone')
@@ -31,6 +31,7 @@ class ReferrerFilter extends AbstractPrefixValueFilter
                         ->orWhere('referrers.phone', 'like', $pattern)
                         ->orWhere('referral_appointments.referrer_phone', 'like', $pattern);
                 });
+            AppointmentReportDate::constrain($subquery, 'referral_appointments', $filters);
         });
     }
 }

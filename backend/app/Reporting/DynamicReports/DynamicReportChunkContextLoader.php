@@ -16,7 +16,7 @@ final class DynamicReportChunkContextLoader
     /** @return Collection<int, ReportPatientContext> */
     public function load(Collection $patients, array $filters = []): Collection
     {
-        $index = $this->appointmentIndex($patients);
+        $index = $this->appointmentIndex($patients, $filters);
         $selectedStatuses = collect(data_get($filters, 'multi.status', []))->filter();
 
         return $patients->map(function (Patient $patient) use ($index, $selectedStatuses) {
@@ -38,7 +38,7 @@ final class DynamicReportChunkContextLoader
         });
     }
 
-    private function appointmentIndex(Collection $patients): array
+    private function appointmentIndex(Collection $patients, array $filters): array
     {
         $fileNumbers = $patients->pluck('file_number')->filter()->unique()->values();
         $phones = $patients->pluck('phone')->filter()->unique()->values();
@@ -51,6 +51,8 @@ final class DynamicReportChunkContextLoader
                 if ($fileNumbers->isNotEmpty()) $query->whereIn('file_number', $fileNumbers);
                 if ($phones->isNotEmpty()) $query->{$fileNumbers->isNotEmpty() ? 'orWhereIn' : 'whereIn'}('phone', $phones);
             })
+            ->when(data_get($filters, 'reportDate.from'), fn ($query, $from) => $query->whereRaw("CONCAT(month, '-', LPAD(day_num, 2, '0')) >= ?", [$from]))
+            ->when(data_get($filters, 'reportDate.to'), fn ($query, $to) => $query->whereRaw("CONCAT(month, '-', LPAD(day_num, 2, '0')) <= ?", [$to]))
             ->orderByDesc('id')
             ->get();
 

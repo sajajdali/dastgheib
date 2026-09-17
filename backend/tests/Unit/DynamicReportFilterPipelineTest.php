@@ -36,6 +36,20 @@ class DynamicReportFilterPipelineTest extends TestCase
         $this->assertContains('1400-12-29', $query->getBindings());
     }
 
+    public function test_report_range_limits_eligible_and_filtered_appointments(): void
+    {
+        $query = app(DynamicReportFilterPipeline::class)->query([
+            'reportDate' => ['from' => '1405-05-26', 'to' => '1405-06-25'],
+            'multi' => ['status' => ['آمد']],
+        ]);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString('report_range_appointments', $sql);
+        $this->assertStringContainsString('status_appointments', $sql);
+        $this->assertGreaterThanOrEqual(2, collect($query->getBindings())->filter(fn ($value) => $value === '1405-05-26')->count());
+        $this->assertGreaterThanOrEqual(2, collect($query->getBindings())->filter(fn ($value) => $value === '1405-06-25')->count());
+    }
+
     public function test_no_return_filter_counts_only_one_arrival_in_the_requested_window(): void
     {
         $query = app(DynamicReportFilterPipeline::class)->query([

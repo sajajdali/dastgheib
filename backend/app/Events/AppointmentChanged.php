@@ -19,6 +19,7 @@ class AppointmentChanged implements ShouldBroadcastNow
         public readonly int $appointmentId,
         public readonly string $month,
         public readonly int $lockVersion,
+        public readonly ?array $appointment = null,
     ) {}
 
     public function broadcastOn(): array
@@ -38,6 +39,7 @@ class AppointmentChanged implements ShouldBroadcastNow
             'appointment_id' => $this->appointmentId,
             'month' => $this->month,
             'lock_version' => $this->lockVersion,
+            'appointment' => $this->appointment,
         ];
     }
 
@@ -49,6 +51,7 @@ class AppointmentChanged implements ShouldBroadcastNow
             (int) $appointment->getKey(),
             (string) $appointment->month,
             (int) $appointment->lock_version,
+            $appointment->toArray(),
         );
     }
 }

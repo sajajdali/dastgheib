@@ -17,7 +17,7 @@ abstract class AbstractAppointmentMultiValueFilter implements DynamicReportQuery
 
         $column = $this->column();
         $alias = $this->key().'_appointments';
-        $query->whereExists(function ($appointments) use ($values, $column, $alias) {
+        $query->whereExists(function ($appointments) use ($values, $column, $alias, $filters) {
             $appointments->selectRaw('1')->from('appointments as '.$alias)
                 ->whereIn($alias.'.'.$column, $values)
                 ->where(function ($link) use ($alias) {
@@ -31,6 +31,7 @@ abstract class AbstractAppointmentMultiValueFilter implements DynamicReportQuery
                             ->whereColumn($alias.'.phone', 'patients.phone');
                     });
                 });
+            AppointmentReportDate::constrain($appointments, $alias, $filters);
         });
     }
 }

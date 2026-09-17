@@ -2932,8 +2932,123 @@ export default {
   methods: {
     handleRealtimeAppointmentChange(event) {
       if (!event || event.month !== this.months[this.currentMonth]) return;
-      clearTimeout(this.realtimeRefreshTimer);
-      this.realtimeRefreshTimer = setTimeout(() => this.refreshAfterRealtimeChange(), 120);
+      this.applyRealtimeAppointmentChange(event);
+    },
+
+    applyRealtimeAppointmentChange(event) {
+      const appointmentId = Number(event.appointment_id || event.appointment?.id || 0);
+      const payload = event.appointment || {};
+      let day = this.days.find(item => Number(item.dayNum) === Number(payload.day_num));
+      const existingDay = this.days.find(item =>
+        item.rows?.some(row => Number(row.appointmentId) === appointmentId)
+      );
+      day ||= existingDay;
+
+      if (event.action === 'deleted') {
+        if (!existingDay) return;
+        const index = existingDay.rows.findIndex(row => Number(row.appointmentId) === appointmentId);
+        if (index < 0) return;
+        const current = existingDay.rows[index];
+        const currentFingerprint = this.appointmentRowStateFingerprint(existingDay, current, index);
+        const hasDraft = currentFingerprint !== current._persistedStateFingerprint;
+        if (hasDraft) {
+          // Keep the operator's edits as a new draft when another operator
+          // deletes the underlying appointment.
+          current.appointmentId = null;
+          current.lockVersion = 1;
+        } else {
+          existingDay.rows.splice(index, 1, {
+            ...this.createEmptyAppointmentRow(),
+            time: current.time || payload.time || ''
+          });
+        }
+        delete this.monthAppointmentsCache[event.month];
+        delete this.monthDaysCache[event.month];
+        return;
+      }
+
+      if (!payload.id || !day) return;
+      const byIdIndex = day.rows.findIndex(row => Number(row.appointmentId) === appointmentId);
+      const slotIndex = day.rows.findIndex(row =>
+        !row.appointmentId && String(row.time || '') === String(payload.time || '')
+      );
+      const targetIndex = byIdIndex >= 0 ? byIdIndex : slotIndex;
+      const target = targetIndex >= 0 ? day.rows[targetIndex] : null;
+      const targetHasDraft = target && this.appointmentRowStateFingerprint(day, target, targetIndex)
+        !== target._persistedStateFingerprint;
+      const serverRow = this.realtimeAppointmentRow(payload);
+
+      if (target && !targetHasDraft) {
+        day.rows.splice(targetIndex, 1, serverRow);
+      } else {
+        // Never overwrite somebody's in-progress form. Add the authoritative
+        // booking as its own row and leave the draft available for moving.
+        day.rows.push(serverRow);
+      }
+
+      this.sortDayRowsByTime(day);
+      const serverIndex = day.rows.findIndex(row => Number(row.appointmentId) === appointmentId);
+      if (serverIndex >= 0) {
+        day.rows[serverIndex]._persistedStateFingerprint =
+          this.appointmentRowStateFingerprint(day, day.rows[serverIndex], serverIndex);
+      }
+      delete this.monthAppointmentsCache[event.month];
+      delete this.monthDaysCache[event.month];
+    },
+
+    realtimeAppointmentRow(item) {
+      const services = Array.isArray(item.services) && item.services.length
+        ? item.services.map((service, serviceIndex) => ({
+            name: service.name || '',
+            sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name),
+            rootSectionId: service.rootSectionId || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name)),
+            tags: Array.isArray(service.tags) ? service.tags : [],
+            cc: service.cc || '',
+            doctor: service.doctor || '',
+            consultant: service.consultant || '',
+            discount: (service.discount || (serviceIndex === 0 ? item.discount : 0))
+              ? this.formatDisplayMoney(service.discount || item.discount) : '',
+            adjustment_mode: service.adjustment_mode || 'discount',
+            surcharge_for_doctor_commission: Boolean(service.surcharge_for_doctor_commission),
+            _lastSavedCc: parseInt(service.cc) || 0,
+            addons: Array.isArray(service.addons) ? service.addons.map((addon, index) => ({
+              name: addon.name || '', addon_definition_id: addon.addon_definition_id || null,
+              cc: addon.cc || '', discount: addon.discount ? this.formatDisplayMoney(addon.discount) : '',
+              adjustment_mode: addon.adjustment_mode || 'discount',
+              surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission),
+              _key: `addon-realtime-${index}-${Date.now()}`
+            })) : []
+          }))
+        : [{ name: '', sectionId: '', rootSectionId: '', cc: '', doctor: '', consultant: '', discount: '', _lastSavedCc: 0, addons: [] }];
+
+      return {
+        ...this.createEmptyAppointmentRow(),
+        appointmentId: item.id,
+        lockVersion: Number(item.lock_version || 1),
+        registeredBy: item.registered_by || '', registeredAt: item.registered_at || item.created_at || '',
+        lastEditedBy: item.last_edited_by || '', lastEditedAt: item.last_edited_at || '',
+        patientId: item.patient_id || null, lastname: item.lastname || '', gender: item.gender || '',
+        phone: item.phone || '', fileNumber: item.file_number || '', time: item.time || '',
+        status: this.emptyScheduleCellValue(item.status), arrivedAt: item.arrived_at || '',
+        waitMinutes: Number(item.wait_minutes || 0), doctor: item.doctor || '',
+        consultant: item.consultant || '', source: item.source || '', description: item.description || '',
+        doctorNote: item.doctor_note || '', done: this.emptyScheduleCellValue(item.done),
+        completedAt: item.completed_at || '', amount: item.amount ? this.formatDisplayMoney(item.amount) : '',
+        originalAmount: item.original_amount ? this.formatDisplayMoney(item.original_amount) : '',
+        debt: item.debt ? this.formatDisplayMoney(item.debt) : '', originalDebt: Number(item.debt || 0),
+        paymentMethod: item.payment_method || '', paymentAccount: item.payment_account || '',
+        paymentDetails: this.normalizePaymentDetails(item.payment_details || {}),
+        paymentLink: item.payment_link || '', paymentLinkSentCount: Number(item.payment_link_sent_count || 0),
+        paymentLinkLastSentAt: item.payment_link_last_sent_at || '', referrerPhone: item.referrer_phone || '',
+        referralScore: item.referral_score ? this.formatDisplayMoney(item.referral_score) : '',
+        referralCommissionType: item.referral_commission_type || '',
+        referralCommissionValue: Number(item.referral_commission_value || 0),
+        walletApplied: item.wallet_applied ? this.formatDisplayMoney(item.wallet_applied) : '',
+        discount: item.discount ? this.formatDisplayMoney(item.discount) : '', newCustomer: Boolean(item.new_customer),
+        appointmentSms: this.emptyScheduleCellValue(item.appointment_sms),
+        infoSms: this.emptyScheduleCellValue(item.info_sms), completionSmsStatuses: item.completion_sms_statuses || {},
+        serviceTypes: this.normalizeServiceSectionIds(item.service_types), services
+      };
     },
 
     async refreshAfterRealtimeChange() {
@@ -2944,7 +3059,20 @@ export default {
         this.realtimeRefreshTimer = setTimeout(() => this.refreshAfterRealtimeChange(), 400);
         return;
       }
-      await this.fetchData();
+      // Rebuilding the month must not collapse the day the operator is
+      // currently viewing. Preserve every day's UI state around the forced
+      // authoritative refresh.
+      const collapsedByDay = new Map(
+        this.days.map(day => [Number(day.dayNum), Boolean(day.collapsed)])
+      );
+      await this.fetchData(true);
+      this.days.forEach(day => {
+        const dayNumber = Number(day.dayNum);
+        if (collapsedByDay.has(dayNumber)) {
+          day.collapsed = collapsedByDay.get(dayNumber);
+        }
+      });
+      this.syncAllDaysCollapsedState();
     },
 
     handleBeforeUnload(event) {
@@ -5701,6 +5829,13 @@ this.calculateFinalAmount(row)
 
             if (e.isAuthExpired || [401, 419].includes(e.response?.status)) return;
 
+            // Another operator won the same slot. Replace the losing draft
+            // with the authoritative server row immediately.
+            if (Number(e.response?.status) === 409) {
+              delete this.monthAppointmentsCache[month];
+              delete this.monthDaysCache[month];
+            }
+
             // خطای شبکه و قفل کوتاه‌مدت ماه معمولاً گذرا هستند. ابتدا بدون
             // مزاحمت کاربر دوباره تلاش می‌کنیم؛ نسخهٔ محلی نیز تا موفقیت حذف نمی‌شود.
             if (!this.retrySave(e)) {
@@ -7367,7 +7502,11 @@ this.calculateFinalAmount(row)
 
     recordedPaymentAmount(row) {
       const details = this.normalizePaymentDetails(row?.paymentDetails || {});
-      return Number(details.cash || 0) + Number(details.card || 0) + Number(details.check?.amount || 0);
+      const settledDebt = (details.debt_payments || []).reduce(
+        (total, payment) => total + Math.max(0, this.moneyToNumber(payment?.amount)),
+        0
+      );
+      return Number(details.cash || 0) + Number(details.card || 0) + Number(details.check?.amount || 0) + settledDebt;
     },
 
     rowHasAppointment(row) {
