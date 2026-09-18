@@ -42,7 +42,7 @@
               </div>
             </div>
 
-            <button class="quick-open-btn" @click.stop="openCampaign(item.campaignId)">
+            <button class="quick-open-btn" @click.stop="openCampaign(item.campaignId, item._localId)">
               باز کردن
             </button>
           </div>
@@ -53,7 +53,7 @@
         <h3>عدم پیگیری</h3>
         <div v-if="!missedFollowups.length" class="empty-state">موردی وجود ندارد.</div>
         <div v-for="item in missedFollowups" :key="`missed-${item.campaignId}-${item._localId}`" class="missed-followup-row">
-          <span>{{ item.fullName || 'بدون نام' }}</span><span>{{ displayPatientPhone(item.phone, item) || 'بدون شماره' }}</span>
+          <span @dblclick.stop="openCampaign(item.campaignId, item._localId)">{{ item.fullName || 'بدون نام' }}</span><span>{{ displayPatientPhone(item.phone, item) || 'بدون شماره' }}</span>
           <span>{{ item.campaignTitle }}</span><span>{{ formatDateFa(item.followUpDate) }}</span>
           <button type="button" @click.stop="openCampaign(item.campaignId)">باز کردن</button>
         </div>
@@ -505,7 +505,7 @@
               />
             </div>
 
-            <div class="table-scroll">
+            <div class="table-scroll" @scroll="closeAllFilters">
               <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1340px' }">
                 <thead>
                   <tr>
@@ -552,10 +552,10 @@
                     >
                       <div class="th-content">
                         جنسیت
-                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('gender')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('gender', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeReportFilter === 'gender'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeReportFilter === 'gender'" class="filter-dropdown" :style="reportFilterMenuStyle" @click.stop>
                         <label v-for="val in getReportUniqueValues('gender')" :key="val" class="filter-option">
                           <input
                             type="checkbox"
@@ -577,10 +577,10 @@
                     >
                       <div class="th-content">
                         مشاور
-                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('consultant')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('consultant', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeReportFilter === 'consultant'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeReportFilter === 'consultant'" class="filter-dropdown" :style="reportFilterMenuStyle" @click.stop>
                         <label v-for="val in getReportUniqueValues('consultant')" :key="val" class="filter-option">
                           <input
                             type="checkbox"
@@ -602,10 +602,10 @@
                     >
                       <div class="th-content">
                         منبع
-                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('source')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('source', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeReportFilter === 'source'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeReportFilter === 'source'" class="filter-dropdown" :style="reportFilterMenuStyle" @click.stop>
                         <label v-for="val in getReportUniqueValues('source')" :key="val" class="filter-option">
                           <input
                             type="checkbox"
@@ -627,10 +627,10 @@
                     >
                       <div class="th-content">
                         وضعیت
-                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('status')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('status', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeReportFilter === 'status'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeReportFilter === 'status'" class="filter-dropdown" :style="reportFilterMenuStyle" @click.stop>
                         <label v-for="val in statusFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
@@ -651,8 +651,8 @@
                     </th>
 
                     <th class="center filterable resizable" :class="{ 'filtered-cell': isReportFiltered('reason') }" :style="{ width: colWidths.reason + 'px' }">
-                      <div class="th-content">علت <button class="filter-btn" @click.stop="toggleReportFilterMenu('reason')">⚙</button></div>
-                      <div v-if="activeReportFilter === 'reason'" class="filter-dropdown" @click.stop>
+                      <div class="th-content">علت <button class="filter-btn" @click.stop="toggleReportFilterMenu('reason', $event)">⚙</button></div>
+                      <div v-if="activeReportFilter === 'reason'" class="filter-dropdown" :style="reportFilterMenuStyle" @click.stop>
                         <label v-for="val in reasonFilterOptions(reportAllFilteredRows)" :key="val" class="filter-option"><input type="checkbox" :checked="selectedReportFilters.reason.includes(val)" @change="toggleReportValue('reason', val)"><span>{{ val }}</span></label>
                       </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'reason')" @dblclick.stop="autoFitFollowupColumn('reason')"></div>
@@ -672,10 +672,10 @@
                     >
                       <div class="th-content">
                         تمایل
-                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('interest')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleReportFilterMenu('interest', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeReportFilter === 'interest'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeReportFilter === 'interest'" class="filter-dropdown" :style="reportFilterMenuStyle" @click.stop>
                         <label v-for="val in interestFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
@@ -709,7 +709,7 @@
                         <b>{{ Math.max(0, followupHistoryRows(row).length - 1) }}</b>
                       </button>
                     </td>
-                    <td><div class="contact-date-time"><date-picker :key="`${row._localId}-report-contact`" v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" /><span>{{ row.contactTime || '--:--' }}</span></div></td>
+                    <td><div class="contact-date-time"><date-picker :key="`${row._localId}-report-contact`" v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" append-to="body" @open="raiseFollowupTableDatePicker" /><span>{{ row.contactTime || '--:--' }}</span></div></td>
                     <td>
   <date-picker
     v-model="row.followUpDate"
@@ -717,6 +717,8 @@
     display-format="jYYYY/jMM/jDD"
     input-class="table-date-input"
     placeholder="تاریخ"
+    append-to="body"
+    @open="raiseFollowupTableDatePicker"
   />
 </td>
 
@@ -877,7 +879,7 @@
               </button>
             </div>
 
-            <div class="table-scroll">
+            <div class="table-scroll" @scroll="closeAllFilters">
               <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1340px' }">
                 <thead>
                   <tr>
@@ -918,10 +920,10 @@
                     >
                       <div class="th-content">
                         جنسیت
-                        <button class="filter-btn" @click.stop="toggleFilterMenu('gender')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleFilterMenu('gender', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'gender'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeFilter === 'gender'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
                         <label v-for="val in getUniqueValues('gender')" :key="val" class="filter-option">
                           <input
                             type="checkbox"
@@ -943,10 +945,10 @@
                     >
                       <div class="th-content">
                         مشاور
-                        <button class="filter-btn" @click.stop="toggleFilterMenu('consultant')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleFilterMenu('consultant', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'consultant'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeFilter === 'consultant'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
                         <label v-for="val in getUniqueValues('consultant')" :key="val" class="filter-option">
                           <input
                             type="checkbox"
@@ -967,10 +969,10 @@
                     >
                       <div class="th-content">
                         وضعیت
-                        <button class="filter-btn" @click.stop="toggleFilterMenu('status')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleFilterMenu('status', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'status'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeFilter === 'status'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
                         <label v-for="val in statusFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
@@ -991,8 +993,8 @@
                     </th>
 
                     <th class="center filterable resizable" :class="{ 'filtered-cell': isFiltered('reason') }" :style="{ width: colWidths.reason + 'px' }">
-                      <div class="th-content">علت <button class="filter-btn" @click.stop="toggleFilterMenu('reason')">⚙</button></div>
-                      <div v-if="activeFilter === 'reason'" class="filter-dropdown" @click.stop>
+                      <div class="th-content">علت <button class="filter-btn" @click.stop="toggleFilterMenu('reason', $event)">⚙</button></div>
+                      <div v-if="activeFilter === 'reason'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
                         <label v-for="val in reasonFilterOptions(activeCampaign?.rows)" :key="val" class="filter-option"><input type="checkbox" :checked="selectedFilters.reason.includes(val)" @change="toggleValue('reason', val)"><span>{{ val }}</span></label>
                       </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'reason')" @dblclick.stop="autoFitFollowupColumn('reason')"></div>
@@ -1017,10 +1019,10 @@
                     >
                       <div class="th-content">
                         تمایل
-                        <button class="filter-btn" @click.stop="toggleFilterMenu('interest')">⚙</button>
+                        <button class="filter-btn" @click.stop="toggleFilterMenu('interest', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'interest'" class="filter-dropdown" @click.stop>
+                      <div v-if="activeFilter === 'interest'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
                         <label v-for="val in interestFilterOptions()" :key="val.value" class="filter-option">
                           <input
                             type="checkbox"
@@ -1040,7 +1042,8 @@
                   <tr
                     v-for="row in activeFilteredRows"
                     :key="row._localId"
-                    :class="{ 'duplicate-phone-row': duplicatePhoneInfo(row) }"
+                    :class="{ 'duplicate-phone-row': duplicatePhoneInfo(row), 'followup-highlight-row': highlightedFollowupRowId === String(row._localId) }"
+                    :data-followup-row-id="String(row._localId)"
                   >
                     <td>
                       <div class="campaign-patient-cell">
@@ -1058,8 +1061,10 @@
                         <input
                           v-if="canViewCampaignPhone(row)"
                           v-model="row.phone"
+                          title="برای ورود گروهی، فهرست شماره‌ها را یکجا اینجا جای‌گذاری کنید"
                           @input="lookupPatientByPhone(row)"
                           @blur="fillPatientByPhone(row)"
+                          @paste="handleBulkPhonePaste($event, row)"
                         />
                         <input
                           v-else
@@ -1083,7 +1088,7 @@
                         <b>{{ Math.max(0, followupHistoryRows(row).length - 1) }}</b>
                       </button>
                     </td>
-                    <td><div class="contact-date-time"><DatePicker :key="`${row._localId}-contact`" v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" /><input v-model="row.contactTime" class="contact-time-input" type="time" aria-label="ساعت تماس" @change="ensureContactDateTime(row)" /></div></td>
+                    <td><div class="contact-date-time"><DatePicker :key="`${row._localId}-contact`" v-model="row.contactDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تاریخ تماس" append-to="body" @open="raiseFollowupTableDatePicker" /><input v-model="row.contactTime" class="contact-time-input" type="time" aria-label="ساعت تماس" @change="ensureContactDateTime(row)" /></div></td>
                     <td>
   <DatePicker
     v-model="row.followUpDate"
@@ -1091,6 +1096,8 @@
     display-format="jYYYY/jMM/jDD"
     input-class="table-date-input"
     placeholder="تاریخ"
+    append-to="body"
+    @open="raiseFollowupTableDatePicker"
   />
 </td>
 
@@ -1219,6 +1226,9 @@
                 class="row-input"
               />
               <button class="btn minus" style="    text-align: center !important;" @click="removeRowsFromActive">-</button>
+            </div>
+            <div v-if="bulkPhonePasteNotice" class="bulk-phone-paste-notice" role="status">
+              {{ bulkPhonePasteNotice }}
             </div>
           </div>
 
@@ -1477,6 +1487,7 @@ export default {
       ],
       campaignQualityOptions: ["عالی", "خوب", "متوسط", "ضعیف"],
       activeReportFilter: null,
+      reportFilterMenuStyle: {},
       selectedReportFilters: {
         gender: [],
         consultant: [],
@@ -1487,8 +1498,12 @@ export default {
       },
 
       rowCount: 1,
+      bulkPhonePasteNotice: "",
+      bulkPhonePasteNoticeTimer: null,
       campaignSearch: "",
+      highlightedFollowupRowId: "",
       activeFilter: null,
+      filterMenuStyle: {},
       activeLandingRowId: null,
       landingMenuStyle: {},
       landingSmsModalOpen: false,
@@ -1740,14 +1755,15 @@ export default {
     this.applyAppointmentResult(this.appointmentResult);
     if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
     window.addEventListener("beforeunload", this.handleBeforeUnload);
-    window.addEventListener("scroll", this.closeLandingMenu, true);
-    window.addEventListener("resize", this.closeLandingMenu);
+    window.addEventListener("scroll", this.closeAllFilters, true);
+    window.addEventListener("resize", this.closeAllFilters);
   },
 
   beforeUnmount() {
+    clearTimeout(this.bulkPhonePasteNoticeTimer);
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
-    window.removeEventListener("scroll", this.closeLandingMenu, true);
-    window.removeEventListener("resize", this.closeLandingMenu);
+    window.removeEventListener("scroll", this.closeAllFilters, true);
+    window.removeEventListener("resize", this.closeAllFilters);
   },
 
   watch: {
@@ -1982,10 +1998,11 @@ export default {
       this.showDateReportModal = false;
       this.showMissedFollowups = false;
       this.showArchived = this.isCampaignArchived(matched.campaign);
-      this.openCampaign(matched.campaign.id);
+      this.openCampaign(matched.campaign.id, matched.row._localId);
       this.campaignSearch = request.phone || request.fullName || matched.row.fullName || matched.row.phone || "";
       this.$nextTick(() => {
         document.querySelector(".campaign-table-modal .toolbar-input")?.focus();
+        this.scrollToHighlightedFollowupRow();
       });
     },
 
@@ -2241,6 +2258,8 @@ export default {
     closeAllFilters() {
       this.activeFilter = null;
       this.activeReportFilter = null;
+      this.filterMenuStyle = {};
+      this.reportFilterMenuStyle = {};
       this.closeLandingMenu();
     },
 
@@ -2281,11 +2300,36 @@ export default {
       this.landingMenuStyle = {};
     },
 
-    toggleFilterMenu(key) {
-      this.activeFilter = this.activeFilter === key ? null : key;
+    floatingFilterMenuStyle(event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const width = 220;
+      const gap = 6;
+      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width));
+      return {
+        position: "fixed",
+        top: `${Math.min(window.innerHeight - 12, rect.bottom + gap)}px`,
+        left: `${left}px`,
+        right: "auto",
+        width: `${width}px`,
+      };
     },
-    toggleReportFilterMenu(key) {
-      this.activeReportFilter = this.activeReportFilter === key ? null : key;
+    toggleFilterMenu(key, event) {
+      if (this.activeFilter === key) {
+        this.activeFilter = null;
+        this.filterMenuStyle = {};
+        return;
+      }
+      this.filterMenuStyle = this.floatingFilterMenuStyle(event);
+      this.activeFilter = key;
+    },
+    toggleReportFilterMenu(key, event) {
+      if (this.activeReportFilter === key) {
+        this.activeReportFilter = null;
+        this.reportFilterMenuStyle = {};
+        return;
+      }
+      this.reportFilterMenuStyle = this.floatingFilterMenuStyle(event);
+      this.activeReportFilter = key;
     },
 
     toggleValue(key, val) {
@@ -2411,8 +2455,9 @@ export default {
       }
     },
 
-    openCampaign(id) {
+    openCampaign(id, rowId = null) {
       this.activeCampaignId = id;
+      this.highlightedFollowupRowId = rowId == null ? "" : String(rowId);
       const now = new Date();
       this.appointmentTimelineDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       this.campaignSearch = "";
@@ -2455,17 +2500,56 @@ export default {
       setTimeout(raise, 50);
     },
 
+    raiseFollowupTableDatePicker(pickerVm = null) {
+      const raise = () => {
+        const candidates = [
+          pickerVm?.$refs?.picker,
+          ...document.querySelectorAll("body > .vpd-wrapper, body > .vpd-container, body > .vpd-main"),
+        ].filter(Boolean);
+        candidates.forEach(picker => {
+          picker.classList.add("followup-table-date-picker-layer");
+          picker.style.setProperty("z-index", "2147483640", "important");
+          if (picker.classList.contains("vpd-wrapper")) {
+            picker.style.setProperty("position", "fixed", "important");
+          }
+          picker.querySelectorAll?.(".vpd-container, .vpd-main").forEach(container => {
+            container.style.setProperty("z-index", "2147483641", "important");
+          });
+        });
+      };
+      this.$nextTick(raise);
+      setTimeout(raise, 0);
+      setTimeout(raise, 50);
+      setTimeout(raise, 150);
+    },
+
     openRowAppointmentTimeline(row) {
       if (!row || !this.activeCampaign) return;
       const campaignSource = this.activeCampaign.source || this.activeCampaign.sourceName || "";
-      this.activeAppointmentRow = row;
-      this.appointmentModalError = '';
-      this.appointmentForm = {
-        date: this.getTodayString(), time: '', lastname: row.fullName || '', phone: row.phone || '',
-        gender: row.gender || '', doctor: '', consultant: row.consultant || '',
-        source: row.source || campaignSource, description: row.description || '',
+      const requestedDate = row.appointmentDate || this.getTodayString();
+      const followup = {
+        campaignId: this.activeCampaign.id,
+        campaignTitle: this.activeCampaign.title || '',
+        campaignSource,
+        rowId: row._localId,
+        fullName: row.fullName || '',
+        phone: row.phone || '',
+        gender: row.gender || '',
+        consultant: row.consultant || '',
+        source: row.source || campaignSource,
+        description: row.description || '',
+        contactDate: row.contactDate || '',
+        contactTime: row.contactTime || '',
+        followUpDate: row.followUpDate || '',
+        status: row.status || '',
+        interest: row.interest || '',
+        reason: row.reason || '',
+        landingSms: this.landingSmsValues(row),
+        avatarUrl: row.avatarUrl || row.profile_thumbnail_url || row.profile_photo_url || '',
       };
-      this.appointmentModalOpen = true;
+
+      this.closeCampaignModal();
+      this.$emit('open-appointments-timeline', { date: requestedDate, followup });
     },
 
     closeFollowupAppointmentModal() {
@@ -2559,6 +2643,61 @@ export default {
         file_number: "",
         customer_level: "silver",
       };
+      this.$nextTick(() => this.scrollToHighlightedFollowupRow());
+    },
+
+    scrollToHighlightedFollowupRow() {
+      if (!this.highlightedFollowupRowId) return;
+      const row = Array.from(document.querySelectorAll(".campaign-table-modal [data-followup-row-id]"))
+        .find(element => element.dataset.followupRowId === this.highlightedFollowupRowId);
+      row?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    },
+
+    normalizeBulkMobile(value) {
+      let digits = String(value || "")
+        .replace(/[۰-۹]/g, char => String("۰۱۲۳۴۵۶۷۸۹".indexOf(char)))
+        .replace(/[٠-٩]/g, char => String("٠١٢٣٤٥٦٧٨٩".indexOf(char)))
+        .replace(/\D/g, "");
+
+      if (digits.startsWith("0098")) digits = `0${digits.slice(4)}`;
+      else if (digits.startsWith("98")) digits = `0${digits.slice(2)}`;
+      else if (/^9\d{9}$/.test(digits)) digits = `0${digits}`;
+
+      return /^09\d{9}$/.test(digits) ? digits : "";
+    },
+
+    extractBulkMobiles(text) {
+      const normalized = String(text || "")
+        .replace(/[۰-۹]/g, char => String("۰۱۲۳۴۵۶۷۸۹".indexOf(char)))
+        .replace(/[٠-٩]/g, char => String("٠١٢٣٤٥٦٧٨٩".indexOf(char)));
+      const candidates = normalized.match(/(?:(?:\+98|0098|98)[\s().-]*|0)?9(?:[\s().-]*\d){9}/g) || [];
+      return candidates.map(value => this.normalizeBulkMobile(value)).filter(Boolean);
+    },
+
+    handleBulkPhonePaste(event, targetRow) {
+      if (!this.activeCampaign || !targetRow) return;
+      const clipboardText = event.clipboardData?.getData("text") || "";
+      const phones = this.extractBulkMobiles(clipboardText);
+      if (!phones.length) return;
+
+      event.preventDefault();
+      const targetIndex = this.activeCampaign.rows.findIndex(row => row._localId === targetRow._localId);
+      if (targetIndex < 0) return;
+
+      targetRow.phone = phones[0];
+      const insertedRows = phones.slice(1).map(phone => ({
+        ...this.createEmptyRow(),
+        phone,
+      }));
+      if (insertedRows.length) {
+        this.activeCampaign.rows.splice(targetIndex + 1, 0, ...insertedRows);
+      }
+
+      clearTimeout(this.bulkPhonePasteNoticeTimer);
+      this.bulkPhonePasteNotice = `${phones.length.toLocaleString('fa-IR')} شماره وارد شد و ${phones.length.toLocaleString('fa-IR')} ردیف آماده شد.`;
+      this.bulkPhonePasteNoticeTimer = setTimeout(() => {
+        this.bulkPhonePasteNotice = "";
+      }, 4500);
     },
 
     addMultipleRowsToActive() {
@@ -2581,6 +2720,10 @@ export default {
       const vals = this.activeCampaign.rows
         .map((r) => r[key])
         .filter((v) => v !== "" && v !== null && v !== undefined);
+      if (key === 'gender') vals.push('زن', 'مرد');
+      if (key === 'consultant') {
+        vals.push(...this.staffOptions.map(item => item?.name).filter(Boolean));
+      }
       return [...new Set(vals)].sort();
     },
 
@@ -2588,6 +2731,10 @@ export default {
       const vals = this.reportAllFilteredRows
         .map((r) => r[key])
         .filter((v) => v !== "" && v !== null && v !== undefined);
+      if (key === 'gender') vals.push('زن', 'مرد');
+      if (key === 'consultant') {
+        vals.push(...this.staffOptions.map(item => item?.name).filter(Boolean));
+      }
       return [...new Set(vals)].sort();
     },
 
@@ -4395,11 +4542,11 @@ export default {
 
 :global(.vpd-container) {
   font-family: "Vazir", sans-serif !important;
-  z-index: 1000020 !important;
+  z-index: 2147483601 !important;
 }
 
 :global(.vpd-wrapper) {
-  z-index: 1000020 !important;
+  z-index: 2147483600 !important;
 }
 
 :global(.followup-appointment-date-picker-layer) {
@@ -4534,11 +4681,76 @@ export default {
 @media(max-width:650px){.archive-view-banner{grid-template-columns:38px 1fr}.archive-view-banner>button{grid-column:1/-1;width:100%}.archive-view-banner>div:nth-child(2){align-items:flex-start;flex-direction:column;gap:3px}}
 /* Dense, fitted follow-up data table */
 .campaign-table-modal .table-scroll{border-radius:11px;scrollbar-width:thin}
-.campaign-table-modal .table-scroll{width:100%;overflow-x:auto;overflow-y:visible}
+.campaign-table-modal .table-scroll{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+.campaign-table-modal .filterable{position:relative;overflow:visible!important}
+.campaign-table-modal .filter-dropdown{
+  position:fixed;
+  z-index:1000006;
+  min-width:190px;
+  max-width:min(280px,calc(100vw - 32px));
+  max-height:min(300px,45vh);
+  padding:8px;
+  border-color:#cbd5e1;
+  box-shadow:0 18px 45px rgba(15,23,42,.24);
+}
+.campaign-table-modal .contacts-table .filter-dropdown .filter-option{
+  min-height:34px;
+  gap:9px;
+  padding:7px 9px;
+  overflow:visible;
+  color:#334155;
+  font-size:11px;
+  line-height:1.5;
+  text-align:right;
+  direction:rtl;
+}
+.campaign-table-modal .contacts-table .filter-dropdown .filter-option input[type="checkbox"]{
+  width:16px!important;
+  min-width:16px!important;
+  height:16px!important;
+  margin:0!important;
+  padding:0!important;
+  border:1px solid #94a3b8!important;
+  border-radius:4px!important;
+  background:#fff!important;
+  accent-color:#2563eb;
+  line-height:normal!important;
+}
+.campaign-table-modal .filter-dropdown .filter-option span{
+  min-width:0;
+  flex:1;
+  overflow:visible;
+  text-overflow:clip;
+}
+.bulk-phone-paste-notice{
+  position:fixed;
+  z-index:1000020;
+  right:24px;
+  bottom:24px;
+  max-width:min(420px,calc(100vw - 48px));
+  padding:12px 16px;
+  border:1px solid #86efac;
+  border-radius:12px;
+  background:#f0fdf4;
+  color:#166534;
+  box-shadow:0 14px 35px rgba(15,23,42,.18);
+  font-size:12px;
+  font-weight:1000;
+}
 .campaign-table-modal .contacts-table{width:max-content!important;min-width:1660px!important}
 .campaign-table-modal .contacts-table{width:100%;min-width:1018px;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:10px}
 .campaign-table-modal .contacts-table thead th{height:42px;padding:0 4px;border-left:1px solid #edf1f5;border-bottom:1px solid #dbe3ed;background:#f8fafc;color:#475569;font-size:10px;font-weight:1000;line-height:1.35}
 .campaign-table-modal .contacts-table tbody tr{height:40px}
+.campaign-table-modal .contacts-table tbody tr.followup-highlight-row td{background:#fef08a!important;color:#713f12;box-shadow:inset 0 2px 0 #eab308,inset 0 -2px 0 #eab308}
+.campaign-table-modal .contacts-table tbody tr.followup-highlight-row td:first-child{border-right:4px solid #eab308}
+.campaign-table-modal .contacts-table tbody tr.followup-highlight-row{animation:followup-highlight-pulse 1.8s ease-in-out 2}
+@keyframes followup-highlight-pulse{0%,100%{filter:none}50%{filter:brightness(1.06)}}
 .campaign-table-modal .contacts-table tbody td{height:40px;padding:0 3px;border-left:1px solid #edf1f5;border-bottom:1px solid #e5e7eb;background:#fff;line-height:1.2}
 .campaign-table-modal .contacts-table th:last-child,.campaign-table-modal .contacts-table td:last-child{border-left:0}
 .campaign-table-modal .contacts-table input,.campaign-table-modal .contacts-table select{width:100%;height:36px;min-width:0;margin:0;padding:0 5px;border:1px solid transparent;border-radius:6px;background:transparent;font-size:10px;line-height:34px;text-align:center;text-overflow:ellipsis;white-space:nowrap}
@@ -4584,4 +4796,19 @@ export default {
 .followup-profile-overlay{position:fixed;z-index:1000012;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}.followup-profile-modal{width:min(680px,96vw);max-height:92vh;overflow:auto;border:1px solid rgba(255,255,255,.85);border-radius:22px;background:#fff;color:#0f172a;box-shadow:0 28px 90px rgba(15,23,42,.35)}.followup-profile-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.followup-profile-head{display:flex;align-items:center;gap:12px;min-width:0}.followup-profile-avatar{width:58px;height:58px;flex:0 0 58px;border:3px solid #94a3b8;border-radius:50%;object-fit:cover;background:#e2e8f0}.followup-profile-avatar.fallback{display:grid;place-items:center;color:#475569;font-size:20px;font-weight:1000}.followup-profile-avatar.level-none{border-color:#dbe3ed}.followup-profile-avatar.level-silver{border-color:#94a3b8}.followup-profile-avatar.level-blue{border-color:#3b82f6}.followup-profile-avatar.level-gold{border-color:#f59e0b}.followup-profile-avatar.level-problematic{border-color:#ef4444}.followup-profile-head small{color:#2563eb;font-size:10px;font-weight:1000}.followup-profile-head h3{margin:4px 0;font-size:19px}.followup-profile-head p{margin:0;color:#64748b;font-size:11px;font-weight:800}.followup-profile-modal>header>button{width:36px;height:36px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 5px 14px rgba(15,23,42,.08)}.followup-profile-loading,.followup-profile-error{padding:40px 20px;text-align:center;font-size:13px;font-weight:900}.followup-profile-loading{color:#2563eb}.followup-profile-error{color:#b91c1c}.followup-profile-body{padding:18px}.followup-profile-stats,.followup-profile-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.followup-profile-stats{margin-bottom:14px}.followup-profile-stats article,.followup-profile-details article{min-width:0;padding:11px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.followup-profile-stats span,.followup-profile-details span{display:block;margin-bottom:5px;color:#94a3b8;font-size:9px;font-weight:900}.followup-profile-stats strong,.followup-profile-details strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-size:11px}.followup-profile-stats article.danger{border-color:#fecaca;background:#fff7f7}.followup-profile-stats article.danger strong{color:#b91c1c}.followup-profile-hint{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:800;line-height:1.8}@media(max-width:560px){.followup-profile-stats,.followup-profile-details{grid-template-columns:1fr}.followup-profile-modal>header{padding:15px}.followup-profile-head h3{font-size:17px}}
 @media(max-width:760px){.history-card dl{grid-template-columns:1fr 1fr}.history-modal>header{padding:15px}.history-timeline{padding:14px}.history-modal h3{font-size:18px}}
 @media(max-width:480px){.history-card dl{grid-template-columns:1fr}}
+.landing-multi-menu-floating,
+.landing-sms-modal-overlay {
+  z-index: 2147483560 !important;
+}
+/* مدال اصلی پیگیری باید روی منوی سراسری باز شود؛ پنجره‌های داخلی یک لایه بالاترند. */
+.modal-overlay {
+  z-index: 2147483570 !important;
+}
+.history-modal-overlay,
+.followup-appointment-overlay,
+.description-modal-overlay,
+.followup-profile-overlay {
+  /* پنجره‌های بازشونده از داخل جدول باید بالاتر از خود جدول باشند. */
+  z-index: 2147483580 !important;
+}
 .landing-sms-modal-overlay{position:fixed;inset:0;z-index:1000010;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.landing-sms-modal{width:min(520px,96vw);overflow:hidden;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.landing-sms-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.landing-sms-modal header small{color:#2563eb;font-size:11px;font-weight:900}.landing-sms-modal h3{margin:4px 0;font-size:18px}.landing-sms-modal p{margin:0;color:#64748b;font-size:11px}.landing-sms-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.landing-sms-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding:16px}.landing-sms-list label{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:11px;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer}.landing-sms-list label.selected{border-color:#93c5fd;background:#eff6ff}.landing-sms-list label.sent{border-color:#86efac;background:#f0fdf4}.landing-sms-list input{width:17px;height:17px;accent-color:#2563eb}.landing-sms-list span{display:grid;gap:3px}.landing-sms-list b{font-size:12px}.landing-sms-list small{color:#64748b;font-size:10px}.landing-sms-list i{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-weight:1000}.landing-sms-empty{padding:20px;text-align:center}.landing-sms-error{margin:0 16px 12px!important;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c!important}.landing-sms-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #e2e8f0}.landing-sms-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.landing-sms-cancel{background:#e2e8f0;color:#475569}.landing-sms-send{background:#2563eb;color:#fff}.landing-sms-send:disabled{opacity:.55;cursor:wait}.followup-appointment-overlay{position:fixed;inset:0;z-index:1000011;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.56);backdrop-filter:blur(5px)}.followup-appointment-modal{width:min(570px,96vw);overflow:visible;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.followup-appointment-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.followup-appointment-modal header small{color:#2563eb;font-size:11px;font-weight:900}.followup-appointment-modal h3{margin:4px 0;font-size:18px}.followup-appointment-modal header p{margin:0;color:#64748b;font-size:11px}.followup-appointment-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.followup-appointment-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:18px}.followup-appointment-form label{display:grid;gap:6px;color:#475569;font-size:11px;font-weight:900}.followup-appointment-form label.full{grid-column:1/-1}.followup-appointment-form input,.followup-appointment-form select,.followup-appointment-form textarea{width:100%;min-height:40px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#1e293b;font:inherit;outline:0}.followup-appointment-form textarea{min-height:78px;resize:vertical}.followup-appointment-form input:focus,.followup-appointment-form select:focus,.followup-appointment-form textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.followup-appointment-modal :deep(.vpd-container){z-index:1000020!important}.followup-appointment-error{margin:0 18px 14px;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:800}.followup-appointment-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid #e2e8f0}.followup-appointment-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.followup-appointment-cancel{background:#e2e8f0;color:#475569}.followup-appointment-save{background:#2563eb;color:#fff}.followup-appointment-save:disabled{opacity:.55;cursor:wait}@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}@media(max-width:540px){.followup-appointment-form{grid-template-columns:1fr}.followup-appointment-modal footer{padding:12px}.followup-appointment-modal footer button{flex:1}}</style>

@@ -381,16 +381,21 @@
             </th>
 
             <th
-              class="sticky-header amount-col resizable-th"
-              :style="{ width: columnWidths.amount + 'px' }"
-              :class="{ 'filtered-header': amountFilterActive }"
+              class="sticky-header service-col resizable-th"
+              :style="{ width: columnWidths.service + 'px' }"
+              :class="{ 'filtered-header': serviceFilterCount > 0 }"
             >
-              <div class="header-with-filter"><span>مبلغ</span><button type="button" class="filter-btn" :class="{ active: amountFilterActive }" title="فیلتر مبلغ پرداخت‌شده" @click.stop="openAmountFilterModal">{{ amountFilterActive ? '✓' : '⚙' }}</button></div>
+              <div class="header-with-filter">
+                <span>خدمات</span>
+                <button type="button" class="filter-btn" :class="{ active: serviceFilterCount > 0 }" title="فیلتر خدمات" @click.stop="openServiceFilterModal">
+                  <b v-if="serviceFilterCount">{{ serviceFilterCount }}</b><span v-else>⚙</span>
+                </button>
+              </div>
 
               <div
                 class="resize-handle"
-                @mousedown="startResize($event, 'amount')"
-                @dblclick.stop="autoFitColumn($event, 'amount')"
+                @mousedown="startResize($event, 'service')"
+                @dblclick.stop="autoFitColumn($event, 'service')"
               ></div>
             </th>
 
@@ -441,21 +446,16 @@
             </th>
 
             <th
-              class="sticky-header service-col resizable-th"
-              :style="{ width: columnWidths.service + 'px' }"
-              :class="{ 'filtered-header': serviceFilterCount > 0 }"
+              class="sticky-header amount-col resizable-th"
+              :style="{ width: columnWidths.amount + 'px' }"
+              :class="{ 'filtered-header': amountFilterActive }"
             >
-              <div class="header-with-filter">
-                <span>خدمات</span>
-                <button type="button" class="filter-btn" :class="{ active: serviceFilterCount > 0 }" title="فیلتر خدمات" @click.stop="openServiceFilterModal">
-                  <b v-if="serviceFilterCount">{{ serviceFilterCount }}</b><span v-else>⚙</span>
-                </button>
-              </div>
+              <div class="header-with-filter"><span>مبلغ</span><button type="button" class="filter-btn" :class="{ active: amountFilterActive }" title="فیلتر مبلغ پرداخت‌شده" @click.stop="openAmountFilterModal">{{ amountFilterActive ? '✓' : '⚙' }}</button></div>
 
               <div
                 class="resize-handle"
-                @mousedown="startResize($event, 'service')"
-                @dblclick.stop="autoFitColumn($event, 'service')"
+                @mousedown="startResize($event, 'amount')"
+                @dblclick.stop="autoFitColumn($event, 'amount')"
               ></div>
             </th>
 
@@ -656,6 +656,10 @@
               >
                 <input
                   v-model="row.fileNumber"
+                  :readonly="appointmentFileNumberLocked"
+                  :title="appointmentFileNumberLocked ? 'شماره پرونده توسط سیستم تولید می‌شود' : 'شماره پرونده را وارد کنید یا خالی بگذارید تا سیستم تولید کند'"
+                  @input="saveData()"
+                  @change="persistDirectAppointment(row)"
                   @blur="fillPatientByFileNumber(row)"
                   @keyup.enter.prevent="fillPatientByFileNumber(row, true)"
                 />
@@ -774,98 +778,6 @@
                   <option>انجام نشد</option>
                   <option>ترمیم</option>
                   <option>مشاوره</option>
-                </select>
-
-              </td>
-
-              <td
-                class="amount-col"
-                :style="{ width: columnWidths.amount + 'px' }"
-              >
-                <div
-                  class="amount-finance-cell"
-                  :class="{
-                    'shows-debt': appointmentDisplayedDebtAmount(row) > 0,
-                    'is-paid': appointmentPaymentIsSettled(row)
-                  }"
-                >
-                  <div class="amount-column-display">
-                    <input
-                      :value="appointmentAmountColumnValue(row)"
-                      :title="appointmentAmountColumnTitle(row)"
-                      disabled
-                      class="auto-amount-input"
-                      :class="{
-                        'debt-amount-input': appointmentDisplayedDebtAmount(row) > 0,
-                        'paid-amount-input': appointmentPaymentIsSettled(row)
-                      }"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    class="finance-chat-trigger"
-                    :class="{
-                      danger: isDebtor(row),
-                      paid: appointmentPaymentIsSettled(row),
-                      credit: Number(row.walletBalance || 0) > 0 && appointmentDisplayedDebtAmount(row) <= 0 && !appointmentPaymentIsSettled(row),
-                      'has-financial-balance': isDebtor(row) || (!appointmentPaymentIsSettled(row) && Number(row.walletBalance || 0) > 0)
-                    }"
-                    :title="financialTriggerTitle(row)"
-                    :aria-label="financialTriggerTitle(row)"
-                    @click.stop="openFinancialPanel(row)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5z"/><path d="M9 9h6M9 12h4"/></svg>
-                    <em v-if="!appointmentPaymentIsSettled(row) && (appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row))">پرداخت</em>
-                    <span v-if="isDebtor(row)">!</span>
-                  </button>
-                </div>
-
-              </td>
-
-              <td
-                v-if="appointmentColumns.payment_link"
-                class="payment-link-col"
-                :style="{ width: columnWidths.paymentLink + 'px' }"
-              >
-                <button
-                  type="button"
-                  class="payment-link-btn"
-                  :class="{ sent: Number(row.paymentLinkSentCount || 0) > 0 }"
-                  @click.stop="openPaymentLinkModal(day, row)"
-                >
-                  لینک
-                  <span v-if="Number(row.paymentLinkSentCount || 0)">{{ row.paymentLinkSentCount }}</span>
-                </button>
-              </td>
-
-              <td
-                class="sms-col"
-                :style="{ width: columnWidths.appointmentSms + 'px' }"
-              >
-
-                <select
-                  v-model="row.appointmentSms"
-                  :class="smsColor(row.appointmentSms)"
-                >
-                  <option value=""></option>
-                  <option>انتظار</option>
-                  <option>ارسال شد</option>
-                </select>
-
-              </td>
-
-              <td
-                class="sms-col"
-                :style="{ width: columnWidths.infoSms + 'px' }"
-              >
-
-                <select
-                  v-model="row.infoSms"
-                  :class="smsColor(row.infoSms)"
-                >
-                  <option value=""></option>
-                  <option>انتظار</option>
-                  <option>ارسال شد</option>
                 </select>
 
               </td>
@@ -1122,6 +1034,98 @@
 
               </td>
 
+              <td
+                v-if="appointmentColumns.payment_link"
+                class="payment-link-col"
+                :style="{ width: columnWidths.paymentLink + 'px' }"
+              >
+                <button
+                  type="button"
+                  class="payment-link-btn"
+                  :class="{ sent: Number(row.paymentLinkSentCount || 0) > 0 }"
+                  @click.stop="openPaymentLinkModal(day, row)"
+                >
+                  لینک
+                  <span v-if="Number(row.paymentLinkSentCount || 0)">{{ row.paymentLinkSentCount }}</span>
+                </button>
+              </td>
+
+              <td
+                class="sms-col"
+                :style="{ width: columnWidths.appointmentSms + 'px' }"
+              >
+
+                <select
+                  v-model="row.appointmentSms"
+                  :class="smsColor(row.appointmentSms)"
+                >
+                  <option value=""></option>
+                  <option>انتظار</option>
+                  <option>ارسال شد</option>
+                </select>
+
+              </td>
+
+              <td
+                class="sms-col"
+                :style="{ width: columnWidths.infoSms + 'px' }"
+              >
+
+                <select
+                  v-model="row.infoSms"
+                  :class="smsColor(row.infoSms)"
+                >
+                  <option value=""></option>
+                  <option>انتظار</option>
+                  <option>ارسال شد</option>
+                </select>
+
+              </td>
+
+              <td
+                class="amount-col"
+                :style="{ width: columnWidths.amount + 'px' }"
+              >
+                <div
+                  class="amount-finance-cell"
+                  :class="{
+                    'shows-debt': appointmentDisplayedDebtAmount(row) > 0,
+                    'is-paid': appointmentPaymentIsSettled(row)
+                  }"
+                >
+                  <div class="amount-column-display">
+                    <input
+                      :value="appointmentAmountColumnValue(row)"
+                      :title="appointmentAmountColumnTitle(row)"
+                      disabled
+                      class="auto-amount-input"
+                      :class="{
+                        'debt-amount-input': appointmentDisplayedDebtAmount(row) > 0,
+                        'paid-amount-input': appointmentPaymentIsSettled(row)
+                      }"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    class="finance-chat-trigger"
+                    :class="{
+                      danger: isDebtor(row),
+                      paid: appointmentPaymentIsSettled(row),
+                      credit: Number(row.walletBalance || 0) > 0 && appointmentDisplayedDebtAmount(row) <= 0 && !appointmentPaymentIsSettled(row),
+                      'has-financial-balance': isDebtor(row) || (!appointmentPaymentIsSettled(row) && Number(row.walletBalance || 0) > 0)
+                    }"
+                    :title="financialTriggerTitle(row)"
+                    :aria-label="financialTriggerTitle(row)"
+                    @click.stop="openFinancialPanel(row)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5z"/><path d="M9 9h6M9 12h4"/></svg>
+                    <em v-if="!appointmentPaymentIsSettled(row) && (appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row))">پرداخت</em>
+                    <span v-if="isDebtor(row)">!</span>
+                  </button>
+                </div>
+
+              </td>
+
               <td class="row-action-col">
                 <button
                   type="button"
@@ -1146,6 +1150,10 @@
                   </svg>
                 </button>
 
+                <button type="button" class="row-history-btn" title="تاریخچه فعالیت نوبت" aria-label="تاریخچه فعالیت نوبت" @click.stop="openAppointmentHistory(row)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/><circle cx="3" cy="6" r=".8"/><circle cx="3" cy="12" r=".8"/><circle cx="3" cy="18" r=".8"/></svg>
+                </button>
+
                 <button
                   type="button"
                   class="row-delete-btn"
@@ -1163,6 +1171,16 @@
         </tbody>
 
       </table>
+    </div>
+
+    <div v-if="appointmentHistoryOpen" class="appointment-history-overlay" @click.self="closeAppointmentHistory">
+      <section class="appointment-history-modal" role="dialog" aria-modal="true" aria-labelledby="appointment-history-title" @click.stop>
+        <header><div><small>ردیابی کامل نوبت</small><h3 id="appointment-history-title">تاریخچه فعالیت</h3><p>{{ appointmentHistoryRow?.lastname || 'مراجعه‌کننده' }} · {{ appointmentHistoryRows.length.toLocaleString('fa-IR') }} رویداد</p></div><button type="button" title="بستن" @click="closeAppointmentHistory">×</button></header>
+        <nav class="appointment-history-filters"><button v-for="filter in appointmentHistoryFilters" :key="filter.value" type="button" :class="{ active: appointmentHistoryFilter === filter.value }" @click="appointmentHistoryFilter = filter.value">{{ filter.label }}</button></nav>
+        <div v-if="appointmentHistoryLoading" class="appointment-history-empty">در حال دریافت تاریخچه...</div>
+        <div v-else-if="!filteredAppointmentHistory.length" class="appointment-history-empty">برای این نوبت رویدادی ثبت نشده است.</div>
+        <div v-else class="appointment-history-timeline"><article v-for="log in filteredAppointmentHistory" :key="log.id"><i></i><div><div class="appointment-history-card-head"><strong>{{ appointmentHistoryLabel(log) }}</strong><time>{{ formatAuditDate(log.created_at) }}</time></div><p>توسط <b>{{ log.user_name || 'سیستم' }}</b></p><small v-if="appointmentHistorySummary(log)">{{ appointmentHistorySummary(log) }}</small></div></article></div>
+      </section>
     </div>
 
     <div v-if="serviceFilterModalOpen" class="service-filter-overlay" @click.self="serviceFilterModalOpen = false">
@@ -1248,6 +1266,14 @@
     </div>
 
     <section v-if="appointmentView === 'timeline'" class="appointment-timeline" @click.stop>
+      <div v-if="pendingTimelineFollowup" class="timeline-followup-pending" role="status">
+        <div>
+          <strong>روز و ساعت نوبت را انتخاب کنید</strong>
+          <span>اطلاعات {{ pendingTimelineFollowup.fullName || 'مراجعه‌کننده' }} بعد از انتخاب زمان، خودکار داخل فرم قرار می‌گیرد.</span>
+        </div>
+        <button type="button" @click.stop="pendingTimelineFollowup = null">انصراف</button>
+      </div>
+
       <div v-if="!timelineDays.length" class="timeline-empty-state">
         نوبتی برای نمایش وجود ندارد.
       </div>
@@ -1276,6 +1302,7 @@
               class="timeline-card"
               :class="[
                 timelineCardClass(row),
+                pendingTimelineFollowup && isEmptyAppointmentRow(row) ? 'is-followup-target' : '',
                 isAppointmentSearchResult(row) ? 'is-search-result' : '',
                 highlightedRowId === row._rowId ? 'is-highlighted' : ''
               ]"
@@ -1489,6 +1516,8 @@
               شماره پرونده
               <input
                 v-model="activeTimelineDraft.fileNumber"
+                :readonly="appointmentFileNumberLocked"
+                :title="appointmentFileNumberLocked ? 'شماره پرونده توسط سیستم تولید می‌شود' : 'شماره پرونده را وارد کنید یا خالی بگذارید تا سیستم تولید کند'"
                 type="text"
                 @blur="fillPatientByFileNumber(activeTimelineDraft)"
                 @keyup.enter="fillPatientByFileNumber(activeTimelineDraft)"
@@ -2478,6 +2507,7 @@ export default {
         payment_link: false,
         best_staff: false
       },
+      appointmentFileNumberLocked: true,
       clinicSchedule: {
         is_configured: false,
         active_days: ["saturday", "monday", "wednesday"],
@@ -2545,6 +2575,18 @@ export default {
       financialPreviousDebts: [],
       financialInvoiceLines: [],
       financialTransactions: [],
+      appointmentHistoryOpen: false,
+      appointmentHistoryLoading: false,
+      appointmentHistoryRow: null,
+      appointmentHistoryRows: [],
+      appointmentHistoryFilter: 'all',
+      appointmentHistoryFilters: [
+        { value: 'all', label: 'همه' },
+        { value: 'status', label: 'وضعیت‌ها' },
+        { value: 'service', label: 'خدمات' },
+        { value: 'financial', label: 'مالی' },
+        { value: 'edit', label: 'ویرایش‌ها' },
+      ],
       financialPaymentDeletingId: null,
       financialDebtDraft: "",
       financialDebtDescriptionDraft: "",
@@ -2667,6 +2709,13 @@ export default {
   },
 
   computed: {
+    filteredAppointmentHistory() {
+      if (this.appointmentHistoryFilter === 'all') return this.appointmentHistoryRows
+      return this.appointmentHistoryRows.filter(log => {
+        const text = `${log.event || ''} ${log.section || ''} ${JSON.stringify(log.new_values || {})}`
+        return this.appointmentHistoryFilter === 'financial' ? /مالی|پرداخت|تسویه|بدهی|کیف پول/i.test(text) : this.appointmentHistoryFilter === 'status' ? /وضعیت|done|status|انجام|تایید/i.test(text) : this.appointmentHistoryFilter === 'service' ? /خدمت|service/i.test(text) : /ویرایش|updated/i.test(text)
+      })
+    },
     emptyTimeFilterActive() {
       return Boolean(this.emptyTimeFilterFrom || this.emptyTimeFilterTo);
     },
@@ -2930,6 +2979,70 @@ export default {
   },
 
   methods: {
+    async openAppointmentHistory(row) {
+      const appointmentId = Number(row?.appointmentId || row?.id || 0)
+      if (!appointmentId) {
+        await Swal.fire({ icon: 'info', title: 'نوبت هنوز ذخیره نشده', text: 'ابتدا نوبت را ذخیره کنید تا تاریخچه آن قابل مشاهده باشد.', confirmButtonText: 'باشه' })
+        return
+      }
+      this.appointmentHistoryOpen = true
+      this.appointmentHistoryLoading = true
+      this.appointmentHistoryRow = row
+      this.appointmentHistoryRows = []
+      this.appointmentHistoryFilter = 'all'
+      try {
+        const { data } = await axios.get('/api/activity-logs', { params: { subject_type: 'App\\Models\\Appointment', subject_id: appointmentId, per_page: 100 } })
+        this.appointmentHistoryRows = Array.isArray(data?.data) ? data.data : []
+      } catch (error) {
+        console.error(error)
+        if (error?.response?.status === 403) await Swal.fire({ icon: 'warning', title: 'دسترسی محدود است', text: 'مجوز مشاهده تاریخچه فعالیت برای حساب شما فعال نیست.', confirmButtonText: 'باشه' })
+      } finally {
+        this.appointmentHistoryLoading = false
+      }
+    },
+    closeAppointmentHistory() {
+      this.appointmentHistoryOpen = false
+      this.appointmentHistoryLoading = false
+      this.appointmentHistoryRow = null
+    },
+    appointmentHistoryLabel(log) {
+      const newValues = log?.new_values || {}
+      if (log?.event === 'created') return 'نوبت ثبت شد'
+      if (log?.event === 'deleted') return 'نوبت حذف شد'
+      if (newValues.appointment_sms || newValues.info_sms || newValues.completion_sms_statuses) return 'وضعیت پیامک تغییر کرد'
+      if (newValues.done) return 'وضعیت انجام کار تغییر کرد'
+      if (newValues.status) return 'وضعیت نوبت تغییر کرد'
+      if (newValues.services) return 'خدمات نوبت ویرایش شد'
+      if (newValues.amount || newValues.debt || newValues.payment_method) return 'اطلاعات مالی نوبت تغییر کرد'
+      return 'اطلاعات نوبت ویرایش شد'
+    },
+    appointmentHistorySummary(log) {
+      const oldValues = log?.old_values || {}
+      const newValues = log?.new_values || {}
+      const labels = { status: 'وضعیت نوبت', done: 'وضعیت انجام کار', services: 'خدمات', amount: 'مبلغ', debt: 'بدهی', payment_method: 'روش پرداخت', lastname: 'نام بیمار', phone: 'شماره تماس', file_number: 'شماره پرونده', time: 'ساعت نوبت', doctor: 'پزشک', consultant: 'مشاور', source: 'نحوه آشنایی', description: 'توضیحات', appointment_sms: 'پیامک نوبت', info_sms: 'پیامک اطلاعات' }
+      const hiddenKeys = ['id', 'lock_version', 'sort_order', 'month', 'day_num', 'updated_at', 'created_at', 'completed_at', 'arrived_at', 'wait_minutes']
+      const keys = Object.keys(newValues).filter(key => !hiddenKeys.includes(key) && labels[key]).slice(0, 4)
+      if (newValues.appointment_sms || newValues.info_sms || newValues.completion_sms_statuses) return 'پیامک در وضعیت جدید ثبت شد.'
+      return keys.map(key => {
+        const before = this.appointmentHistoryDisplayValue(key, oldValues[key])
+        const after = this.appointmentHistoryDisplayValue(key, newValues[key])
+        if (key === 'status') return `وضعیت نوبت از «${before}» به «${after}» تغییر کرد.`
+        if (key === 'done') return `وضعیت انجام کار از «${before}» به «${after}» تغییر کرد.`
+        if (key === 'amount' || key === 'debt') return `${labels[key]} از ${this.formatSignedDisplayMoney(before)} به ${this.formatSignedDisplayMoney(after)} تومان تغییر کرد.`
+        if (key === 'services') return 'خدمات نوبت ثبت یا ویرایش شد.'
+        return `${labels[key]} از «${before}» به «${after}» تغییر کرد.`
+      }).join(' ')
+    },
+    appointmentHistoryDisplayValue(key, value) {
+      if (value === null || value === undefined || value === '') {
+        return ['status', 'done'].includes(key) ? 'در انتظار' : 'ثبت نشده'
+      }
+      if (typeof value === 'boolean' || value === 0 || value === 1 || value === '0' || value === '1') {
+        if (['new_customer'].includes(key)) return ['1', 1, true].includes(value) ? 'مشتری جدید' : 'مشتری قبلی'
+      }
+      const display = { pending: 'در انتظار', done: 'انجام شد', cancelled: 'لغو شد', confirmed: 'تأیید شده', sent: 'ارسال شد', waiting: 'در انتظار ارسال', cash: 'نقدی', card: 'کارت', check: 'چک' }
+      return display[String(value).trim().toLowerCase()] || String(value)
+    },
     handleRealtimeAppointmentChange(event) {
       if (!event || event.month !== this.months[this.currentMonth]) return;
       this.applyRealtimeAppointmentChange(event);
@@ -3230,7 +3343,6 @@ export default {
       this.activateScheduleDay(day);
       this.handledOpenViewRequestAt = requestKey;
       this.pendingTimelineFollowup = request.followup || null;
-      this.$nextTick(() => this.openNewTimelineAppointment(day));
     },
 
     showAvatarPreview(event, url, level = 'blue') {
@@ -3852,10 +3964,9 @@ export default {
 
     async confirmDirectAppointment(row, notify = false) {
       const day = this.days.find(item => (item.rows || []).includes(row));
-      // A name is enough to create the booking. Time and services may be
-      // completed later; keeping those optional prevents a refresh from
-      // discarding a real patient entry.
-      if (!day || !String(row.lastname || '').trim()) return false;
+      // Any user-entered value creates the row. The generated clock value by
+      // itself is deliberately ignored so untouched slots stay database-free.
+      if (!day || !this.rowShouldPersist(row)) return false;
 
       let confirmed = false;
       for (let attempt = 0; attempt < 3 && !confirmed; attempt += 1) {
@@ -4047,6 +4158,7 @@ export default {
         await this.persistDirectAppointment(row, notify);
       }
     },
+
 
     async fetchMonthEvents(force = false) {
       const monthKey = this.months[this.currentMonth];
@@ -4394,7 +4506,7 @@ export default {
 
     formatAuditDate(value) {
       const parsed = moment(value);
-      return parsed.isValid() ? parsed.format("YYYY/MM/DD HH:mm") : "-";
+      return parsed.isValid() ? parsed.format("jYYYY/jMM/jDD HH:mm") : "-";
     },
 
     formatCompletionSmsSentAt(value) {
@@ -5021,6 +5133,7 @@ export default {
           ...settingsRes.data.appointment_columns
         };
       }
+      this.appointmentFileNumberLocked = settingsRes.data.appointment_file_number_locked !== false;
 
       const templates = settingsRes.data.sms_settings?.templates || [];
       this.enabledCompletionSmsTypes = templates
@@ -5230,7 +5343,22 @@ export default {
       } catch (e) {
         console.error(e);
         if (this.months[this.currentMonth] === targetMonth) {
-          this.days = [];
+          // A temporary API failure must not make the month look deleted.
+          // Empty slots are derived from clinic hours and are never persisted.
+          // Keep the last successful view when available; otherwise render the
+          // configured schedule locally and clearly report the loading error.
+          const cachedDays = this.monthDaysCache[targetMonth];
+          if (Array.isArray(cachedDays) && cachedDays.length) {
+            this.days = cachedDays;
+          } else {
+            this.days = [];
+            this.generateClinicScheduleForCurrentMonth();
+          }
+          Swal.fire({
+            icon: "error",
+            title: "دریافت نوبت‌ها انجام نشد",
+            text: e.response?.data?.message || "برنامه روزهای کاری نمایش داده شد؛ برای دریافت نوبت‌ها دوباره تلاش کنید."
+          });
         }
       }
 
@@ -5583,15 +5711,10 @@ export default {
             const payload = [];
             const payloadRows = [];
             const payloadFingerprints = [];
-            let hasIncompleteRows = false;
 
             scheduledDays.forEach(day => {
               day.rows.forEach((row, rowIndex) => {
                 if (!this.rowShouldPersist(row)) return;
-                if (!String(row.lastname || "").trim()) {
-                  hasIncompleteRows = true;
-                  return;
-                }
                 // Existing rows which have not changed are not part of this
                 // request. This prevents an edit/new appointment from being
                 // rejected because of an unrelated row in the same month.
@@ -5820,7 +5943,7 @@ this.calculateFinalAmount(row)
 
             if (this.draftRevision === draftRevisionAtRequest) {
               this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
-              if (!hasIncompleteRows) this.clearPendingDraft(month);
+              this.clearPendingDraft(month);
             }
 
           } catch (e) {
@@ -6556,7 +6679,16 @@ this.calculateFinalAmount(row)
 
     async saveFinancialPanel() {
       const row = this.activeFinancialRow;
-      if (!row || !row.appointmentId) { await Swal.fire({ icon: 'warning', title: 'نوبت هنوز ذخیره نشده', text: 'ابتدا اطلاعات نوبت را ثبت کنید.' }); return; }
+      if (!row) return;
+      // ممکن است ذخیرهٔ خودکار هنوز در حال انجام نباشد و ردیف شناسهٔ سرور نداشته باشد.
+      // قبل از ثبت خدمات/تسویه، خود ردیف را ذخیره می‌کنیم تا کاربر با هشدار اشتباه مواجه نشود.
+      if (!row.appointmentId) {
+        const saved = await this.persistDirectAppointment(row);
+        if (!saved || !row.appointmentId) {
+          await Swal.fire({ icon: 'warning', title: 'ذخیره نوبت انجام نشد', text: 'اطلاعات نوبت را بررسی کنید و دوباره تلاش کنید.' });
+          return;
+        }
+      }
 
       const newDebt = this.financialRemainingDebtPreview();
       const debtLines = this.financialDebtLines.map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)), reason: String(line.reason || '').trim() })).filter(line => line.amount > 0);
@@ -7514,10 +7646,14 @@ this.calculateFinalAmount(row)
 
       const meaningfulTextFields = [
         "lastname",
+        "gender",
         "phone",
         "fileNumber",
         "status",
         "arrivedAt",
+        "doctor",
+        "consultant",
+        "source",
         "description",
         "doctorNote",
         "done",
@@ -7526,7 +7662,9 @@ this.calculateFinalAmount(row)
         "paymentAccount",
         "paymentLink",
         "paymentLinkLastSentAt",
-        "referrerPhone"
+        "referrerPhone",
+        "appointmentSms",
+        "infoSms"
       ];
 
       const meaningfulMoneyFields = [
@@ -7554,7 +7692,15 @@ this.calculateFinalAmount(row)
         return hasServiceName || hasServiceCc || hasAddon;
       });
 
-      return hasTextValue || hasMoneyValue || hasServiceValue;
+      const hasStructuredValue = Boolean(row.newCustomer)
+        || (Array.isArray(row.serviceTypes) && row.serviceTypes.length > 0)
+        || Object.values(row.paymentDetails || {}).some(value => {
+          if (value && typeof value === "object") return Object.values(value).some(Boolean);
+          return Boolean(value);
+        })
+        || Object.values(row.completionSmsStatuses || {}).some(Boolean);
+
+      return hasTextValue || hasMoneyValue || hasServiceValue || hasStructuredValue;
     },
 
     rowShouldPersist(row) {
@@ -10110,14 +10256,21 @@ th.sms-col .header-with-filter > span:first-child {
 }
 
 .row-action-col {
-  width: 108px;
-  min-width: 108px;
-  max-width: 108px;
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
   text-align: center !important;
 }
+.row-history-btn{width:26px;height:26px;display:inline-grid;place-items:center;flex:0 0 26px;margin:0;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;color:#4f46e5;cursor:pointer;transition:.2s}.row-history-btn:hover{border-color:#a5b4fc;background:#e0e7ff}.row-history-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.appointment-history-overlay{position:fixed;inset:0;z-index:1000020;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.appointment-history-modal{width:min(720px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.32);direction:rtl}.appointment-history-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#eff6ff,#f0fdf4)}.appointment-history-modal header small{color:#2563eb;font-size:10px;font-weight:900}.appointment-history-modal h3{margin:4px 0;font-size:20px}.appointment-history-modal header p{margin:0;color:#64748b;font-size:11px}.appointment-history-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:#64748b;font-size:22px;cursor:pointer}.appointment-history-filters{display:flex;gap:7px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid #e2e8f0;background:#fff}.appointment-history-filters button{height:32px;padding:0 12px;border:1px solid #dbeafe;border-radius:999px;background:#f8fbff;color:#475569;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.appointment-history-filters button.active{border-color:#2563eb;background:#2563eb;color:#fff}.appointment-history-empty{min-height:220px;display:grid;place-items:center;color:#64748b;font-size:12px;font-weight:900}.appointment-history-timeline{overflow:auto;padding:18px 22px}.appointment-history-timeline article{position:relative;display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding-bottom:14px}.appointment-history-timeline article:not(:last-child)::before{content:"";position:absolute;right:8px;top:18px;bottom:-2px;width:2px;background:#dbeafe}.appointment-history-timeline article>i{position:relative;z-index:1;width:16px;height:16px;border:3px solid #bfdbfe;border-radius:50%;background:#2563eb;box-shadow:0 0 0 3px #fff}.appointment-history-timeline article>div{padding:11px 13px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}.appointment-history-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.appointment-history-card-head strong{color:#1e293b;font-size:13px}.appointment-history-card-head time{color:#64748b;font-size:10px;direction:ltr}.appointment-history-timeline p{margin:5px 0 0;color:#64748b;font-size:10px}.appointment-history-timeline p b{color:#1d4ed8}.appointment-history-timeline small{display:block;margin-top:7px;padding-top:7px;border-top:1px solid #f1f5f9;color:#475569;font-size:10px;line-height:1.8;word-break:break-word}
 
 td.row-action-col {
   white-space: nowrap;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  padding:4px 6px !important;
 }
 
 .row-tracking-btn {
@@ -11415,6 +11568,51 @@ td.st-arrived select {
 }
 .appointment-timeline .timeline-card.is-search-result { background:#fde047!important; border-color:#eab308!important; box-shadow:0 0 0 2px rgba(234,179,8,.28)!important; }
 .appointment-timeline .timeline-card.is-search-result.is-highlighted { background:#facc15!important; border-color:#ea580c!important; box-shadow:0 0 0 4px rgba(245,158,11,.38),0 12px 22px rgba(15,23,42,.16)!important; }
+
+.timeline-followup-pending {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #93c5fd;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  color: #1e3a8a;
+  box-shadow: 0 7px 18px rgba(37, 99, 235, .12);
+}
+
+.timeline-followup-pending div { display: grid; gap: 3px; }
+.timeline-followup-pending strong { font-size: 12px; font-weight: 1000; }
+.timeline-followup-pending span { font-size: 10px; font-weight: 800; }
+.timeline-followup-pending button { height: 34px; padding: 0 12px; border: 1px solid #bfdbfe; border-radius: 9px; background: #fff; color: #2563eb; font-family: inherit; font-size: 10px; font-weight: 900; }
+
+.appointment-timeline .timeline-card.is-empty.is-followup-target {
+  border: 2px dashed #3b82f6 !important;
+  background: #eff6ff !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .12) !important;
+}
+
+/* روز جاری در تایم‌لاین، دقیقاً مانند سربرگ روز فعال در نمای جدولی */
+.appointment-timeline .timeline-day-row.today-day .timeline-day-label {
+  border-left-color: #1d4ed8;
+  background: linear-gradient(135deg, #2563eb, #0284c7);
+  color: #fff;
+  box-shadow: inset -4px 0 0 #1e40af, 0 6px 18px rgba(37, 99, 235, .2);
+}
+
+.appointment-timeline .timeline-day-row.today-day .timeline-day-label strong,
+.appointment-timeline .timeline-day-row.today-day .timeline-day-label span {
+  color: #fff;
+}
+
+.appointment-timeline .timeline-day-row.today-day .timeline-day-label small {
+  border: 1px solid rgba(255, 255, 255, .65);
+  background: rgba(255, 255, 255, .18);
+  color: #fff;
+}
 .service-tag-picker{position:relative;z-index:35;grid-column:1/-1;grid-row:2;width:min(430px,100%);justify-self:start}.service-tag-trigger{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:7px;width:100%;height:38px;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.service-tag-trigger>b{justify-self:start;padding:3px 7px;border-radius:999px;background:#ede9fe;color:#6d28d9;font-size:9px}.service-tag-trigger em{justify-self:start;color:#94a3b8;font-size:10px;font-style:normal}.service-tag-trigger i{color:#64748b;font-size:16px;font-style:normal}.service-tag-menu{position:absolute;top:calc(100% + 5px);right:0;z-index:80;display:grid;gap:3px;width:100%;max-height:205px;overflow:auto;padding:6px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.18)}.service-tag-menu label{display:flex;align-items:center;gap:8px;min-height:34px;padding:6px 8px;border-radius:7px;color:#334155;font-size:11px;font-weight:800;cursor:pointer}.service-tag-menu label:hover{background:#eff6ff;color:#1d4ed8}.service-tag-menu input{width:15px!important;height:15px!important;margin:0!important;accent-color:#2563eb}.service-tag-menu-empty{padding:10px 8px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}.service-tag-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.service-tag-chips button{display:inline-flex;align-items:center;gap:5px;max-width:190px;padding:4px 7px;border:0;border-radius:7px;background:#dcfce7;color:#15803d;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.service-tag-chips button b{font-size:15px;line-height:10px}.service-details-row .service-select{flex:0 1 135px;min-width:112px}.service-price-chip{flex-basis:126px;min-width:126px;max-width:126px}@media(max-width:900px){.service-choice-row{grid-template-columns:1fr 1fr}.service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect,.service-choice-row .service-name-multiselect{grid-row:auto;grid-column:auto}.service-choice-row .service-name-multiselect,.service-tag-picker{grid-column:1/-1}.service-tag-picker{grid-row:auto;width:100%}}
 .service-addons-panel{display:grid;gap:7px;margin-top:10px;padding:12px!important;border-style:solid!important;border-color:#ddd6fe!important;background:#fbfaff!important}.service-addons-title{margin:0!important;padding-bottom:8px;border-bottom:1px solid #ede9fe;font-size:12px!important}.service-addons-title small{padding:3px 7px;border-radius:999px;background:#ede9fe;font-size:9px!important;font-weight:900!important}.service-addon-head,.service-addon-row{display:grid!important;grid-template-columns:minmax(240px,1fr) 105px 150px 170px 32px;align-items:center;gap:9px}.service-addon-head{padding:0 8px;color:#7c3aed;font-size:9px;font-weight:1000}.service-addon-row{margin:0!important;padding:7px;border:1px solid #ede9fe;border-radius:9px;background:#fff}.service-addon-multiselect{min-width:0!important;width:100%!important}.addon-cc-input{width:100%!important}.addon-price-chip{width:100%;min-width:0!important;max-width:none!important}.addon-discount-wrap{width:100%;min-width:0;flex-basis:auto!important}.remove-addon-btn{width:32px!important;height:32px!important}.add-another-addon-btn{justify-self:start;margin:3px 0 0!important}@media(max-width:720px){.service-addon-head{display:none}.service-addon-row{grid-template-columns:1fr 90px 32px}.service-addon-row .addon-price-chip,.service-addon-row .addon-discount-wrap{grid-column:1/3}.add-another-addon-btn{justify-self:stretch}.service-addons-title{align-items:flex-start;flex-direction:column}}
 .financial-deposit-lines{display:grid;gap:8px;margin-top:13px;padding:11px;border:1px solid #d7e6dd;border-radius:11px;background:#fafdfb}.financial-deposit-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-lines>header>div{display:grid;gap:3px}.financial-deposit-lines>header>div>small{color:#64748b;font-size:9px;font-weight:700}.financial-deposit-lines>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-line{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:12px;align-items:center;padding:10px 11px;border:1px solid #dbe7df;border-radius:10px;background:#fff}.financial-deposit-identity{display:grid;gap:3px;min-width:0}.financial-deposit-identity small,.financial-deposit-amount span{color:#64748b;font-size:9px;font-weight:800}.financial-deposit-identity b{overflow:hidden;color:#172554;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-identity span{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.financial-deposit-amount{display:grid;gap:3px;min-width:0;margin:0!important;color:#166534!important;font-size:10px!important;font-weight:900}.financial-deposit-amount input{height:38px!important;min-width:0;border-color:#bbf7d0!important;background:#f0fdf4!important}.financial-deposit-empty{margin:0;padding:8px;color:#64748b;font-size:10px;font-weight:800}@media(max-width:620px){.financial-deposit-lines>header{align-items:flex-start;flex-direction:column}.financial-deposit-line{grid-template-columns:1fr}.financial-deposit-amount{grid-column:1/-1}}

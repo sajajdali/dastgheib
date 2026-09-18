@@ -30,6 +30,7 @@ class Patient extends Model
         'national_id',
         'foreign_national_code',
         'father_name',
+        'marital_status',
         'marriage_date',
         'education',
         'second_phone',

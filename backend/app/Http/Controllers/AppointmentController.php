@@ -35,13 +35,39 @@ class AppointmentController extends Controller
 
         $appointments = Appointment::query()
             ->when($month, fn ($query) => $query->where('month', $month))
+            // Synthetic load-test rows must never enter the operational
+            // calendar. Keeping them in the database is useful for audit and
+            // diagnostics, but returning thousands of them can exhaust PHP's
+            // memory and make the real appointments appear to have vanished.
             ->where(function ($query) {
-                $query->whereNotNull('lastname')->where('lastname', '<>', '')
+                $query->whereNull('file_number')
+                    ->orWhere('file_number', 'not like', 'LOADTEST-%');
+            })
+            ->where(function ($query) {
+                foreach ([
+                    'lastname', 'gender', 'phone', 'file_number', 'status',
+                    'doctor', 'consultant', 'source', 'description', 'doctor_note',
+                    'done', 'payment_method', 'payment_account', 'payment_link',
+                    'referrer_phone', 'appointment_sms', 'info_sms',
+                ] as $column) {
+                    $query->orWhere(function ($query) use ($column) {
+                        $query->whereNotNull($column)->where($column, '<>', '');
+                    });
+                }
+                $query->orWhere('new_customer', true)
+                    ->orWhere('payment_link_sent_count', '>', 0)
+                    ->orWhere('amount', '>', 0)
+                    ->orWhere('debt', '>', 0)
+                    ->orWhere('discount', '>', 0)
                     ->orWhere(function ($query) {
-                        $query->whereNotNull('file_number')->where('file_number', '<>', '');
+                        // Legacy empty slots contain a default service object
+                        // whose name is null. Only an actually selected service
+                        // (or addon) makes the JSON meaningful.
+                        $query->whereNotNull('services')
+                            ->whereRaw('services REGEXP ?', ['"name"[[:space:]]*:[[:space:]]*"[^"]+"']);
                     })
                     ->orWhere(function ($query) {
-                        $query->whereNotNull('phone')->where('phone', '<>', '');
+                        $query->whereNotNull('service_types')->whereNotIn('service_types', ['', '[]', 'null']);
                     });
             })
             ->orderBy('month')
@@ -447,6 +473,13 @@ class AppointmentController extends Controller
                     abort(422, 'نوبت ارسالی متعلق به ماه انتخاب‌شده نیست.');
                 }
 
+                // Calendar slots are derived from clinic working hours in the
+                // browser. They are not database records until a patient name
+                // is entered, so old/bulk clients cannot recreate empty rows.
+                if (! $previous && ! $this->incomingAppointmentHasMeaningfulData($incoming)) {
+                    continue;
+                }
+
                 $this->assertAppointmentSlotAvailable($incoming, $data['month'], $previous);
                 // A delayed browser request containing an empty slot must
                 // never clear a booking which has already been persisted.
@@ -454,6 +487,7 @@ class AppointmentController extends Controller
                     $previous
                     && trim((string) $previous->lastname) !== ''
                     && trim((string) ($incoming['lastname'] ?? '')) === ''
+                    && ! $this->incomingAppointmentHasMeaningfulData($incoming)
                 ) {
                     $saved[] = $previous->fresh();
                     continue;
@@ -696,7 +730,7 @@ class AppointmentController extends Controller
             'month' => ['required', 'string', 'regex:/^1[34]\\d{2}-(0[1-9]|1[0-2])$/'],
             'day_num' => ['required', 'integer', 'between:1,31'],
             'sort_order' => ['required', 'integer', 'min:0'],
-            'lastname' => ['required', 'string', 'max:255'],
+            'lastname' => ['nullable', 'string', 'max:255'],
             'time' => ['nullable', 'date_format:H:i'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
@@ -711,6 +745,41 @@ class AppointmentController extends Controller
             'message' => 'نوبت در دیتابیس ثبت شد.',
             'appointment' => $appointment,
         ]);
+    }
+
+    /** A generated clock value alone is not an appointment; every user field is. */
+    private function incomingAppointmentHasMeaningfulData(array $appointment): bool
+    {
+        $ignored = ['id', 'appointment_id', 'lock_version', '_client_key', 'month', 'day_num', 'sort_order', 'time'];
+
+        foreach (collect($appointment)->except($ignored) as $value) {
+            if (is_bool($value) && $value) return true;
+            if (is_numeric($value) && (float) $value !== 0.0) return true;
+            if (is_string($value) && trim($value) !== '' && trim($value) !== '0') return true;
+            if (is_array($value) && $this->arrayHasMeaningfulAppointmentValue($value)) return true;
+        }
+
+        return false;
+    }
+
+    private function arrayHasMeaningfulAppointmentValue(array $values): bool
+    {
+        foreach ($values as $key => $value) {
+            // These are structural/default service attributes and do not mean
+            // the user filled the slot by themselves.
+            if (is_string($key) && (
+                str_starts_with($key, '_')
+                || in_array($key, ['adjustment_mode', 'surcharge_for_doctor_commission', 'section_id', 'root_section_id'], true)
+            )) {
+                continue;
+            }
+            if (is_array($value) && $this->arrayHasMeaningfulAppointmentValue($value)) return true;
+            if (is_bool($value) && $value) return true;
+            if (is_numeric($value) && (float) $value !== 0.0) return true;
+            if (is_string($value) && trim($value) !== '' && trim($value) !== '0') return true;
+        }
+
+        return false;
     }
 
     /** Keep arrival, completion and the resulting patient waiting time authoritative on the server. */

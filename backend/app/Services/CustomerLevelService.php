@@ -37,22 +37,42 @@ class CustomerLevelService
             return $patients;
         }
 
-        $appointments = Appointment::query()
-            ->whereIn('file_number', $patients->pluck('file_number')->filter())
-            ->orWhereIn('phone', $patients->pluck('phone')->filter())
-            ->orderByDesc('id')
-            ->get();
-        $settings = self::settings();
+        $fileNumbers = $patients->pluck('file_number')->filter()->unique()->values();
+        $phones = $patients->pluck('phone')->filter()->unique()->values();
 
-        return $patients->each(function (Patient $patient) use ($appointments, $settings) {
+        // Customer level only depends on completed/used appointments. Loading
+        // empty and future schedule rows used a large amount of memory, and
+        // filtering the entire history once for every patient was O(P x A).
+        $appointments = Appointment::query()
+            ->where(function ($query) use ($fileNumbers, $phones) {
+                if ($fileNumbers->isNotEmpty()) {
+                    $query->whereIn('file_number', $fileNumbers);
+                }
+                if ($phones->isNotEmpty()) {
+                    $method = $fileNumbers->isNotEmpty() ? 'orWhereIn' : 'whereIn';
+                    $query->{$method}('phone', $phones);
+                }
+            })
+            ->where(function ($query) {
+                $query->where('done', 'انجام شد')
+                    ->orWhereNotNull('completed_at');
+            })
+            ->orderByDesc('id')
+            ->get(['id', 'file_number', 'phone', 'month', 'amount', 'done', 'completed_at']);
+        $settings = self::settings();
+        $byFileNumber = $appointments->filter->file_number->groupBy('file_number');
+        $byPhone = $appointments->filter->phone->groupBy('phone');
+
+        return $patients->each(function (Patient $patient) use ($byFileNumber, $byPhone, $settings) {
             if ($patient->customer_level === 'problematic') {
                 return;
             }
 
-            $history = $appointments->filter(fn (Appointment $item) =>
-                ($patient->file_number && $item->file_number === $patient->file_number)
-                || ($patient->phone && $item->phone === $patient->phone)
-            );
+            $history = collect()
+                ->concat($patient->file_number ? $byFileNumber->get($patient->file_number, collect()) : collect())
+                ->concat($patient->phone ? $byPhone->get($patient->phone, collect()) : collect())
+                ->unique('id')
+                ->values();
             $patient->setAttribute('customer_level', $this->calculate($history, $settings));
         });
     }

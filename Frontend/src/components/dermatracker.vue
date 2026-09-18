@@ -21,12 +21,12 @@
 
       <div v-if="showCreatePanel || searched || searching || searchError" class="beauty-flow-create-panel">
         <div v-if="patients.length" class="beauty-flow-create-results">
-          <button v-for="patient in patients" :key="patient.id" type="button" @click="openRecord(patient)">
+          <button v-for="patient in patients" :key="patient.id" type="button" class="beauty-flow-search-result" @click="openRecord(patient)">
             <span :class="['beauty-flow-avatar', `beauty-flow-avatar-${patient.customer_level || 'silver'}`]">
               <img v-if="patient.avatar_url" :src="patient.avatar_url" alt="">
               <b v-else>{{ patientInitial(patient) }}</b>
             </span>
-            <span><strong>{{ patientName(patient) }}</strong><small>پرونده {{ patient.file_number || '-' }} · {{ displayPatientPhone(patient.phone) || '-' }}</small></span>
+            <span class="beauty-flow-search-result-info"><strong>{{ patientName(patient) }}</strong><small>پرونده {{ patient.file_number || '-' }} · {{ displayPatientPhone(patient.phone) || '-' }}</small><span v-if="patient.search_media_loading" class="beauty-flow-search-media-loading">در حال دریافت عکس‌ها...</span><span v-else-if="patient.search_media?.length" class="beauty-flow-search-media"><img v-for="media in patient.search_media" :key="media.id" :src="media.url" :alt="media.original_name || 'عکس مراجعه‌کننده'" loading="lazy"><small>{{ patient.search_media.length.toLocaleString('fa-IR') }} عکس آپلودشده</small></span><small v-else-if="patient.search_media_loaded">عکس آپلودشده‌ای ثبت نشده است</small></span>
             <b>ساخت برنامه</b>
           </button>
         </div>
@@ -620,8 +620,20 @@ export default {
         const res = await fetch(`${API}/patients/search?${params}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.message || 'جستجو انجام نشد.')
-        this.patients = Array.isArray(data) ? data : []
+        this.patients = Array.isArray(data) ? data.map(patient => ({ ...patient, search_media: [], search_media_loading: true, search_media_loaded: false })) : []
         this.searched = true
+        await Promise.all(this.patients.map(async patient => {
+          try {
+            const mediaRes = await fetch(`${API}/patients/${patient.id}/media?all=1`)
+            const mediaData = await mediaRes.json()
+            patient.search_media = (Array.isArray(mediaData.media) ? mediaData.media : []).filter(item => item.media_type === 'image' || String(item.mime_type || '').startsWith('image/')).slice(0, 6)
+          } catch (_) {
+            patient.search_media = []
+          } finally {
+            patient.search_media_loading = false
+            patient.search_media_loaded = true
+          }
+        }))
       } catch (error) {
         this.searchError = error.message || 'جستجو انجام نشد.'
       } finally {
@@ -974,6 +986,11 @@ export default {
   border: 1px solid #e2e8f0;
 }
 .beauty-flow-create-results > button:hover { background: #eff6ff; border-color: #93c5fd; }
+.beauty-flow-search-result { align-items: flex-start; }
+.beauty-flow-search-result-info { min-width: 0; align-items: flex-start !important; }
+.beauty-flow-search-media { display: flex !important; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
+.beauty-flow-search-media img { width: 32px; height: 32px; object-fit: cover; border-radius: 7px; border: 1px solid #dbeafe; }
+.beauty-flow-search-media small, .beauty-flow-search-media-loading { color: #64748b; font-size: 10px; }
 .beauty-flow-create-results > button > span:nth-child(2) { display: flex; flex-direction: column; gap: 3px; }
 .beauty-flow-create-results small { color: #64748b; font-weight: 500; }
 .beauty-flow-card-header,

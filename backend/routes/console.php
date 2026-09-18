@@ -6,8 +6,18 @@ use Illuminate\Support\Facades\Schedule;
 use App\Jobs\SendBirthdaySms;
 use App\Jobs\SendLeadAlertSms;
 use App\Services\ShsmsService;
+use App\Models\Tenant;
 
-Schedule::job(new SendBirthdaySms)->dailyAt('09:00')->timezone('Asia/Tehran')->withoutOverlapping();
+Schedule::call(function () {
+    Tenant::query()->get()->each(function (Tenant $tenant) {
+        try {
+            tenancy()->initialize($tenant);
+            (new SendBirthdaySms)->handle(app(ShsmsService::class));
+        } finally {
+            tenancy()->end();
+        }
+    });
+})->name('birthday-sms-all-tenants')->dailyAt('09:00')->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::call(fn () => (new SendLeadAlertSms('morning'))->handle(app(ShsmsService::class)))->name('lead-alert-sms-morning')->dailyAt('09:00')->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::call(fn () => (new SendLeadAlertSms('night'))->handle(app(ShsmsService::class)))->name('lead-alert-sms-night')->dailyAt('23:00')->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('modules:expire-subscriptions')->hourly()->timezone('Asia/Tehran')->withoutOverlapping();

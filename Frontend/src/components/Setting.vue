@@ -84,11 +84,13 @@
             <label><input type="checkbox" v-model="profileFields.national_id" /> <span>کد ملی</span></label>
             <label><input type="checkbox" v-model="profileFields.foreign_national_code" /> <span>کد اتباع</span></label>
             <label><input type="checkbox" v-model="profileFields.marriage_date" /> <span>تاریخ ازدواج</span></label>
+            <label><input type="checkbox" v-model="profileFields.marital_status" /> <span>وضعیت تأهل</span></label>
             <label><input type="checkbox" v-model="profileFields.education" /> <span>تحصیلات</span></label>
             <label><input type="checkbox" v-model="profileFields.father_name" /> <span>نام پدر</span></label>
             <label><input type="checkbox" v-model="profileFields.second_phone" /> <span>شماره تماس دوم</span></label>
             <label><input type="checkbox" v-model="profileFields.address" /> <span> آدرس</span></label>
             <label><input type="checkbox" v-model="followupConsultantPhoneRestricted" /> <span>نمایش شماره لید فقط برای مشاور انتخاب‌شده</span></label>
+            <label><input type="checkbox" v-model="appointmentFileNumberLocked" /> <span>قفل شماره پرونده در نوبت‌دهی (تولید خودکار سیستم)</span></label>
           </div>
           <div class="required-fields-settings">
             <div class="required-fields-head"><strong>اجباری یا اختیاری بودن اطلاعات تشکیل پرونده</strong><small>فیلد اجباری بدون تکمیل قابل ثبت نیست.</small></div>
@@ -849,7 +851,7 @@ const smsTemplateTextSamples = {
   referral_credit: "%param1% عزیز\nمبلغ %param2% تومان به اعتبار شما واریز شد.\nمانده اعتبار: %param3% تومان",
   treatment_care: "%param1% عزیز\nراهنمای مراقبت پس از درمان:\n%param2%",
   payment_link: "%param1% عزیز\nبرای پرداخت مبلغ %param3% تومان از لینک زیر استفاده کنید:\n%param2%",
-  birthday: "%param1% عزیز، روز تولدتان مبارک.\n%param2% جان، کلینیک %param5% این روز زیبا را به شما تبریک می‌گوید.\nشماره پرونده: %param3%\nتاریخ تولد ثبت‌شده: %param4%\nتاریخ ارسال: %param6%",
+  birthday: "%param1% عزیز، روز تولدتان مبارک.\n%param2% جان، کلینیک %param5% این روز زیبا را به شما تبریک می‌گوید.",
   inventory_empty: "موجودی %param1% در حال اتمام است\nموجودی فعلی %param2% عدد می‌باشد\nکلینیک %param3%",
   active_tickets: "تعداد تیکت‌های فعال: %param1%\nکلینیک %param2%",
   daily_appointments: "امروز شما %param1% نوبت در تاریخ %param2% در کلینیک %param3% دارید.",
@@ -889,10 +891,11 @@ const smsTemplateGroups = computed(() => {
 });
 const smsVariables = ["{name}", "{date}", "{time}", "{doctor}", "{clinic}", "{code}", "{amount}", "{balance}", "{link}"];
 const savingSms = ref(false);
-const profileFields = ref({ national_id: false, foreign_national_code: false, marriage_date: false, education: false, father_name: false, second_phone: false, address: false, city: false });
+const profileFields = ref({ national_id: false, foreign_national_code: false, marriage_date: false, marital_status: false, education: false, father_name: false, second_phone: false, address: false, city: false });
 const followupConsultantPhoneRestricted = ref(false);
+const appointmentFileNumberLocked = ref(true);
 const patientFieldOptions = [
-  ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['foreign_national_code','کد اتباع'],['father_name','نام پدر'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
+  ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['foreign_national_code','کد اتباع'],['father_name','نام پدر'],['marital_status','وضعیت تأهل'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
 ].map(([key,label]) => ({ key,label }));
 const patientRequiredFields = ref(Object.fromEntries(patientFieldOptions.map(field => [field.key, false])));
 const customerLevelColumns = [
@@ -1348,7 +1351,10 @@ const appendSmsVariable = (template, variable) => {
 // ۱. دریافت اطلاعات از لاراول هنگام لود صفحه
 const fetchSettings = async () => {
   try {
-    const res = await fetch("/api/settings");
+    const res = await fetch(`/api/settings?_fresh=${Date.now()}`, {
+      cache: "no-store",
+      headers: { "Accept": "application/json" }
+    });
     if (!res.ok) throw new Error();
     const data = await res.json();
     
@@ -1373,6 +1379,7 @@ const fetchSettings = async () => {
     }
     if (data.profile_fields) profileFields.value = data.profile_fields;
     followupConsultantPhoneRestricted.value = Boolean(data.followup_consultant_phone_restricted);
+    appointmentFileNumberLocked.value = data.appointment_file_number_locked !== false;
     if (data.patient_required_fields) patientRequiredFields.value = { ...patientRequiredFields.value, ...data.patient_required_fields };
     if (data.customer_levels) customerLevels.value = { ...customerLevels.value, ...data.customer_levels };
     if (data.report_staff_target !== undefined) reportStaffTarget.value = Number(data.report_staff_target) || 0;
@@ -1434,6 +1441,7 @@ const saveInternalSettings = async (showMessage = true) => {
     const payload = {
       profile_fields: profileFields.value,
       followup_consultant_phone_restricted: followupConsultantPhoneRestricted.value,
+      appointment_file_number_locked: appointmentFileNumberLocked.value,
       patient_required_fields: patientRequiredFields.value,
       customer_levels: customerLevelPayload(),
       appointment_columns: appointmentColumns.value,
@@ -1669,10 +1677,13 @@ const saveAccessSettings = async () => {
     const data = await res.json();
 
     if (res.ok) {
+      await fetchSettings();
       Swal.fire({ icon: "success", title: "موفقیت آمیز", text: data.message, timer: 2000, showConfirmButton: false });
+    } else {
+      throw new Error(data.message || "ذخیره دسترسی‌ها انجام نشد.");
     }
   } catch (e) {
-    Swal.fire({ icon: "error", title: "خطا", text: "ذخیره دسترسی‌ها انجام نشد." });
+    Swal.fire({ icon: "error", title: "خطا", text: e.message || "ذخیره دسترسی‌ها انجام نشد." });
   }
 };
 

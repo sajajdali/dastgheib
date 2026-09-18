@@ -848,7 +848,10 @@ export default {
       const uncalledCampaignLeadWarnings = this.countUncalledCampaignLeadWarnings()
       // نشانِ پیگیری فقط تعداد پیگیری‌های واقعیِ سررسید امروز است؛
       // هشدارهای دیگر صرفاً در اعلان کلی محاسبه می‌شوند.
-      this.notificationCounts.Peygiri = this.countTodayFollowups()
+      // پیگیری‌های زیبایار هم در هشدارهای سررسیدِ پیگیری دیده شوند.
+      // با این کار کاربر از همان نشانِ بالای «پیگیری» متوجه نوبت زیبایی امروز می‌شود.
+      const beautyTodayCount = await this.countTodayBeautyPatients()
+      this.notificationCounts.Peygiri = this.countTodayFollowups() + beautyTodayCount
       this.notificationCounts.Ticket = await this.countTodayTickets()
       this.notificationCounts.Anbar = this.countInventoryZeroNotifications()
       this.notificationCounts.Gozaresh = await this.countHighCancellationWarning()
@@ -867,7 +870,7 @@ export default {
       this.notificationCounts.Vaghtdahi += unconvertedAppointmentsPreviousMonth
       this.notificationCounts.Vaghtdahi += await this.countPreviousMonthCancellationWarning()
       this.notificationCounts.Notif = this.notificationCounts.Anbar + this.notificationCounts.Ticket + this.notificationCounts.Vaghtdahi + this.notificationCounts.HRtimes + this.notificationCounts.Gozaresh + delayedInterestFollowups + uncalledCampaignLeadWarnings
-      this.notificationCounts.dermatracker = await this.countTodayBeautyPatients()
+      this.notificationCounts.dermatracker = beautyTodayCount
       this.notificationCounts.Notif += this.notificationCounts.dermatracker
       this.notificationCounts.Notif += await this.countUpcomingBirthdays()
     },
@@ -886,7 +889,8 @@ export default {
   top: 10px;
   /* Keep the global navigation and its overflow menu above page-level
      controls such as date pickers on every module. */
-  z-index: 2147483640;
+  /* مدال‌های صفحه باید بتوانند روی ناوبری باز شوند. */
+  z-index: 2147483000;
   /* سمت چپ برای دکمهٔ منوی کاربری و دکمهٔ بستن ناوبری رزرو می‌شود. */
   width: calc(100% - 92px);
   min-width: 0;
@@ -993,9 +997,9 @@ export default {
 }
 
 .more-menu-item { overflow: visible; }
-.more-backdrop{position:fixed;inset:0;z-index:2147483641;border:0;background:transparent;cursor:default}
+.more-backdrop{position:fixed;inset:0;z-index:2147483001;border:0;background:transparent;cursor:default}
 .more-arrow{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;transition:transform 180ms ease}.more-arrow.open{transform:rotate(180deg)}
-.more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:2147483642;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
+.more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:2147483002;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
 .more-submenu button{min-height:36px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#475569;cursor:pointer;font-size:12px;font-weight:850;text-align:right}.more-submenu button:hover,.more-submenu button.active{background:#eff6ff;color:#2563eb}.more-submenu button b{min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border-radius:999px;background:#dc2626;color:#fff;font-size:10px}
 
 .notification-badge {

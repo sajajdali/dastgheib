@@ -80,8 +80,13 @@
 
         <button class="quick-login-button" type="button" :disabled="loading" @click="loginAsSuperAdmin">
           ورود سریع مدیرکل
-          <span class="quick-login-credentials">09121236686 / 09121236686</span>
         </button>
+
+        <div class="test-login-credentials" aria-label="اطلاعات ورود آزمایشی">
+          <strong>اطلاعات ورود آزمایشی</strong>
+          <span>نام کاربری: <b>09121236686</b></span>
+          <span>رمز عبور: <b>09121236686</b></span>
+        </div>
       </form>
 
       <div class="login-footer">دسترسی شما بر اساس نقش سازمانی کنترل می‌شود.</div>
@@ -362,12 +367,21 @@ onMounted(() => {
 }
 .quick-login-button:hover { border-color:#93c5fd; background:#dbeafe; }
 .quick-login-button:disabled { opacity:.7; cursor:wait; }
-.quick-login-credentials {
-  direction:ltr;
-  color:#475569;
-  font-size:12px;
-  font-weight:800;
+.test-login-credentials {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px 12px;
+  margin-top:10px;
+  padding:11px 13px;
+  border:1px dashed #bfdbfe;
+  border-radius:12px;
+  background:#f8fbff;
+  color:#64748b;
+  font-size:11px;
 }
+.test-login-credentials strong { grid-column:1/-1; color:#1d4ed8; font-size:11px; }
+.test-login-credentials span { white-space:nowrap; }
+.test-login-credentials b { direction:ltr; display:inline-block; color:#1e293b; font-size:11.5px; }
 .login-footer { margin-top:22px; padding-top:17px; border-top:1px solid #edf1f7; color:#94a3b8; text-align:center; font-size:11px; }
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (max-width:500px) {

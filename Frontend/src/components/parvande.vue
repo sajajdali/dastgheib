@@ -102,12 +102,18 @@
           :placeholder="`کد اتباع${patientRequiredFields.foreign_national_code ? ' *' : ''}`"
         />
 
-        <input 
-          v-if="activeProfileFields.father_name" 
-          v-model="form.father_name" 
-          type="text" 
+        <input
+          v-if="activeProfileFields.father_name"
+          v-model="form.father_name"
+          type="text"
           :placeholder="`نام پدر${patientRequiredFields.father_name ? ' *' : ''}`"
         />
+
+        <select v-if="activeProfileFields.marital_status" v-model="form.marital_status">
+          <option value="" disabled>{{ `وضعیت تأهل${patientRequiredFields.marital_status ? ' *' : ''}` }}</option>
+          <option value="مجرد">مجرد</option>
+          <option value="متاهل">متأهل</option>
+        </select>
 
         <date-picker
           v-if="activeProfileFields.marriage_date && !showMediaModal"
@@ -162,6 +168,7 @@
           placeholder="نام یا نام خانوادگی"
           @keydown.enter.prevent="performSearch"
         />
+
         <input
           v-model="search.file_number"
           type="text"
@@ -689,6 +696,11 @@
           <input v-if="activeProfileFields.national_id" v-model="editPatient.national_id" placeholder="کد ملی" />
           <input v-if="activeProfileFields.foreign_national_code" v-model="editPatient.foreign_national_code" placeholder="کد اتباع" />
           <input v-if="activeProfileFields.father_name" v-model="editPatient.father_name" placeholder="نام پدر" />
+          <select v-if="activeProfileFields.marital_status" v-model="editPatient.marital_status">
+            <option value="">انتخاب وضعیت تأهل</option>
+            <option value="مجرد">مجرد</option>
+            <option value="متاهل">متأهل</option>
+          </select>
           <input v-if="activeProfileFields.marriage_date" v-model="editPatient.marriage_date" placeholder="تاریخ ازدواج" />
           <input v-if="activeProfileFields.education" v-model="editPatient.education" placeholder="تحصیلات" />
           <input v-if="activeProfileFields.second_phone && canViewPatientPhone" v-model="editPatient.second_phone" placeholder="شماره تماس دوم" maxlength="11" />
@@ -1526,6 +1538,7 @@ export default {
         national_id: false,
         foreign_national_code: false,
         marriage_date: false,
+        marital_status: false,
         education: false,
         father_name: false,
         second_phone: false,
@@ -1558,6 +1571,7 @@ export default {
         national_id: '',
         foreign_national_code: '',
         father_name: '',
+        marital_status: '',
         marriage_date: '',
         education: '',
         second_phone: '',
@@ -1587,6 +1601,7 @@ export default {
         national_id: 'کد ملی',
         foreign_national_code: 'کد اتباع',
         father_name: 'نام پدر',
+        marital_status: 'وضعیت تأهل',
         marriage_date: 'تاریخ ازدواج',
         education: 'تحصیلات',
         second_phone: 'شماره تماس دوم',
@@ -1725,6 +1740,7 @@ export default {
         { key: 'national_id', label: 'کد ملی', icon: '⌁' },
         { key: 'foreign_national_code', label: 'کد اتباع', icon: '◇' },
         { key: 'father_name', label: 'نام پدر', icon: 'ش' },
+        { key: 'marital_status', label: 'وضعیت تأهل', icon: '♡' },
         { key: 'marriage_date', label: 'تاریخ ازدواج', icon: '♡' },
         { key: 'education', label: 'تحصیلات', icon: '▣' },
         { key: 'second_phone', label: 'شماره تماس دوم', icon: '☎', phone: true },
@@ -2199,6 +2215,7 @@ export default {
         national_id: '',
         foreign_national_code: '',
         father_name: '',
+        marital_status: '',
         marriage_date: '',
         education: '',
         second_phone: '',
@@ -2416,8 +2433,10 @@ export default {
       let parsed
       try {
         const normalized = this.toEnglishDigits(String(birthDate).trim()).replace(/-/g, '/')
-        parsed = moment(normalized, ['jYYYY/jMM/jDD', 'jYYYY/jM/jD', 'YYYY/MM/DD', 'YYYY/M/D'], true)
-        if (!parsed.isValid()) parsed = moment(normalized, ['YYYY/MM/DD', 'YYYY/M/D'], true)
+        const year = Number(normalized.split('/')[0])
+        parsed = year >= 1700
+          ? moment(normalized, ['YYYY/MM/DD', 'YYYY/M/D'], true)
+          : moment(normalized, ['jYYYY/jMM/jDD', 'jYYYY/jM/jD'], true)
       } catch (error) {
         return '-'
       }
@@ -2425,7 +2444,7 @@ export default {
       if (!parsed?.isValid?.()) return '-'
 
       const age = moment().diff(parsed, 'years')
-      return age > 0 ? `${age} سال` : '-'
+      return age >= 0 ? `${age} سال` : '-'
     },
 
     toEnglishDigits(value = '') {

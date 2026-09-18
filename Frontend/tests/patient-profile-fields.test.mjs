@@ -9,6 +9,7 @@ test('enabled optional patient fields are rendered in the profile view', () => {
     'national_id',
     'foreign_national_code',
     'father_name',
+    'marital_status',
     'marriage_date',
     'education',
     'second_phone',
@@ -18,6 +19,12 @@ test('enabled optional patient fields are rendered in the profile view', () => {
   }
   assert.match(source, /profileEnabledDetails\.length/)
   assert.match(source, /activeProfileFields\?\.\[field\.key\]/)
+})
+
+test('patient age distinguishes stored Gregorian dates from Jalali input', () => {
+  assert.match(source, /const year = Number\(normalized\.split\('\/'\)\[0\]\)/)
+  assert.match(source, /year >= 1700/)
+  assert.match(source, /moment\(\)\.diff\(parsed, 'years'\)/)
 })
 
 test('the secondary phone still uses the phone visibility policy', () => {

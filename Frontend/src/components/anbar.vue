@@ -945,9 +945,10 @@ export default {
       this.isFetching = true
 
       try {
+        const fresh = Date.now()
         const [inventoryRes, contextRes] = await Promise.all([
-          axios.get(`${API}/inventory`),
-          axios.get(`${API}/inventory/context`)
+          axios.get(`${API}/inventory`, { params: { _fresh: fresh }, headers: { "Cache-Control": "no-cache" } }),
+          axios.get(`${API}/inventory/context`, { params: { _fresh: fresh }, headers: { "Cache-Control": "no-cache" } })
         ])
 
         this.doctors = contextRes.data.doctors || []

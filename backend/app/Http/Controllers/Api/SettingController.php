@@ -110,7 +110,7 @@ class SettingController extends Controller
 
         // اگر دیتابیس کلا خالی بود، مقدار پیش‌فرض را بگذار
         $profileFieldsData = array_merge([
-            'national_id' => false, 'foreign_national_code' => false, 'marriage_date' => false, 'education' => false,
+            'national_id' => false, 'foreign_national_code' => false, 'marriage_date' => false, 'marital_status' => false, 'education' => false,
             'father_name' => false, 'second_phone' => false, 'address' => false,
             'city' => false,
         ], is_array($profileFieldsData) ? $profileFieldsData : []);
@@ -162,6 +162,7 @@ class SettingController extends Controller
             'profile_fields' => $profileFieldsData, 
             'patient_required_fields' => json_decode((string) AppSetting::getByKey('patient_required_fields', '{}'), true) ?: [],
             'followup_consultant_phone_restricted' => AppSetting::getByKey('followup_consultant_phone_restricted', '0') === '1',
+            'appointment_file_number_locked' => AppSetting::getByKey('appointment_file_number_locked', '1') !== '0',
             
             'company' => [
                 'name' => AppSetting::getByKey('company_name', ''),
@@ -393,6 +394,7 @@ class SettingController extends Controller
             'value' => json_encode($request->input('patient_required_fields', []), JSON_UNESCAPED_UNICODE),
         ]);
         AppSetting::updateOrCreate(['key' => 'followup_consultant_phone_restricted'], ['value' => $request->boolean('followup_consultant_phone_restricted') ? '1' : '0']);
+        AppSetting::updateOrCreate(['key' => 'appointment_file_number_locked'], ['value' => $request->boolean('appointment_file_number_locked', true) ? '1' : '0']);
 
         // ۳. مدیریت کاربران
         DB::transaction(function () use ($validatedUsers) {

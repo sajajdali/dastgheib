@@ -13,7 +13,7 @@ function calendar(rows, post) {
   const context = vm.createContext({
     DatePicker: {}, Multiselect: {}, PatientAvatar: {},
     axios: { post }, Swal: { fire: async options => dialogs.push(options) },
-    setTimeout, clearTimeout, console: { error() {} },
+    setTimeout, clearTimeout, console: { error() {}, warn() {} },
   });
   vm.runInContext(source, context);
   const state = {
@@ -83,14 +83,15 @@ test('validation failure displays the original error once without three retries'
   assert.equal(dialogs[0].text, 'ساعت معتبر نیست');
 });
 
-test('incomplete drafts do not prevent saving a complete booking', async () => {
+test('a row with only one user-entered field is saved alongside a named booking', async () => {
   const booking = row(), incomplete = row('');
   incomplete.phone = '09120000000';
-  let requests = 0;
-  const { state } = calendar([incomplete, booking], async () => {
-    requests++;
-    return { data: { appointment: { id: 42, lock_version: 1 } } };
+  const requests = [];
+  const { state } = calendar([incomplete, booking], async (_, payload) => {
+    requests.push(payload);
+    return { data: { appointment: { id: requests.length, lock_version: 1 } } };
   });
-  assert.equal(await state.persistDirectAppointment(booking), true);
-  assert.equal(requests, 1);
+  assert.equal(await state.saveData(0, true), true);
+  assert.equal(requests.length, 2);
+  assert.ok(requests.some(payload => payload.phone === '09120000000' && payload.lastname === ''));
 });

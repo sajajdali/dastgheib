@@ -28,8 +28,17 @@ class SendBirthdaySms implements ShouldQueue
             ->whereMonth('birth_date', $today->month)->whereDay('birth_date', $today->day)
             ->chunkById(100, function ($patients) use ($sms, $template, $today) {
                 foreach ($patients as $patient) {
-                    $exists = DB::table('birthday_sms_logs')->where('patient_id', $patient->id)->where('birthday_year', $today->year)->exists();
-                    if ($exists) continue;
+                    // ابتدا رکورد همان بیمار/سال را به‌صورت اتمیک رزرو می‌کنیم.
+                    // کلید یکتا اجازه نمی‌دهد اجرای هم‌زمان Scheduler یا Queue پیام را دوبار بفرستد.
+                    $reserved = DB::table('birthday_sms_logs')->insertOrIgnore([
+                        'patient_id' => $patient->id,
+                        'birthday_year' => $today->year,
+                        'recipient' => $patient->phone,
+                        'sent_at' => now(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    if ($reserved !== 1) continue;
                     try {
                         $sms->sendTemplate($patient->phone, $template, [
                             trim($patient->first_name.' '.$patient->last_name),
@@ -39,8 +48,14 @@ class SendBirthdaySms implements ShouldQueue
                             (string) AppSetting::getByKey('clinic_name', ''),
                             $today->format('Y/m/d'),
                         ]);
-                        DB::table('birthday_sms_logs')->insert(['patient_id'=>$patient->id,'birthday_year'=>$today->year,'recipient'=>$patient->phone,'sent_at'=>now(),'created_at'=>now(),'updated_at'=>now()]);
-                    } catch (Throwable $e) { report($e); }
+                    } catch (Throwable $e) {
+                        // در خطای واقعی ارسال، رزرو آزاد می‌شود تا تلاش بعدی امکان‌پذیر باشد.
+                        DB::table('birthday_sms_logs')
+                            ->where('patient_id', $patient->id)
+                            ->where('birthday_year', $today->year)
+                            ->delete();
+                        report($e);
+                    }
                 }
             });
     }
