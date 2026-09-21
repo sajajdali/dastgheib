@@ -8,6 +8,7 @@ use App\Models\InventoryCommission;
 use App\Models\InventoryAddon;
 use App\Models\InventoryAddonDefinition;
 use App\Models\InventoryMovement;
+use App\Models\InventoryBookingResource;
 use App\Models\InventorySection;
 use App\Models\Staff;
 use App\Models\User;
@@ -19,7 +20,7 @@ class InventoryController extends Controller
     public function index()
     {
         return response()->json(
-            Inventory::with(['section', 'commissions', 'defaultAddons', 'addonDefinitions'])
+            Inventory::with(['section', 'commissions', 'defaultAddons', 'addonDefinitions', 'bookingSetting', 'bookingResources.availabilities.breaks'])
                 ->orderBy('section_id')
                 ->orderBy('sort_order')
                 ->orderBy('id')
@@ -34,7 +35,7 @@ class InventoryController extends Controller
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get(),
-            'doctors' => Doctor::query()->orderBy('name')->get(['id', 'name']),
+            'doctors' => Doctor::query()->orderBy('name')->get(['id', 'name', 'available_days']),
             'staff' => Staff::query()->orderBy('name')->get(['id', 'name']),
             'users' => User::query()->orderBy('name')->get(['id', 'name', 'mobile']),
             'service_tags' => app(HumanResourceController::class)->serviceTags(),
@@ -83,6 +84,9 @@ class InventoryController extends Controller
         $sections = $request->input('sections', []);
 
         DB::transaction(function () use ($items, $sections) {
+            // ذخیرهٔ فعلی انبار شناسه‌ها را بازسازی می‌کند؛ تنظیمات وقت‌دهی
+            // باید پیش از حذف snapshot و روی شناسهٔ جدید بازیابی شوند.
+            $bookingSnapshots = $this->bookingSnapshots();
             InventoryAddon::query()->delete();
             InventoryCommission::query()->get()->each->delete();
             Inventory::query()->get()->each->delete();
@@ -101,6 +105,7 @@ class InventoryController extends Controller
                         'parent_id' => null,
                         'level' => max(1, (int) ($section['level'] ?? 1)),
                         'name' => $section['name'],
+                        'color' => $section['color'] ?? null,
                         'sort_order' => $section['sort_order'] ?? $index,
                     ]);
 
@@ -221,9 +226,52 @@ class InventoryController extends Controller
                     ->unique()->values()->all();
                 $inventory->addonDefinitions()->sync($addonIds);
             }
+
+            foreach ($items as $item) {
+                $oldKey = !empty($item['id']) ? (string) $item['id'] : 'name:'.trim((string)($item['name'] ?? ''));
+                $newId = !empty($item['id']) ? ($inventoryIdMap[(string)$item['id']] ?? null) : null;
+                if (!$newId && !empty($item['name'])) $newId = Inventory::query()->where('name', $item['name'])->value('id');
+                if ($newId && isset($bookingSnapshots[$oldKey])) $this->restoreBookingSnapshot((int)$newId, $bookingSnapshots[$oldKey]);
+            }
         });
 
         return response()->json(['message' => 'اطلاعات انبار با موفقیت ذخیره شد.']);
+    }
+
+    private function bookingSnapshots(): array
+    {
+        $snapshots = [];
+        Inventory::with(['bookingSetting','bookingResources.availabilities.breaks','bookingExceptions','bookingRules'])->get()->each(function (Inventory $item) use (&$snapshots) {
+            if (!$item->bookingSetting && !$item->bookingResources->count() && !$item->bookingExceptions->count() && !$item->bookingRules->count()) return;
+            $payload = [
+                'setting'=>$item->bookingSetting?->toArray(),
+                'resources'=>$item->bookingResources->map(fn($resource)=>[
+                    'data'=>$resource->toArray(),
+                    'availabilities'=>$resource->availabilities->map(fn($availability)=>['data'=>$availability->toArray(),'breaks'=>$availability->breaks->map->toArray()->all()])->all(),
+                ])->all(),
+                'exceptions'=>$item->bookingExceptions->map->toArray()->all(),
+                'rules'=>$item->bookingRules->map->toArray()->all(),
+            ];
+            $snapshots[(string)$item->id] = $payload;
+            $snapshots['name:'.trim((string)$item->name)] = $payload;
+        });
+        return $snapshots;
+    }
+
+    private function restoreBookingSnapshot(int $inventoryId, array $snapshot): void
+    {
+        $inventory = Inventory::find($inventoryId);
+        if (!$inventory) return;
+        if (!empty($snapshot['setting'])) $inventory->bookingSetting()->create(collect($snapshot['setting'])->except(['id','inventory_id','created_at','updated_at'])->all());
+        foreach ($snapshot['resources'] ?? [] as $resourceSnapshot) {
+            $resource = $inventory->bookingResources()->create(collect($resourceSnapshot['data'])->except(['id','inventory_id','created_at','updated_at','availabilities','doctor','staff'])->all());
+            foreach ($resourceSnapshot['availabilities'] ?? [] as $availabilitySnapshot) {
+                $availability = $resource->availabilities()->create(collect($availabilitySnapshot['data'])->except(['id','booking_resource_id','created_at','updated_at','breaks'])->all());
+                foreach ($availabilitySnapshot['breaks'] ?? [] as $break) $availability->breaks()->create(collect($break)->except(['id','availability_id','created_at','updated_at'])->all());
+            }
+        }
+        foreach ($snapshot['exceptions'] ?? [] as $item) $inventory->bookingExceptions()->create(collect($item)->except(['id','inventory_id','booking_resource_id','created_at','updated_at'])->all());
+        foreach ($snapshot['rules'] ?? [] as $item) $inventory->bookingRules()->create(collect($item)->except(['id','inventory_id','created_at','updated_at'])->all());
     }
 
     public function adjustStock(Request $request)

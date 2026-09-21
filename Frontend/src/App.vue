@@ -681,7 +681,7 @@ export default {
       if (!this.user || this.allowBrowserBack) return;
       const hasUnsavedInventoryChanges = this.currentPage === 'Anbar' && this.$refs.inventory?.hasUnsavedChanges;
       const confirmed = window.confirm(hasUnsavedInventoryChanges
-        ? "تغییرات انبار ذخیره نشده است. مطمئنی می‌خواهی صفحه را ترک کنی؟"
+        ? "تغییرات خدمات ذخیره نشده است. مطمئنی می‌خواهی صفحه را ترک کنی؟"
         : "مطمئنی می‌خواهی از سیستم خارج شوی یا صفحه را ترک کنی؟");
       if (confirmed) {
         this.allowBrowserBack = true;
@@ -1006,7 +1006,7 @@ export default {
       if (this.currentPage !== 'Anbar' || nextPage === 'Anbar' || !this.$refs.inventory?.hasUnsavedChanges) return true;
       const result = await Swal.fire({
         icon: 'warning',
-        title: 'تغییرات انبار ذخیره نشده است',
+        title: 'تغییرات خدمات ذخیره نشده است',
         text: 'اگر ادامه دهید، تغییرات ثبت‌نشده از بین می‌روند.',
         showCancelButton: true,
         confirmButtonText: 'خروج بدون ذخیره',

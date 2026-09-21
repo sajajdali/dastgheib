@@ -33,20 +33,31 @@
           :placeholder="`شماره تماس${patientRequiredFields.phone ? ' *' : ''} (۱۱ رقم)`"
           maxlength="11"
         />
-        <div class="file-number-field" :class="`is-${fileNumberAvailability}`">
+        <div
+          class="file-number-field"
+          :class="[`is-${fileNumberAvailability}`, { 'is-locked': patientFileNumberLocked }]"
+          :title="patientFileNumberLocked ? 'برای ورود دستی شماره پرونده، از تنظیمات ← داخلی ← پرونده، گزینه «قفل شماره پرونده در تشکیل پرونده» را غیرفعال کنید.' : ''"
+        >
           <input
             v-model="form.file_number"
             type="text"
             inputmode="numeric"
             name="patient_file_number"
             autocomplete="off"
+            :readonly="patientFileNumberLocked"
+            :title="patientFileNumberLocked ? 'برای ورود دستی شماره پرونده، از تنظیمات ← داخلی ← پرونده، گزینه «قفل شماره پرونده در تشکیل پرونده» را غیرفعال کنید.' : 'شماره پرونده را به‌صورت دستی وارد کنید'"
             :placeholder="`شماره پرونده (خودکار یا دستی)${patientRequiredFields.file_number ? ' *' : ''}`"
             required
             @blur="checkFileNumberAvailability"
           />
-          <small v-if="fileNumberAvailability === 'checking'">در حال بررسی…</small>
-          <small v-else-if="fileNumberAvailability === 'available'">شماره پرونده آزاد است</small>
-          <small v-else-if="fileNumberAvailability === 'taken'">این شماره پرونده قبلاً ثبت شده است</small>
+          <span v-if="patientFileNumberLocked" class="file-number-lock-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          </span>
+          <template v-if="!patientFileNumberLocked">
+            <small v-if="fileNumberAvailability === 'checking'" class="file-number-availability-note">در حال بررسی…</small>
+            <small v-else-if="fileNumberAvailability === 'available'" class="file-number-availability-note">شماره پرونده آزاد است</small>
+            <small v-else-if="fileNumberAvailability === 'taken'" class="file-number-availability-note">این شماره پرونده قبلاً ثبت شده است</small>
+          </template>
         </div>
 
         <select v-model="form.gender">
@@ -1546,6 +1557,7 @@ export default {
         city: false
       },
       patientRequiredFields: {},
+      patientFileNumberLocked: true,
       fileNumberAvailability: 'idle',
       fileNumberCheckTimer: null,
       fileNumberCheckRequest: 0,
@@ -2191,6 +2203,7 @@ export default {
             this.activeProfileFields = data.profile_fields
           }
           this.patientRequiredFields = data.patient_required_fields || {}
+          this.patientFileNumberLocked = data.appointment_file_number_locked !== false
         }
       } catch (e) {
         console.error('خطا در دریافت وضعیت فیلدهای پرونده:', e)
@@ -4341,6 +4354,10 @@ select:focus {
 .file-number-field.is-available small { color: #15803d; }
 .file-number-field.is-taken input { border-color: #ef4444; background: #fff1f2; }
 .file-number-field.is-taken small { color: #b91c1c; }
+.file-number-field .file-number-availability-note { right:10px; bottom:auto; top:-7px; z-index:2; padding:0 6px; border-radius:999px; background:#fff; line-height:15px; }
+.file-number-field.is-locked input { padding-left: 34px; border-color: #cbd5e1; background: #f1f5f9; color: #64748b; cursor: not-allowed; box-shadow: inset 0 0 0 1px rgba(148,163,184,.12); }
+.file-number-field .file-number-lock-icon { position: absolute; left: 10px; top: 21px; width: 16px; height: 16px; transform: translateY(-50%); display:grid; place-items:center; color:#64748b; pointer-events:none; }
+.file-number-field .file-number-lock-icon svg { display:block; width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 
 /* wrapper خود date-picker */
 .create-grid .vpd-input-group {

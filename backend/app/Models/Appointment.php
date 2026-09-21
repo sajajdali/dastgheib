@@ -12,6 +12,7 @@ class Appointment extends Model
 
     public function activitySection(): string { return 'نوبت‌دهی'; }
     public function activityLabel(): string { return trim((string) ($this->lastname ?? '')) ?: 'نوبت #'.$this->getKey(); }
+    public function serviceBookings() { return $this->hasMany(AppointmentServiceBooking::class); }
 
     protected $guarded = []; // اجازه ذخیره تمام فیلدها
 

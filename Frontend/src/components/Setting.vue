@@ -80,17 +80,35 @@
 
         <div v-if="openAccordion === 'profile'" class="accordion-body">
           <div class="compact-checks">
-            <label><input type="checkbox" v-model="profileFields.city" /> <span>شهر</span></label>
-            <label><input type="checkbox" v-model="profileFields.national_id" /> <span>کد ملی</span></label>
-            <label><input type="checkbox" v-model="profileFields.foreign_national_code" /> <span>کد اتباع</span></label>
-            <label><input type="checkbox" v-model="profileFields.marriage_date" /> <span>تاریخ ازدواج</span></label>
-            <label><input type="checkbox" v-model="profileFields.marital_status" /> <span>وضعیت تأهل</span></label>
-            <label><input type="checkbox" v-model="profileFields.education" /> <span>تحصیلات</span></label>
-            <label><input type="checkbox" v-model="profileFields.father_name" /> <span>نام پدر</span></label>
-            <label><input type="checkbox" v-model="profileFields.second_phone" /> <span>شماره تماس دوم</span></label>
-            <label><input type="checkbox" v-model="profileFields.address" /> <span> آدرس</span></label>
-            <label><input type="checkbox" v-model="followupConsultantPhoneRestricted" /> <span>نمایش شماره لید فقط برای مشاور انتخاب‌شده</span></label>
-            <label><input type="checkbox" v-model="appointmentFileNumberLocked" /> <span>قفل شماره پرونده در نوبت‌دهی (تولید خودکار سیستم)</span></label>
+            <div class="profile-optional-fields">
+              <strong class="profile-setting-group-title">فیلدهای قابل نمایش در پرونده</strong>
+              <div class="profile-optional-fields-grid">
+                <label><input type="checkbox" v-model="profileFields.city" /> <span>شهر</span></label>
+                <label><input type="checkbox" v-model="profileFields.national_id" /> <span>کد ملی</span></label>
+                <label><input type="checkbox" v-model="profileFields.foreign_national_code" /> <span>کد اتباع</span></label>
+                <label><input type="checkbox" v-model="profileFields.marriage_date" /> <span>تاریخ ازدواج</span></label>
+                <label><input type="checkbox" v-model="profileFields.marital_status" /> <span>وضعیت تأهل</span></label>
+                <label><input type="checkbox" v-model="profileFields.education" /> <span>تحصیلات</span></label>
+                <label><input type="checkbox" v-model="profileFields.father_name" /> <span>نام پدر</span></label>
+                <label><input type="checkbox" v-model="profileFields.second_phone" /> <span>شماره تماس دوم</span></label>
+                <label><input type="checkbox" v-model="profileFields.address" /> <span>آدرس</span></label>
+              </div>
+            </div>
+            <label class="lead-phone-privacy-setting" :class="{ active: followupConsultantPhoneRestricted }">
+              <input type="checkbox" v-model="followupConsultantPhoneRestricted" />
+              <span class="lead-phone-privacy-copy"><strong>محدودیت نمایش شماره لید</strong><small>شماره تماس فقط برای مشاور انتخاب‌شده نمایش داده شود.</small></span>
+            </label>
+            <label class="file-number-lock-setting" :class="{ active: appointmentFileNumberLocked }">
+              <input type="checkbox" :checked="appointmentFileNumberLocked" @change="handleAppointmentFileNumberLockChange" />
+              <span class="file-number-lock-switch" aria-hidden="true"><i></i></span>
+              <span class="file-number-lock-setting-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              </span>
+              <span class="file-number-lock-setting-copy">
+                <strong>قفل شماره پرونده در تشکیل پرونده</strong>
+                <small>در حالت فعال، شماره پرونده به‌صورت خودکار تولید می‌شود.</small>
+              </span>
+            </label>
           </div>
           <div class="required-fields-settings">
             <div class="required-fields-head"><strong>اجباری یا اختیاری بودن اطلاعات تشکیل پرونده</strong><small>فیلد اجباری بدون تکمیل قابل ثبت نیست.</small></div>
@@ -479,33 +497,38 @@
 
     <div v-if="canViewSettings && activeSection === 'sms'" class="sms-settings-wrapper">
       <section class="sms-provider-card">
-        <div>
+        <div class="sms-provider-head">
+          <span class="sms-provider-head-icon" aria-hidden="true">✦</span>
+          <div>
           <span class="section-eyebrow">سامانه ارسال</span>
           <h3>اتصال پیامک</h3>
           <p>سامانه‌ای را مشخص کنید که پیامک‌های مجموعه از طریق آن ارسال شوند.</p>
+          </div>
         </div>
 
-        <label class="provider-field">
-          سامانه پیامکی
-          <select v-model="smsSettings.provider">
-            <option value="shsms">SHSMS</option>
-          </select>
-          <small><i></i> سامانه فعال فعلی: SHSMS</small>
-        </label>
+        <div class="sms-provider-grid">
+          <label class="provider-field provider-choice-card">
+            <span class="provider-field-title">سامانه پیامکی</span>
+            <select v-model="smsSettings.provider">
+              <option value="shsms">SHSMS</option>
+            </select>
+            <small><i></i> سامانه فعال فعلی: SHSMS</small>
+          </label>
 
-        <label v-if="!smsSettings.account_configured || smsSettings.editing_api_token" class="provider-field">
-          کلید API (توکن) حساب SHSMS این کلینیک
-          <input v-model.trim="smsSettings.api_token" type="password" autocomplete="new-password" placeholder="کلید API را از پنل SHSMS کپی و اینجا وارد کنید">
-          <small><i></i> {{ smsSettings.editing_api_token ? 'کلید جدید را وارد و تنظیمات پیامک را ذخیره کنید.' : 'این رمز عبور یا کد تأیید نیست؛ در پنل SHSMS، بخش API، کلید/توکن API حساب را کپی و اینجا وارد کنید.' }}</small>
-        </label>
+          <label v-if="!smsSettings.account_configured || smsSettings.editing_api_token" class="provider-field provider-token-card">
+            <span class="provider-field-title">کلید API حساب SHSMS این کلینیک</span>
+            <input v-model.trim="smsSettings.api_token" type="password" autocomplete="new-password" placeholder="کلید API را از پنل SHSMS کپی و اینجا وارد کنید">
+            <small><i></i> {{ smsSettings.editing_api_token ? 'کلید جدید را وارد و تنظیمات پیامک را ذخیره کنید.' : 'این رمز عبور یا کد تأیید نیست؛ در پنل SHSMS، بخش API، کلید/توکن API حساب را کپی و اینجا وارد کنید.' }}</small>
+          </label>
 
-        <section v-else class="provider-field api-token-saved">
-          <span>کلید API حساب SHSMS این کلینیک</span>
-          <div class="api-token-saved-status"><span>✓</span><div><strong>کلید API ذخیره شده است</strong><small>برای امنیت، مقدار کلید نمایش داده نمی‌شود.</small></div></div>
-          <button type="button" @click="smsSettings.editing_api_token = true">تغییر کلید API <span>←</span></button>
-        </section>
+          <section v-else class="provider-field provider-token-card api-token-saved">
+            <span class="provider-field-title">کلید API حساب SHSMS این کلینیک</span>
+            <div class="api-token-saved-status"><span>✓</span><div><strong>کلید API ذخیره شده است</strong><small>برای امنیت، مقدار کلید نمایش داده نمی‌شود.</small></div></div>
+            <button type="button" @click="smsSettings.editing_api_token = true">تغییر کلید API <span>←</span></button>
+          </section>
+        </div>
 
-        <p class="sms-clinic-info-note">آدرس، اینستاگرام، تلفن و لوکیشن پیامک اطلاعات از «تنظیمات داخلی ← اطلاعات مجموعه» خوانده می‌شود. پارامتر ۱ نیز نام بیمار است.</p>
+        <p class="sms-clinic-info-note"><b>اطلاعات پیامک:</b> آدرس، اینستاگرام، تلفن و لوکیشن از «تنظیمات داخلی ← اطلاعات مجموعه» خوانده می‌شود. پارامتر ۱ نیز نام بیمار است.</p>
       </section>
 
       <section class="sms-templates-section">
@@ -894,6 +917,27 @@ const savingSms = ref(false);
 const profileFields = ref({ national_id: false, foreign_national_code: false, marriage_date: false, marital_status: false, education: false, father_name: false, second_phone: false, address: false, city: false });
 const followupConsultantPhoneRestricted = ref(false);
 const appointmentFileNumberLocked = ref(true);
+const handleAppointmentFileNumberLockChange = async event => {
+  const wantsLocked = Boolean(event?.target?.checked);
+  if (wantsLocked) {
+    appointmentFileNumberLocked.value = true;
+    return;
+  }
+
+  const result = await Swal.fire({
+    icon: 'warning',
+    title: 'قفل شماره پرونده باز شود؟',
+    html: '<p style="line-height:2;text-align:right">با بازکردن قفل، شماره پرونده به‌صورت دستی وارد می‌شود. مسئولیت انتخاب شماره صحیح و جلوگیری از تکرار یا تداخل شماره پرونده‌ها با شماست و سامانه ترتیب و هماهنگی شماره‌های دستی را تضمین نمی‌کند.</p>',
+    showCancelButton: true,
+    confirmButtonText: 'بله، قفل باز شود',
+    cancelButtonText: 'انصراف؛ قفل بماند',
+    confirmButtonColor: '#dc2626',
+    reverseButtons: true
+  });
+
+  appointmentFileNumberLocked.value = !result.isConfirmed;
+  if (event?.target) event.target.checked = appointmentFileNumberLocked.value;
+};
 const patientFieldOptions = [
   ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['foreign_national_code','کد اتباع'],['father_name','نام پدر'],['marital_status','وضعیت تأهل'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
 ].map(([key,label]) => ({ key,label }));
@@ -1114,7 +1158,7 @@ const accessSections = ref([
   { title: "وقت دهی", permissions: ["کل وقت دهی", "گزارش درآمد", "مشاور", "پیامک", "خدمات", "افزودن روز"], people: [{ name: "", selected_permissions: [] }] },
   { title: "پیگیری", permissions: ["کل پیگیری", "ایجاد کمپین", "مشاهده جدول"], people: [{ name: "", selected_permissions: [] }] },
   { title: "گزارش", permissions: ["کل گزارش", "سود و هزینه ها", "وقت دهی", "تبلیغات", "پرسنل", "پزشک", "مجموعه", "بدهکاران"], people: [{ name: "", selected_permissions: [] }] },
-  { title: "انبار", permissions: ["کل انبار", "هزینه", "قیمت", "تعداد", "حداقل موجودی", "موجودی", "جدول"], people: [{ name: "", selected_permissions: [] }] },
+  { title: "خدمات", permissions: ["کل خدمات", "هزینه", "قیمت", "تعداد", "حداقل موجودی", "موجودی", "جدول"], people: [{ name: "", selected_permissions: [] }] },
   { title: "زیبایار", permissions: ["کل زیبایار", "ایجاد برنامه زیبایی", "فیلتر تاریخ", "مشاهده پرونده"], people: [{ name: "", selected_permissions: [] }] },
   { title: "منابع", permissions: ["کل منابع", "پزشک", "پرسنل", "کانال ها"], people: [{ name: "", selected_permissions: [] }] },
   { title: "تیکت", permissions: ["کل تیکت", "افزودن تیکت", "تیکت های فعال", "تیکت های انجام شده", "تیکت های انجام نشده", "حذف تیکت"], people: [{ name: "", selected_permissions: [] }] },
@@ -1753,6 +1797,31 @@ textarea{ min-height:120px; resize:none; }
 .compact-checks{ display:flex; flex-wrap:wrap; justify-content:flex-start; direction:rtl; gap:6px 10px; align-items:center; }
 .compact-checks label{ display:flex; flex-direction:row-reverse; align-items:center; gap:5px; background:#f8fbff; padding:7px 10px; border-radius:12px; font-size:13px; width:fit-content; white-space:nowrap; }
 .compact-checks span{ white-space:nowrap; }
+.compact-checks .profile-optional-fields { flex:1 1 100%; width:100%; display:grid; gap:9px; padding:12px; border:1px solid #e2e8f0; border-radius:15px; background:#fff; }
+.profile-setting-group-title { color:#334155; font-size:11px; font-weight:900; }
+.profile-optional-fields-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+.compact-checks .profile-optional-fields-grid label { width:auto; min-width:0; flex-direction:row; justify-content:flex-start; padding:8px 9px; border:1px solid #edf2f7; border-radius:10px; background:#f8fafc; color:#475569; font-size:11px; cursor:pointer; }
+.profile-optional-fields-grid label:has(input:checked) { border-color:#bfdbfe; background:#eff6ff; color:#1d4ed8; }
+.profile-optional-fields-grid input { flex:0 0 auto; width:15px; height:15px; accent-color:#2563eb; }
+.compact-checks .lead-phone-privacy-setting { flex:1 1 100%; width:100%; display:flex; flex-direction:row; justify-content:flex-start; gap:10px; padding:11px 12px; border:1px solid #e2e8f0; background:#fff; cursor:pointer; }
+.compact-checks .lead-phone-privacy-setting.active { border-color:#c4b5fd; background:#f5f3ff; }
+.lead-phone-privacy-setting>input { flex:0 0 auto; width:17px; height:17px; accent-color:#7c3aed; }
+.compact-checks .lead-phone-privacy-copy { min-width:0; display:grid; gap:2px; white-space:normal; }
+.lead-phone-privacy-copy strong { color:#334155; font-size:11px; }
+.lead-phone-privacy-copy small { color:#64748b; font-size:9px; font-weight:600; white-space:normal; }
+.compact-checks .file-number-lock-setting { display:flex; flex:1 1 100%; flex-direction:row; align-items:center; gap:10px; width:100%; margin-top:5px; padding:11px 12px; border:1px solid #dbe5f1; background:linear-gradient(135deg,#f8fafc,#fff); cursor:pointer; transition:.18s ease; }
+.compact-checks .file-number-lock-setting.active { border-color:#93c5fd; background:linear-gradient(135deg,#eff6ff,#f8fbff); box-shadow:0 5px 16px rgba(37,99,235,.08); }
+.file-number-lock-setting>input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.file-number-lock-switch { position:relative; flex:0 0 36px; width:36px; height:20px; border-radius:999px; background:#cbd5e1; transition:.18s ease; }
+.file-number-lock-switch i { position:absolute; top:3px; right:3px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(15,23,42,.22); transition:.18s ease; }
+.file-number-lock-setting.active .file-number-lock-switch { background:#2563eb; }
+.file-number-lock-setting.active .file-number-lock-switch i { transform:translateX(-16px); }
+.compact-checks .file-number-lock-setting-icon { display:grid; flex:0 0 34px; width:34px; height:34px; place-items:center; border-radius:10px; background:#e2e8f0; color:#64748b; }
+.compact-checks .file-number-lock-setting.active .file-number-lock-setting-icon { background:#dbeafe; color:#2563eb; }
+.file-number-lock-setting-icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.compact-checks .file-number-lock-setting-copy { min-width:0; display:grid; gap:2px; white-space:normal; }
+.file-number-lock-setting-copy strong { color:#1e293b; font-size:12px; }
+.file-number-lock-setting-copy small { color:#64748b; font-size:10px; font-weight:600; white-space:normal; }
 .row-box{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .user-definition-card{ display:flex; flex-direction:column; gap:12px; padding:16px; border:1px solid #dcfce7; border-radius:18px; background:#fbfffc; }
 .user-definition-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -1836,12 +1905,13 @@ textarea{ min-height:120px; resize:none; }
 .required-fields-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:16px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff}.required-fields-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}.required-fields-head small{color:#64748b}.required-fields-settings label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:800}.required-fields-settings select{height:34px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-family:inherit}@media(max-width:800px){.required-fields-settings{grid-template-columns:1fr}.required-fields-head{align-items:flex-start;flex-direction:column}}
 
 .sms-provider-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  display: grid;
+  gap: 18px;
   padding: 22px;
 }
+.sms-provider-head { display:flex; align-items:center; gap:12px; padding-bottom:16px; border-bottom:1px solid #e7eef7; }
+.sms-provider-head-icon { display:grid; flex:0 0 42px; width:42px; height:42px; place-items:center; border-radius:13px; background:linear-gradient(135deg,#2563eb,#60a5fa); color:#fff; font-size:20px; box-shadow:0 8px 18px rgba(37,99,235,.2); }
+.sms-provider-grid { display:grid; grid-template-columns:minmax(220px,.75fr) minmax(320px,1.25fr); gap:14px; align-items:stretch; }
 
 .sms-provider-card h3,
 .sms-section-head h3 {
@@ -1864,14 +1934,21 @@ textarea{ min-height:120px; resize:none; }
 }
 
 .provider-field {
-  display: flex;
-  flex-direction: column;
+  box-sizing:border-box;
+  display: grid;
+  align-content:start;
   gap: 7px;
-  width: min(320px, 100%);
+  width: 100%;
+  min-width:0;
+  padding:14px;
+  border:1px solid #e2e8f0;
+  border-radius:15px;
+  background:#f8fafc;
   color: #475569;
   font-size: 12px;
   font-weight: 800;
 }
+.provider-field-title { color:#334155; font-size:11px; font-weight:900; }
 
 .provider-field select,
 .provider-field input,
@@ -1890,7 +1967,7 @@ textarea{ min-height:120px; resize:none; }
   box-sizing: border-box;
   width: 100%;
 }
-.sms-clinic-info-note{margin:0;padding:11px 13px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:11px;font-weight:800;line-height:1.9}.clinic-location-picker{display:grid;gap:9px;width:min(680px,100%);margin-top:4px;padding:14px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.clinic-location-picker header{display:grid;gap:3px}.clinic-location-picker strong{color:#1e3a8a;font-size:13px}.clinic-location-picker small{color:#64748b;font-size:11px}.clinic-location-map{height:280px;border:1px solid #bfdbfe;border-radius:11px;overflow:hidden;z-index:0}.clinic-location-result{display:flex;align-items:center;flex-wrap:wrap;gap:9px;color:#475569;font-size:11px;font-weight:800}.clinic-location-result a,.clinic-location-result button{padding:6px 9px;border:1px solid #93c5fd;border-radius:8px;background:#fff;color:#1d4ed8;font:800 10px inherit;text-decoration:none;cursor:pointer}.clinic-location-result button{border-color:#fecaca;color:#b91c1c}
+.sms-clinic-info-note{display:flex;align-items:flex-start;gap:6px;margin:0;padding:12px 14px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:10px;font-weight:700;line-height:1.9}.sms-clinic-info-note b{flex:0 0 auto;color:#1d4ed8;font-size:10px}.clinic-location-picker{display:grid;gap:9px;width:min(680px,100%);margin-top:4px;padding:14px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.clinic-location-picker header{display:grid;gap:3px}.clinic-location-picker strong{color:#1e3a8a;font-size:13px}.clinic-location-picker small{color:#64748b;font-size:11px}.clinic-location-map{height:280px;border:1px solid #bfdbfe;border-radius:11px;overflow:hidden;z-index:0}.clinic-location-result{display:flex;align-items:center;flex-wrap:wrap;gap:9px;color:#475569;font-size:11px;font-weight:800}.clinic-location-result a,.clinic-location-result button{padding:6px 9px;border:1px solid #93c5fd;border-radius:8px;background:#fff;color:#1d4ed8;font:800 10px inherit;text-decoration:none;cursor:pointer}.clinic-location-result button{border-color:#fecaca;color:#b91c1c}
 
 .provider-field input:focus,
 .provider-field select:focus {
@@ -1919,7 +1996,8 @@ textarea{ min-height:120px; resize:none; }
 .api-token-saved-status { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid #bbf7d0; border-radius: 12px; background: #f0fdf4; }
 .api-token-saved-status > span { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 50%; background: #16a34a; color: #fff; font-size: 13px; }
 .api-token-saved-status div { display: grid; gap: 2px; }.api-token-saved-status strong { color: #166534; font-size: 12px; }.api-token-saved-status small { color: #4b7c59; font-size: 10px; font-weight: 600; }
-.api-token-saved button { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #93c5fd; border-radius: 10px; background: #eff6ff; color: #1d4ed8; font: 900 11px inherit; cursor: pointer; transition: .18s; }.api-token-saved button:hover { border-color: #2563eb; background: #dbeafe; transform: translateY(-1px); }
+.api-token-saved button { justify-self:start; display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid #93c5fd; border-radius: 10px; background: #eff6ff; color: #1d4ed8; font: 900 11px inherit; cursor: pointer; transition: .18s; }.api-token-saved button:hover { border-color: #2563eb; background: #dbeafe; transform: translateY(-1px); }
+@media(max-width:800px){.sms-provider-grid{grid-template-columns:1fr}.sms-provider-head{align-items:flex-start}.sms-clinic-info-note{display:block}.sms-clinic-info-note b{display:block;margin-bottom:2px}}
 
 .sms-templates-section {
   padding: 22px;

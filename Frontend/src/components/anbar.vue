@@ -2,12 +2,12 @@
   <div class="inventory-page" :class="{ 'movement-page-active': inventoryView === 'movements' || inventoryView === 'service-tags' }">
     <section v-if="false" class="inventory-view-switch">
       <div class="inventory-view-title">
-        <span>مدیریت انبار</span>
-        <h2>نمایش انبار را انتخاب کنید</h2>
-        <p>برای کارهای روزمره از جدول استفاده کنید و برای بررسی سریع موجودی، نمای چارت را ببینید.</p>
+        <span>مدیریت خدمات</span>
+        <h2>نمایش خدمات را انتخاب کنید</h2>
+        <p>برای کارهای روزمره از جدول خدمات استفاده کنید و برای بررسی سریع، نمای چارت را ببینید.</p>
       </div>
 
-      <div class="inventory-tabs" role="tablist" aria-label="نوع نمایش انبار">
+      <div class="inventory-tabs" role="tablist" aria-label="نوع نمایش خدمات">
         <button
           type="button"
           role="tab"
@@ -29,7 +29,7 @@
         >
           <span>چارت</span>
           <strong>نمایش به صورت چارت</strong>
-          <small>بررسی سریع موجودی بخش انتخاب‌شده</small>
+          <small>بررسی سریع خدمات بخش انتخاب‌شده</small>
         </button>
       </div>
     </section>
@@ -38,9 +38,9 @@
       <div class="inventory-structure-head">
         <button class="structure-add-root-btn" type="button" @click="addRootSection">
           <span>+</span>
-          انبار جدید
+          خدمت جدید
         </button>
-        <h3>ساختار انبار</h3>
+        <div class="structure-title-wrap"><h3>ساختار خدمات</h3></div>
       </div>
 
       <div class="inventory-tree">
@@ -49,7 +49,7 @@
           :key="sectionKey(node.section)"
           class="tree-node"
             :class="{ active: activeTreeKey === sectionKey(node.section), root: node.level === 1, leaf: !node.hasChildren }"
-          :style="{ '--tree-depth': node.level - 1 }"
+          :style="{ '--tree-depth': node.level - 1, '--node-accent': sectionColor(node.section) }"
           @click="selectTreeNode(node.section)"
         >
           <button
@@ -61,8 +61,8 @@
             aria-label="باز و بسته کردن"
             @click.stop="toggleTreeNode(node.section)"
           ></button>
-          <input v-model="node.section.name" :placeholder="treePlaceholder(node.level)" @click.stop @focus="selectTreeNode(node.section)">
-          <span class="tree-dot" aria-hidden="true"></span>
+          <input v-model="node.section.name" :title="node.section.name || treePlaceholder(node.level)" :placeholder="treePlaceholder(node.level)" @click.stop @focus="selectTreeNode(node.section)">
+          <div class="tree-color-picker"><button type="button" class="tree-color-btn" title="رنگ فعلی این آیتم؛ برای بازکردن پالت کلیک کنید" @click.stop="toggleSectionColorMenu(sectionKey(node.section))"><span :style="{ background: sectionColor(node.section) }"></span></button><div v-if="colorPickerSectionKey === sectionKey(node.section)" class="section-color-menu tree-color-menu" @click.stop><button v-for="color in sectionColorsList" :key="color" type="button" class="section-color-swatch" :style="{ background: color }" :title="`انتخاب رنگ ${color}`" @click="setSectionColorFor(sectionKey(node.section), color)"></button><button type="button" class="section-color-reset" @click="setSectionColorFor(sectionKey(node.section), '')">حذف رنگ</button></div></div>
           <span class="tree-count">{{ treeNodeCount(node.section).toLocaleString('fa-IR') }}</span>
           <span class="tree-spacer" aria-hidden="true"></span>
           <button
@@ -75,7 +75,7 @@
           <button type="button" class="tree-more-btn" title="حذف" aria-label="حذف" @click.stop="removeSectionNode(node.section)">×</button>
         </div>
 
-        <small v-if="!inventoryTreeNodes.length" class="tree-empty">اولین انبار را بسازید</small>
+            <small v-if="!inventoryTreeNodes.length" class="tree-empty">اولین خدمت را بسازید</small>
       </div>
 
       <button v-if="false" class="delete-section-btn" type="button" @click="removeActiveSection">
@@ -91,8 +91,8 @@
           <input
             v-model.trim="searchQuery"
             type="search"
-            placeholder="جست‌وجو در کل انبار؛ نام کالا، بخش، مبلغ، موجودی یا معرف..."
-            aria-label="جست‌وجو در کل انبار"
+            placeholder="جست‌وجو در کل خدمات؛ نام خدمت، بخش، مبلغ یا معرف..."
+            aria-label="جست‌وجو در کل خدمات"
           >
           <span v-if="searchQuery" class="search-result-count">
             {{ displayedRows.length }} نتیجه
@@ -106,7 +106,7 @@
           >×</button>
         </div>
 
-        <div class="inventory-inline-tabs" role="tablist" aria-label="نوع نمایش انبار">
+        <div class="inventory-inline-tabs" role="tablist" aria-label="نوع نمایش خدمات">
           <button
             type="button"
             role="tab"
@@ -135,8 +135,8 @@
           <button
             class="global-commission-btn"
             type="button"
-            title="تعریف پورسانت کلی برای همه انبار"
-            aria-label="تعریف پورسانت کلی برای همه انبار"
+            title="تعریف پورسانت کلی برای همه خدمات"
+            aria-label="تعریف پورسانت کلی برای همه خدمات"
             @click="openCommissionModal(null, 'all')"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15.4 14.9 8.6M9.5 9.5h.01M14.5 14.5h.01"/></svg>
@@ -171,8 +171,8 @@
           <input
             v-model.trim="searchQuery"
             type="search"
-            placeholder="جست‌وجو در کل انبار؛ نام کالا، بخش، مبلغ، موجودی یا معرف..."
-            aria-label="جست‌وجو در کل انبار"
+            placeholder="جست‌وجو در کل خدمات؛ نام خدمت، بخش، مبلغ یا معرف..."
+            aria-label="جست‌وجو در کل خدمات"
           >
           <span v-if="searchQuery" class="search-result-count">
             {{ displayedRows.length }} نتیجه
@@ -188,7 +188,7 @@
 
         <div v-if="!needsCompletedHierarchy || isRootSelection || searchQuery" class="panel-head">
           <div>
-            <h3>{{ searchQuery ? 'نتایج جست‌وجو در کل انبار' : isRootSelection ? `گروه کلی ${activeSectionName}` : inventoryTableTitle }}</h3>
+            <h3>{{ searchQuery ? 'نتایج جست‌وجو در کل خدمات' : isRootSelection ? `گروه کلی ${activeSectionName}` : inventoryTableTitle }}</h3>
             <p>{{ searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : isRootSelection ? 'پورسانت کلی، روی همه آیتم‌های زیرگروه‌های این گروه اعمال می‌شود.' : inventoryTableSubtitle }}</p>
           </div>
           <div class="panel-actions">
@@ -213,7 +213,7 @@
 
         <div v-else-if="needsCompletedHierarchy && !searchQuery" class="inventory-branch-message">
           <strong>لطفا زیرشاخه را انتخاب کنید</strong>
-          <span>برای نمایش یا ثبت آیتم‌ها، یک زیرشاخه از انبار را انتخاب کنید.</span>
+          <span>برای نمایش یا ثبت خدمت‌ها، یک زیرشاخه از خدمات را انتخاب کنید.</span>
         </div>
 
         <div v-else class="table-wrap">
@@ -224,11 +224,12 @@
               <col class="addons-col">
               <col class="money-col">
               <col class="money-col">
-              <col class="min-col">
               <col class="stock-col">
+              <col class="min-col">
               <col class="followup-col">
               <col class="commission-col">
               <col class="active-col">
+              <col class="booking-col">
               <col class="action-col">
             </colgroup>
             <thead>
@@ -238,11 +239,12 @@
                 <th title="جانبی‌های پیش‌فرض">جانبی‌ها</th>
                 <th>قیمت کالا</th>
                 <th>هزینه مواد</th>
-                <th>حداقل</th>
                 <th>موجودی</th>
+                <th>حداقل</th>
                 <th>دوره پیگیری<br><small>(روز)</small></th>
                 <th>پورسانت کلی</th>
                 <th>فعال</th>
+                <th>وقت‌دهی</th>
                 <th></th>
               </tr>
             </thead>
@@ -295,13 +297,13 @@
                     @input="e => onMoneyInput(e, row, 'price')"
                   >
                 </td>
-                <td><input v-model.number="row.minStock" type="number" min="0"></td>
                 <td>
                   <div class="stock-cell">
                     <strong :class="stockClass(row.stock, row.minStock)">{{ Number(row.stock || 0).toLocaleString('fa-IR') }}</strong>
                     <button type="button" title="افزایش یا کاهش موجودی" @click.stop="openStockMovement(row)">±</button>
                   </div>
                 </td>
+                <td><input v-model.number="row.minStock" type="number" min="0"></td>
                 <td><input v-model.number="row.followupDays" type="number" min="0" placeholder="۰"></td>
                 <td>
                   <button
@@ -316,12 +318,18 @@
                 </td>
                 <td><input class="check" type="checkbox" v-model="row.active"></td>
                 <td>
+                  <button class="booking-table-cell" :class="{ enabled: row.bookingSetting?.booking_enabled }" type="button" title="بازکردن تنظیمات وقت‌دهی" @click.stop="openBookingSettings(row)">
+                    <span class="booking-table-icon">{{ row.bookingSetting?.booking_enabled ? '✓' : '◷' }}</span>
+                    <span><b>{{ row.bookingSetting?.booking_enabled ? 'فعال' : 'تنظیم نشده' }}</b><small>{{ row.bookingSetting?.booking_enabled ? 'مشاهده تنظیمات' : 'تنظیم وقت‌دهی' }}</small></span>
+                  </button>
+                </td>
+                <td>
                   <button class="row-remove" type="button" @click.stop="removeRow(row, index)">×</button>
                 </td>
               </tr>
 
               <tr v-if="displayedRows.length === 0">
-                <td colspan="11" class="empty-cell">
+                <td colspan="12" class="empty-cell">
                   {{ inventoryEmptyMessage }}
                 </td>
               </tr>
@@ -333,13 +341,13 @@
       <section v-if="inventoryView === 'chart'" class="chart-section">
         <div class="panel-head compact chart-head">
           <div class="chart-head-copy">
-            <h3>نمای چارت موجودی {{ activeSectionName }}</h3>
-            <p>فقط آیتم‌های فعال همین بخش نمایش داده می‌شوند؛ زرد یعنی نزدیک به حداقل و قرمز یعنی موجودی صفر.</p>
+            <h3>نمای چارت خدمات {{ activeSectionName }}</h3>
+            <p>فقط خدمت‌های فعال همین بخش نمایش داده می‌شوند؛ زرد یعنی نزدیک به حداقل و قرمز یعنی موجودی صفر.</p>
           </div>
           <button class="text-btn primary" type="button" @click="inventoryView = 'table'">
             رفتن به جدول
           </button>
-          <h3>نمای موجودی بخش انتخاب‌شده</h3>
+          <h3>نمای خدمات بخش انتخاب‌شده</h3>
         </div>
         <div class="chart-box">
           <div v-for="item in chartData" :key="item.localId" class="bar-row">
@@ -361,7 +369,7 @@
       <section v-if="inventoryView === 'movements'" class="movement-page">
         <header class="panel-head">
           <div><h3>گردش موجودی {{ movementList.row?.name }}</h3><p>افزایش‌ها و کاهش‌های این آیتم با تاریخ و علت ثبت شده‌اند.</p></div>
-          <button class="text-btn ghost" type="button" @click="closeMovementList">بازگشت به انبار</button>
+          <button class="text-btn ghost" type="button" @click="closeMovementList">بازگشت به خدمات</button>
         </header>
         <div class="movement-filters">
           <label>
@@ -492,7 +500,7 @@
         <select v-if="defaultAddonsModal.globalMode" v-model="defaultAddonsModal.parentLocalId" class="inventory-addons-parent" @change="changeDefaultAddonsParent">
           <option v-for="item in rows.filter(item => item.name)" :key="item.localId" :value="item.localId">{{ item.name }}</option>
         </select>
-        <input v-model.trim="defaultAddonsModal.query" class="inventory-addons-search" type="search" placeholder="جست‌وجوی کالا در انبار">
+        <input v-model.trim="defaultAddonsModal.query" class="inventory-addons-search" type="search" placeholder="جست‌وجوی خدمت در خدمات">
         <p class="inventory-addons-help">با انتخاب این کالا/خدمت در وقت‌دهی، موارد انتخاب‌شده به‌صورت پیش‌فرض افزوده می‌شوند.</p>
         <div class="inventory-addons-list">
           <label v-for="item in filteredDefaultAddonOptions" :key="item.id" class="inventory-addon-option">
@@ -507,6 +515,25 @@
 
     <div v-if="addonManager.open" class="modal-backdrop" @click.self="closeAddonManager">
       <section class="commission-modal addon-manager-modal" role="dialog" aria-modal="true"><div class="modal-head"><div><h3>مدیریت جانبی‌ها</h3><p>برای هر جانبی قیمت، هزینه مواد و موجودی مستقل ثبت کنید.</p></div><button class="modal-close" type="button" @click="closeAddonManager">×</button></div><div class="addon-manager-table"><div class="addon-manager-row addon-manager-head"><span>نام جانبی</span><span>قیمت کالا</span><span>هزینه مواد</span><span>موجودی</span><span>حداقل</span><span>فعال</span><span></span></div><div v-for="(item,index) in addonManager.items" :key="item._key" class="addon-manager-row"><input v-model.trim="item.name" placeholder="مثلاً ژل بی‌حسی"><input v-model.number="item.amount" type="number" min="0"><input v-model.number="item.price" type="number" min="0"><input v-model.number="item.stock" type="number" min="0"><input v-model.number="item.min_stock" type="number" min="0"><label class="addon-active"><input v-model="item.active" type="checkbox"><span>فعال</span></label><button class="addon-delete" type="button" title="حذف" @click="addonManager.items.splice(index,1)">×</button></div><p v-if="!addonManager.items.length" class="inventory-addons-empty">هنوز جانبی تعریف نشده است.</p></div><button class="text-btn ghost addon-add-btn" type="button" @click="addAddonDefinition">+ افزودن جانبی</button><div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeAddonManager">انصراف</button><button class="text-btn primary" type="button" @click="saveAddonManager">ذخیره جانبی‌ها</button></div></section>
+    </div>
+
+    <div v-if="bookingModal.open" class="modal-backdrop" @click.self="closeBookingSettings">
+      <section class="commission-modal booking-settings-modal booking-wizard" role="dialog" aria-modal="true">
+        <div class="booking-hero"><div class="booking-hero-icon">◷</div><div><h3>تنظیمات وقت‌دهی خدمت</h3><p><b>خدمت:</b> {{ bookingModal.row?.name || 'بدون نام' }} <span class="booking-status-pill" :class="{on: bookingModal.settings.booking_enabled}">{{ bookingModal.settings.booking_enabled ? 'فعال' : 'غیرفعال' }}</span></p></div><button v-if="bookingModal.settings.booking_enabled" class="booking-disable-btn" type="button" @click="confirmDisableBooking">غیرفعال‌کردن</button><button class="modal-close" type="button" @click="closeBookingSettings">×</button></div>
+        <p v-if="bookingModal.loading" class="inventory-addons-empty">در حال دریافت تنظیمات...</p>
+        <template v-else-if="!bookingModal.settings.booking_enabled">
+          <div class="booking-off-state"><div class="booking-off-art">⏱</div><h4>وقت‌دهی این خدمت هنوز فعال نیست</h4><p>با فعال‌کردن وقت‌دهی، می‌توانید پزشک‌ها، روزهای حضور، ساعت کاری و قوانین رزرو را تنظیم کنید.</p><button class="booking-primary-btn" type="button" @click="bookingModal.settings.booking_enabled = true; bookingModal.step = 1">فعال‌کردن وقت‌دهی</button></div>
+          <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeBookingSettings">بستن</button><button class="text-btn primary" type="button" @click="saveBookingSettings">ذخیره وضعیت</button></div>
+        </template>
+        <template v-else>
+          <div class="booking-steps"><button v-for="item in [{id:1,title:'تنظیمات پایه',icon:'⚙'},{id:2,title:'منابع وقت‌دهی',icon:'♙'},{id:3,title:'روز و ساعت حضور',icon:'▦'},{id:4,title:'رزرو آنلاین',icon:'◎'}]" :key="item.id" type="button" :class="{active: bookingModal.step === item.id, done: bookingModal.step > item.id}" @click="bookingModal.step = item.id"><span>{{ bookingModal.step > item.id ? '✓' : item.icon }}</span><small>{{ item.title }}</small></button></div>
+          <div v-if="bookingModal.step === 1" class="booking-pane"><div class="booking-pane-title"><div><h4>قوانین اصلی خدمت</h4><p>مشخص کنید این خدمت چگونه در تقویم مدیریت شود.</p></div><span class="booking-number">۱</span></div><div class="booking-card-grid"><label>فاصله بین نوبت‌ها (دقیقه)<input v-model.number="bookingModal.settings.slot_interval_minutes" type="number" min="5" placeholder="از تنظیمات کلینیک"></label><label>انتخاب پزشک یا اپراتور<select v-model="bookingModal.settings.assignment_mode"><option value="auto">انتخاب خودکار توسط سیستم</option><option value="manual">انتخاب دستی توسط منشی</option></select></label><label class="booking-toggle"><input v-model="bookingModal.settings.use_default_schedule" type="checkbox"><span><b>برنامه پیش‌فرض کلینیک</b><small>اگر برنامه اختصاصی نداشته باشد</small></span></label><label class="booking-toggle"><input v-model="bookingModal.settings.conflict_check_enabled" type="checkbox"><span><b>جلوگیری از تداخل</b><small>نوبت هم‌زمان ثبت نشود</small></span></label></div><div class="booking-info-box">هر خدمتی که اینجا تنظیم کنید، در تقویم نوبت‌دهی با همین قوانین نمایش داده می‌شود.</div></div>
+          <div v-if="bookingModal.step === 2" class="booking-pane"><div class="booking-pane-title"><div><h4>پزشکان و اپراتورها</h4><p>یک خدمت می‌تواند هم‌زمان به چند پزشک و اپراتور متصل باشد.</p></div><span class="booking-number">۲</span></div><div class="booking-resource-cards"><article v-for="(resource,index) in bookingModal.resources" :key="resource._key || index" class="booking-resource-card"><div class="resource-card-top"><span class="resource-avatar">{{ resource.role === 'doctor' ? 'پ' : 'ا' }}</span><select v-model="resource.role"><option value="doctor">پزشک</option><option value="operator">اپراتور</option></select><button type="button" class="resource-remove" @click="bookingModal.resources.splice(index,1)">حذف</button></div><select v-if="resource.role === 'doctor'" v-model="resource.doctor_id" @change="applyDoctorSchedule(resource)"><option :value="null">انتخاب پزشک</option><option v-for="doctor in doctors" :key="doctor.id" :value="doctor.id">{{ doctor.name }}</option></select><select v-else v-model="resource.staff_id"><option :value="null">انتخاب اپراتور</option><option v-for="person in staff" :key="person.id" :value="person.id">{{ person.name }}</option></select><label class="resource-active"><input v-model="resource.active" type="checkbox"> برای رزرو فعال باشد</label></article><button class="add-resource-card" type="button" @click="addBookingResource">+ افزودن پزشک یا اپراتور</button></div></div>
+          <div v-if="bookingModal.step === 3" class="booking-pane"><div class="booking-pane-title"><div><h4>روزها و ساعت حضور</h4><p>ساعت‌ها از منابع و روزهای حضور پزشک نمایش داده می‌شود.</p></div><span class="booking-number">۳</span></div><div v-for="(resource,index) in bookingModal.resources" :key="resource._key || index" class="schedule-resource"><div class="schedule-resource-head"><strong>{{ resource.name || (resource.role === 'doctor' ? 'پزشک انتخاب‌شده' : 'اپراتور انتخاب‌شده') }}</strong><button class="text-btn ghost" type="button" @click="addBookingAvailability(resource)">+ افزودن ساعت‌های پیش‌فرض</button></div><div v-for="(availability,aIndex) in (resource.availabilities || [])" :key="aIndex" class="availability-card"><select v-model.number="availability.weekday"><option v-for="day in [{v:0,t:'شنبه'},{v:1,t:'یکشنبه'},{v:2,t:'دوشنبه'},{v:3,t:'سه‌شنبه'},{v:4,t:'چهارشنبه'},{v:5,t:'پنجشنبه'},{v:6,t:'جمعه'}]" :key="day.v" :value="day.v">{{ day.t }}</option></select><input v-model="availability.start_time" type="time"><span>تا</span><input v-model="availability.end_time" type="time"><button type="button" class="resource-remove" @click="resource.availabilities.splice(aIndex,1)">حذف</button><div class="break-list"><div v-for="(breakItem,bIndex) in (availability.breaks || [])" :key="bIndex" class="break-chip">استراحت <input v-model="breakItem.start_time" type="time"><span>تا</span><input v-model="breakItem.end_time" type="time"><button type="button" @click="availability.breaks.splice(bIndex,1)">×</button></div><button class="break-add" type="button" @click="addBookingBreak(availability)">+ افزودن زمان استراحت</button></div></div><p v-if="!resource.availabilities?.length" class="empty-schedule">برای این منبع هنوز برنامه‌ای تعریف نشده است.</p></div><div v-if="!bookingModal.resources.length" class="booking-info-box">ابتدا در مرحله قبل حداقل یک پزشک یا اپراتور اضافه کنید.</div></div>
+          <div v-if="bookingModal.step === 4" class="booking-pane booking-online-pane"><div class="booking-pane-title"><div><h4>تنظیمات رزرو آنلاین</h4><p>مشخص کنید کاربران سایت چه زمانی و با چه شرایطی بتوانند رزرو کنند.</p></div><span class="booking-number">۴</span></div><div class="booking-card-grid"><label class="booking-toggle wide"><input v-model="bookingModal.settings.online_enabled" type="checkbox"><span><b>نمایش این خدمت در سایت</b><small>کاربران بتوانند این خدمت را آنلاین ببینند</small></span></label><label class="booking-toggle"><input v-model="bookingModal.settings.online_payment_enabled" type="checkbox"><span><b>پرداخت آنلاین</b><small>پرداخت هنگام رزرو</small></span></label><label class="booking-toggle"><input v-model="bookingModal.settings.online_cancellation_enabled" type="checkbox"><span><b>لغو توسط کاربر</b><small>اجازه لغو رزرو</small></span></label><label class="booking-field-card"><span>رزرو از چند روز بعد</span><small>کاربر از چند روز بعد بتواند رزرو کند</small><input v-model.number="bookingModal.settings.booking_start_after_days" type="number" min="0"></label><label class="booking-field-card"><span>رزرو تا چند روز آینده</span><small>بازه قابل مشاهده در سایت</small><input v-model.number="bookingModal.settings.booking_available_days" type="number" min="1"></label><label v-if="bookingModal.settings.online_enabled" class="booking-field-card"><span>ساعت شروع سایت</span><small>شروع پذیرش رزرو آنلاین</small><input v-model="bookingModal.settings.online_start_time" type="time"></label><label v-if="bookingModal.settings.online_enabled" class="booking-field-card"><span>ساعت پایان سایت</span><small>پایان پذیرش رزرو آنلاین</small><input v-model="bookingModal.settings.online_end_time" type="time"></label></div></div>
+          <div class="booking-wizard-footer"><button class="text-btn ghost" type="button" @click="closeBookingSettings">انصراف</button><div><button v-if="bookingModal.step > 1" class="text-btn ghost" type="button" @click="bookingModal.step--">مرحله قبل</button><button v-if="bookingModal.step < 4" class="booking-primary-btn" type="button" @click="bookingModal.step++">مرحله بعد</button><button v-else class="booking-primary-btn" type="button" :disabled="bookingModal.saving" @click="saveBookingSettings">{{ bookingModal.saving ? 'در حال ذخیره...' : 'ذخیره تنظیمات' }}</button></div></div>
+        </template>
+      </section>
     </div>
 
     <div v-if="tagPicker.row" class="service-tag-popover-backdrop" @mousedown="closeServiceTagPicker">
@@ -524,7 +551,7 @@
           {{ tag }}
         </button>
         <small v-if="!filteredServiceTagOptions(tagPicker.row).length">
-          تگی پیدا نشد. تگ‌ها را از صفحه «تگ‌های خدمات» در انبار ثبت کنید.
+          تگی پیدا نشد. تگ‌ها را از صفحه «تگ‌های خدمات» ثبت کنید.
         </small>
       </div>
     </div>
@@ -539,6 +566,7 @@ import ServiceTagsManager from "./ServiceTagsManager.vue"
 
 const API = "/api"
 const INVENTORY_ZERO_NOTIFICATIONS_KEY = "inventory_zero_stock_notifs_v1"
+const SERVICE_SECTION_COLORS_KEY = "service_section_colors_v1"
 
 export default {
   name: "InventoryTable",
@@ -562,6 +590,9 @@ export default {
       activeSectionKey: "",
       activeTreeKey: "",
       expandedSectionKeys: [],
+      sectionColors: {},
+      colorPickerSectionKey: "",
+      customSectionColor: "#2563eb",
       sectionIdRedirects: {},
       selectedRow: null,
       tagPicker: {
@@ -601,6 +632,8 @@ export default {
         saving: false,
       },
       movementList: { row: null, items: [], dateFrom: "", dateTo: "", loading: false },
+      clinicSchedule: { active_days: ["saturday", "monday", "wednesday"], interval_minutes: 15, day_times: {} },
+      bookingModal: { open: false, row: null, step: 1, loading: false, saving: false, settings: {}, resources: [], exceptions: [], rules: [], scheduleJson: "[]" },
       searchQuery: "",
       isFetching: true,
       isSaving: false,
@@ -612,6 +645,9 @@ export default {
   },
 
   computed: {
+    sectionColorsList() {
+      return ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#0e7490", "#0891b2", "#06b6d4", "#22d3ee", "#99f6e4", "#047857", "#059669", "#10b981", "#34d399", "#65a30d", "#84cc16", "#a3e635", "#ca8a04", "#d97706", "#f59e0b", "#ea580c", "#f97316", "#be123c", "#dc2626", "#ef4444", "#fb7185", "#db2777", "#ec4899", "#7c3aed", "#8b5cf6", "#a78bfa", "#4338ca", "#475569", "#64748b", "#0f172a"]
+    },
     movementIncreaseTotal() {
       return this.movementList.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity || 0)), 0)
     },
@@ -640,12 +676,12 @@ export default {
 
     inventoryTableSubtitle() {
       return this.needsCompletedHierarchy
-        ? "برای نمایش و ثبت آیتم، یک زیرشاخه از انبار را انتخاب کنید."
-        : "کالاها و خدمات این بخش را همراه موجودی و پورسانت معرف مدیریت کنید."
+        ? "برای نمایش و ثبت خدمت، یک زیرشاخه از خدمات را انتخاب کنید."
+        : "خدمات این بخش را همراه موجودی و پورسانت معرف مدیریت کنید."
     },
 
     inventoryEmptyMessage() {
-      if (this.searchQuery) return "نتیجه‌ای برای این جست‌وجو در انبار پیدا نشد."
+      if (this.searchQuery) return "نتیجه‌ای برای این جست‌وجو در خدمات پیدا نشد."
       if (this.needsCompletedHierarchy) return "لطفا شاخه‌بندی را کامل کنید."
       return "برای این بخش هنوز آیتمی ثبت نشده است."
     },
@@ -770,7 +806,7 @@ export default {
     },
 
     commissionScopeSubtitle() {
-      if (this.bulkCommission.target === "all") return "پورسانت کلی برای همه انبار"
+      if (this.bulkCommission.target === "all") return "پورسانت کلی برای همه خدمات"
       if (this.bulkCommission.target === "group") {
         const group = this.sections.find(item => this.sectionKey(item) === String(this.bulkCommission.sectionKey || this.activeRootKey))
         return `پورسانت کلی همه آیتم‌های گروه ${group?.name || 'انتخاب‌شده'}`
@@ -832,6 +868,7 @@ export default {
   },
 
   mounted() {
+    try { this.sectionColors = JSON.parse(localStorage.getItem(SERVICE_SECTION_COLORS_KEY) || "{}") || {} } catch { this.sectionColors = {} }
     if (localStorage.getItem('inventory-open-service-tags') === '1') {
       localStorage.removeItem('inventory-open-service-tags')
       this.inventoryView = 'service-tags'
@@ -840,6 +877,138 @@ export default {
   },
 
   methods: {
+    sectionColor(section) {
+      let current = section
+      const visited = new Set()
+      while (current && !visited.has(String(this.sectionKey(current)))) {
+        const key = String(this.sectionKey(current))
+        visited.add(key)
+        if (this.sectionColors[key]) return this.sectionColors[key]
+        const parentKey = String(current.parent_id || current.parentId || "")
+        current = parentKey ? this.sections.find(item => String(this.sectionKey(item)) === parentKey) : null
+      }
+      return "#cbd5e1"
+    },
+    toggleSectionColorMenu(key) {
+      this.colorPickerSectionKey = this.colorPickerSectionKey === String(key) ? "" : String(key)
+    },
+    setSectionColorFor(key, color) {
+      if (!key) return
+      const section = this.sections.find(item => String(this.sectionKey(item)) === String(key))
+      if (section) section.color = color || null
+      if (color) this.sectionColors = { ...this.sectionColors, [String(key)]: color }
+      else { const next = { ...this.sectionColors }; delete next[String(key)]; this.sectionColors = next }
+      localStorage.setItem(SERVICE_SECTION_COLORS_KEY, JSON.stringify(this.sectionColors))
+      this.colorPickerSectionKey = ""
+    },
+    async openBookingSettings(row) {
+      const rowName = row?.name
+      if (!row?.id) {
+        await this.saveData(false)
+        await this.fetchData({ keepState: true })
+        row = this.rows.find(item => item.name === rowName)
+      }
+      if (!row?.id) return
+      this.bookingModal = { open: true, row, step: 1, loading: true, saving: false, settings: {}, resources: [], exceptions: [], rules: [], scheduleJson: "[]" }
+      try {
+        const { data } = await axios.get(`${API}/inventory/${row.id}/booking-settings`)
+        const payload = data.data || data
+        this.bookingModal.settings = { ...(payload.settings || {}) }
+        this.bookingModal.resources = (payload.resources || []).map((item, index) => ({ ...item, _key: `booking-resource-${item.id || index}`, availabilities: item.availabilities || [] }))
+        this.bookingModal.exceptions = payload.exceptions || []
+        this.bookingModal.rules = payload.rules || []
+        this.bookingModal.scheduleJson = JSON.stringify(this.bookingModal.resources.flatMap((resource, resourceIndex) => (resource.availabilities || []).map(availability => ({ resource_index: resourceIndex, weekday: availability.weekday, start_time: availability.start_time, end_time: availability.end_time, slot_interval_minutes: availability.slot_interval_minutes, breaks: availability.breaks || [] }))), null, 2)
+      } catch (error) {
+        Swal.fire({ icon: "error", title: "خطا", text: error?.response?.data?.message || "تنظیمات وقت‌دهی دریافت نشد." })
+        this.bookingModal.open = false
+      } finally {
+        this.bookingModal.loading = false
+      }
+    },
+    closeBookingSettings() {
+      if (!this.bookingModal.saving) this.bookingModal.open = false
+    },
+    async confirmDisableBooking() {
+      const result = await Swal.fire({
+        icon: "warning",
+        title: "وقت‌دهی غیرفعال شود؟",
+        text: "اطلاعات پزشکان، اپراتورها و ساعت‌های حضور پاک نمی‌شود و فقط امکان وقت‌دهی این خدمت غیرفعال خواهد شد.",
+        showCancelButton: true,
+        confirmButtonText: "بله، غیرفعال شود",
+        cancelButtonText: "انصراف",
+        confirmButtonColor: "#dc2626",
+        reverseButtons: true,
+      })
+      if (!result.isConfirmed) return
+      this.bookingModal.settings.booking_enabled = false
+      this.bookingModal.step = 1
+      await this.saveBookingSettings()
+    },
+    defaultBookingAvailabilities(resource = null) {
+      const schedule = this.clinicSchedule || {}
+      const dayMap = { saturday: 0, sunday: 1, monday: 2, tuesday: 3, wednesday: 4, thursday: 5, friday: 6 }
+      const doctor = resource?.role === "doctor" ? this.doctors.find(item => Number(item.id) === Number(resource.doctor_id)) : null
+      const doctorDays = Array.isArray(doctor?.available_days) ? doctor.available_days : []
+      const normalizedDoctorDays = doctorDays.map(day => String(day).trim().toLowerCase()).map(day => ({ "شنبه": "saturday", "یکشنبه": "sunday", "دوشنبه": "monday", "سه شنبه": "tuesday", "سه‌شنبه": "tuesday", "چهارشنبه": "wednesday", "پنجشنبه": "thursday", "جمعه": "friday" }[day] || day).replace(" ", ""))
+      const activeDays = normalizedDoctorDays.length ? normalizedDoctorDays.filter(day => dayMap[day] !== undefined) : (Array.isArray(schedule.active_days) && schedule.active_days.length ? schedule.active_days : Object.keys(dayMap))
+      return activeDays.map(day => {
+        const times = schedule.day_times?.[day] || { start: "09:00", end: "17:00" }
+        return { weekday: dayMap[day] ?? 0, start_time: String(times.start || "09:00").slice(0, 5), end_time: String(times.end || "17:00").slice(0, 5), slot_interval_minutes: schedule.interval_minutes || null, active: true, breaks: [] }
+      })
+    },
+    addBookingResource() {
+      const resource = { role: "doctor", doctor_id: null, staff_id: null, active: true, sort_order: this.bookingModal.resources.length, availabilities: [], _key: `new-${Date.now()}` }
+      this.bookingModal.resources.push(resource)
+    },
+    applyDoctorSchedule(resource) {
+      if (resource?.role !== "doctor" || !resource.doctor_id) return
+      resource.availabilities = this.defaultBookingAvailabilities(resource)
+    },
+    addBookingAvailability(resource) {
+      resource.availabilities ||= []
+      if (!resource.availabilities.length) {
+        resource.availabilities.push(...this.defaultBookingAvailabilities(resource))
+        return
+      }
+      resource.availabilities.push({ weekday: 0, start_time: "09:00", end_time: "17:00", slot_interval_minutes: this.clinicSchedule.interval_minutes || null, active: true, breaks: [] })
+    },
+    addBookingBreak(availability) {
+      availability.breaks ||= []
+      availability.breaks.push({ title: "استراحت", start_time: "14:00", end_time: "15:00", active: true })
+    },
+    async saveBookingSettings() {
+      const modal = this.bookingModal
+      if (!modal.row?.id) return
+      let schedule = []
+      try {
+        schedule = modal.scheduleJson ? JSON.parse(modal.scheduleJson) : []
+        if (!Array.isArray(schedule)) throw new Error("array")
+      } catch (error) {
+        Swal.fire({ icon: "warning", title: "برنامه نامعتبر است", text: "JSON برنامه حضور و استراحت را اصلاح کنید." })
+        return
+      }
+      const resources = modal.resources.map(resource => ({ ...resource, availabilities: resource.availabilities || [] }))
+      // برنامه دیداری مرحله سوم منبع اصلی است؛ JSON فقط برای داده‌های قدیمی/سازگاری نگه داشته شده است.
+      if (schedule.length && resources.length && resources.every(resource => !(resource.availabilities || []).length)) {
+        schedule.forEach(item => {
+          const target = resources[Number(item.resource_index || 0)]
+          if (target) (target.availabilities ||= []).push({ weekday: item.weekday, start_time: item.start_time, end_time: item.end_time, slot_interval_minutes: item.slot_interval_minutes || null, breaks: item.breaks || [] })
+        })
+      }
+      modal.saving = true
+      try {
+        const { data } = await axios.put(`${API}/inventory/${modal.row.id}/booking-settings`, { settings: modal.settings, resources, exceptions: modal.exceptions, rules: modal.rules })
+        const payload = data.data || data
+        modal.resources = payload.resources || resources
+        modal.open = false
+        await this.fetchData({ keepState: true })
+        Swal.fire({ icon: "success", toast: true, position: "top-end", timer: 2200, showConfirmButton: false, title: "تنظیمات وقت‌دهی ذخیره شد" })
+      } catch (error) {
+        Swal.fire({ icon: "error", title: "خطا در ذخیره", text: error?.response?.data?.message || "تنظیمات وقت‌دهی ذخیره نشد." })
+      } finally {
+        modal.saving = false
+      }
+    },
     async openStockMovement(row) {
       if (!row?.id) {
         await this.saveData(false)
@@ -946,10 +1115,13 @@ export default {
 
       try {
         const fresh = Date.now()
-        const [inventoryRes, contextRes] = await Promise.all([
+        const [inventoryRes, contextRes, settingsRes] = await Promise.all([
           axios.get(`${API}/inventory`, { params: { _fresh: fresh }, headers: { "Cache-Control": "no-cache" } }),
-          axios.get(`${API}/inventory/context`, { params: { _fresh: fresh }, headers: { "Cache-Control": "no-cache" } })
+          axios.get(`${API}/inventory/context`, { params: { _fresh: fresh }, headers: { "Cache-Control": "no-cache" } }),
+          axios.get(`${API}/settings`, { params: { _fresh: fresh }, headers: { "Cache-Control": "no-cache" } }).catch(() => ({ data: {} }))
         ])
+
+        if (settingsRes.data?.clinic_schedule) this.clinicSchedule = { ...this.clinicSchedule, ...settingsRes.data.clinic_schedule }
 
         this.doctors = contextRes.data.doctors || []
         this.staff = contextRes.data.staff || []
@@ -967,9 +1139,15 @@ export default {
           client_id: null,
           parent_id: section.parent_id || section.parentId || null,
           level: Number(section.level || 1),
-          name: section.name,
+            name: section.name,
+          color: section.color || null,
           sort_order: section.sort_order ?? index
         }))
+        const databaseColors = this.sections.reduce((colors, section) => {
+          if (section.color) colors[String(this.sectionKey(section))] = section.color
+          return colors
+        }, {})
+        this.sectionColors = { ...this.sectionColors, ...databaseColors }
 
         if (!this.sections.length) {
           this.sections = this.defaultSections()
@@ -1077,6 +1255,8 @@ export default {
         sort_order: item.sort_order ?? index,
         defaultCommissionType: item.default_commission_type || "percent",
         defaultCommissionValue: Number(item.default_commission_value) || 0,
+        bookingSetting: item.booking_setting || item.bookingSetting || null,
+        bookingResources: item.booking_resources || item.bookingResources || [],
         commissions: (item.commissions || []).map(commission => ({
           recipient_type: commission.recipient_type,
           recipient_id: commission.recipient_id,
@@ -1171,6 +1351,7 @@ export default {
             parent_id: section.parent_id,
             level: section.level,
             name: section.name,
+            color: section.color || this.sectionColors[String(this.sectionKey(section))] || null,
             sort_order: index
           })),
           items: this.rows.map((row, index) => ({
@@ -1211,6 +1392,7 @@ export default {
         console.error(error)
         this.hasUnsavedChanges = true
         this.saveState = "error"
+        Swal.fire({ icon: "error", title: "خطا در ذخیره", text: error?.response?.data?.message || "اطلاعات خدمات ذخیره نشد. دوباره تلاش کنید." })
       } finally {
         this.isSaving = false
       }
@@ -1234,7 +1416,7 @@ export default {
     },
 
     addRootSection() {
-      const section = this.makeSection("انبار جدید", null, 1)
+      const section = this.makeSection("خدمات جدید", null, 1)
       this.sections.push(section)
       this.expandedSectionKeys.push(this.sectionKey(section))
       this.selectRoot(section)
@@ -1376,7 +1558,7 @@ export default {
         return
       }
       if (this.sections.length <= 1) {
-        alert("حداقل یک بخش باید در انبار باقی بماند.")
+        alert("حداقل یک بخش باید در خدمات باقی بماند.")
         return
       }
       const index = this.sections.findIndex(item => this.sectionKey(item) === key)
@@ -1398,7 +1580,7 @@ export default {
       }
 
       if (this.sections.length <= 1) {
-        alert("حداقل یک بخش باید در انبار باقی بماند.")
+        alert("حداقل یک بخش باید در خدمات باقی بماند.")
         return
       }
 
@@ -1409,7 +1591,7 @@ export default {
 
     addRow() {
       if (!this.activeSectionKey) {
-        alert("ابتدا یک زیرشاخه از انبار انتخاب کنید.")
+        alert("ابتدا یک زیرشاخه از خدمات انتخاب کنید.")
         return
       }
       const row = {
@@ -2395,8 +2577,11 @@ p {
   font-size: 13px;
   font-weight: 900;
   text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   outline: none;
 }
+
 
 .tree-node.leaf input {
   font-size: 12px;
@@ -2511,9 +2696,36 @@ table {
   width: 58px;
 }
 
+.booking-col {
+  width: 116px;
+}
+
 .action-col {
   width: 44px;
 }
+
+.booking-table-cell {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  text-align: right;
+}
+
+.booking-table-cell:hover { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
+.booking-table-cell.enabled { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
+.booking-table-icon { width: 22px; height: 22px; display: grid; place-items: center; flex: 0 0 22px; border-radius: 7px; background: #e2e8f0; font-size: 12px; font-weight: 900; }
+.booking-table-cell.enabled .booking-table-icon { background: #22c55e; color: #fff; }
+.booking-table-cell b, .booking-table-cell small { display: block; white-space: nowrap; }
+.booking-table-cell b { font-size: 10px; }
+.booking-table-cell small { margin-top: 2px; font-size: 8px; color: inherit; opacity: .75; }
 
 th,
 td {
@@ -3243,6 +3455,44 @@ select:focus {
   color: #fff;
 }
 
+.booking-settings-modal { max-width: 820px; width: min(92vw, 820px); max-height: 88vh; overflow: auto; padding: 0; border-radius: 18px; font-size: 12px; }
+.booking-settings-btn { border:1px solid #bfdbfe; border-radius:7px; min-height:28px; padding:0 9px; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:800; cursor:pointer; white-space:nowrap; }
+.booking-settings-btn:hover { background:#dbeafe; }
+.structure-title-wrap { display:flex; align-items:center; justify-content:flex-start; gap:8px; }
+.inventory-structure-head { position:relative; border-bottom:2px solid color-mix(in srgb, var(--section-accent, #2563eb) 25%, #e2e8f0); }
+.tree-node { border-right:3px solid transparent; }.tree-node:hover, .tree-node.active { border-right-color:var(--node-accent, #2563eb); }
+.tree-color-picker { position:relative; display:flex; align-items:center; flex:0 0 22px; margin-right:1px; }.tree-color-btn { width:22px; height:22px; display:grid; place-items:center; padding:0; border:0; border-radius:6px; background:transparent; cursor:pointer; }.tree-color-btn span { width:10px; height:10px; border-radius:50%; box-shadow:0 0 0 1px #cbd5e1; }.tree-color-btn:hover { background:#eef2f7; }.tree-color-menu { top:27px; right:auto; left:-4px; width:190px; padding:8px; }
+.section-color-picker { position:relative; }
+.section-color-btn { width:27px; height:27px; display:grid; place-items:center; padding:0; border:1px solid #dbe4ef; border-radius:8px; background:#fff; cursor:pointer; box-shadow:0 2px 7px #1e293b0d; }
+.section-color-btn span { width:14px; height:14px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px #cbd5e1; }
+.section-color-menu { position:absolute; top:34px; right:0; z-index:40; display:flex; align-items:center; flex-wrap:wrap; gap:6px; width:156px; padding:9px; border:1px solid #e2e8f0; border-radius:11px; background:#fff; box-shadow:0 12px 28px #0f172a20; }
+.section-color-swatch { width:21px; height:21px; padding:0; border:2px solid #fff; border-radius:50%; box-shadow:0 0 0 1px #cbd5e1; cursor:pointer; }
+.section-color-custom { width:21px; height:21px; display:grid; place-items:center; overflow:hidden; border:1px dashed #94a3b8; border-radius:50%; color:#64748b; cursor:pointer; font-size:15px; }.section-color-custom input { position:absolute; width:1px; height:1px; opacity:0; }
+.section-color-reset { width:100%; margin-top:3px; padding:4px; border:0; border-top:1px solid #eef2f7; background:transparent; color:#64748b; cursor:pointer; font-family:inherit; font-size:10px; }
+.booking-wizard .text-btn { min-height:30px; padding:0 10px; border-radius:8px; font-size:11px; box-shadow:none; }
+.booking-hero { display:flex; align-items:center; gap:11px; padding:16px 20px; color:#fff; background:linear-gradient(135deg,#1e3a8a,#2563eb 55%,#38bdf8); }
+.booking-hero h3 { margin:0 0 3px; font-size:16px; color:#fff !important; }.booking-hero p { margin:0; opacity:1; color:#eaf4ff !important; font-size:11px; }.booking-hero p b { color:#fff !important; }.booking-hero .modal-close { color:#fff !important; margin-right:auto; width:28px; height:28px; font-size:19px; line-height:25px; border:1px solid rgba(255,255,255,.65); background:rgba(255,255,255,.12) !important; }.booking-hero .modal-close:hover { background:rgba(255,255,255,.25) !important; }
+.booking-disable-btn { border:1px solid rgba(255,255,255,.45); border-radius:7px; padding:5px 9px; color:#fff; background:rgba(127,29,29,.28); cursor:pointer; font-family:inherit; font-size:10px; font-weight:800; }.booking-disable-btn:hover { background:rgba(127,29,29,.5); }
+.booking-hero-icon { width:36px; height:36px; display:grid; place-items:center; border-radius:11px; background:rgba(255,255,255,.18); font-size:20px; }
+.booking-status-pill { display:inline-block; margin-right:8px; padding:3px 9px; border-radius:20px; background:#fee2e2; color:#b91c1c; font-size:11px; }.booking-status-pill.on { background:#dcfce7; color:#15803d; }
+.booking-off-state { margin:28px auto 20px; max-width:420px; text-align:center; }.booking-off-art { width:58px; height:58px; margin:0 auto 12px; display:grid; place-items:center; border-radius:18px; background:#eff6ff; color:#2563eb; font-size:31px; }.booking-off-state h4 { margin:0 0 6px; font-size:15px; color:#1e293b; }.booking-off-state p { color:#64748b; line-height:1.8; margin-bottom:17px; font-size:11px; }
+.booking-primary-btn { border:0; border-radius:9px; padding:9px 15px; color:#fff; background:linear-gradient(135deg,#2563eb,#1d4ed8); cursor:pointer; font-size:12px; font-weight:800; box-shadow:0 5px 12px #2563eb2b; }.booking-primary-btn:disabled { opacity:.6; cursor:not-allowed; }
+.booking-steps { display:grid; grid-template-columns:repeat(4,1fr); gap:2px; padding:10px 20px 7px; border-bottom:1px solid #e8eef7; }.booking-steps button { border:0; background:transparent; color:#94a3b8; padding:4px; cursor:pointer; }.booking-steps button span { width:25px; height:25px; display:grid; place-items:center; margin:auto; border-radius:50%; background:#f1f5f9; font-size:12px; }.booking-steps button small { display:block; margin-top:4px; font-size:10px; }.booking-steps button.active { color:#2563eb; font-weight:800; }.booking-steps button.active span,.booking-steps button.done span { color:#fff; background:#2563eb; }
+.booking-pane { padding:16px 20px 6px; min-height:250px; }.booking-pane-title { display:flex; justify-content:space-between; align-items:start; margin-bottom:14px; }.booking-pane-title h4 { margin:0 0 4px; font-size:14px; color:#1e293b; }.booking-pane-title p { margin:0; color:#64748b; font-size:11px; }.booking-number { display:grid; place-items:center; width:27px; height:27px; border-radius:9px; color:#2563eb; background:#eff6ff; font-weight:900; }
+.booking-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }.booking-card-grid label { display:flex; flex-direction:column; gap:5px; color:#475569; font-size:11px; font-weight:700; }.booking-card-grid input,.booking-card-grid select,.schedule-resource select,.availability-card input { min-height:34px; box-sizing:border-box; border:1px solid #dbe4ef; border-radius:8px; padding:7px 9px; background:#fff; font-size:11px; }.booking-card-grid small { color:#94a3b8; font-weight:500; }.booking-toggle { flex-direction:row!important; align-items:center; gap:8px; padding:10px; border:1px solid #e6edf5; border-radius:10px; background:#fbfdff; }.booking-toggle input,.resource-active input { width:16px!important; height:16px!important; min-height:16px!important; margin:0!important; accent-color:#2563eb; }.booking-toggle span { display:flex; flex-direction:column; gap:3px; }.booking-toggle.wide { grid-column:1/-1; }.booking-info-box { margin-top:13px; padding:10px 12px; border-radius:9px; color:#1d4ed8; background:#eff6ff; font-size:11px; }
+.booking-online-pane .booking-card-grid { gap:12px; }.booking-online-pane .booking-toggle { min-height:55px; box-sizing:border-box; }.booking-field-card { min-height:79px; box-sizing:border-box; padding:10px 11px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }.booking-field-card > span { color:#334155; font-size:11px; font-weight:800; }.booking-field-card small { display:block; min-height:25px; margin-top:3px; line-height:1.6; }.booking-field-card input { width:100%; margin-top:5px; }
+.booking-resource-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }.booking-resource-card { padding:11px; border:1px solid #e4ebf4; border-radius:11px; background:#fff; box-shadow:0 3px 10px #1e293b08; }.resource-card-top { display:flex; align-items:center; gap:6px; margin-bottom:8px; }.resource-avatar { width:25px; height:25px; display:grid; place-items:center; border-radius:8px; background:#dbeafe; color:#1d4ed8; font-size:11px; font-weight:900; }.resource-card-top select { flex:1; border:0; font-size:11px; font-weight:800; color:#334155; background:transparent; }.booking-resource-card > select { width:100%; min-height:32px; border:1px solid #dbe4ef; border-radius:8px; padding:7px; font-size:11px; }.resource-remove { border:0; background:transparent; color:#ef4444; cursor:pointer; font-size:10px; }.resource-active { display:block; margin-top:7px; color:#64748b; font-size:10px; }.add-resource-card { min-height:105px; border:1px dashed #93c5fd; border-radius:11px; color:#2563eb; background:#f8fbff; cursor:pointer; font-size:11px; font-weight:800; }
+.schedule-resource { margin-bottom:10px; padding:10px; border:1px solid #e4ebf4; border-radius:11px; }.schedule-resource-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; font-size:11px; }.availability-card { display:grid; grid-template-columns:1.1fr 1fr auto 1fr auto; gap:6px; align-items:center; padding:7px; margin-top:6px; border-radius:8px; background:#f8fafc; }.break-list { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:5px; padding-top:3px; }.break-chip { display:flex; align-items:center; gap:3px; padding:4px 5px; border-radius:6px; color:#92400e; background:#fef3c7; font-size:10px; }.break-chip input { min-height:25px; padding:3px; border-color:#fcd34d; }.break-chip button { border:0; background:none; color:#b45309; cursor:pointer; }.break-add { border:0; background:transparent; color:#b45309; cursor:pointer; font-size:10px; }.empty-schedule { margin:6px 0 0; color:#94a3b8; font-size:10px; }
+.booking-wizard-footer { display:flex; justify-content:space-between; align-items:center; padding:12px 20px 16px; border-top:1px solid #e8eef7; }.booking-wizard-footer > div { display:flex; gap:6px; }
+.booking-settings-grid label, .booking-json-label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: #475569; }
+.booking-settings-grid input, .booking-settings-grid select, .booking-json-label textarea, .booking-resource-row select { border: 1px solid #dbe4ef; border-radius: 10px; padding: 9px; background: #fff; }
+.check-label { flex-direction: row !important; align-items: center; gap: 8px !important; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; }
+.booking-resources { margin-top: 16px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; }
+.booking-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.booking-resource-row { display: grid; grid-template-columns: 1fr 2fr auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.booking-json-label { margin-top: 14px; }
+.booking-json-label textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; direction: ltr; text-align: left; }
+
 @media (max-width: 1100px) {
   .inventory-page,
   .inventory-main {
@@ -3290,5 +3540,12 @@ select:focus {
     grid-row: auto;
     position: static;
   }
+
+  .booking-settings-grid { grid-template-columns: 1fr; }
+  .booking-resource-row { grid-template-columns: 1fr; }
+  .booking-card-grid, .booking-resource-cards { grid-template-columns: 1fr; }
+  .availability-card { grid-template-columns: 1fr 1fr; }
+  .booking-pane { padding-inline: 16px; }
+  .booking-wizard-footer { padding-inline: 16px; }
 }
 </style>

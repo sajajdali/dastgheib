@@ -15,6 +15,7 @@ class InventorySection extends Model
         'parent_id',
         'level',
         'name',
+        'color',
         'sort_order',
     ];
 

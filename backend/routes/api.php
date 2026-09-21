@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\HumanResourceController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InventoryBookingController;
 use App\Http\Controllers\ServiceFollowupController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\Api\SettingController;
@@ -185,6 +186,9 @@ Route::post('/inventory/addons', [InventoryController::class, 'storeAddonDefinit
 Route::post('/inventory', [InventoryController::class, 'store'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory/adjust-stock', [InventoryController::class, 'adjustStock'])->middleware('permission:inventory.update');
 Route::get('/inventory/{inventory}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');
+Route::get('/inventory/{inventory}/booking-settings', [InventoryBookingController::class, 'show'])->middleware('permission:inventory.view|appointments.view');
+Route::put('/inventory/{inventory}/booking-settings', [InventoryBookingController::class, 'update'])->middleware('permission:inventory.update');
+Route::get('/inventory/{inventory}/booking-settings/effective', [InventoryBookingController::class, 'effective'])->middleware('permission:inventory.view|appointments.view');
 Route::get('/service-followups', [ServiceFollowupController::class, 'index'])->middleware('permission:followups.view');
 Route::post('/appointments/{appointment}/followups', [ServiceFollowupController::class, 'scheduleFromAppointment'])->middleware('permission:appointments.update|followups.view');
 Route::patch('/service-followups/{serviceFollowup}', [ServiceFollowupController::class, 'update'])->middleware('permission:followups.view');

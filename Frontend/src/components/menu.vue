@@ -133,7 +133,7 @@ export default {
         { label: 'زیبایار', value: 'dermatracker', feature: 'beauty' },
         { label: 'عکس‌ها', value: 'Photos', feature: 'gallery' },
         { label: 'گزارش', value: 'Gozaresh', feature: 'report' },
-        { label: 'انبار', value: 'Anbar', feature: 'inventory' },
+        { label: 'خدمات', value: 'Anbar', feature: 'inventory' },
         { label: 'تیکت', value: 'Ticket', feature: 'tickets' },
         { label: 'خدمت یاب', value: 'Products', feature: 'finder' },
         { label: 'اتوماسیون', value: 'Automation', feature: 'automation' },

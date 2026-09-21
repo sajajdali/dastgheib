@@ -57,4 +57,10 @@ class Inventory extends Model
         return $this->belongsToMany(InventoryAddonDefinition::class, 'inventory_addon_assignments', 'inventory_id', 'inventory_addon_definition_id')
             ->withTimestamps();
     }
+
+    public function bookingSetting() { return $this->hasOne(InventoryBookingSetting::class); }
+    public function bookingResources() { return $this->hasMany(InventoryBookingResource::class); }
+    public function bookingExceptions() { return $this->hasMany(InventoryBookingException::class); }
+    public function bookingRules() { return $this->hasMany(InventoryBookingRule::class); }
+    public function appointmentServiceBookings() { return $this->hasMany(AppointmentServiceBooking::class); }
 }
