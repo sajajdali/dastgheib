@@ -655,12 +655,11 @@
                 :style="{ width: columnWidths.fileNumber + 'px' }"
               >
                 <input
-                  v-model="row.fileNumber"
+                  :value="row.fileNumber"
                   title="شماره پرونده را وارد کنید یا خالی بگذارید تا سیستم تولید کند"
-                  @input="saveData()"
-                  @change="persistDirectAppointment(row)"
-                  @blur="fillPatientByFileNumber(row)"
-                  @keyup.enter.prevent="fillPatientByFileNumber(row, true)"
+                  @input="handleTableFileNumberInput(row, $event)"
+                  @blur="lookupTablePatientByFileNumber(row)"
+                  @keyup.enter.prevent="lookupTablePatientByFileNumber(row, true)"
                 />
               </td>
 
@@ -1315,10 +1314,12 @@
               class="timeline-card"
               :class="[
                 timelineCardClass(row),
+                activeBookingTimelineColor() ? 'has-service-color' : '',
                 pendingTimelineFollowup && isEmptyAppointmentRow(row) ? 'is-followup-target' : '',
                 isAppointmentSearchResult(row) ? 'is-search-result' : '',
                 highlightedRowId === row._rowId ? 'is-highlighted' : ''
               ]"
+              :style="timelineBookingCardStyle()"
               @click.stop="openTimelineAppointmentModal(day, row)"
             >
               <div class="timeline-time-chip">{{ timelineTimeLabel(row) }}</div>
@@ -1367,6 +1368,8 @@
 
           <article
             class="timeline-card timeline-add-card is-empty"
+            :class="{ 'has-service-color': activeBookingTimelineColor() }"
+            :style="timelineBookingCardStyle()"
             role="button"
             tabindex="0"
             title="ثبت نوبت جدید در انتهای این روز"
@@ -1472,7 +1475,7 @@
             </label>
           </div>
 
-          <div class="timeline-form-grid">
+          <div class="timeline-form-grid" :class="{ 'patient-search-open': timelinePatientSearchOpen }">
             <label class="timeline-patient-search-field" :class="{ 'timeline-field-error': timelineValidationErrors.lastname }">
               نام و نام خانوادگی
               <input
@@ -2440,6 +2443,8 @@ import PatientAvatar from './PatientAvatar.vue';
 import { subscribeAppointmentChanges } from '../services/presence';
 
 const directAppointmentSaves = new WeakMap();
+const tableFileNumberLookupTimers = new WeakMap();
+const patientFileLookupRequests = new WeakMap();
 
 export default {
   props: {
@@ -2515,6 +2520,7 @@ export default {
       timelinePatientSearchTimer: null,
       timelineFileNumberLookupTimer: null,
       timelineFileNumberLookupRequest: 0,
+      suspendScheduleAutosave: false,
       activeTimelineCreatedInModal: false,
 
       doctorOptions: [],
@@ -3789,6 +3795,53 @@ export default {
       return "is-booked";
     },
 
+    activeBookingTimelineColor() {
+      let sectionId = String(this.bookingServiceFilter || '');
+      const visited = new Set();
+
+      // A leaf such as «آقایان» may inherit the chosen color from its nearest
+      // colored parent such as «کندلا».
+      while (sectionId && !visited.has(sectionId)) {
+        visited.add(sectionId);
+        const section = (this.serviceSections || []).find(item => String(item.id) === sectionId);
+        if (!section) break;
+        const color = String(section.color || '').trim();
+        if (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(color)) return color;
+        sectionId = String(section.parent_id || section.parentId || '');
+      }
+
+      return '';
+    },
+
+    colorWithAlpha(color, alpha) {
+      let hex = String(color || '').replace('#', '');
+      if (hex.length === 3) hex = hex.split('').map(value => value + value).join('');
+      if (!/^[0-9a-f]{6}$/i.test(hex)) return color;
+      const red = parseInt(hex.slice(0, 2), 16);
+      const green = parseInt(hex.slice(2, 4), 16);
+      const blue = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+    },
+
+    timelineBookingCardStyle() {
+      const color = this.activeBookingTimelineColor();
+      if (!color) return {};
+      const hex = color.length === 4
+        ? color.slice(1).split('').map(value => value + value).join('')
+        : color.slice(1);
+      const red = parseInt(hex.slice(0, 2), 16);
+      const green = parseInt(hex.slice(2, 4), 16);
+      const blue = parseInt(hex.slice(4, 6), 16);
+      const useLightText = ((red * 299 + green * 587 + blue * 114) / 1000) < 145;
+      return {
+        '--booking-service-color': color,
+        '--booking-service-soft': this.colorWithAlpha(color, .15),
+        '--booking-service-border': this.colorWithAlpha(color, .62),
+        '--booking-service-shadow': this.colorWithAlpha(color, .2),
+        '--booking-service-contrast': useLightText ? '#ffffff' : '#172554'
+      };
+    },
+
     focusTimelineRow(day, row) {
       if (!row?._rowId) return;
 
@@ -4162,6 +4215,29 @@ export default {
       return this.fillPatientByFileNumber(this.activeTimelineDraft);
     },
 
+    handleTableFileNumberInput(row, event) {
+      const existingTimer = tableFileNumberLookupTimers.get(row);
+      if (existingTimer) clearTimeout(existingTimer);
+
+      this.suspendScheduleAutosave = true;
+      row.fileNumber = event?.target?.value ?? '';
+      this.$nextTick(() => { this.suspendScheduleAutosave = false; });
+
+      if (!String(row.fileNumber || '').trim()) return;
+      const timer = setTimeout(() => {
+        tableFileNumberLookupTimers.delete(row);
+        this.fillPatientByFileNumber(row, false, false);
+      }, 350);
+      tableFileNumberLookupTimers.set(row, timer);
+    },
+
+    lookupTablePatientByFileNumber(row, notify = false) {
+      const existingTimer = tableFileNumberLookupTimers.get(row);
+      if (existingTimer) clearTimeout(existingTimer);
+      tableFileNumberLookupTimers.delete(row);
+      return this.fillPatientByFileNumber(row, notify, true);
+    },
+
     onTimelinePatientSearch() {
       if (!this.activeTimelineDraft) return;
       this.autoSetAppointmentStatus(this.activeTimelineDraft);
@@ -4301,13 +4377,15 @@ export default {
       }
     },
 
-    async fillPatientByFileNumber(row, notify = false) {
+    async fillPatientByFileNumber(row, notify = false, persistMissing = true) {
       const fileNumber = String(row.fileNumber || "").trim();
 
       if (!fileNumber) return;
 
       const isTimelineDraft = row === this.activeTimelineDraft;
       const requestId = isTimelineDraft ? ++this.timelineFileNumberLookupRequest : 0;
+      const rowRequestId = (patientFileLookupRequests.get(row) || 0) + 1;
+      patientFileLookupRequests.set(row, rowRequestId);
 
       try {
         const res = await axios.get(
@@ -4318,21 +4396,27 @@ export default {
         const patient = Array.isArray(res.data) ? res.data[0] : res.data;
 
         // Ignore a slower response for an older value when the user keeps typing.
-        if (isTimelineDraft && (
-          requestId !== this.timelineFileNumberLookupRequest
+        if (
+          patientFileLookupRequests.get(row) !== rowRequestId
           || String(row.fileNumber || '').trim() !== fileNumber
-        )) return;
+          || (isTimelineDraft && requestId !== this.timelineFileNumberLookupRequest)
+        ) return;
 
         if (!patient) {
-          if (!isTimelineDraft) await this.persistDirectAppointment(row, notify);
+          if (!isTimelineDraft && persistMissing) await this.persistDirectAppointment(row, notify);
           return;
         }
 
+        if (!isTimelineDraft) this.suspendScheduleAutosave = true;
         this.applyPatientToAppointment(row, patient);
-        if (!isTimelineDraft) await this.persistDirectAppointment(row, notify);
+        if (!isTimelineDraft) {
+          await this.$nextTick();
+          this.suspendScheduleAutosave = false;
+          await this.persistDirectAppointment(row, notify);
+        }
       } catch (e) {
         console.error("خطا در دریافت اطلاعات بیمار با شماره پرونده", e);
-        if (!isTimelineDraft) await this.persistDirectAppointment(row, notify);
+        if (!isTimelineDraft && persistMissing) await this.persistDirectAppointment(row, notify);
       }
     },
 
@@ -8886,6 +8970,7 @@ smsColor(val) {
     days: {
 
       handler() {
+        if (this.suspendScheduleAutosave) return;
         const fingerprint = this.scheduleFingerprint();
         if (fingerprint === this.lastPersistedScheduleFingerprint) return;
         // Hydration is already protected by isFetching and the server
@@ -9698,8 +9783,8 @@ smsColor(val) {
   color: #64748b;
 }
 
-.timeline-patient-search-field{position:relative;z-index:30}.timeline-patient-results{position:absolute;z-index:200;top:calc(100% + 7px);right:0;left:0;max-height:310px;overflow:auto;padding:7px;border:1px solid #dbeafe;border-radius:14px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.2)}.timeline-patient-result{width:100%;display:flex;align-items:center;gap:11px;padding:9px;border:0;border-radius:11px;background:#fff;color:#0f172a;font-family:inherit;text-align:right;cursor:pointer}.timeline-patient-result:hover{background:#eff6ff}.timeline-patient-result-info{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}.timeline-patient-result-info strong{overflow:hidden;font-size:13px;font-weight:1000;text-overflow:ellipsis;white-space:nowrap}.timeline-patient-result-info small{color:#64748b;font-size:10px;font-weight:800}.timeline-patient-result-info small b{padding:0 3px;color:#cbd5e1}.timeline-patient-result em{flex:0 0 auto;padding:3px 7px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:9px;font-style:normal;font-weight:1000}.timeline-patient-result em.level-problematic{background:#fee2e2;color:#dc2626}.timeline-patient-result em.level-blue{background:#dbeafe;color:#2563eb}.timeline-patient-result em.level-gold{background:#fef3c7;color:#a16207}.timeline-patient-search-state{padding:18px;color:#64748b;font-size:12px;font-weight:800;text-align:center}
-.timeline-quick-team{display:grid;grid-template-columns:1.35fr 1fr;gap:14px;padding:18px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.timeline-quick-team label{min-width:0;display:flex;flex-direction:column;gap:8px;color:#334155;font-size:12px;font-weight:1000}.timeline-quick-team select{width:100%;height:42px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit}.timeline-sms-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.timeline-sms-options>label{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;cursor:pointer;transition:.18s}.timeline-sms-options>label:hover,.timeline-sms-options>label.active{border-color:#60a5fa;background:#eff6ff;box-shadow:0 5px 14px rgba(37,99,235,.08)}.timeline-sms-options input{width:18px!important;height:18px!important;flex:0 0 18px;accent-color:#2563eb}.timeline-sms-options span{display:flex;flex-direction:column;gap:3px}.timeline-sms-options b{color:#1e293b;font-size:12px}.timeline-sms-options small{color:#64748b;font-size:10px;font-weight:700}@media(max-width:700px){.timeline-quick-team,.timeline-sms-options{grid-template-columns:1fr}}
+.timeline-form-grid.patient-search-open{position:relative;z-index:500}.timeline-patient-search-field{position:relative;z-index:510}.timeline-patient-results{position:absolute;z-index:520;top:calc(100% + 7px);right:0;left:0;max-height:310px;overflow:auto;padding:7px;border:1px solid #dbeafe;border-radius:14px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.2)}.timeline-patient-result{width:100%;display:flex;align-items:center;gap:11px;padding:9px;border:0;border-radius:11px;background:#fff;color:#0f172a;font-family:inherit;text-align:right;cursor:pointer}.timeline-patient-result:hover{background:#eff6ff}.timeline-patient-result-info{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}.timeline-patient-result-info strong{overflow:hidden;font-size:13px;font-weight:1000;text-overflow:ellipsis;white-space:nowrap}.timeline-patient-result-info small{color:#64748b;font-size:10px;font-weight:800}.timeline-patient-result-info small b{padding:0 3px;color:#cbd5e1}.timeline-patient-result em{flex:0 0 auto;padding:3px 7px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:9px;font-style:normal;font-weight:1000}.timeline-patient-result em.level-problematic{background:#fee2e2;color:#dc2626}.timeline-patient-result em.level-blue{background:#dbeafe;color:#2563eb}.timeline-patient-result em.level-gold{background:#fef3c7;color:#a16207}.timeline-patient-search-state{padding:18px;color:#64748b;font-size:12px;font-weight:800;text-align:center}
+.timeline-quick-team{position:relative;z-index:1;display:grid;grid-template-columns:1.35fr 1fr;gap:14px;padding:18px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.timeline-quick-team label{min-width:0;display:flex;flex-direction:column;gap:8px;color:#334155;font-size:12px;font-weight:1000}.timeline-quick-team select{width:100%;height:42px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit}.timeline-sms-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.timeline-sms-options>label{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;cursor:pointer;transition:.18s}.timeline-sms-options>label:hover,.timeline-sms-options>label.active{border-color:#60a5fa;background:#eff6ff;box-shadow:0 5px 14px rgba(37,99,235,.08)}.timeline-sms-options input{width:18px!important;height:18px!important;flex:0 0 18px;accent-color:#2563eb}.timeline-sms-options span{display:flex;flex-direction:column;gap:3px}.timeline-sms-options b{color:#1e293b;font-size:12px}.timeline-sms-options small{color:#64748b;font-size:10px;font-weight:700}@media(max-width:700px){.timeline-quick-team,.timeline-sms-options{grid-template-columns:1fr}}
 .timeline-doctor-multiselect{position:relative;z-index:80;min-height:44px;color:#1e293b;font-family:inherit;font-size:12px;direction:rtl}.timeline-doctor-multiselect .multiselect__select{right:auto;left:1px;width:38px;height:42px}.timeline-doctor-multiselect .multiselect__tags{min-height:44px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px 5px 40px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right}.timeline-doctor-multiselect.multiselect--active .multiselect__tags{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}.timeline-doctor-multiselect .multiselect__tag{display:inline-flex;align-items:center;gap:6px;margin:0;padding:6px 9px 6px 27px;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:900;line-height:1.2}.timeline-doctor-multiselect .multiselect__tag-icon{right:auto;left:0;width:24px;border-radius:8px 0 0 8px}.timeline-doctor-multiselect .multiselect__tag-icon::after{color:#1d4ed8}.timeline-doctor-multiselect .multiselect__tag-icon:hover{background:#bfdbfe}.timeline-doctor-multiselect .multiselect__input,.timeline-doctor-multiselect .multiselect__placeholder{width:auto!important;min-width:150px!important;height:28px!important;min-height:28px!important;margin:0!important;padding:4px 2px!important;border:0!important;background:transparent!important;color:#64748b!important;font-family:inherit!important;font-size:11px!important;text-align:right!important;direction:rtl!important;box-shadow:none!important}.timeline-doctor-multiselect .multiselect__content-wrapper{top:calc(100% + 6px);max-height:230px!important;overflow:auto;border:1px solid #dbeafe;border-radius:11px;background:#fff;box-shadow:0 16px 38px rgba(15,23,42,.18);direction:rtl;text-align:right}.timeline-doctor-multiselect .multiselect__content{width:100%;padding:5px}.timeline-doctor-multiselect .multiselect__option{min-height:40px;padding:10px 12px;border-radius:8px;color:#334155;font-size:12px;font-weight:800;text-align:right}.timeline-doctor-multiselect .multiselect__option--highlight,.timeline-doctor-multiselect .multiselect__option--selected.multiselect__option--highlight{background:#eff6ff;color:#1d4ed8}.timeline-doctor-multiselect .multiselect__option--selected{background:#dbeafe;color:#1d4ed8;font-weight:1000}.timeline-doctor-multiselect .multiselect__option::after{left:10px;right:auto;background:transparent!important;color:inherit!important;font-size:10px}
 .timeline-doctor-multiselect .multiselect__tags{min-height:46px!important;display:flex!important;align-items:center!important;gap:6px!important;flex-wrap:wrap!important;padding:6px 10px 6px 42px!important;overflow:visible!important}
 .timeline-doctor-multiselect .multiselect__tags-wrap{display:flex!important;align-items:center!important;gap:6px!important;flex-wrap:wrap!important;min-width:0!important}
@@ -12100,4 +12185,24 @@ td.st-arrived select {
 .financial-transaction-type.type-payment_void{background:#fee2e2;color:#b91c1c}
 .financial-previous-debts-panel{margin:14px 28px 0;padding:15px;border:1px solid #fecaca;border-radius:15px;background:#fff7f7}.financial-previous-debts-panel article>span{display:grid;gap:4px}.financial-previous-debts-panel article>span>b{color:#7f1d1d}.financial-previous-debts-panel article>span>small{white-space:normal;line-height:1.8}.financial-previous-debts-panel article>em{padding:6px 9px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:9px;font-style:normal;font-weight:900}.financial-previous-debts-panel .previous-debt-settled{padding-top:5px;border-top:1px dashed #86efac;color:#15803d}@media(max-width:760px){.financial-previous-debts-panel{margin-left:14px;margin-right:14px}.financial-previous-debts-panel article{grid-template-columns:1fr!important}.financial-previous-debts-panel article>button,.financial-previous-debts-panel article>em{width:100%;box-sizing:border-box;text-align:center}}
 .financial-debt-line{column-gap:22px!important;row-gap:14px!important}.financial-debt-line-reason{margin-right:6px!important}.financial-payment-allocation{padding:3px 6px;border-radius:6px;background:#f1f5f9;color:#334155!important;font-weight:800}
+
+/* رنگ انتخاب‌شدهٔ ساختار خدمات روی همه خانه‌های نمای فیلترشدهٔ تایم‌لاین */
+.appointment-timeline .timeline-card.has-service-color {
+  border-color: var(--booking-service-border) !important;
+  background: var(--booking-service-soft) !important;
+  box-shadow: inset -4px 0 0 var(--booking-service-color), 0 5px 14px var(--booking-service-shadow) !important;
+}
+.appointment-timeline .timeline-card.has-service-color .timeline-time-chip {
+  border-color: var(--booking-service-color) !important;
+  background: var(--booking-service-color) !important;
+  color: var(--booking-service-contrast) !important;
+}
+.appointment-timeline .timeline-card.has-service-color .timeline-card-empty span {
+  border-color: var(--booking-service-border) !important;
+  background: var(--booking-service-color) !important;
+  color: var(--booking-service-contrast) !important;
+}
+.appointment-timeline .timeline-card.has-service-color .timeline-card-empty strong {
+  color: #334155 !important;
+}
 </style>
