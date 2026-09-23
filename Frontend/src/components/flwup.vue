@@ -405,6 +405,17 @@
               <span>تومان</span>
             </div>
           </div>
+
+          <div class="field campaign-description-field">
+            <label>توضیحات</label>
+            <textarea
+              v-model.trim="newCampaign.description"
+              rows="4"
+              maxlength="2000"
+              placeholder="توضیحات مربوط به کمپین را وارد کنید..."
+            ></textarea>
+            <small class="field-hint">این توضیحات همراه کمپین ذخیره می‌شود و در مرورگرهای دیگر نیز قابل مشاهده است.</small>
+          </div>
         </div>
 
         <div v-if="campaignFormError" class="campaign-form-error" role="alert">
@@ -841,6 +852,7 @@
               <template v-if="canViewCampaignCost"><span>هزینه: {{ formatMoney(activeCampaign.cost) }}</span><span>•</span><span>CPL: {{ formatMoney(campaignCpl(activeCampaign)) }}</span></template>
               <span>کیفیت: {{ calculateCampaignScore(activeCampaign) }}/100</span>
             </div>
+            <p v-if="activeCampaign.description" class="campaign-description-view">{{ activeCampaign.description }}</p>
           </div>
 
           <div class="campaign-header-actions">
@@ -1466,6 +1478,7 @@ export default {
         sourceName: "",
         date: "",
         cost: "",
+        description: "",
         attachmentName: "",
         attachmentData: "",
         banners: [],
@@ -2407,6 +2420,7 @@ export default {
         sourceName: this.newCampaign.sourceName,
         date: campaignDate,
         cost: this.moneyToNumber(this.newCampaign.cost) || "",
+        description: String(this.newCampaign.description || '').trim(),
         attachmentName: this.newCampaign.attachmentName,
         attachmentData: this.newCampaign.attachmentData,
         banners: [...this.newCampaign.banners],
@@ -2423,6 +2437,7 @@ export default {
         sourceName: "",
         date: "",
         cost: "",
+        description: "",
         attachmentName: "",
         attachmentData: "",
         banners: [],
@@ -2926,10 +2941,10 @@ export default {
     },
 
     getInterestCount(campaign, value) {
-      return this.campaignLeadRows(campaign).filter((r) => {
-        if (value === "ok") return r.interest === "ok" && this.hasRegisteredAppointment(r);
-        return r.interest === value;
-      }).length;
+      const normalizedValue = normalizeInterest(value);
+      return this.campaignLeadRows(campaign).filter(
+        (r) => normalizeInterest(r.interest) === normalizedValue,
+      ).length;
     },
 
     getAppointmentCount(campaign) {
@@ -2952,7 +2967,7 @@ export default {
         if (r.interest === "1") score += 15;
         if (r.interest === "2") score += 35;
         if (r.interest === "3") score += 60;
-        if (r.interest === "ok" && this.hasRegisteredAppointment(r)) score += 80;
+        if (normalizeInterest(r.interest) === "ok") score += 80;
       });
 
       const finalScore = Math.round(score / validRows.length);
@@ -3856,7 +3871,7 @@ export default {
   color: #374151;
 }
 
-.field input, .field select {
+.field input, .field select, .field textarea {
   border: 1px solid #dbe2ea;
   border-radius: 16px;
   padding: 14px 16px;
@@ -3868,9 +3883,33 @@ export default {
   appearance: none;
 }
 
-.field input:focus, .field select:focus {
+.field textarea {
+  width: 100%;
+  min-height: 104px;
+  box-sizing: border-box;
+  resize: vertical;
+  line-height: 1.9;
+}
+
+.campaign-description-field { margin-top: 2px; }
+
+.field input:focus, .field select:focus, .field textarea:focus {
   border-color: #60a5fa;
   box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
+}
+
+.campaign-description-view {
+  max-width: 760px;
+  margin: 9px 0 0;
+  padding: 8px 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: rgba(255,255,255,.72);
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.9;
+  white-space: pre-wrap;
 }
 
 .money-input-wrap {
