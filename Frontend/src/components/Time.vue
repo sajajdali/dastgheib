@@ -1250,8 +1250,8 @@
         <button type="button" role="tab" title="نمایش تایم‌لاین" aria-label="نمایش تایم‌لاین" :aria-selected="appointmentView === 'timeline'" :class="{ active: appointmentView === 'timeline' }" @click="appointmentView = 'timeline'"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></button>
       </div>
       <div class="booking-timeline-filters" aria-label="فیلتر وقت‌دهی خدمات">
-        <label><span>زیر‌بخش فعال</span><select v-model="bookingServiceFilter" @change="bookingResourceFilter = ''"><option value="">همه زیر‌بخش‌های فعال</option><option v-for="section in enabledBookingSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
-        <label><span>پزشک / اپراتور</span><select v-model="bookingResourceFilter"><option value="">همه منابع</option><option v-for="resource in bookingResourceOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
+        <label><span>زیر‌بخش فعال</span><select v-model="bookingServiceFilter" :disabled="timelineScheduleLoading" @change="onBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌های فعال</option><option v-for="section in enabledBookingSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label><span>پزشک / اپراتور</span><select v-model="bookingResourceFilter" :disabled="timelineScheduleLoading" @change="onBookingResourceFilterChanged"><option value="">همه منابع</option><option v-for="resource in bookingResourceOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
         <div class="booking-slot-filter"><button type="button" :class="{active: timelineSlotFilter === 'all'}" @click="timelineSlotFilter = 'all'">همه ساعت‌ها</button><button type="button" :class="{active: timelineSlotFilter === 'empty'}" @click="timelineSlotFilter = 'empty'">خالی</button><button type="button" :class="{active: timelineSlotFilter === 'filled'}" @click="timelineSlotFilter = 'filled'">پر</button></div>
       </div>
       <div v-if="showBestStaffCard" class="best-staff-month-card">
@@ -1274,6 +1274,11 @@
     </div>
 
     <section v-if="appointmentView === 'timeline'" class="appointment-timeline" @click.stop>
+      <div v-if="timelineScheduleLoading" class="timeline-schedule-loading" role="status" aria-live="polite">
+        <span class="timeline-schedule-spinner" aria-hidden="true"></span>
+        <strong>در حال دریافت برنامه حضور پزشک…</strong>
+        <small>روزها و ساعت‌های قابل نوبت‌دهی تنظیم می‌شوند</small>
+      </div>
       <div v-if="pendingTimelineFollowup" class="timeline-followup-pending" role="status">
         <div>
           <strong>روز و ساعت نوبت را انتخاب کنید</strong>
@@ -1283,7 +1288,7 @@
       </div>
 
       <div v-if="!timelineDays.length" class="timeline-empty-state">
-        نوبتی برای نمایش وجود ندارد.
+        {{ bookingResourceFilter ? 'برای این پزشک یا اپراتور در ماه انتخاب‌شده روز و ساعت فعالی تعریف نشده است.' : 'نوبتی برای نمایش وجود ندارد.' }}
       </div>
 
       <div
@@ -2642,6 +2647,9 @@ export default {
       inventoryItems: [],
       bookingServiceFilter: "",
       bookingResourceFilter: "",
+      timelineScheduleLoading: false,
+      timelineScheduleLoadRequest: 0,
+      timelineScheduleLoadingTimer: null,
       timelineSlotFilter: "all",
       addonDefinitions: [],
       activeServiceTagPicker: null,
@@ -3064,6 +3072,7 @@ export default {
     clearTimeout(this.highlightedRowTimer);
     clearTimeout(this.timelinePatientSearchTimer);
     clearTimeout(this.timelineFileNumberLookupTimer);
+    clearTimeout(this.timelineScheduleLoadingTimer);
     clearTimeout(this.saveTimeout);
     clearTimeout(this.saveRetryTimeout);
     // دادهٔ نوبت فقط در سرور معتبر است. در خروج صفحه هیچ snapshot محلی
@@ -3071,6 +3080,38 @@ export default {
   },
 
   methods: {
+    onBookingServiceFilterChanged() {
+      this.bookingResourceFilter = '';
+      this.refreshBookingTimelineSchedule();
+    },
+
+    onBookingResourceFilterChanged() {
+      this.refreshBookingTimelineSchedule();
+    },
+
+    async refreshBookingTimelineSchedule() {
+      clearTimeout(this.timelineScheduleLoadingTimer);
+      const requestId = ++this.timelineScheduleLoadRequest;
+      this.timelineScheduleLoading = true;
+
+      try {
+        // Fetch fresh booking rules so changes made in settings or another
+        // browser are applied as soon as the resource is selected.
+        const { data } = await axios.get('/api/inventory');
+        if (requestId !== this.timelineScheduleLoadRequest) return;
+        this.inventoryItems = Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('خطا در دریافت برنامه حضور پزشک', error);
+      } finally {
+        if (requestId === this.timelineScheduleLoadRequest) {
+          await this.$nextTick();
+          this.timelineScheduleLoadingTimer = setTimeout(() => {
+            if (requestId === this.timelineScheduleLoadRequest) this.timelineScheduleLoading = false;
+          }, 180);
+        }
+      }
+    },
+
     formatScheduleYear(year) {
       return Number(year).toLocaleString('fa-IR', { useGrouping: false });
     },
@@ -8983,6 +9024,7 @@ smsColor(val) {
 .booking-slot-filter button.active { background:#2563eb; color:#fff; box-shadow:0 3px 8px rgba(37,99,235,.22); }
 
 .appointment-timeline {
+  position: relative;
   direction: rtl;
   display: flex;
   flex-direction: column;
@@ -8995,6 +9037,33 @@ smsColor(val) {
   background: #f8fafc;
   overflow: hidden;
 }
+
+.timeline-schedule-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: rgba(248, 250, 252, .9);
+  color: #1e3a8a;
+  backdrop-filter: blur(3px);
+}
+
+.timeline-schedule-loading strong { font-size: 13px; font-weight: 1000; }
+.timeline-schedule-loading small { color: #64748b; font-size: 10px; font-weight: 800; }
+.timeline-schedule-spinner {
+  width: 31px;
+  height: 31px;
+  border: 3px solid #bfdbfe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: timelineScheduleSpin .7s linear infinite;
+}
+@keyframes timelineScheduleSpin { to { transform: rotate(360deg); } }
 
 .timeline-empty-state {
   margin: 26px;
