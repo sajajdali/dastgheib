@@ -434,7 +434,7 @@
             <span>فیلدهای فعال‌شده از تنظیمات پرونده</span>
           </div>
           <div class="profile-extra-grid">
-            <article v-for="field in profileEnabledDetails" :key="field.key">
+            <article v-for="field in profileEnabledDetails" :key="field.key" :class="{ wide: field.wide }">
               <span class="profile-extra-icon" aria-hidden="true">{{ field.icon }}</span>
               <div>
                 <small>{{ field.label }}</small>
@@ -1749,6 +1749,10 @@ export default {
     profileEnabledDetails() {
       const patient = this.activePatientProfile || {}
       const definitions = [
+        { key: 'gender', label: 'جنسیت', icon: '◉' },
+        { key: 'birth_date', label: 'تاریخ تولد', icon: '◷', format: value => this.patientDateForPicker(value).replace(/-/g, '/') },
+        { key: 'area', label: 'محدوده', icon: '⌖' },
+        { key: 'financial_status', label: 'وضعیت مالی', icon: '◈' },
         { key: 'national_id', label: 'کد ملی', icon: '⌁' },
         { key: 'foreign_national_code', label: 'کد اتباع', icon: '◇' },
         { key: 'father_name', label: 'نام پدر', icon: 'ش' },
@@ -1756,14 +1760,18 @@ export default {
         { key: 'marriage_date', label: 'تاریخ ازدواج', icon: '♡' },
         { key: 'education', label: 'تحصیلات', icon: '▣' },
         { key: 'second_phone', label: 'شماره تماس دوم', icon: '☎', phone: true },
-        { key: 'address', label: 'آدرس محل سکونت', icon: '⌖', wide: true }
+        { key: 'address', label: 'آدرس محل سکونت', icon: '⌖', wide: true },
+        { key: 'patient_history', label: 'تیپ شخصیتی', icon: '◎', wide: true },
+        { key: 'medical_history', label: 'سوابق پزشکی', icon: '+', wide: true }
       ]
 
       return definitions
-        .filter(field => Boolean(this.activeProfileFields?.[field.key]))
+        .filter(field => Boolean(this.activeProfileFields?.[field.key]) || String(patient[field.key] || '').trim() !== '')
         .map(field => {
           const rawValue = String(patient[field.key] || '').trim()
-          const value = field.phone ? this.displayPatientPhone(rawValue) : rawValue
+          const value = field.phone
+            ? this.displayPatientPhone(rawValue)
+            : (field.format && rawValue ? field.format(rawValue) : rawValue)
           return {
             ...field,
             hasValue: Boolean(value),
@@ -5094,6 +5102,11 @@ select:focus {
   grid-column: span 3;
 }
 
+.profile-extra-grid article.wide {
+  grid-column: span 3;
+  align-items: flex-start;
+}
+
 .profile-extra-icon {
   width: 34px;
   height: 34px;
@@ -5115,9 +5128,11 @@ select:focus {
 @media (max-width: 900px) {
   .profile-extra-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profile-extra-grid article:last-child:nth-child(3n + 1) { grid-column: auto; }
+  .profile-extra-grid article.wide { grid-column: span 2; }
 }
 
 @media (max-width: 620px) {
+  .profile-extra-grid article.wide { grid-column: auto; }
   .profile-extra-card { padding: 14px; }
   .profile-extra-grid { grid-template-columns: 1fr; }
 }

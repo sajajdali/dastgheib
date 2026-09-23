@@ -58,6 +58,12 @@ class RolePermissionSeeder extends Seeder
             'انباردار' => $permissionsByPrefix(['inventory']),
         ];
 
+        // Reception needs the real phone number while finding a patient and
+        // creating an appointment. Prefix-based collection above also includes
+        // the explicit deny permission, so remove that contradictory grant.
+        $rolePermissions['پذیرش'] = $rolePermissions['پذیرش']
+            ->reject(fn (string $name) => $name === $phoneHidePermission);
+
         foreach ($rolePermissions as $roleName => $permissions) {
             $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
             $role->syncPermissions($permissions->unique()->values()->all());

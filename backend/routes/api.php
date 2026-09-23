@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\ClinicReportController;
 use App\Http\Controllers\Api\DynamicReportController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\CampaignController;
+use App\Http\Controllers\Api\AppointmentScheduleMonthController;
 
 
 
@@ -161,6 +162,9 @@ Route::post('/service-tags', [HumanResourceController::class, 'saveServiceTags']
 
 // نوبت‌دهی
 Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->middleware('permission:appointments.view');
+Route::get('/appointment-schedule-months', [AppointmentScheduleMonthController::class, 'index'])->middleware('permission:appointments.view');
+Route::post('/appointment-schedule-months', [AppointmentScheduleMonthController::class, 'store'])->middleware('permission:appointments.create|appointments.update');
+Route::delete('/appointment-schedule-months/{month}', [AppointmentScheduleMonthController::class, 'destroy'])->middleware('permission:appointments.update');
 Route::get('/appointments/hidden-days', [AppointmentController::class, 'hiddenDays'])->middleware('permission:appointments.view');
 Route::get('/appointments/balance-audits', [AppointmentController::class, 'balanceAudits'])->middleware('permission:reports.financial');
 Route::get('/appointments/{appointment}/financial-context', [AppointmentController::class, 'financialContext'])->middleware('permission:appointments.view');

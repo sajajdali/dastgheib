@@ -48,6 +48,36 @@ class AppointmentConcurrencyTest extends TestCase
         ]);
     }
 
+    public function test_legacy_empty_slot_does_not_block_a_real_appointment(): void
+    {
+        $this->actingAs($this->user());
+        Appointment::create([
+            'month' => '1405-06',
+            'day_num' => 21,
+            'sort_order' => 0,
+            'time' => '09:00',
+            'lock_version' => 1,
+        ]);
+
+        $response = $this->postJson('/api/appointments/row', [
+            'month' => '1405-06',
+            'day_num' => 21,
+            'sort_order' => 0,
+            'lastname' => 'کریم زالی',
+            'file_number' => '7',
+            'time' => '09:00',
+            'services' => [],
+        ]);
+
+        $response->assertOk()->assertJsonPath('appointment.file_number', '7');
+        $this->assertDatabaseHas('appointments', [
+            'month' => '1405-06',
+            'day_num' => 21,
+            'file_number' => '7',
+            'time' => '09:00',
+        ]);
+    }
+
     private function user(): User
     {
         $user = User::factory()->create();

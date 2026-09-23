@@ -759,6 +759,7 @@ export default {
         startPresence(this.user);
         await this.loadAttendanceStatus();
         this.restoreLastClinicPage();
+        this.consumePatientProfileIntent();
         this.consumeFollowupAppointmentIntent();
       } catch (error) {
         if (error.response?.status !== 401) {
@@ -849,6 +850,28 @@ export default {
       } catch (error) {
         console.warn('دریافت درخواست نوبت‌دهی پیگیری انجام نشد.', error);
       }
+    },
+
+    consumePatientProfileIntent() {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('openPatientProfile') !== '1') return;
+      if (!this.user?.permissions?.includes('patients.view')) return;
+
+      const fileNumber = String(url.searchParams.get('file_number') || '').trim();
+      const phone = String(url.searchParams.get('phone') || '').trim();
+      if (!fileNumber && !phone) return;
+
+      this.pendingPatientProfileRequest = {
+        file_number: fileNumber,
+        phone,
+        requestedAt: Date.now()
+      };
+      this.currentPage = 'Parvande';
+
+      url.searchParams.delete('openPatientProfile');
+      url.searchParams.delete('file_number');
+      url.searchParams.delete('phone');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
     },
 
     async loadAttendanceStatus() {

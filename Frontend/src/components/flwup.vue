@@ -695,7 +695,7 @@
                   <tr v-for="row in reportFilteredRows" :key="row._localId">
                     <td class="center">{{ row.campaignTitle }}</td>
                     <td><input v-model="row.fullName" disabled /></td>
-                    <td><input :value="displayPatientPhone(row.phone, row)" disabled /></td>
+                    <td><input class="followup-phone-input" :value="displayPatientPhone(row.phone, row)" disabled /></td>
                     <td class="history-cell">
                       <button
                         type="button"
@@ -1047,8 +1047,8 @@
                   >
                     <td>
                       <div class="campaign-patient-cell">
-                        <img v-if="patientAvatar(row)" :src="patientAvatar(row)" :class="['campaign-patient-avatar', patientAvatarClass(row)]" alt="" title="مشاهده پرونده" @click.stop="openFollowupPatientProfile(row)" />
-                        <span v-else :class="['campaign-patient-avatar', 'fallback', patientAvatarClass(row)]" title="مشاهده پرونده" @click.stop="openFollowupPatientProfile(row)">{{ patientInitial(row) }}</span>
+                        <img v-if="patientAvatar(row)" :src="patientAvatar(row)" :class="['campaign-patient-avatar', patientAvatarClass(row)]" alt="" :title="followupRowHasPatient(row) ? 'باز کردن پرونده در صفحه جدید' : 'برای این مخاطب پرونده‌ای ثبت نشده است'" @click.stop="openFollowupPatientProfile(row)" />
+                        <span v-else :class="['campaign-patient-avatar', 'fallback', patientAvatarClass(row)]" :title="followupRowHasPatient(row) ? 'باز کردن پرونده در صفحه جدید' : 'برای این مخاطب پرونده‌ای ثبت نشده است'" @click.stop="openFollowupPatientProfile(row)">{{ patientInitial(row) }}</span>
                         <input v-model="row.fullName" @input="onFollowupNameInput(row)" />
                       </div>
                     </td>
@@ -1060,6 +1060,7 @@
                       >
                         <input
                           v-if="canViewCampaignPhone(row)"
+                          class="followup-phone-input"
                           v-model="row.phone"
                           title="برای ورود گروهی، فهرست شماره‌ها را یکجا اینجا جای‌گذاری کنید"
                           @input="lookupPatientByPhone(row)"
@@ -1068,6 +1069,7 @@
                         />
                         <input
                           v-else
+                          class="followup-phone-input"
                           :value="displayPatientPhone(row.phone, row)"
                           readonly
                           title="نمایش شماره تماس برای این نقش غیرفعال است"
@@ -1447,6 +1449,8 @@ export default {
   data() {
     return {
       campaigns: [],
+      campaignsLoadingFromServer: false,
+      duplicatePhoneWarningsEnabled: false,
       showCampaignModal: false,
       activeCampaignId: null,
       appointmentTimelineDate: "",
@@ -1741,6 +1745,7 @@ export default {
   created() {
     this.debouncedSaveLocal = debounce(() => {
       this.saveCampaignsToLocal();
+      this.saveCampaignsToServer();
     }, 700);
   },
 
@@ -1750,7 +1755,7 @@ export default {
     this.loadDoctors();
     this.loadChannels();
     this.loadLandingSmsTags();
-    this.loadCampaignsFromLocal();
+    this.loadCampaignsFromServer();
     this.hydrateFollowupPatientProfiles();
     this.applyAppointmentResult(this.appointmentResult);
     if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
@@ -1769,6 +1774,7 @@ export default {
   watch: {
     campaigns: {
       handler() {
+        if (this.campaignsLoadingFromServer) return;
         this.debouncedSaveLocal();
       },
       deep: true,
@@ -1887,44 +1893,25 @@ export default {
     consultantInitial(name) { return avatarInitial(this.consultantResource(name) || { name }); },
     patientAvatar(row) { return avatarUrl(row); },
     patientInitial(row) { return avatarInitial(row); },
+    followupRowHasPatient(row) { return Boolean(row?.patient_id || row?.patientId); },
     patientAvatarClass(row) {
-      if (!(row?.patient_id || row?.patientId || row?.id)) return 'level-none';
+      if (!this.followupRowHasPatient(row)) return 'level-none';
       const level = String(row?.customer_level || row?.customerLevel || 'silver').trim().toLowerCase();
       return ['silver', 'blue', 'gold', 'problematic'].includes(level) ? `level-${level}` : 'level-silver';
     },
-    async openFollowupPatientProfile(row) {
+    openFollowupPatientProfile(row) {
       const patientId = row?.patient_id || row?.patientId;
-      if (!patientId) return;
-      this.followupProfileModalOpen = true;
-      this.followupProfileLoading = true;
-      this.followupProfileError = '';
-      this.followupProfile = {
-        id: patientId,
-        first_name: String(row.fullName || '').trim().split(/\s+/)[0] || '',
-        last_name: String(row.fullName || '').trim().split(/\s+/).slice(1).join(' ') || '',
-        phone: row.phone || '',
-        file_number: row.file_number || row.fileNumber || '',
-        customer_level: row.customer_level || row.customerLevel || 'silver',
-        avatar_url: row.avatar_url || row.avatarUrl || '',
-        profile_photo_url: row.profile_photo_url || '',
-        profile_thumbnail_url: row.profile_thumbnail_url || '',
-      };
-      try {
-        const phone = this.normalizePhoneLookup(row.phone);
-        const { data } = await axios.get('/api/patients/search', {
-          params: row.file_number || row.fileNumber
-            ? { file_number: row.file_number || row.fileNumber }
-            : { phone }
-        });
-        const patient = Array.isArray(data) ? data[0] : null;
-        if (patient) this.followupProfile = patient;
-        else this.followupProfileError = 'پرونده موردنظر پیدا نشد.';
-      } catch (error) {
-        console.error(error);
-        this.followupProfileError = 'دریافت اطلاعات پرونده انجام نشد.';
-      } finally {
-        this.followupProfileLoading = false;
-      }
+      const fileNumber = String(row?.file_number || row?.fileNumber || '').trim();
+      const phone = String(row?.phone || '').trim();
+      if (!patientId || (!fileNumber && !phone)) return;
+
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('openPatientProfile', '1');
+      if (fileNumber) url.searchParams.set('file_number', fileNumber);
+      if (phone) url.searchParams.set('phone', phone);
+      window.open(url.toString(), '_blank', 'noopener,noreferrer');
     },
     closeFollowupPatientProfile() {
       this.followupProfileModalOpen = false;
@@ -2039,6 +2026,8 @@ export default {
     },
 
     duplicatePhoneInfo(row) {
+      if (!this.duplicatePhoneWarningsEnabled) return null;
+
       const phone = this.normalizePhoneLookup(row?.phone);
       if (phone.length < 7) return null;
 
@@ -2444,9 +2433,20 @@ export default {
       this.showCampaignModal = false;
     },
 
-    removeCampaign(id) {
+    async removeCampaign(id) {
       const ok = window.confirm("این تبلیغ حذف شود؟");
       if (!ok) return;
+
+      const campaign = this.campaigns.find((c) => c.id === id);
+      if (campaign?._serverPersisted) {
+        try {
+          await axios.delete(`/api/campaigns/${campaign.id}`);
+        } catch (error) {
+          console.error('Campaign delete error', error);
+          this.campaignFormError = 'حذف کمپین روی سرور انجام نشد.';
+          return;
+        }
+      }
 
       this.campaigns = this.campaigns.filter((c) => c.id !== id);
 
@@ -3089,6 +3089,73 @@ export default {
       window.dispatchEvent(new CustomEvent("app:notifications-changed"));
     },
 
+    campaignApiPayload(campaign) {
+      const uiPayload = JSON.parse(JSON.stringify(campaign));
+      delete uiPayload._serverPersisted;
+      return {
+        name: campaign.title || 'کمپین بدون عنوان',
+        starts_on: campaign.date || null,
+        ends_on: campaign.date || null,
+        budget: this.moneyToNumber(campaign.cost) || 0,
+        note: campaign.sourceName || campaign.source || null,
+        active: !this.isCampaignArchived(campaign),
+        ui_payload: uiPayload,
+      };
+    },
+
+    async saveCampaignsToServer() {
+      if (this.campaignsLoadingFromServer) return;
+      for (const campaign of this.campaigns) {
+        try {
+          const payload = this.campaignApiPayload(campaign);
+          if (campaign._serverPersisted) {
+            await axios.put(`/api/campaigns/${campaign.id}`, payload);
+          } else {
+            const { data } = await axios.post('/api/campaigns', payload);
+            campaign.id = data.id;
+            campaign._serverPersisted = true;
+          }
+        } catch (error) {
+          console.error('Campaign server save error', error);
+        }
+      }
+    },
+
+    async loadCampaignsFromServer() {
+      this.campaignsLoadingFromServer = true;
+      try {
+        const { data } = await axios.get('/api/campaigns');
+        if (Array.isArray(data) && data.length) {
+          const sharedCampaigns = data.map(item => ({
+            ...(item.ui_payload || {}),
+            id: item.id,
+            title: item.ui_payload?.title || item.name || '',
+            date: item.ui_payload?.date || item.starts_on || '',
+            cost: item.ui_payload?.cost ?? item.budget ?? '',
+            campaignStatus: item.ui_payload?.campaignStatus || (item.active ? 'active' : 'archived'),
+            rows: Array.isArray(item.ui_payload?.rows) ? item.ui_payload.rows : [],
+            _serverPersisted: true,
+          }));
+          localStorage.setItem('campaigns_flwup_v1', JSON.stringify(sharedCampaigns));
+          this.loadCampaignsFromLocal();
+          this.campaigns.forEach(campaign => { campaign._serverPersisted = true; });
+          return;
+        }
+
+        this.loadCampaignsFromLocal();
+      } catch (error) {
+        console.error('Campaign server load error', error);
+        this.loadCampaignsFromLocal();
+      } finally {
+        this.campaignsLoadingFromServer = false;
+        if (this.campaigns.some(campaign => !campaign._serverPersisted)) {
+          await this.saveCampaignsToServer();
+          this.saveCampaignsToLocal();
+        }
+        this.hydrateFollowupPatientProfiles();
+      }
+    },
+
     loadCampaignsFromLocal() {
       try {
         const raw = localStorage.getItem("campaigns_flwup_v1");
@@ -3115,6 +3182,7 @@ export default {
               }] : []),
           campaignStatus: ['archived', 'archive', 'آرشیو', 'آرشیو شده', 'آرشیوشده'].includes(String(campaign.campaignStatus || '').trim().toLowerCase()) ? 'archived' : (campaign.campaignStatus || 'active'),
           pinned: Boolean(campaign.pinned),
+          _serverPersisted: Boolean(campaign._serverPersisted),
           rows: Array.isArray(campaign.rows)
             ? campaign.rows.map((r, idx) => ({
                 _localId: r._localId || `local-${Date.now()}-${idx}`,
@@ -4804,6 +4872,12 @@ export default {
 .modal-overlay {
   z-index: 2147483570 !important;
 }
+.campaign-table-modal .contacts-table .followup-phone-input {
+  font-size: 14px;
+  font-weight: 900;
+  direction: ltr;
+}
+
 .history-modal-overlay,
 .followup-appointment-overlay,
 .description-modal-overlay,

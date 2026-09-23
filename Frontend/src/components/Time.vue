@@ -594,7 +594,7 @@
                     :level="row.customerLevel"
                     :size="24"
                     clickable
-                    title="مشاهده خلاصه پرونده"
+                    title="باز کردن پرونده در صفحه جدید"
                     @mouseenter="showAvatarPreview($event, row.profilePhotoUrl || row.profileThumbnailUrl, row.customerLevel)"
                     @mouseleave="hideAvatarPreview"
                     @click.stop="openPatientProfileFromRow(row)"
@@ -1111,7 +1111,11 @@
                       danger: isDebtor(row),
                       paid: appointmentPaymentIsSettled(row),
                       credit: Number(row.walletBalance || 0) > 0 && appointmentDisplayedDebtAmount(row) <= 0 && !appointmentPaymentIsSettled(row),
-                      'has-financial-balance': isDebtor(row) || (!appointmentPaymentIsSettled(row) && Number(row.walletBalance || 0) > 0)
+                      'has-financial-balance': !appointmentPaymentIsSettled(row) && (
+                        isDebtor(row) ||
+                        Number(row.walletBalance || 0) > 0 ||
+                        hasPaymentDetails(row)
+                      )
                     }"
                     :title="financialTriggerTitle(row)"
                     :aria-label="financialTriggerTitle(row)"
@@ -1340,10 +1344,10 @@
                     :patient="{ first_name: row.lastname }"
                     :size="48"
                     clickable
-                    title="مشاهده خلاصه پرونده"
+                    title="باز کردن پرونده در صفحه جدید"
                   />
                 </div>
-                <strong title="مشاهده خلاصه پرونده" @click.stop="openPatientProfileFromRow(row)">{{ timelinePatientName(row) }}</strong>
+                <strong title="باز کردن پرونده در صفحه جدید" @click.stop="openPatientProfileFromRow(row)">{{ timelinePatientName(row) }}</strong>
                 <em class="timeline-status-label">{{ row.status || 'نوبت ثبت‌شده' }}</em>
                 <span>{{ timelineServiceText(row) }}</span>
                 <small>{{ timelineCareTeam(row) }}</small>
@@ -1522,8 +1526,9 @@
                 v-model="activeTimelineDraft.fileNumber"
                 title="شماره پرونده را وارد کنید یا خالی بگذارید تا سیستم تولید کند"
                 type="text"
-                @blur="fillPatientByFileNumber(activeTimelineDraft)"
-                @keyup.enter="fillPatientByFileNumber(activeTimelineDraft)"
+                @input="handleTimelineFileNumberInput"
+                @blur="lookupTimelinePatientByFileNumber"
+                @keyup.enter.prevent="lookupTimelinePatientByFileNumber"
               >
             </label>
 
@@ -2363,6 +2368,15 @@
 
     <div class="fixed-bottom-bar">
 
+      <label class="schedule-year-picker" title="انتخاب سال نوبت‌دهی">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14v15H5z"/></svg>
+        <select :value="selectedScheduleYear" @change="changeScheduleYear($event.target.value)">
+          <option v-for="year in availableScheduleYears" :key="year" :value="year">
+            {{ formatScheduleYear(year) }}
+          </option>
+        </select>
+      </label>
+
       <button
         class="month-action-btn"
         @click.stop="removeMonth"
@@ -2373,19 +2387,21 @@
       <div class="months-scroll-area">
 
         <div
-          v-for="(m, mIdx) in months"
-          :key="mIdx"
+          v-for="item in visibleScheduleMonths"
+          :key="item.month"
           class="month-pill"
-          :class="{ active: currentMonth === mIdx }"
-          @click.stop="currentMonth = mIdx"
+          :class="{ active: currentMonth === item.index }"
+          @click.stop="currentMonth = item.index"
         >
-          {{ m }}
+          {{ scheduleMonthLabel(item.month) }}
         </div>
 
       </div>
 
       <button
         class="month-action-btn"
+        :disabled="String(selectedScheduleYear) !== String(getCurrentJalaliMonth()).slice(0, 4)"
+        :title="String(selectedScheduleYear) !== String(getCurrentJalaliMonth()).slice(0, 4) ? 'افزودن ماه فقط برای سال جاری فعال است' : 'افزودن ماه'"
         @click.stop="addMonth"
       >
         +
@@ -2447,6 +2463,7 @@ export default {
       monthDaysCache: {},
 
       months: ["1405-01"],
+      selectedScheduleYear: "",
       avatarPreview: null,
       patientProfileModalOpen: false,
       patientProfileLoading: false,
@@ -2491,6 +2508,8 @@ export default {
       timelinePatientSearchLoading: false,
       timelinePatientSearchOpen: false,
       timelinePatientSearchTimer: null,
+      timelineFileNumberLookupTimer: null,
+      timelineFileNumberLookupRequest: 0,
       activeTimelineCreatedInModal: false,
 
       doctorOptions: [],
@@ -2714,6 +2733,14 @@ export default {
   },
 
   computed: {
+    availableScheduleYears() {
+      return [...new Set((this.months || []).map(month => String(month).slice(0, 4)).filter(year => /^1[34]\d{2}$/.test(year)))]
+        .sort((a, b) => Number(b) - Number(a));
+    },
+    visibleScheduleMonths() {
+      return (this.months || []).map((month, index) => ({ month, index }))
+        .filter(item => String(item.month).startsWith(`${this.selectedScheduleYear}-`));
+    },
     filteredAppointmentHistory() {
       if (this.appointmentHistoryFilter === 'all') return this.appointmentHistoryRows
       return this.appointmentHistoryRows.filter(log => {
@@ -2763,7 +2790,13 @@ export default {
       const options = [...resources, ...sectionDoctors].map(resource => {
         const role = resource.role === 'doctor' ? 'doctor' : 'staff';
         const person = role === 'doctor' ? this.doctors.find(item => Number(item.id) === Number(resource.doctor_id)) : this.staff.find(item => Number(item.id) === Number(resource.staff_id));
-        return { value: `${role}:${resource.doctor_id || resource.staff_id}`, label: `${person?.name || resource.name || 'منبع بدون نام'} (${role === 'doctor' ? 'پزشک' : 'اپراتور'})` };
+        const name = String(person?.name || resource.name || '').trim();
+        return {
+          value: `${role}:${resource.doctor_id || resource.staff_id}`,
+          label: `${name || 'منبع بدون نام'} (${role === 'doctor' ? 'پزشک' : 'اپراتور'})`,
+          name,
+          role
+        };
       });
       return [...new Map(options.map(option => [option.value, option])).values()];
     },
@@ -2977,7 +3010,7 @@ export default {
     }
   },
 
-  mounted() {
+  async mounted() {
     document.addEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges = subscribeAppointmentChanges(this.handleRealtimeAppointmentChange);
@@ -2991,9 +3024,21 @@ export default {
 
     const realCurrentMonth =
       this.getCurrentJalaliMonth();
+    this.selectedScheduleYear = realCurrentMonth.slice(0, 4);
 
     if (!this.months.includes(realCurrentMonth)) {
       this.months.push(realCurrentMonth);
+    }
+
+    try {
+      const { data } = await axios.get('/api/appointment-schedule-months', {
+        params: { current_year: realCurrentMonth.slice(0, 4) }
+      });
+      if (Array.isArray(data)) this.months = data;
+      if (!this.months.includes(realCurrentMonth)) this.months.push(realCurrentMonth);
+      await axios.post('/api/appointment-schedule-months', { month: realCurrentMonth });
+    } catch (error) {
+      console.error('خطا در همگام‌سازی ماه‌های نوبت‌دهی', error);
     }
 
     this.months = this.fillMissingMonths(this.months);
@@ -3017,6 +3062,8 @@ export default {
     this.unsubscribeAppointmentChanges?.();
     clearTimeout(this.realtimeRefreshTimer);
     clearTimeout(this.highlightedRowTimer);
+    clearTimeout(this.timelinePatientSearchTimer);
+    clearTimeout(this.timelineFileNumberLookupTimer);
     clearTimeout(this.saveTimeout);
     clearTimeout(this.saveRetryTimeout);
     // دادهٔ نوبت فقط در سرور معتبر است. در خروج صفحه هیچ snapshot محلی
@@ -3024,6 +3071,22 @@ export default {
   },
 
   methods: {
+    formatScheduleYear(year) {
+      return Number(year).toLocaleString('fa-IR', { useGrouping: false });
+    },
+    scheduleMonthLabel(month) {
+      const names = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+      return names[Number(String(month).slice(5, 7)) - 1] || month;
+    },
+    changeScheduleYear(year) {
+      this.selectedScheduleYear = String(year);
+      const candidates = this.visibleScheduleMonths;
+      if (!candidates.length) return;
+      const currentJalaliMonth = this.getCurrentJalaliMonth();
+      const preferred = candidates.find(item => item.month === currentJalaliMonth)
+        || candidates[candidates.length - 1];
+      this.currentMonth = preferred.index;
+    },
     async openAppointmentHistory(row) {
       const appointmentId = Number(row?.appointmentId || row?.id || 0)
       if (!appointmentId) {
@@ -3408,16 +3471,7 @@ export default {
     },
     fillMissingMonths(months) {
       const valid = [...new Set((months || []).filter(item => /^\d{4}-\d{2}$/.test(String(item))))].sort();
-      if (valid.length < 2) return valid.length ? valid : [this.getCurrentJalaliMonth()];
-      const result = [];
-      let [year, month] = valid[0].split('-').map(Number);
-      const [endYear, endMonth] = valid[valid.length - 1].split('-').map(Number);
-      while (year < endYear || (year === endYear && month <= endMonth)) {
-        result.push(`${year}-${String(month).padStart(2, '0')}`);
-        month += 1;
-        if (month > 12) { year += 1; month = 1; }
-      }
-      return result;
+      return valid.length ? valid : [this.getCurrentJalaliMonth()];
     },
     autoSetAppointmentStatus(row) {
       if (!row || String(row.status || '').trim()) return;
@@ -3440,52 +3494,20 @@ export default {
       this.autoSetAppointmentStatus(row);
       this.saveData();
     },
-    async openPatientProfileFromRow(row) {
-      // اطلاعات نوبت به‌تنهایی پرونده نیست. فقط برای بیماری که وجود
-      // پرونده‌اش از سمت API تأیید شده، جزئیات را در همین صفحه نشان بده.
+    openPatientProfileFromRow(row) {
       if (!row?.hasPatientFile) return;
 
       const fileNumber = String(row?.fileNumber || "").trim();
       const phone = String(row?.phone || "").trim();
-
-      if (!fileNumber && !phone) {
-        return;
-      }
-
+      if (!fileNumber && !phone) return;
       this.hideAvatarPreview();
-      this.patientProfileModalOpen = true;
-      this.patientProfileLoading = true;
-      this.patientProfileError = "";
-      this.activePatientProfile = this.patientProfileFallbackFromRow(row);
-      this.patientProfileAppointments = [];
-      this.patientProfileHistoryPage = 1;
-      this.patientProfileTotalAppointments = 0;
-      this.patientProfileHasMore = false;
-      this.patientProfileMedia = [];
-
-      const historyParams = new URLSearchParams();
-      if (fileNumber) historyParams.set("file_number", fileNumber);
-      if (phone) historyParams.set("phone", phone);
-      this.patientProfileHistoryParams = historyParams.toString();
-
-      try {
-        const { data } = await axios.get("/api/patients/search", {
-          params: fileNumber ? { file_number: fileNumber } : { phone }
-        });
-        const patient = Array.isArray(data) ? data[0] : null;
-        if (patient) {
-          this.activePatientProfile = patient;
-        }
-      } catch (error) {
-        // اطلاعات موجود در ردیف نوبت همچنان در modal نمایش داده می‌شود.
-        console.error(error);
-      }
-
-      await Promise.all([
-        this.loadPatientProfileAppointments(),
-        this.loadPatientProfileMedia(this.activePatientProfile?.id || row.patientId)
-      ]);
-      this.patientProfileLoading = false;
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('openPatientProfile', '1');
+      if (fileNumber) url.searchParams.set('file_number', fileNumber);
+      if (phone) url.searchParams.set('phone', phone);
+      window.open(url.toString(), '_blank', 'noopener,noreferrer');
     },
 
     async loadPatientProfileAppointments(page = 1) {
@@ -3784,15 +3806,61 @@ export default {
       this.activeTimelineDay = day;
       this.activeTimelineRow = row;
       this.activeTimelineDraft = this.cloneTimelineRow(row);
-      if (this.pendingTimelineFollowup && !this.rowHasAppointment(row)) {
+      const isNewAppointment = !this.rowHasAppointment(row);
+      if (this.pendingTimelineFollowup && isNewAppointment) {
         this.applyFollowupPrefillToDraft(this.activeTimelineDraft, this.pendingTimelineFollowup);
         this.activeTimelineFollowup = this.pendingTimelineFollowup;
         this.pendingTimelineFollowup = null;
       } else {
         this.activeTimelineFollowup = null;
       }
+      if (isNewAppointment) this.applyTimelineHeaderDefaults(this.activeTimelineDraft);
       this.activeTimelineCreatedInModal = false;
       this.timelineModalOpen = true;
+    },
+
+    applyTimelineHeaderDefaults(draft) {
+      if (!draft) return;
+
+      const subsectionId = String(this.bookingServiceFilter || '').trim();
+      if (subsectionId) {
+        const rootSectionId = String(this.rootSectionIdFor(subsectionId) || subsectionId);
+        draft.serviceTypes = [rootSectionId];
+        if (!Array.isArray(draft.services) || !draft.services.length) {
+          draft.services = [this.createEmptyAppointmentRow().services[0]];
+        }
+        draft.services[0].sectionId = subsectionId;
+        draft.services[0].rootSectionId = rootSectionId;
+      }
+
+      const [resourceType, resourceId] = String(this.bookingResourceFilter || '').split(':');
+      if (!resourceType || !resourceId) return;
+
+      // The timeline resource may come directly from the booking configuration.
+      // In that case it can have a valid display name even before/without a
+      // matching entry in the general doctors/staff arrays. Preserve the exact
+      // selected option name instead of dropping the selection while creating
+      // the appointment.
+      const selectedResource = this.bookingResourceOptions.find(option => option.value === this.bookingResourceFilter);
+
+      if (resourceType === 'doctor') {
+        const doctorName = selectedResource?.name
+          || this.doctors.find(item => Number(item.id) === Number(resourceId))?.name
+          || '';
+        if (!doctorName) return;
+        draft.timelineDoctors = [doctorName];
+        draft.doctor = doctorName;
+        if (draft.services?.[0]) draft.services[0].doctor = doctorName;
+        return;
+      }
+
+      const staffName = selectedResource?.name
+        || this.staff.find(item => Number(item.id) === Number(resourceId))?.name
+        || '';
+      if (!staffName) return;
+      draft.timelineConsultant = staffName;
+      draft.consultant = staffName;
+      if (draft.services?.[0]) draft.services[0].consultant = staffName;
     },
 
     openNewTimelineAppointment(day, afterRow = null) {
@@ -4039,6 +4107,20 @@ export default {
       this.clearTimelineValidationError("phone");
     },
 
+    handleTimelineFileNumberInput() {
+      clearTimeout(this.timelineFileNumberLookupTimer);
+      if (!String(this.activeTimelineDraft?.fileNumber || '').trim()) return;
+      this.timelineFileNumberLookupTimer = setTimeout(() => {
+        this.lookupTimelinePatientByFileNumber();
+      }, 350);
+    },
+
+    lookupTimelinePatientByFileNumber() {
+      clearTimeout(this.timelineFileNumberLookupTimer);
+      if (!this.activeTimelineDraft) return;
+      return this.fillPatientByFileNumber(this.activeTimelineDraft);
+    },
+
     onTimelinePatientSearch() {
       if (!this.activeTimelineDraft) return;
       this.autoSetAppointmentStatus(this.activeTimelineDraft);
@@ -4183,6 +4265,9 @@ export default {
 
       if (!fileNumber) return;
 
+      const isTimelineDraft = row === this.activeTimelineDraft;
+      const requestId = isTimelineDraft ? ++this.timelineFileNumberLookupRequest : 0;
+
       try {
         const res = await axios.get(
           "/api/patients/search",
@@ -4191,16 +4276,22 @@ export default {
 
         const patient = Array.isArray(res.data) ? res.data[0] : res.data;
 
+        // Ignore a slower response for an older value when the user keeps typing.
+        if (isTimelineDraft && (
+          requestId !== this.timelineFileNumberLookupRequest
+          || String(row.fileNumber || '').trim() !== fileNumber
+        )) return;
+
         if (!patient) {
-          await this.persistDirectAppointment(row, notify);
+          if (!isTimelineDraft) await this.persistDirectAppointment(row, notify);
           return;
         }
 
         this.applyPatientToAppointment(row, patient);
-        await this.persistDirectAppointment(row, notify);
+        if (!isTimelineDraft) await this.persistDirectAppointment(row, notify);
       } catch (e) {
         console.error("خطا در دریافت اطلاعات بیمار با شماره پرونده", e);
-        await this.persistDirectAppointment(row, notify);
+        if (!isTimelineDraft) await this.persistDirectAppointment(row, notify);
       }
     },
 
@@ -8245,27 +8336,110 @@ this.calculateFinalAmount(row)
       if (this.appointmentView !== 'timeline' || !this.bookingServiceFilter) return true;
       const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.bookingServiceFilter));
       if (!section) return true;
+
+      // Never make an already registered appointment disappear merely because
+      // its time is not aligned with the newly selected booking interval.
+      if (!this.isEmptyAppointmentRow(row)) return true;
+
       let resources = section.services.flatMap(service => service.booking_resources || service.bookingResources || []);
       if (this.bookingResourceFilter) {
         const [type, id] = String(this.bookingResourceFilter).split(':');
         resources = resources.filter(resource => type === 'doctor' ? Number(resource.doctor_id) === Number(id) : Number(resource.staff_id) === Number(id));
       }
       const availabilities = resources.flatMap(resource => resource.availabilities || []).filter(item => item.active !== false);
-      if (!availabilities.length) return true;
       const month = this.months[this.currentMonth];
       const date = moment(`${month}-${String(day.dayNum).padStart(2, '0')}`, 'jYYYY-jMM-jDD');
       const weekday = (date.day() + 1) % 7;
       const time = String(row.time || '').slice(0, 5);
       if (!time) return false;
+
+      // Service duration controls how long a registered appointment occupies;
+      // it must not change the clinic's base 15-minute grid.
+      if (!availabilities.length) {
+        const dayKey = this.clinicDayKey(date);
+        const dayTimes = this.clinicSchedule.day_times?.[dayKey] || {};
+        const start = this.normalizeTimeValue(dayTimes.start, '09:00');
+        const end = this.normalizeTimeValue(dayTimes.end, '17:00');
+        return time >= start && time < end;
+      }
+
       return availabilities.some(availability => {
         if (Number(availability.weekday) !== weekday) return false;
         const start = String(availability.start_time || '').slice(0, 5);
         const end = String(availability.end_time || '').slice(0, 5);
         if (!start || !end || time < start || time >= end) return false;
-        const defaultInterval = section.services.find(service => service.booking_setting?.slot_interval_minutes)?.booking_setting?.slot_interval_minutes;
-        const interval = Number(availability.slot_interval_minutes || defaultInterval || this.clinicSchedule.interval_minutes || 15);
-        if (interval > 1 && (this.minutesFromTime(time) - this.minutesFromTime(start)) % interval !== 0) return false;
         return !(availability.breaks || []).some(item => item.active !== false && time >= String(item.start_time || '').slice(0, 5) && time < String(item.end_time || '').slice(0, 5));
+      });
+    },
+
+    activeBookingServicesForDuration() {
+      const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.bookingServiceFilter));
+      if (!section) return [];
+      if (!this.bookingResourceFilter) return section.services;
+
+      const [type, id] = String(this.bookingResourceFilter).split(':');
+      const assigned = section.services.filter(service =>
+        (service.booking_resources || service.bookingResources || []).some(resource =>
+          type === 'doctor'
+            ? resource.role === 'doctor' && Number(resource.doctor_id) === Number(id)
+            : resource.role !== 'doctor' && Number(resource.staff_id) === Number(id)
+        )
+      );
+      return assigned.length ? assigned : section.services;
+    },
+
+    bookingDurationMinutesForRow(row) {
+      const configuredServices = this.activeBookingServicesForDuration();
+      if (!configuredServices.length) return Number(this.clinicSchedule.interval_minutes || 15);
+
+      const selectedSectionId = String(this.bookingServiceFilter || '');
+      const explicitNames = new Set((row.services || [])
+        .filter(service => String(service.sectionId || service.section_id || '') === selectedSectionId)
+        .map(service => String(service.name || '').trim())
+        .filter(Boolean));
+      const durationServices = explicitNames.size
+        ? configuredServices.filter(service => explicitNames.has(String(service.name || '').trim()))
+        : configuredServices;
+      const durations = durationServices
+        .map(service => Number((service.booking_setting || service.bookingSetting || {}).slot_interval_minutes || 0))
+        .filter(duration => duration > 0);
+
+      return durations.length
+        ? durations.reduce((total, duration) => total + duration, 0)
+        : Number(this.clinicSchedule.interval_minutes || 15);
+    },
+
+    bookingRowMatchesSelectedResource(row) {
+      if (!this.bookingResourceFilter) return true;
+      const selected = this.bookingResourceOptions.find(option => option.value === this.bookingResourceFilter);
+      const name = String(selected?.name || '').trim();
+      if (!name) return false;
+      if (selected.role === 'doctor') {
+        return String(row.doctor || '').split('،').map(value => value.trim()).includes(name)
+          || (row.services || []).some(service => String(service.doctor || '').trim() === name);
+      }
+      return String(row.consultant || '').trim() === name
+        || (row.services || []).some(service => String(service.consultant || '').trim() === name);
+    },
+
+    bookingSlotIsOccupied(day, row) {
+      if (!this.bookingServiceFilter || !this.isEmptyAppointmentRow(row)) return false;
+      const candidateTime = String(row.time || '').slice(0, 5);
+      if (!candidateTime) return false;
+      const candidateMinute = this.minutesFromTime(candidateTime);
+
+      return (day.rows || []).some(appointment => {
+        if (this.isEmptyAppointmentRow(appointment) || !this.bookingRowMatchesSelectedResource(appointment)) return false;
+        const appointmentServices = appointment.services || [];
+        const matchesSection = appointmentServices.some(service =>
+          String(service.sectionId || service.section_id || this.sectionIdForService(service.name, appointment) || '') === String(this.bookingServiceFilter)
+        );
+        if (!matchesSection) return false;
+        const startTime = String(appointment.time || '').slice(0, 5);
+        if (!startTime) return false;
+        const startMinute = this.minutesFromTime(startTime);
+        const endMinute = startMinute + this.bookingDurationMinutesForRow(appointment);
+        return candidateMinute >= startMinute && candidateMinute < endMinute;
       });
     },
 
@@ -8325,6 +8499,7 @@ this.calculateFinalAmount(row)
         })();
         const timelineSlotOk = this.appointmentView !== 'timeline' || this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
         const bookingScheduleOk = this.bookingScheduleAllowsRow(day, row);
+        const bookingCapacityOk = !this.bookingSlotIsOccupied(day, row);
         const rowTime = String(row.time || '').slice(0, 5);
         const emptyTimeOk = !this.emptyTimeFilterActive || (
           !String(row.status || '').trim() &&
@@ -8333,7 +8508,7 @@ this.calculateFinalAmount(row)
           (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
         );
 
-        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk;
+        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
       });
 
       rows = rows
@@ -8525,14 +8700,21 @@ smsColor(val) {
       });
     },
 
-    removeMonth() {
+    async removeMonth() {
 
       if (this.months.length <= 1)
         return;
 
       clearTimeout(this.saveTimeout);
 
+      const removedMonth = this.months[this.currentMonth];
       this.months.splice(this.currentMonth, 1);
+
+      try {
+        await axios.delete(`/api/appointment-schedule-months/${removedMonth}`);
+      } catch (error) {
+        console.error('خطا در حذف ماه نوبت‌دهی از سرور', error);
+      }
 
       if (this.currentMonth > 0) {
         this.currentMonth--;
@@ -8548,8 +8730,17 @@ smsColor(val) {
         this.months.sort();
       }
 
+      try {
+        await axios.post('/api/appointment-schedule-months', { month: next });
+      } catch (error) {
+        console.error('خطا در ثبت ماه نوبت‌دهی روی سرور', error);
+        await Swal.fire({ icon: 'error', title: 'ماه روی سرور ثبت نشد', text: 'اتصال را بررسی کنید و دوباره تلاش کنید.' });
+        return;
+      }
+
       this.generatingNewMonth = true;
       this.currentMonth = this.months.indexOf(next);
+      this.selectedScheduleYear = next.slice(0, 4);
 
       try {
         await this.fetchMonthEvents();
@@ -10730,14 +10921,50 @@ td.st-transferred {
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 9px;
   background: rgba(255, 255, 255, 0.95);
-  padding: 8px 20px;
+  padding: 7px 10px;
   border-radius: 50px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   z-index: 1000;
   max-width: 90%;
   width: auto;
+}
+
+.schedule-year-picker {
+  height: 34px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid #dbeafe;
+  border-radius: 17px;
+  background: #f8fbff;
+  color: #2563eb;
+}
+
+.schedule-year-picker svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.schedule-year-picker select {
+  width: 58px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  outline: none;
+  cursor: pointer;
 }
 
 .months-scroll-area {
@@ -10748,7 +10975,7 @@ td.st-transferred {
 }
 
 .month-pill {
-  padding: 5px 15px;
+  padding: 6px 12px;
   background: #f0f0f0;
   border-radius: 20px;
   cursor: pointer;
@@ -10775,6 +11002,11 @@ td.st-transferred {
   font-size: 22px;
   cursor: pointer;
   color: #666;
+}
+
+.month-action-btn:disabled {
+  opacity: .28;
+  cursor: not-allowed;
 }
 
 .service-red {

@@ -43,33 +43,7 @@ class AppointmentController extends Controller
                 $query->whereNull('file_number')
                     ->orWhere('file_number', 'not like', 'LOADTEST-%');
             })
-            ->where(function ($query) {
-                foreach ([
-                    'lastname', 'gender', 'phone', 'file_number', 'status',
-                    'doctor', 'consultant', 'source', 'description', 'doctor_note',
-                    'done', 'payment_method', 'payment_account', 'payment_link',
-                    'referrer_phone', 'appointment_sms', 'info_sms',
-                ] as $column) {
-                    $query->orWhere(function ($query) use ($column) {
-                        $query->whereNotNull($column)->where($column, '<>', '');
-                    });
-                }
-                $query->orWhere('new_customer', true)
-                    ->orWhere('payment_link_sent_count', '>', 0)
-                    ->orWhere('amount', '>', 0)
-                    ->orWhere('debt', '>', 0)
-                    ->orWhere('discount', '>', 0)
-                    ->orWhere(function ($query) {
-                        // Legacy empty slots contain a default service object
-                        // whose name is null. Only an actually selected service
-                        // (or addon) makes the JSON meaningful.
-                        $query->whereNotNull('services')
-                            ->whereRaw('services REGEXP ?', ['"name"[[:space:]]*:[[:space:]]*"[^"]+"']);
-                    })
-                    ->orWhere(function ($query) {
-                        $query->whereNotNull('service_types')->whereNotIn('service_types', ['', '[]', 'null']);
-                    });
-            })
+            ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
             ->orderBy('month')
             ->orderBy('day_num')
             ->orderBy('sort_order')
@@ -185,6 +159,37 @@ class AppointmentController extends Controller
             $appointment->setAttribute('phone', '');
             $appointment->setAttribute('referrer_phone', '');
         });
+    }
+
+    /** Ignore legacy rows that only represent generated empty calendar slots. */
+    private function constrainToMeaningfulAppointments($query): void
+    {
+        foreach ([
+            'lastname', 'gender', 'phone', 'file_number', 'status',
+            'doctor', 'consultant', 'source', 'description', 'doctor_note',
+            'done', 'payment_method', 'payment_account', 'payment_link',
+            'referrer_phone', 'appointment_sms', 'info_sms',
+        ] as $column) {
+            $query->orWhere(function ($query) use ($column) {
+                $query->whereNotNull($column)->where($column, '<>', '');
+            });
+        }
+        $query->orWhere('new_customer', true)
+            ->orWhere('payment_link_sent_count', '>', 0)
+            ->orWhere('amount', '>', 0)
+            ->orWhere('debt', '>', 0)
+            ->orWhere('discount', '>', 0)
+            ->orWhere(function ($query) {
+                $query->whereNotNull('services');
+                if ($query->getConnection()->getDriverName() === 'mysql') {
+                    $query->whereRaw('services REGEXP ?', ['"name"[[:space:]]*:[[:space:]]*"[^"]+"']);
+                } else {
+                    $query->where('services', 'like', '%"name":"_%');
+                }
+            })
+            ->orWhere(function ($query) {
+                $query->whereNotNull('service_types')->whereNotIn('service_types', ['', '[]', 'null']);
+            });
     }
 
     private function appointmentNoteKey(Appointment $appointment): string
@@ -565,6 +570,7 @@ class AppointmentController extends Controller
                     $this->recordBalanceAudit($request, $appointment, null);
                     $this->syncAppointmentInventoryStock([['previous' => null, 'current' => $appointment]], collect());
                 }
+                $this->fillMissingPatientPhoneFromAppointment($appointment, $request);
                 $this->syncResourceEarningLines($appointment);
                 $this->syncAppointmentWalletEffects($request, $appointment, $reward, $before ?? null);
                 if ($followupConfirmed) $this->syncServiceFollowups($appointment);
@@ -582,6 +588,39 @@ class AppointmentController extends Controller
         $saved = $this->withPatientHistoryRegistrationMeta($saved);
 
         return response()->json(['message' => 'نوبت‌های تغییرکرده ثبت شدند.', 'appointments' => $saved]);
+    }
+
+    /**
+     * Keep the patient record complete when reception supplies a missing phone
+     * while booking an existing file. Existing patient phones are never
+     * overwritten from the appointment screen.
+     */
+    private function fillMissingPatientPhoneFromAppointment(Appointment $appointment, Request $request): void
+    {
+        if (! PatientPhoneVisibility::canView($request)) {
+            return;
+        }
+
+        $fileNumber = trim((string) $appointment->file_number);
+        $phone = trim((string) $appointment->phone);
+        if ($fileNumber === '' || $phone === '') {
+            return;
+        }
+
+        $patient = Patient::query()->where('file_number', $fileNumber)->lockForUpdate()->first();
+        if (! $patient || trim((string) $patient->phone) !== '') {
+            return;
+        }
+
+        $phoneBelongsToAnotherPatient = Patient::query()
+            ->whereKeyNot($patient->getKey())
+            ->where('phone', $phone)
+            ->exists();
+        if ($phoneBelongsToAnotherPatient) {
+            return;
+        }
+
+        $patient->update(['phone' => $phone]);
     }
 
     /**
@@ -653,6 +692,9 @@ class AppointmentController extends Controller
                     ->where('sort_order', $sortOrder),
             )
             ->when($previous, fn ($query) => $query->whereKeyNot($previous->getKey()))
+            // Old versions persisted every generated empty slot. Those rows
+            // are not bookings and must not block a real patient appointment.
+            ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
             ->lockForUpdate()
             ->exists();
 
