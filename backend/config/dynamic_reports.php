@@ -70,7 +70,8 @@ return [
     'fields' => [
         'name' => 'نام', 'family' => 'نام خانوادگی', 'gender' => 'جنسیت', 'phone' => 'شماره تماس',
         'fileNo' => 'شماره پرونده', 'city' => 'شهر', 'birth' => 'تاریخ تولد', 'custseg' => 'تفکیک مشتری',
-        'referrer' => 'معرف', 'noreturn' => 'عدم بازگشت', 'status' => 'وضعیت', 'source' => 'منبع',
+        'referrer' => 'معرف', 'noreturn' => 'عدم بازگشت', 'status' => 'وضعیت',
+        'appointmentCreatedDate' => 'تاریخ ثبت نوبت', 'appointmentDate' => 'تاریخ نوبت (خدمت)', 'source' => 'منبع',
         'work' => 'انجام کار', 'section2' => 'بخش', 'subsection' => 'زیر بخش', 'areas' => 'نواحی',
         'problem' => 'مشکل', 'extra' => 'جانبی', 'count' => 'تعداد', 'amount' => 'مبلغ',
         'income' => 'درآمد و هزینه', 'discount' => 'تخفیف', 'finstatus' => 'وضعیت مالی', 'debt' => 'بدهی',

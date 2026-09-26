@@ -142,13 +142,12 @@ class BeautyAnnotationController extends Controller
             ->latest()
             ->get();
 
-        // A newly opened beauty record always starts on a front-facing photo.
-        // Prefer its "before" version, while still keeping every other angle
-        // available in the selector for an intentional user change.
+        // A newly opened beauty record starts on the required front-facing
+        // "after" photo so the operator can place treatment annotations on it.
         $frontFacingPhotos = $frontPhotos->where('photo_angle_key', 'front');
-        $selectedPhoto = $frontFacingPhotos->firstWhere('comparison_stage', 'before')
+        $selectedPhoto = $frontFacingPhotos->firstWhere('comparison_stage', 'after')
             ?: $frontFacingPhotos->first()
-            ?: $frontPhotos->firstWhere('comparison_stage', 'before')
+            ?: $frontPhotos->firstWhere('comparison_stage', 'after')
             ?: $frontPhotos->first();
 
         $selectedPhotoId = $request->integer('media_id') ?: $selectedPhoto?->id;

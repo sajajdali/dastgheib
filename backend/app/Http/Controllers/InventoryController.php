@@ -14,6 +14,7 @@ use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class InventoryController extends Controller
 {
@@ -236,6 +237,83 @@ class InventoryController extends Controller
         });
 
         return response()->json(['message' => 'اطلاعات انبار با موفقیت ذخیره شد.']);
+    }
+
+    public function duplicate(Request $request, Inventory $inventory)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('inventories', 'name')],
+        ], [
+            'name.required' => 'نام خدمت جدید را وارد کنید.',
+            'name.unique' => 'خدمتی با این نام از قبل وجود دارد.',
+        ]);
+
+        $copy = DB::transaction(function () use ($inventory, $data) {
+            $inventory->load([
+                'commissions', 'defaultAddons', 'addonDefinitions', 'bookingSetting',
+                'bookingResources.availabilities.breaks', 'bookingExceptions', 'bookingRules',
+            ]);
+
+            $copy = $inventory->replicate();
+            $copy->name = trim($data['name']);
+            $copy->sort_order = (int) Inventory::query()->max('sort_order') + 1;
+            $copy->save();
+
+            foreach ($inventory->commissions as $commission) {
+                $copy->commissions()->create(
+                    $commission->only(['recipient_type', 'recipient_id', 'recipient_name', 'commission_type', 'commission_value'])
+                );
+            }
+
+            $copy->defaultAddons()->sync($inventory->defaultAddons->modelKeys());
+            $copy->addonDefinitions()->sync($inventory->addonDefinitions->modelKeys());
+
+            if ($inventory->bookingSetting) {
+                $copy->bookingSetting()->create(
+                    collect($inventory->bookingSetting->getAttributes())
+                        ->except(['id', 'inventory_id', 'created_at', 'updated_at'])->all()
+                );
+            }
+
+            foreach ($inventory->bookingResources as $sourceResource) {
+                $resource = $copy->bookingResources()->create(
+                    collect($sourceResource->getAttributes())
+                        ->except(['id', 'inventory_id', 'created_at', 'updated_at'])->all()
+                );
+                foreach ($sourceResource->availabilities as $sourceAvailability) {
+                    $availability = $resource->availabilities()->create(
+                        collect($sourceAvailability->getAttributes())
+                            ->except(['id', 'booking_resource_id', 'created_at', 'updated_at'])->all()
+                    );
+                    foreach ($sourceAvailability->breaks as $sourceBreak) {
+                        $availability->breaks()->create(
+                            collect($sourceBreak->getAttributes())
+                                ->except(['id', 'availability_id', 'created_at', 'updated_at'])->all()
+                        );
+                    }
+                }
+            }
+
+            foreach ($inventory->bookingExceptions as $exception) {
+                $copy->bookingExceptions()->create(
+                    collect($exception->getAttributes())
+                        ->except(['id', 'inventory_id', 'created_at', 'updated_at'])->all()
+                );
+            }
+            foreach ($inventory->bookingRules as $rule) {
+                $copy->bookingRules()->create(
+                    collect($rule->getAttributes())
+                        ->except(['id', 'inventory_id', 'created_at', 'updated_at'])->all()
+                );
+            }
+
+            return $copy;
+        });
+
+        return response()->json(
+            $copy->load(['section', 'commissions', 'defaultAddons', 'addonDefinitions', 'bookingSetting', 'bookingResources.availabilities.breaks']),
+            201,
+        );
     }
 
     private function bookingSnapshots(): array

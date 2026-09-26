@@ -443,6 +443,8 @@ const FIELDS = [
     options: ['بدون محدودیت','۱ ماه','۲ ماه','۳ ماه','۴ ماه','۵ ماه','۶ ماه'] },
 
   { g: 'خدمات و درمان', id: 'status', label: 'وضعیت', type: 'multi' },
+  { g: 'خدمات و درمان', id: 'appointmentCreatedDate', label: 'تاریخ ثبت نوبت', type: 'display' },
+  { g: 'خدمات و درمان', id: 'appointmentDate', label: 'تاریخ نوبت (خدمت)', type: 'display' },
   { g: 'خدمات و درمان', id: 'source', label: 'منبع', type: 'multi' },
   { g: 'خدمات و درمان', id: 'work', label: 'انجام کار', type: 'multi' },
   { g: 'خدمات و درمان', id: 'section2', label: 'بخش', type: 'multi' },

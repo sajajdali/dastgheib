@@ -347,8 +347,8 @@
                 v-if="canUseBeauty"
                 type="button"
                 class="profile-beauty-action"
-                title="باز کردن پرونده زیبایار"
-                aria-label="باز کردن پرونده زیبایار"
+                title="باز کردن پرونده زیبایار در صفحه جدید"
+                aria-label="باز کردن پرونده زیبایار در صفحه جدید"
                 @click="$emit('open-beauty-record', activePatientProfile)"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -847,6 +847,56 @@
         </section>
       </div>
     </Teleport>
+    <Teleport to="body">
+      <div v-if="anglePhotoAdjust.open" class="profile-crop-overlay" @click.self="cancelAnglePhotoAdjust">
+        <section class="profile-crop-modal angle-photo-adjust-modal" dir="rtl" @click.stop>
+          <header class="profile-crop-header">
+            <div>
+              <h3>تنظیم {{ anglePhotoAdjust.angle?.label || 'عکس' }}</h3>
+              <p>قبل از ذخیره، عکس را در کادر جابه‌جا و تنظیم کنید</p>
+            </div>
+            <button type="button" class="profile-crop-close" title="بستن" aria-label="بستن" @click="cancelAnglePhotoAdjust">×</button>
+          </header>
+
+          <div
+            class="angle-photo-adjust-stage"
+            :class="{ dragging: anglePhotoAdjust.dragging }"
+            @pointerdown="startAnglePhotoAdjustDrag"
+            @pointermove="moveAnglePhotoAdjust"
+            @pointerup="endAnglePhotoAdjustDrag"
+            @pointercancel="endAnglePhotoAdjustDrag"
+          >
+            <img
+              v-if="anglePhotoAdjust.sourceUrl"
+              :src="anglePhotoAdjust.sourceUrl"
+              :alt="anglePhotoAdjust.angle?.label || 'پیش‌نمایش عکس'"
+              :style="{ transform: `translate(calc(-50% + ${anglePhotoAdjust.x}px), calc(-50% + ${anglePhotoAdjust.y}px)) scale(${anglePhotoAdjust.zoom})` }"
+              draggable="false"
+            >
+            <span class="angle-photo-adjust-frame" aria-hidden="true"></span>
+          </div>
+
+          <p class="profile-crop-help">عکس را با دست یا ماوس بکشید، یا از کلیدهای جهت استفاده کنید.</p>
+          <div class="angle-photo-nudge" aria-label="جابه‌جایی عکس">
+            <button type="button" title="حرکت به بالا" @click="nudgeAnglePhoto(0, -12)">↑</button>
+            <button type="button" title="حرکت به راست" @click="nudgeAnglePhoto(12, 0)">→</button>
+            <button type="button" title="حرکت به پایین" @click="nudgeAnglePhoto(0, 12)">↓</button>
+            <button type="button" title="حرکت به چپ" @click="nudgeAnglePhoto(-12, 0)">←</button>
+          </div>
+          <label class="profile-crop-zoom">
+            <span>عقب‌تر</span>
+            <input v-model.number="anglePhotoAdjust.zoom" type="range" min="1" max="3" step="0.01" @input="clampAnglePhotoAdjustPosition">
+            <span>جلوتر</span>
+          </label>
+          <div class="profile-crop-actions">
+            <button type="button" class="secondary-btn" :disabled="angleUploadLoading" @click="cancelAnglePhotoAdjust">انصراف</button>
+            <button type="button" class="primary-btn" :disabled="angleUploadLoading" @click="confirmAnglePhotoAdjust">
+              {{ angleUploadLoading ? 'در حال ذخیره...' : 'تأیید و ذخیره عکس' }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
     <div v-if="showMediaModal" class="modal-overlay media-overlay" @click.self="closeMediaModal">
       <div class="media-modal" @click.stop>
         <div class="media-header">
@@ -1078,6 +1128,13 @@
                   <div><i :style="{ width: `${angleCompletionPercent}%` }"></i></div>
                 </div>
               </div>
+              <div v-if="currentComparisonStage === 'after'" class="beauty-required-photo-notice">
+                <span aria-hidden="true">!</span>
+                <div>
+                  <strong>عکس تمام‌رخ «بعد» ضروری است</strong>
+                  <small>این عکس به‌صورت پیش‌فرض در زیبایار باز می‌شود تا نقاط درمان روی آن ثبت شوند.</small>
+                </div>
+              </div>
 
               <div class="angle-service-tags" :class="{ collapsed: !showAngleCommonSettings }">
                 <button type="button" class="angle-settings-summary" @click="showAngleCommonSettings = !showAngleCommonSettings">
@@ -1146,13 +1203,13 @@
                     :key="angle.key"
                     type="button"
                     class="angle-row"
-                    :class="{ active: activePhotoAngleKey === angle.key, done: mediaForAngle(angle.key) }"
+                    :class="{ active: activePhotoAngleKey === angle.key, done: mediaForAngle(angle.key), required: currentComparisonStage === 'after' && angle.key === 'front' }"
                     @click="activePhotoAngleKey = angle.key"
                   >
                     <span class="angle-mini" :style="{ transform: `rotate(${angle.rotate}deg)` }"></span>
                     <strong>{{ angle.label }}</strong>
                     <small>{{ angleHint(angle) }}</small>
-                    <em>{{ mediaForAngle(angle.key) ? 'ثبت شده' : 'خالی' }}</em>
+                    <em>{{ mediaForAngle(angle.key) ? 'ثبت شده' : (currentComparisonStage === 'after' && angle.key === 'front' ? '! ضروری' : 'خالی') }}</em>
                   </button>
                 </div>
 
@@ -1508,13 +1565,13 @@ const iranCities = iranCitiesData
 dayjs.extend(jalaliday)
 
 const FACE_PHOTO_ANGLES = [
-  { key: 'right_profile', label: 'نیم‌رخ راست', degrees: 90, side: 'راست', rotate: 90, face: 72 },
-  { key: 'right_three_quarter_30', label: 'سه‌رخ اول راست', degrees: 30, side: 'راست', rotate: 30, face: 30 },
-  { key: 'right_three_quarter_60', label: 'سه‌رخ دوم راست', degrees: 60, side: 'راست', rotate: 60, face: 60 },
+  { key: 'right_profile', label: 'نیم‌رخ راست', degrees: 90, side: 'راست', rotate: -90, face: -72 },
+  { key: 'right_three_quarter_30', label: 'سه‌رخ اول راست', degrees: 30, side: 'راست', rotate: -30, face: -30 },
+  { key: 'right_three_quarter_60', label: 'سه‌رخ دوم راست', degrees: 60, side: 'راست', rotate: -60, face: -60 },
   { key: 'front', label: 'تمام‌رخ', degrees: 0, side: '', rotate: 0, face: 0 },
-  { key: 'left_three_quarter_60', label: 'سه‌رخ اول چپ', degrees: 60, side: 'چپ', rotate: -60, face: -60 },
-  { key: 'left_three_quarter_30', label: 'سه‌رخ دوم چپ', degrees: 30, side: 'چپ', rotate: -30, face: -30 },
-  { key: 'left_profile', label: 'نیم‌رخ چپ', degrees: 90, side: 'چپ', rotate: -90, face: -72 },
+  { key: 'left_three_quarter_60', label: 'سه‌رخ اول چپ', degrees: 60, side: 'چپ', rotate: 60, face: 60 },
+  { key: 'left_three_quarter_30', label: 'سه‌رخ دوم چپ', degrees: 30, side: 'چپ', rotate: 30, face: 30 },
+  { key: 'left_profile', label: 'نیم‌رخ چپ', degrees: 90, side: 'چپ', rotate: 90, face: 72 },
   { key: 'other', label: 'سایر', degrees: 0, side: '', rotate: 0, face: 0 },
   { key: 'body_shape', label: 'شیپ بدن', degrees: 0, side: '', rotate: 0, face: 0 }
 ]
@@ -1722,6 +1779,19 @@ export default {
       angleGuideMode: 'top',
       angleDragging: false,
       angleUploadLoading: false,
+      anglePhotoAdjust: {
+        open: false,
+        file: null,
+        angle: null,
+        sourceUrl: '',
+        image: null,
+        zoom: 1,
+        x: 0,
+        y: 0,
+        dragging: false,
+        pointerX: 0,
+        pointerY: 0
+      },
       showAngleCommonSettings: false,
       serviceTagSearch: '',
       mediaUpload: {
@@ -2944,6 +3014,15 @@ export default {
         this.mediaItems = data.media || []
         this.mediaSections = data.sections || []
         this.mediaServiceGroups = data.service_groups || []
+        const sharedUploadMetadata = data.shared_upload_metadata
+        if (!this.mediaUpload.services.length && sharedUploadMetadata?.services?.length) {
+          this.mediaUpload = {
+            description: sharedUploadMetadata.description || '',
+            no_usage_consent: sharedUploadMetadata.usage_consent === false,
+            is_featured: Boolean(sharedUploadMetadata.is_featured),
+            services: sharedUploadMetadata.services
+          }
+        }
         const folderSectionId = [...this.mediaBreadcrumbs]
           .reverse()
           .find(crumb => crumb.inventory_section_id)?.inventory_section_id
@@ -2971,7 +3050,8 @@ export default {
       this.selectedMediaTreeKey = ''
       this.showAngleCommonSettings = false
       this.mediaShowAll = false
-      return this.loadPatientMedia(folderId, false)
+      await this.loadPatientMedia(folderId, false)
+      if (this.currentComparisonStage === 'after') this.activePhotoAngleKey = 'front'
     },
 
     async openBeforeAfterCompare() {
@@ -3330,27 +3410,154 @@ export default {
     async uploadAnglePhoto(event, angle) {
       const file = (event.target.files || [])[0]
       event.target.value = ''
-      await this.saveAnglePhoto(file, angle)
+      await this.openAnglePhotoAdjust(file, angle)
     },
 
     async handleAngleDrop(event, angle) {
       this.angleDragging = false
       const file = (event.dataTransfer?.files || [])[0]
-      await this.saveAnglePhoto(file, angle)
+      await this.openAnglePhotoAdjust(file, angle)
+    },
+
+    async openAnglePhotoAdjust(file, angle) {
+      if (!file || !angle?.key) return
+      if (!String(file.type || '').startsWith('image/')) {
+        Swal.fire({ icon: 'warning', title: 'فایل نامعتبر', text: 'برای این زاویه فقط فایل تصویری انتخاب کنید.' })
+        return
+      }
+
+      const sourceUrl = URL.createObjectURL(file)
+      try {
+        const image = await new Promise((resolve, reject) => {
+          const element = new Image()
+          element.onload = () => resolve(element)
+          element.onerror = () => reject(new Error('خواندن تصویر انتخاب‌شده ممکن نیست'))
+          element.src = sourceUrl
+        })
+        this.anglePhotoAdjust = {
+          open: true,
+          file,
+          angle,
+          sourceUrl,
+          image,
+          zoom: 1,
+          x: 0,
+          y: 0,
+          dragging: false,
+          pointerX: 0,
+          pointerY: 0
+        }
+      } catch (error) {
+        URL.revokeObjectURL(sourceUrl)
+        Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'پیش‌نمایش عکس ممکن نیست.' })
+      }
+    },
+
+    cancelAnglePhotoAdjust() {
+      if (this.angleUploadLoading) return
+      if (this.anglePhotoAdjust.sourceUrl) URL.revokeObjectURL(this.anglePhotoAdjust.sourceUrl)
+      this.anglePhotoAdjust = {
+        open: false, file: null, angle: null, sourceUrl: '', image: null,
+        zoom: 1, x: 0, y: 0, dragging: false, pointerX: 0, pointerY: 0
+      }
+    },
+
+    startAnglePhotoAdjustDrag(event) {
+      if (!this.anglePhotoAdjust.image) return
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      this.anglePhotoAdjust.dragging = true
+      this.anglePhotoAdjust.pointerX = event.clientX
+      this.anglePhotoAdjust.pointerY = event.clientY
+    },
+
+    moveAnglePhotoAdjust(event) {
+      if (!this.anglePhotoAdjust.dragging) return
+      this.anglePhotoAdjust.x += event.clientX - this.anglePhotoAdjust.pointerX
+      this.anglePhotoAdjust.y += event.clientY - this.anglePhotoAdjust.pointerY
+      this.anglePhotoAdjust.pointerX = event.clientX
+      this.anglePhotoAdjust.pointerY = event.clientY
+      this.clampAnglePhotoAdjustPosition()
+    },
+
+    endAnglePhotoAdjustDrag() {
+      this.anglePhotoAdjust.dragging = false
+    },
+
+    nudgeAnglePhoto(x, y) {
+      this.anglePhotoAdjust.x += x
+      this.anglePhotoAdjust.y += y
+      this.clampAnglePhotoAdjustPosition()
+    },
+
+    anglePhotoAdjustMetrics() {
+      const image = this.anglePhotoAdjust.image
+      const stage = document.querySelector('.angle-photo-adjust-stage')
+      if (!image || !stage) return null
+      const width = stage.clientWidth || 360
+      const height = stage.clientHeight || 450
+      const baseScale = Math.max(width / image.naturalWidth, height / image.naturalHeight)
+      const scale = baseScale * Number(this.anglePhotoAdjust.zoom || 1)
+      return { image, width, height, scale }
+    },
+
+    clampAnglePhotoAdjustPosition() {
+      const metrics = this.anglePhotoAdjustMetrics()
+      if (!metrics) return
+      const maxX = Math.max(0, (metrics.image.naturalWidth * metrics.scale - metrics.width) / 2)
+      const maxY = Math.max(0, (metrics.image.naturalHeight * metrics.scale - metrics.height) / 2)
+      this.anglePhotoAdjust.x = Math.max(-maxX, Math.min(maxX, this.anglePhotoAdjust.x))
+      this.anglePhotoAdjust.y = Math.max(-maxY, Math.min(maxY, this.anglePhotoAdjust.y))
+    },
+
+    async createAdjustedAnglePhotoFile() {
+      const metrics = this.anglePhotoAdjustMetrics()
+      if (!metrics) throw new Error('تصویری برای تنظیم انتخاب نشده است.')
+
+      const outputWidth = 1200
+      const outputHeight = 1500
+      const outputScale = outputWidth / metrics.width
+      const canvas = document.createElement('canvas')
+      canvas.width = outputWidth
+      canvas.height = outputHeight
+      const context = canvas.getContext('2d')
+      context.imageSmoothingEnabled = true
+      context.imageSmoothingQuality = 'high'
+      context.setTransform(
+        metrics.scale * outputScale, 0, 0, metrics.scale * outputScale,
+        outputWidth / 2 + this.anglePhotoAdjust.x * outputScale,
+        outputHeight / 2 + this.anglePhotoAdjust.y * outputScale
+      )
+      context.drawImage(metrics.image, -metrics.image.naturalWidth / 2, -metrics.image.naturalHeight / 2)
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9))
+      if (!blob) throw new Error('ساخت عکس تنظیم‌شده ممکن نیست.')
+      return new File([blob], 'patient-angle.webp', { type: 'image/webp' })
+    },
+
+    async confirmAnglePhotoAdjust() {
+      const angle = this.anglePhotoAdjust.angle
+      if (!angle?.key || this.angleUploadLoading) return
+      try {
+        const file = await this.createAdjustedAnglePhotoFile()
+        const saved = await this.saveAnglePhoto(file, angle)
+        if (saved) this.cancelAnglePhotoAdjust()
+      } catch (error) {
+        console.error(error)
+        Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'تنظیم عکس انجام نشد.' })
+      }
     },
 
     async saveAnglePhoto(file, angle) {
-      if (!file || !this.activeMediaPatient.id || !this.currentMediaFolderId || !angle?.key) return
+      if (!file || !this.activeMediaPatient.id || !this.currentMediaFolderId || !angle?.key) return false
 
       if (!this.mediaUpload.services.length) {
         this.showAngleCommonSettings = true
         Swal.fire({ icon: 'warning', title: 'تگ خدمت انتخاب نشده', text: 'قبل از آپلود، حداقل یک تگ خدمات برای این عکس انتخاب کنید.' })
-        return
+        return false
       }
 
       if (!String(file.type || '').startsWith('image/')) {
         Swal.fire({ icon: 'warning', title: 'فایل نامعتبر', text: 'برای این زاویه فقط فایل تصویری انتخاب کنید.' })
-        return
+        return false
       }
 
       const existing = this.mediaForAngle(angle.key)
@@ -3380,9 +3587,11 @@ export default {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.message || 'آپلود عکس زاویه انجام نشد')
         await this.loadPatientMedia(this.currentMediaFolderId, false)
+        return true
       } catch (error) {
         console.error(error)
         Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'آپلود عکس زاویه انجام نشد' })
+        return false
       } finally {
         this.mediaLoading = false
         this.angleUploadLoading = false
@@ -3390,6 +3599,16 @@ export default {
     },
 
     finishAnglePhotos() {
+      if (this.currentComparisonStage === 'after' && !this.mediaForAngle('front')) {
+        this.activePhotoAngleKey = 'front'
+        Swal.fire({
+          icon: 'warning',
+          title: 'عکس تمام‌رخ بعد ضروری است',
+          text: 'برای استفاده در زیبایار، ابتدا عکس تمام‌رخ «بعد» را آپلود کنید.',
+          confirmButtonText: 'آپلود عکس'
+        })
+        return
+      }
       Swal.fire({
         icon: 'success',
         title: 'تصاویر ثبت شدند',
@@ -5975,6 +6194,56 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 .profile-crop-actions .primary-btn { background: #2563eb; color: #fff; }
 .profile-crop-actions .secondary-btn { background: #eaf2ff; color: #1d4ed8; }
 .profile-crop-actions button:disabled { opacity: .55; cursor: wait; }
+.angle-photo-adjust-modal { width: min(520px, 100%); }
+.angle-photo-adjust-stage {
+  position: relative;
+  width: min(360px, 82vw);
+  aspect-ratio: 4 / 5;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 2px solid #2563eb;
+  border-radius: 18px;
+  background: #0f172a;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, .2);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.angle-photo-adjust-stage.dragging { cursor: grabbing; }
+.angle-photo-adjust-stage > img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  transform-origin: center;
+  pointer-events: none;
+}
+.angle-photo-adjust-frame {
+  position: absolute;
+  inset: 12px;
+  border: 1px dashed rgba(255, 255, 255, .8);
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow: 0 0 0 999px rgba(15, 23, 42, .12);
+}
+.angle-photo-nudge {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 13px;
+  direction: ltr;
+}
+.angle-photo-nudge button {
+  width: 43px;
+  height: 40px;
+  border: 1px solid #bfdbfe;
+  border-radius: 11px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: 900 20px/1 Arial, sans-serif;
+  cursor: pointer;
+}
+.angle-photo-nudge button:active { transform: translateY(1px); background: #dbeafe; }
 .profile-photo-picker {
   position: relative;
   width: 72px;
@@ -7182,6 +7451,44 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   background: #dcfce7;
   color: #15803d;
 }
+
+.angle-row.required:not(.done) {
+  border-color: #fb7185;
+  background: #fff1f2;
+  box-shadow: inset 0 0 0 1px rgba(225, 29, 72, .08);
+}
+
+.angle-row.required:not(.done) em {
+  background: #e11d48;
+  color: #fff;
+}
+
+.beauty-required-photo-notice {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border: 1px solid #fecdd3;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #fff1f2, #fff7ed);
+  color: #9f1239;
+}
+
+.beauty-required-photo-notice > span {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e11d48;
+  color: #fff;
+  font: 900 18px/1 Arial, sans-serif;
+}
+
+.beauty-required-photo-notice > div { display: grid; gap: 3px; }
+.beauty-required-photo-notice strong { font-size: 12px; font-weight: 900; }
+.beauty-required-photo-notice small { color: #be123c; font-size: 10px; font-weight: 700; line-height: 1.7; }
 
 .angle-mini {
   grid-row: 1 / span 2;

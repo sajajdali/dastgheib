@@ -136,11 +136,11 @@
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.roi" @dragover="v.dv.roi" @drop="v.dp.roi" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.roi) + ';order:' + (v.o.roi)" data-screen-label="بازگشت هزینه تبلیغات">
+            <div :draggable="true" @dragstart="v.dh.roi" @dragover="v.dv.roi" @drop="v.dp.roi" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:18px;min-width:0;grid-column:span 3;display:' + (v.dsp.roi) + ';order:' + (v.o.roi)" data-screen-label="بازگشت هزینه تبلیغات">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">بازگشت هزینه تبلیغات</span>
-                <span style="background:#dcfce7;color:#15803d;border-radius:999px;padding:3px 12px;font-size:11.5px;font-weight:800">{{ v.roiOkTxt }}</span>
+                <span :style="v.roiBadgeStyle">{{ v.roiOkTxt }}</span>
                 <input type="checkbox" :checked="v.ck.roi" @change="v.hide.roi" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;gap:12px">
@@ -1011,17 +1011,39 @@ export default {
     };
     const arc = p => (p * C) + ' ' + C;
 
-    // ctype
-    const ctT = Math.round(512 * k);
-    const ctP = [0.52, 0.16, 0.22, 0.10];
+    // Customer segmentation is calculated by the report API for the selected date range.
+    const segmentRows = S.reportSummary?.customer_segments || [];
+    const segmentByKey = Object.fromEntries(segmentRows.map(row => [row.key, row]));
+    const orderedSegments = ['silver', 'blue', 'gold', 'problematic'].map(key => segmentByKey[key] || {key, count: 0, revenue: 0});
+    const ctT = orderedSegments.reduce((sum, row) => sum + Number(row.count || 0), 0);
+    const ctP = orderedSegments.map(row => ctT > 0 ? Number(row.count || 0) / ctT : 0);
     const [cs1, cs2, cs3, cs4] = segs(ctP);
     const ctCols = ['#94a3b8','#93c5fd','#f59e0b','#dc2626'];
     const ctNames = ['معمولی','خوب','CIP','مشکل‌ساز'];
-    const ctRev = [415, 320, 590, 68].map(v => mm(v*k));
-    const ctLegend = ctP.map((p, i) => ({n: ctNames[i], c: ctCols[i], cnt: fa(ctT*p)+' نفر', p: pc(p*100), w: (p*100)+'%', rev: ctRev[i]}));
+    const ctLegend = ctP.map((p, i) => ({
+      n: ctNames[i],
+      c: ctCols[i],
+      cnt: fa(orderedSegments[i].count)+' نفر',
+      p: pc(p*100),
+      w: (p*100)+'%',
+      rev: Number(orderedSegments[i].revenue || 0).toLocaleString('fa-IR') + ' تومان'
+    }));
 
-    // roi
-    const roiBars = MONTHS.map((m, i) => ({n: m.name, ch: Math.round(85*MF[i]/240*100)+'px', rh: Math.round(240*MF[i]/240*100)+'px'}));
+    // Advertising ROI: costs are advertising expenses and returned revenue is
+    // revenue from completed appointments attributed to a campaign.
+    const roiData = S.reportSummary?.advertising_roi;
+    const jalaliMonthNames = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+    const roiTimeline = roiData?.timeline || [];
+    const roiMax = Math.max(0, ...roiTimeline.flatMap(row => [Number(row.cost || 0), Number(row.revenue || 0)]));
+    const roiBars = roiTimeline.map(row => ({
+      n: jalaliMonthNames[Math.max(0, Number(String(row.month || '').slice(5, 7)) - 1)] || row.month,
+      ch: (roiMax > 0 ? Math.max(3, Math.round(Number(row.cost || 0) / roiMax * 100)) : 0) + 'px',
+      rh: (roiMax > 0 ? Math.max(3, Math.round(Number(row.revenue || 0) / roiMax * 100)) : 0) + 'px'
+    }));
+    const roiMoney = value => {
+      const millions = Number(value || 0) / 1000000;
+      return millions.toLocaleString('fa-IR', {maximumFractionDigits: 1}) + ' میلیون';
+    };
 
     // loyal
     const L = S.loyalRange === 6 ? {tot:940, ret:611} : {tot:480, ret:300};
@@ -1262,7 +1284,12 @@ export default {
       // ctype
       cs1, cs2, cs3, cs4, ctLegend, ctTotal: fa(ctT),
       // roi
-      roiCost: mm(85*k), roiRev: mm(240*k), roiX: (2.8).toLocaleString('fa-IR'), roiOkTxt: '✓ هزینه برگشته', roiBars,
+      roiCost: roiData ? roiMoney(roiData.cost) : '—',
+      roiRev: roiData ? roiMoney(roiData.revenue) : '—',
+      roiX: roiData?.ratio == null ? '—' : Number(roiData.ratio).toLocaleString('fa-IR', {maximumFractionDigits: 2}),
+      roiOkTxt: roiData ? (roiData.cost <= 0 ? 'بدون هزینه ثبت‌شده' : (roiData.returned ? '✓ هزینه برگشته' : 'هزینه برنگشته')) : 'در حال محاسبه…',
+      roiBadgeStyle: 'border-radius:999px;padding:3px 12px;font-size:11.5px;font-weight:800;background:' + (!roiData || roiData.cost <= 0 ? '#f1f5f9' : (roiData.returned ? '#dcfce7' : '#fee2e2')) + ';color:' + (!roiData || roiData.cost <= 0 ? '#64748b' : (roiData.returned ? '#15803d' : '#b91c1c')),
+      roiBars,
       // loyal
       l3st: chip(S.loyalRange === 3), l6st: chip(S.loyalRange === 6),
       onL3: () => this.set({loyalRange: 3}), onL6: () => this.set({loyalRange: 6}),

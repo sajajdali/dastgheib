@@ -74,8 +74,15 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h18v11H3z"/><path d="m4 7 8 6 8-6"/></svg>
       </button>
       <div class="appointment-view-switch" role="tablist" aria-label="حالت نمایش نوبت‌ها">
-        <button type="button" role="tab" title="نمایش جدولی" aria-label="نمایش جدولی" :aria-selected="appointmentView === 'table'" :class="{ active: appointmentView === 'table' }" @click="appointmentView = 'table'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 5v14M15 5v14"/></svg></button>
-        <button type="button" role="tab" title="نمایش تایم‌لاین" aria-label="نمایش تایم‌لاین" :aria-selected="appointmentView === 'timeline'" :class="{ active: appointmentView === 'timeline' }" @click="appointmentView = 'timeline'"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></button>
+        <button type="button" role="tab" title="نمایش جدولی" aria-label="نمایش جدولی" :aria-selected="appointmentView === 'table'" :class="{ active: appointmentView === 'table' }" @click="switchAppointmentView('table')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 5v14M15 5v14"/></svg></button>
+        <button type="button" role="tab" title="نمایش تایم‌لاین" aria-label="نمایش تایم‌لاین" :aria-selected="appointmentView === 'timeline'" :class="{ active: appointmentView === 'timeline' }" @click="switchAppointmentView('timeline')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></button>
+      </div>
+      <div class="booking-timeline-filters table-booking-filters" aria-label="فیلتر جدولی وقت‌دهی خدمات">
+        <label><span>بخش</span><select v-model="draftBookingRootSectionFilter" @change="onDraftBookingRootSectionChanged"><option value="">همه بخش‌ها</option><option v-for="section in enabledBookingRootSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label><span>پزشک / اپراتور</span><select v-model="draftBookingResourceFilter"><option value="">همه منابع</option><option v-for="resource in bookingResourceFilterOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
+        <button type="button" class="booking-filter-apply" @click="applyBookingTimelineFilters">اعمال فیلتر</button>
+        <button v-if="bookingTimelineFilterActive" type="button" class="booking-filter-clear" @click="clearBookingTimelineFilters">پاک کردن</button>
       </div>
       <div v-if="showBestStaffCard" class="best-staff-month-card">
         <img v-if="bestStaffOfMonth.image" :src="bestStaffOfMonth.image" alt="">
@@ -1245,12 +1252,15 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h18v11H3z"/><path d="m4 7 8 6 8-6"/></svg>
       </button>
       <div class="appointment-view-switch" role="tablist" aria-label="حالت نمایش نوبت‌ها">
-        <button type="button" role="tab" title="نمایش جدولی" aria-label="نمایش جدولی" :aria-selected="appointmentView === 'table'" :class="{ active: appointmentView === 'table' }" @click="appointmentView = 'table'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 5v14M15 5v14"/></svg></button>
-        <button type="button" role="tab" title="نمایش تایم‌لاین" aria-label="نمایش تایم‌لاین" :aria-selected="appointmentView === 'timeline'" :class="{ active: appointmentView === 'timeline' }" @click="appointmentView = 'timeline'"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></button>
+        <button type="button" role="tab" title="نمایش جدولی" aria-label="نمایش جدولی" :aria-selected="appointmentView === 'table'" :class="{ active: appointmentView === 'table' }" @click="switchAppointmentView('table')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 5v14M15 5v14"/></svg></button>
+        <button type="button" role="tab" title="نمایش تایم‌لاین" aria-label="نمایش تایم‌لاین" :aria-selected="appointmentView === 'timeline'" :class="{ active: appointmentView === 'timeline' }" @click="switchAppointmentView('timeline')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></button>
       </div>
       <div class="booking-timeline-filters" aria-label="فیلتر وقت‌دهی خدمات">
-        <label><span>زیر‌بخش فعال</span><select v-model="bookingServiceFilter" :disabled="timelineScheduleLoading" @change="onBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌های فعال</option><option v-for="section in enabledBookingSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
-        <label><span>پزشک / اپراتور</span><select v-model="bookingResourceFilter" :disabled="timelineScheduleLoading" @change="onBookingResourceFilterChanged"><option value="">همه منابع</option><option v-for="resource in bookingResourceOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
+        <label><span>بخش</span><select v-model="draftBookingRootSectionFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingRootSectionChanged"><option value="">همه بخش‌ها</option><option v-for="section in enabledBookingRootSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label><span>پزشک / اپراتور</span><select v-model="draftBookingResourceFilter" :disabled="timelineScheduleLoading"><option value="">همه منابع</option><option v-for="resource in bookingResourceFilterOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
+        <button type="button" class="booking-filter-apply" :disabled="timelineScheduleLoading" @click="applyBookingTimelineFilters">{{ timelineScheduleLoading ? 'در حال اعمال…' : 'اعمال فیلتر' }}</button>
+        <button v-if="bookingTimelineFilterActive" type="button" class="booking-filter-clear" :disabled="timelineScheduleLoading" @click="clearBookingTimelineFilters">پاک کردن</button>
         <div class="booking-slot-filter"><button type="button" :class="{active: timelineSlotFilter === 'all'}" @click="timelineSlotFilter = 'all'">همه ساعت‌ها</button><button type="button" :class="{active: timelineSlotFilter === 'empty'}" @click="timelineSlotFilter = 'empty'">خالی</button><button type="button" :class="{active: timelineSlotFilter === 'filled'}" @click="timelineSlotFilter = 'filled'">پر</button></div>
       </div>
       <div v-if="showBestStaffCard" class="best-staff-month-card">
@@ -1319,7 +1329,7 @@
                 isAppointmentSearchResult(row) ? 'is-search-result' : '',
                 highlightedRowId === row._rowId ? 'is-highlighted' : ''
               ]"
-              :style="timelineBookingCardStyle()"
+              :style="timelineBookingCardStyle(row)"
               @click.stop="openTimelineAppointmentModal(day, row)"
             >
               <div class="timeline-time-chip">{{ timelineTimeLabel(row) }}</div>
@@ -2651,8 +2661,12 @@ export default {
         { key: 'welcome', icon: '🌿', title: 'پیام خوش‌آمدگویی', description: 'تشکر از مراجعه و خوش‌آمدگویی به مشتری' }
       ],
       inventoryItems: [],
+      bookingRootSectionFilter: "",
       bookingServiceFilter: "",
       bookingResourceFilter: "",
+      draftBookingRootSectionFilter: "",
+      draftBookingServiceFilter: "",
+      draftBookingResourceFilter: "",
       timelineScheduleLoading: false,
       timelineScheduleLoadRequest: 0,
       timelineScheduleLoadingTimer: null,
@@ -2787,32 +2801,26 @@ export default {
       });
       return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label, 'fa'));
     },
-    bookingResourceOptions() {
-      const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.bookingServiceFilter));
-      if (!section) return [];
-
-      const resources = section.services.flatMap(service => service.booking_resources || service.bookingResources || [])
-        .filter(resource => resource.active !== false);
-      const serviceSectionIds = this.serviceSectionScopeIds([section.id]);
-      const sectionDoctors = (this.doctors || [])
-        .filter(doctor => {
-          const doctorSectionIds = this.serviceSectionScopeIds(doctor.service_section_ids);
-          return doctorSectionIds.some(sectionId => serviceSectionIds.includes(sectionId));
-        })
-        .map(doctor => ({ role: 'doctor', doctor_id: doctor.id, name: doctor.name }));
-
-      const options = [...resources, ...sectionDoctors].map(resource => {
-        const role = resource.role === 'doctor' ? 'doctor' : 'staff';
-        const person = role === 'doctor' ? this.doctors.find(item => Number(item.id) === Number(resource.doctor_id)) : this.staff.find(item => Number(item.id) === Number(resource.staff_id));
-        const name = String(person?.name || resource.name || '').trim();
-        return {
-          value: `${role}:${resource.doctor_id || resource.staff_id}`,
-          label: `${name || 'منبع بدون نام'} (${role === 'doctor' ? 'پزشک' : 'اپراتور'})`,
-          name,
-          role
-        };
+    enabledBookingRootSectionOptions() {
+      const roots = new Map();
+      this.enabledBookingSectionOptions.forEach(section => {
+        const rootId = String(this.rootSectionIdFor(section.id) || section.id);
+        const root = (this.serviceSections || []).find(item => String(item.id) === rootId);
+        roots.set(rootId, { id: rootId, label: String(root?.name || this.bookingSectionPathLabel(rootId) || section.label) });
       });
-      return [...new Map(options.map(option => [option.value, option])).values()];
+      return [...roots.values()].sort((a, b) => a.label.localeCompare(b.label, 'fa'));
+    },
+    bookingSubsectionFilterOptions() {
+      return this.bookingSectionsForFilters(this.draftBookingRootSectionFilter, '');
+    },
+    bookingResourceOptions() {
+      return this.bookingResourcesForFilters(this.bookingRootSectionFilter, this.bookingServiceFilter);
+    },
+    bookingResourceFilterOptions() {
+      return this.bookingResourcesForFilters(this.draftBookingRootSectionFilter, this.draftBookingServiceFilter);
+    },
+    bookingTimelineFilterActive() {
+      return Boolean(this.bookingRootSectionFilter || this.bookingServiceFilter || this.bookingResourceFilter);
     },
 
     serviceFilterCount() {
@@ -3086,13 +3094,110 @@ export default {
   },
 
   methods: {
-    onBookingServiceFilterChanged() {
-      this.bookingResourceFilter = '';
-      this.refreshBookingTimelineSchedule();
+    async switchAppointmentView(view) {
+      if (!['table', 'timeline'].includes(view) || this.appointmentView === view) return;
+
+      if (view === 'timeline') {
+        this.appointmentView = 'timeline';
+        await this.refreshBookingTimelineSchedule();
+        return;
+      }
+
+      const requestId = (this._appointmentViewSwitchRequest || 0) + 1;
+      this._appointmentViewSwitchRequest = requestId;
+      const month = this.months[this.currentMonth];
+      const collapsedByDay = new Map(
+        this.days.map(day => [Number(day.dayNum), Boolean(day.collapsed)])
+      );
+
+      this.appointmentView = 'table';
+      if (!month) return;
+
+      // Timeline and table share the same rows, but their cached representation
+      // can be stale after edits or realtime events. Returning to the table must
+      // always reconcile the current month with the server, just like a refresh.
+      delete this.monthAppointmentsCache[month];
+      delete this.monthDaysCache[month];
+      await this.fetchData(true);
+      if (requestId !== this._appointmentViewSwitchRequest) return;
+
+      this.days.forEach(day => {
+        const dayNumber = Number(day.dayNum);
+        if (collapsedByDay.has(dayNumber)) day.collapsed = collapsedByDay.get(dayNumber);
+      });
+      this.syncAllDaysCollapsedState();
     },
 
-    onBookingResourceFilterChanged() {
-      this.refreshBookingTimelineSchedule();
+    bookingSectionsForFilters(rootSectionId = '', subsectionId = '') {
+      return this.enabledBookingSectionOptions.filter(section => {
+        if (subsectionId && String(section.id) !== String(subsectionId)) return false;
+        if (!rootSectionId) return true;
+        return String(this.rootSectionIdFor(section.id) || section.id) === String(rootSectionId);
+      });
+    },
+
+    bookingResourcesForFilters(rootSectionId = '', subsectionId = '') {
+      const sections = this.bookingSectionsForFilters(rootSectionId, subsectionId);
+      const resources = sections.flatMap(section => section.services)
+        .flatMap(service => service.booking_resources || service.bookingResources || [])
+        .filter(resource => resource.active !== false);
+      const sectionIds = [...new Set(sections.flatMap(section => this.serviceSectionScopeIds([section.id])))];
+      const sectionDoctors = (this.doctors || [])
+        .filter(doctor => {
+          if (!sectionIds.length) return true;
+          const doctorSectionIds = this.serviceSectionScopeIds(doctor.service_section_ids);
+          return doctorSectionIds.some(sectionId => sectionIds.includes(sectionId));
+        })
+        .map(doctor => ({ role: 'doctor', doctor_id: doctor.id, name: doctor.name }));
+
+      const options = [...resources, ...sectionDoctors].map(resource => {
+        const role = resource.role === 'doctor' ? 'doctor' : 'staff';
+        const person = role === 'doctor'
+          ? this.doctors.find(item => Number(item.id) === Number(resource.doctor_id))
+          : this.staff.find(item => Number(item.id) === Number(resource.staff_id));
+        const name = String(person?.name || resource.name || '').trim();
+        return {
+          value: `${role}:${resource.doctor_id || resource.staff_id}`,
+          label: `${name || 'منبع بدون نام'} (${role === 'doctor' ? 'پزشک' : 'اپراتور'})`,
+          name,
+          role
+        };
+      });
+      return [...new Map(options.map(option => [option.value, option])).values()]
+        .sort((a, b) => a.label.localeCompare(b.label, 'fa'));
+    },
+
+    onDraftBookingRootSectionChanged() {
+      const subsectionExists = this.bookingSubsectionFilterOptions.some(section => String(section.id) === String(this.draftBookingServiceFilter));
+      if (!subsectionExists) this.draftBookingServiceFilter = '';
+      const resourceExists = this.bookingResourceFilterOptions.some(resource => resource.value === this.draftBookingResourceFilter);
+      if (!resourceExists) this.draftBookingResourceFilter = '';
+    },
+
+    onDraftBookingServiceFilterChanged() {
+      if (this.draftBookingServiceFilter) {
+        const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.draftBookingServiceFilter));
+        this.draftBookingRootSectionFilter = String(this.rootSectionIdFor(section?.id) || section?.id || this.draftBookingRootSectionFilter);
+      }
+      const resourceExists = this.bookingResourceFilterOptions.some(resource => resource.value === this.draftBookingResourceFilter);
+      if (!resourceExists) this.draftBookingResourceFilter = '';
+    },
+
+    applyBookingTimelineFilters() {
+      this.bookingRootSectionFilter = this.draftBookingRootSectionFilter;
+      this.bookingServiceFilter = this.draftBookingServiceFilter;
+      this.bookingResourceFilter = this.draftBookingResourceFilter;
+      if (this.appointmentView === 'timeline') this.refreshBookingTimelineSchedule();
+    },
+
+    clearBookingTimelineFilters() {
+      this.draftBookingRootSectionFilter = '';
+      this.draftBookingServiceFilter = '';
+      this.draftBookingResourceFilter = '';
+      this.bookingRootSectionFilter = '';
+      this.bookingServiceFilter = '';
+      this.bookingResourceFilter = '';
+      if (this.appointmentView === 'timeline') this.refreshBookingTimelineSchedule();
     },
 
     async refreshBookingTimelineSchedule() {
@@ -3748,7 +3853,12 @@ export default {
     },
 
     timelineTimeLabel(row) {
-      return row?.time || "بدون ساعت";
+      const start = String(row?.time || '').slice(0, 5);
+      if (!start) return "بدون ساعت";
+      const span = this.timelineSlotSpan(row);
+      if (span <= 1 || this.isEmptyAppointmentRow(row)) return start;
+      const duration = this.bookingDurationMinutesForRow(row);
+      return `${start} تا ${this.timeFromMinutes(this.minutesFromTime(start) + duration)}`;
     },
 
     timelinePatientName(row) {
@@ -3796,7 +3906,7 @@ export default {
     },
 
     activeBookingTimelineColor() {
-      let sectionId = String(this.bookingServiceFilter || '');
+      let sectionId = String(this.bookingServiceFilter || this.bookingRootSectionFilter || '');
       const visited = new Set();
 
       // A leaf such as «آقایان» may inherit the chosen color from its nearest
@@ -3823,9 +3933,23 @@ export default {
       return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
     },
 
-    timelineBookingCardStyle() {
+    timelineSlotSpan(row) {
+      if (!row || this.isEmptyAppointmentRow(row) || !this.bookingServiceFilter) return 1;
+      const baseInterval = Math.max(1, Number(this.clinicSchedule.interval_minutes || 15));
+      const duration = Math.max(baseInterval, Number(this.bookingDurationMinutesForRow(row) || baseInterval));
+      return Math.max(1, Math.min(24, Math.ceil(duration / baseInterval)));
+    },
+
+    timelineBookingCardStyle(row = null) {
       const color = this.activeBookingTimelineColor();
-      if (!color) return {};
+      const style = {};
+      const span = this.timelineSlotSpan(row);
+      if (span > 1) {
+        const slotWidth = 126;
+        const slotGap = 8;
+        style['--timeline-card-width'] = `${(slotWidth * span) + (slotGap * (span - 1))}px`;
+      }
+      if (!color) return style;
       const hex = color.length === 4
         ? color.slice(1).split('').map(value => value + value).join('')
         : color.slice(1);
@@ -3834,6 +3958,7 @@ export default {
       const blue = parseInt(hex.slice(4, 6), 16);
       const useLightText = ((red * 299 + green * 587 + blue * 114) / 1000) < 145;
       return {
+        ...style,
         '--booking-service-color': color,
         '--booking-service-soft': this.colorWithAlpha(color, .15),
         '--booking-service-border': this.colorWithAlpha(color, .62),
@@ -3917,6 +4042,7 @@ export default {
       if (!draft) return;
 
       const subsectionId = String(this.bookingServiceFilter || '').trim();
+      const selectedRootSectionId = String(this.bookingRootSectionFilter || '').trim();
       if (subsectionId) {
         const rootSectionId = String(this.rootSectionIdFor(subsectionId) || subsectionId);
         draft.serviceTypes = [rootSectionId];
@@ -3925,6 +4051,8 @@ export default {
         }
         draft.services[0].sectionId = subsectionId;
         draft.services[0].rootSectionId = rootSectionId;
+      } else if (selectedRootSectionId) {
+        draft.serviceTypes = [selectedRootSectionId];
       }
 
       const [resourceType, resourceId] = String(this.bookingResourceFilter || '').split(':');
@@ -4065,6 +4193,13 @@ export default {
       draft.status = draft.status || 'وقت داده شد';
       draft.doctor = doctors.join('، ');
       draft.consultant = consultant;
+      // In the timeline form the consultant is selected once for the whole
+      // appointment. Keep an explicitly selected per-service consultant, but
+      // copy the appointment consultant to service lines that have none so
+      // commission calculations and server-side earning lines use it too.
+      (draft.services || []).forEach(service => {
+        if (!String(service.consultant || '').trim()) service.consultant = consultant;
+      });
 
       if (draft.sendAppointmentSms) draft.appointmentSms = 'انتظار';
       if (draft.sendInfoSms) draft.infoSms = 'انتظار';
@@ -4514,8 +4649,8 @@ export default {
         return;
       }
       if (['کنسل شد', 'پاسخ نداد', 'پیگیری'].includes(status)) {
-        const scheduled = await this.promptAppointmentFollowup(row, status);
-        if (!scheduled) { event.target.value = row.status || ''; return; }
+        const followupChoice = await this.promptAppointmentFollowup(row, status);
+        if (followupChoice === 'cancelled') { event.target.value = row.status || ''; return; }
       }
       row.status = status;
       this.onStatusChanged(row);
@@ -4547,27 +4682,32 @@ export default {
 
     async promptAppointmentFollowup(row, reason) {
       if (!row?.appointmentId) {
-        if (!await this.persistDirectAppointment(row)) return false;
+        if (!await this.persistDirectAppointment(row)) return 'cancelled';
       }
-      if (!row?.appointmentId) return false;
+      if (!row?.appointmentId) return 'cancelled';
       const days = (row.services || []).map(s => Number(this.getServiceData(s)?.followup_days || 0)).filter(Boolean);
       const defaultDate = this.nextActiveFollowupDate(Math.max(1, days.length ? Math.max(...days) : 1));
       const result = await Swal.fire({
         icon: 'question', title: 'ثبت پیگیری بعدی',
         text: `این نوبت در وضعیت «${reason}» قرار می‌گیرد. اگر تمایل دارید بعداً پیگیری کنید، تاریخ پیگیری را وارد کنید.`,
         input: 'select', inputOptions: this.activeFollowupDateOptions(), inputValue: defaultDate,
-        showCancelButton: true, confirmButtonText: 'ثبت در پیگیری‌ها', cancelButtonText: 'انصراف'
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'ثبت در پیگیری‌ها',
+        denyButtonText: 'نمی‌خواهم پیگیری کنم',
+        cancelButtonText: 'انصراف از تغییر'
       });
-      if (!result.isConfirmed || !result.value) return false;
+      if (result.isDenied) return 'without-followup';
+      if (!result.isConfirmed || !result.value) return 'cancelled';
       try {
         const { data } = await axios.post(`/api/appointments/${row.appointmentId}/followups`, { due_date: result.value, reason });
         const replaced = (data.followups || []).some(item => item.replaced);
         await Swal.fire({ icon: 'success', title: replaced ? 'تاریخ پیگیری به‌روزرسانی شد' : 'پیگیری ثبت شد', timer: 1000, showConfirmButton: false });
         row.nextFollowupDate = result.value;
-        return true;
+        return 'scheduled';
       } catch (error) {
         await Swal.fire({ icon:'error', title:'ثبت پیگیری انجام نشد', text: this.saveErrorMessage(error) });
-        return false;
+        return 'cancelled';
       }
     },
 
@@ -4668,8 +4808,8 @@ export default {
     async onDoneChanged(row) {
       const done = String(row.done || '').trim();
       if (done === 'مشاوره') {
-        const scheduled = await this.promptAppointmentFollowup(row, 'مشاوره');
-        if (!scheduled) { row.done = ''; return; }
+        const followupChoice = await this.promptAppointmentFollowup(row, 'مشاوره');
+        if (followupChoice === 'cancelled') { row.done = ''; return; }
       }
       if (!this.isCompletedAppointmentDone(done)) {
         row.completedAt = "";
@@ -5031,7 +5171,8 @@ export default {
         const doctorPercent = Number(doctor?.bonus || 0);
         const doctorWage = this.commissionBase(doctor, row, serviceAmount, materialCost) * (doctorPercent / 100);
 
-        const consultant = this.staff.find(s => s.name === service.consultant);
+        const consultantName = String(service.consultant || row.consultant || row.timelineConsultant || '').trim();
+        const consultant = this.staff.find(s => String(s.name || '').trim() === consultantName);
         const staffPercent = Number(consultant?.bonus || 0);
         const staffCommission = this.commissionBase(consultant, row, serviceAmount, materialCost) * (staffPercent / 100);
 
@@ -5738,10 +5879,10 @@ export default {
 
         doctorShare += this.commissionBase(doctor, row, serviceAmount, materialCost) * (doctorPercent / 100);
 
-        const consultant =
-          this.staff.find(
-            s => s.name === service.consultant
-          );
+        const consultantName = String(service.consultant || row.consultant || row.timelineConsultant || '').trim();
+        const consultant = this.staff.find(
+          s => String(s.name || '').trim() === consultantName
+        );
 
         const consultantPercent =
           Number(consultant?.bonus || 0);
@@ -8458,18 +8599,21 @@ this.calculateFinalAmount(row)
     },
 
     bookingScheduleAllowsRow(day, row) {
-      if (this.appointmentView !== 'timeline' || !this.bookingServiceFilter) return true;
-      const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.bookingServiceFilter));
-      if (!section) return true;
+      if (this.appointmentView !== 'timeline' || !this.bookingTimelineFilterActive) return true;
+      const sections = this.bookingSectionsForFilters(this.bookingRootSectionFilter, this.bookingServiceFilter);
+      if (!sections.length && !this.bookingResourceFilter) return true;
 
       // Never make an already registered appointment disappear merely because
       // its time is not aligned with the newly selected booking interval.
       if (!this.isEmptyAppointmentRow(row)) return true;
 
-      let resources = section.services.flatMap(service => service.booking_resources || service.bookingResources || []);
+      let resources = sections.flatMap(section => section.services)
+        .flatMap(service => service.booking_resources || service.bookingResources || []);
       if (this.bookingResourceFilter) {
         const [type, id] = String(this.bookingResourceFilter).split(':');
-        resources = resources.filter(resource => type === 'doctor' ? Number(resource.doctor_id) === Number(id) : Number(resource.staff_id) === Number(id));
+        resources = resources.filter(resource => type === 'doctor'
+          ? resource.role === 'doctor' && Number(resource.doctor_id) === Number(id)
+          : resource.role !== 'doctor' && Number(resource.staff_id) === Number(id));
       }
       const availabilities = resources.flatMap(resource => resource.availabilities || []).filter(item => item.active !== false);
       const month = this.months[this.currentMonth];
@@ -8498,6 +8642,7 @@ this.calculateFinalAmount(row)
     },
 
     activeBookingServicesForDuration() {
+      if (!this.bookingServiceFilter) return [];
       const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.bookingServiceFilter));
       if (!section) return [];
       if (!this.bookingResourceFilter) return section.services;
@@ -8611,17 +8756,16 @@ this.calculateFinalAmount(row)
         const cardOk = !this.amountFilterCardOnly || this.normalizePaymentDetails(row?.paymentDetails || {}).card > 0;
         const debtorOk = !this.amountFilterDebtorsOnly || this.isDebtor(row);
         const hasAppointment = !this.isEmptyAppointmentRow(row);
-        const bookingServiceOk = !this.bookingServiceFilter || !hasAppointment || services.some(service => {
+        const keepEmptyBookingSlot = this.appointmentView === 'timeline' && !hasAppointment;
+        const bookingRootSectionOk = !this.bookingRootSectionFilter || keepEmptyBookingSlot || services.some(service => {
+          const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
+          return String(this.rootSectionIdFor(sectionId) || sectionId || '') === String(this.bookingRootSectionFilter);
+        });
+        const bookingServiceOk = !this.bookingServiceFilter || keepEmptyBookingSlot || services.some(service => {
           const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
           return String(sectionId || '') === String(this.bookingServiceFilter);
         });
-        const bookingResourceOk = !this.bookingResourceFilter || !hasAppointment || (() => {
-          const [type, id] = String(this.bookingResourceFilter).split(':');
-          const name = type === 'doctor' ? this.doctors.find(item => Number(item.id) === Number(id))?.name : this.staff.find(item => Number(item.id) === Number(id))?.name;
-          return type === 'doctor'
-            ? String(row.doctor || '').trim() === String(name || '').trim() || services.some(service => String(service.doctor || '').trim() === String(name || '').trim())
-            : String(row.consultant || '').trim() === String(name || '').trim() || services.some(service => String(service.consultant || '').trim() === String(name || '').trim());
-        })();
+        const bookingResourceOk = !this.bookingResourceFilter || keepEmptyBookingSlot || this.bookingRowMatchesSelectedResource(row);
         const timelineSlotOk = this.appointmentView !== 'timeline' || this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
         const bookingScheduleOk = this.bookingScheduleAllowsRow(day, row);
         const bookingCapacityOk = !this.bookingSlotIsOccupied(day, row);
@@ -8633,7 +8777,7 @@ this.calculateFinalAmount(row)
           (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
         );
 
-        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
+        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingRootSectionOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
       });
 
       rows = rows
@@ -9104,6 +9248,10 @@ smsColor(val) {
 .booking-timeline-filters { display:flex; align-items:end; gap:7px; padding:6px 8px; border:1px solid #dbe5f1; border-radius:11px; background:#fff; box-shadow:0 3px 12px rgba(15,23,42,.05); }
 .booking-timeline-filters label { display:grid; gap:3px; color:#64748b; font-size:9px; font-weight:800; }
 .booking-timeline-filters select { width:155px; min-height:31px; padding:4px 8px; border:1px solid #dbe5f1; border-radius:8px; background:#f8fafc; color:#334155; font-family:inherit; font-size:10px; }
+.booking-filter-apply,.booking-filter-clear { min-height:31px; padding:0 11px; border-radius:8px; font-family:inherit; font-size:9px; font-weight:900; cursor:pointer; white-space:nowrap; }
+.booking-filter-apply { border:1px solid #2563eb; background:#2563eb; color:#fff; box-shadow:0 3px 8px rgba(37,99,235,.2); }
+.booking-filter-clear { border:1px solid #cbd5e1; background:#fff; color:#64748b; }
+.booking-filter-apply:disabled,.booking-filter-clear:disabled { opacity:.58; cursor:wait; }
 .booking-slot-filter { display:flex; gap:2px; padding:2px; border-radius:8px; background:#eef2f7; }
 .booking-slot-filter button { min-height:27px; padding:0 8px; border:0; border-radius:6px; background:transparent; color:#64748b; font-family:inherit; font-size:9px; font-weight:900; cursor:pointer; }
 .booking-slot-filter button.active { background:#2563eb; color:#fff; box-shadow:0 3px 8px rgba(37,99,235,.22); }
@@ -11860,8 +12008,8 @@ td.st-arrived select {
 
 .appointment-timeline .timeline-card,
 .appointment-timeline .timeline-add-card {
-  flex: 0 0 126px !important;
-  width: 126px !important;
+  flex: 0 0 var(--timeline-card-width, 126px) !important;
+  width: var(--timeline-card-width, 126px) !important;
   height: 142px;
   border-radius: 10px;
 }
@@ -12042,10 +12190,15 @@ td.st-arrived select {
 .main-schedule-table tr.search-result-row textarea {
   opacity:1!important;
   border-color:#a16207!important;
-  background:#fff!important;
+  background:#fde047!important;
   color:#111827!important;
   -webkit-text-fill-color:#111827!important;
   font-weight:900!important;
+}
+.main-schedule-table tr.search-highlight-row input,
+.main-schedule-table tr.search-highlight-row select,
+.main-schedule-table tr.search-highlight-row textarea {
+  background:#facc15!important;
 }
 .main-schedule-table tr.search-result-row input:disabled,
 .main-schedule-table tr.search-result-row select:disabled,

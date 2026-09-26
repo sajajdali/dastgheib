@@ -324,7 +324,10 @@
                   </button>
                 </td>
                 <td>
+                  <div class="row-actions">
+                    <button class="row-duplicate" type="button" title="کپی کامل خدمت" aria-label="کپی کامل خدمت" @click.stop="duplicateRow(row)">⧉</button>
                   <button class="row-remove" type="button" @click.stop="removeRow(row, index)">×</button>
+                  </div>
                 </td>
               </tr>
 
@@ -529,7 +532,24 @@
           <div class="booking-steps"><button v-for="item in [{id:1,title:'تنظیمات پایه',icon:'⚙'},{id:2,title:'منابع وقت‌دهی',icon:'♙'},{id:3,title:'روز و ساعت حضور',icon:'▦'},{id:4,title:'رزرو آنلاین',icon:'◎'}]" :key="item.id" type="button" :class="{active: bookingModal.step === item.id, done: bookingModal.step > item.id}" @click="bookingModal.step = item.id"><span>{{ bookingModal.step > item.id ? '✓' : item.icon }}</span><small>{{ item.title }}</small></button></div>
           <div v-if="bookingModal.step === 1" class="booking-pane"><div class="booking-pane-title"><div><h4>قوانین اصلی خدمت</h4><p>مشخص کنید این خدمت چگونه در تقویم مدیریت شود.</p></div><span class="booking-number">۱</span></div><div class="booking-card-grid"><label>فاصله بین نوبت‌ها (دقیقه)<input v-model.number="bookingModal.settings.slot_interval_minutes" type="number" min="5" placeholder="از تنظیمات کلینیک"></label><label>انتخاب پزشک یا اپراتور<select v-model="bookingModal.settings.assignment_mode"><option value="auto">انتخاب خودکار توسط سیستم</option><option value="manual">انتخاب دستی توسط منشی</option></select></label><label class="booking-toggle"><input v-model="bookingModal.settings.use_default_schedule" type="checkbox"><span><b>برنامه پیش‌فرض کلینیک</b><small>اگر برنامه اختصاصی نداشته باشد</small></span></label><label class="booking-toggle"><input v-model="bookingModal.settings.conflict_check_enabled" type="checkbox"><span><b>جلوگیری از تداخل</b><small>نوبت هم‌زمان ثبت نشود</small></span></label></div><div class="booking-info-box">هر خدمتی که اینجا تنظیم کنید، در تقویم نوبت‌دهی با همین قوانین نمایش داده می‌شود.</div></div>
           <div v-if="bookingModal.step === 2" class="booking-pane"><div class="booking-pane-title"><div><h4>پزشکان و اپراتورها</h4><p>یک خدمت می‌تواند هم‌زمان به چند پزشک و اپراتور متصل باشد.</p></div><span class="booking-number">۲</span></div><div class="booking-resource-cards"><article v-for="(resource,index) in bookingModal.resources" :key="resource._key || index" class="booking-resource-card"><div class="resource-card-top"><span class="resource-avatar">{{ resource.role === 'doctor' ? 'پ' : 'ا' }}</span><select v-model="resource.role"><option value="doctor">پزشک</option><option value="operator">اپراتور</option></select><button type="button" class="resource-remove" @click="bookingModal.resources.splice(index,1)">حذف</button></div><select v-if="resource.role === 'doctor'" v-model="resource.doctor_id" @change="applyDoctorSchedule(resource)"><option :value="null">انتخاب پزشک</option><option v-for="doctor in doctors" :key="doctor.id" :value="doctor.id">{{ doctor.name }}</option></select><select v-else v-model="resource.staff_id"><option :value="null">انتخاب اپراتور</option><option v-for="person in staff" :key="person.id" :value="person.id">{{ person.name }}</option></select><label class="resource-active"><input v-model="resource.active" type="checkbox"> برای رزرو فعال باشد</label></article><button class="add-resource-card" type="button" @click="addBookingResource">+ افزودن پزشک یا اپراتور</button></div></div>
-          <div v-if="bookingModal.step === 3" class="booking-pane"><div class="booking-pane-title"><div><h4>روزها و ساعت حضور</h4><p>ساعت‌ها از منابع و روزهای حضور پزشک نمایش داده می‌شود.</p></div><span class="booking-number">۳</span></div><div v-for="(resource,index) in bookingModal.resources" :key="resource._key || index" class="schedule-resource"><div class="schedule-resource-head"><strong>{{ resource.name || (resource.role === 'doctor' ? 'پزشک انتخاب‌شده' : 'اپراتور انتخاب‌شده') }}</strong><button class="text-btn ghost" type="button" @click="addBookingAvailability(resource)">+ افزودن ساعت‌های پیش‌فرض</button></div><div v-for="(availability,aIndex) in (resource.availabilities || [])" :key="aIndex" class="availability-card"><select v-model.number="availability.weekday"><option v-for="day in [{v:0,t:'شنبه'},{v:1,t:'یکشنبه'},{v:2,t:'دوشنبه'},{v:3,t:'سه‌شنبه'},{v:4,t:'چهارشنبه'},{v:5,t:'پنجشنبه'},{v:6,t:'جمعه'}]" :key="day.v" :value="day.v">{{ day.t }}</option></select><input v-model="availability.start_time" type="time"><span>تا</span><input v-model="availability.end_time" type="time"><button type="button" class="resource-remove" @click="resource.availabilities.splice(aIndex,1)">حذف</button><div class="break-list"><div v-for="(breakItem,bIndex) in (availability.breaks || [])" :key="bIndex" class="break-chip">استراحت <input v-model="breakItem.start_time" type="time"><span>تا</span><input v-model="breakItem.end_time" type="time"><button type="button" @click="availability.breaks.splice(bIndex,1)">×</button></div><button class="break-add" type="button" @click="addBookingBreak(availability)">+ افزودن زمان استراحت</button></div></div><p v-if="!resource.availabilities?.length" class="empty-schedule">برای این منبع هنوز برنامه‌ای تعریف نشده است.</p></div><div v-if="!bookingModal.resources.length" class="booking-info-box">ابتدا در مرحله قبل حداقل یک پزشک یا اپراتور اضافه کنید.</div></div>
+          <div v-if="bookingModal.step === 3" class="booking-pane">
+            <div class="booking-pane-title"><div><h4>روزها و ساعت حضور</h4><p>هر هفت روز نمایش داده می‌شوند؛ فقط روزهای موردنظر را فعال کنید.</p></div><span class="booking-number">۳</span></div>
+            <div v-for="(resource,index) in bookingModal.resources" :key="resource._key || index" class="schedule-resource weekly-schedule-resource">
+              <div class="schedule-resource-head">
+                <div><strong>{{ bookingResourceName(resource) }}</strong><small>{{ activeBookingDayCount(resource).toLocaleString('fa-IR') }} روز فعال</small></div>
+                <button v-if="resource.role === 'doctor' && resource.doctor_id" class="text-btn ghost" type="button" @click="applyDoctorSchedule(resource)">اعمال روزهای پزشک</button>
+              </div>
+              <div class="weekly-schedule-list">
+                <div v-for="availability in resource.availabilities" :key="availability.weekday" class="availability-card weekly-day-card" :class="{ active: availability.active }">
+                  <label class="weekly-day-toggle"><input v-model="availability.active" type="checkbox"><span></span><b>{{ bookingWeekDayLabel(availability.weekday) }}</b></label>
+                  <div class="weekly-day-times"><input v-model="availability.start_time" type="time" :disabled="!availability.active"><span>تا</span><input v-model="availability.end_time" type="time" :disabled="!availability.active"></div>
+                  <div v-if="availability.active" class="break-list"><div v-for="(breakItem,bIndex) in (availability.breaks || [])" :key="bIndex" class="break-chip">استراحت <input v-model="breakItem.start_time" type="time"><span>تا</span><input v-model="breakItem.end_time" type="time"><button type="button" @click="availability.breaks.splice(bIndex,1)">×</button></div><button class="break-add" type="button" @click="addBookingBreak(availability)">+ زمان استراحت</button></div>
+                  <small v-else class="weekly-day-off">تعطیل / غیرفعال</small>
+                </div>
+              </div>
+            </div>
+            <div v-if="!bookingModal.resources.length" class="booking-info-box">ابتدا در مرحله قبل حداقل یک پزشک یا اپراتور اضافه کنید.</div>
+          </div>
           <div v-if="bookingModal.step === 4" class="booking-pane booking-online-pane"><div class="booking-pane-title"><div><h4>تنظیمات رزرو آنلاین</h4><p>مشخص کنید کاربران سایت چه زمانی و با چه شرایطی بتوانند رزرو کنند.</p></div><span class="booking-number">۴</span></div><div class="booking-card-grid"><label class="booking-toggle wide"><input v-model="bookingModal.settings.online_enabled" type="checkbox"><span><b>نمایش این خدمت در سایت</b><small>کاربران بتوانند این خدمت را آنلاین ببینند</small></span></label><label class="booking-toggle"><input v-model="bookingModal.settings.online_payment_enabled" type="checkbox"><span><b>پرداخت آنلاین</b><small>پرداخت هنگام رزرو</small></span></label><label class="booking-toggle"><input v-model="bookingModal.settings.online_cancellation_enabled" type="checkbox"><span><b>لغو توسط کاربر</b><small>اجازه لغو رزرو</small></span></label><label class="booking-field-card"><span>رزرو از چند روز بعد</span><small>کاربر از چند روز بعد بتواند رزرو کند</small><input v-model.number="bookingModal.settings.booking_start_after_days" type="number" min="0"></label><label class="booking-field-card"><span>رزرو تا چند روز آینده</span><small>بازه قابل مشاهده در سایت</small><input v-model.number="bookingModal.settings.booking_available_days" type="number" min="1"></label><label v-if="bookingModal.settings.online_enabled" class="booking-field-card"><span>ساعت شروع سایت</span><small>شروع پذیرش رزرو آنلاین</small><input v-model="bookingModal.settings.online_start_time" type="time"></label><label v-if="bookingModal.settings.online_enabled" class="booking-field-card"><span>ساعت پایان سایت</span><small>پایان پذیرش رزرو آنلاین</small><input v-model="bookingModal.settings.online_end_time" type="time"></label></div></div>
           <div class="booking-wizard-footer"><button class="text-btn ghost" type="button" @click="closeBookingSettings">انصراف</button><div><button v-if="bookingModal.step > 1" class="text-btn ghost" type="button" @click="bookingModal.step--">مرحله قبل</button><button v-if="bookingModal.step < 4" class="booking-primary-btn" type="button" @click="bookingModal.step++">مرحله بعد</button><button v-else class="booking-primary-btn" type="button" :disabled="bookingModal.saving" @click="saveBookingSettings">{{ bookingModal.saving ? 'در حال ذخیره...' : 'ذخیره تنظیمات' }}</button></div></div>
         </template>
@@ -914,7 +934,11 @@ export default {
         const { data } = await axios.get(`${API}/inventory/${row.id}/booking-settings`)
         const payload = data.data || data
         this.bookingModal.settings = { ...(payload.settings || {}) }
-        this.bookingModal.resources = (payload.resources || []).map((item, index) => ({ ...item, _key: `booking-resource-${item.id || index}`, availabilities: item.availabilities || [] }))
+        this.bookingModal.resources = (payload.resources || []).map((item, index) => ({
+          ...item,
+          _key: `booking-resource-${item.id || index}`,
+          availabilities: this.completeBookingWeek(item.availabilities || [])
+        }))
         this.bookingModal.exceptions = payload.exceptions || []
         this.bookingModal.rules = payload.rules || []
         this.bookingModal.scheduleJson = JSON.stringify(this.bookingModal.resources.flatMap((resource, resourceIndex) => (resource.availabilities || []).map(availability => ({ resource_index: resourceIndex, weekday: availability.weekday, start_time: availability.start_time, end_time: availability.end_time, slot_interval_minutes: availability.slot_interval_minutes, breaks: availability.breaks || [] }))), null, 2)
@@ -951,26 +975,38 @@ export default {
       const doctorDays = Array.isArray(doctor?.available_days) ? doctor.available_days : []
       const normalizedDoctorDays = doctorDays.map(day => String(day).trim().toLowerCase()).map(day => ({ "شنبه": "saturday", "یکشنبه": "sunday", "دوشنبه": "monday", "سه شنبه": "tuesday", "سه‌شنبه": "tuesday", "چهارشنبه": "wednesday", "پنجشنبه": "thursday", "جمعه": "friday" }[day] || day).replace(" ", ""))
       const activeDays = normalizedDoctorDays.length ? normalizedDoctorDays.filter(day => dayMap[day] !== undefined) : (Array.isArray(schedule.active_days) && schedule.active_days.length ? schedule.active_days : Object.keys(dayMap))
-      return activeDays.map(day => {
+      return Object.entries(dayMap).map(([day, weekday]) => {
         const times = schedule.day_times?.[day] || { start: "09:00", end: "17:00" }
-        return { weekday: dayMap[day] ?? 0, start_time: String(times.start || "09:00").slice(0, 5), end_time: String(times.end || "17:00").slice(0, 5), slot_interval_minutes: schedule.interval_minutes || null, active: true, breaks: [] }
+        return { weekday, start_time: String(times.start || "09:00").slice(0, 5), end_time: String(times.end || "17:00").slice(0, 5), slot_interval_minutes: schedule.interval_minutes || null, active: activeDays.includes(day), breaks: [] }
       })
     },
+    completeBookingWeek(availabilities = []) {
+      const existing = new Map((availabilities || []).map(item => [Number(item.weekday), item]))
+      const defaults = this.defaultBookingAvailabilities()
+      return defaults.map(day => {
+        const saved = existing.get(Number(day.weekday))
+        return saved
+          ? { ...day, ...saved, weekday: Number(day.weekday), active: saved.active !== false, breaks: Array.isArray(saved.breaks) ? saved.breaks : [] }
+          : { ...day, active: false }
+      })
+    },
+    bookingWeekDayLabel(weekday) {
+      return ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'][Number(weekday)] || 'روز'
+    },
+    bookingResourceName(resource) {
+      if (resource?.role === 'doctor') return this.doctors.find(item => Number(item.id) === Number(resource.doctor_id))?.name || resource?.name || 'پزشک انتخاب‌شده'
+      return this.staff.find(item => Number(item.id) === Number(resource?.staff_id))?.name || resource?.name || 'اپراتور انتخاب‌شده'
+    },
+    activeBookingDayCount(resource) {
+      return (resource?.availabilities || []).filter(item => item.active !== false).length
+    },
     addBookingResource() {
-      const resource = { role: "doctor", doctor_id: null, staff_id: null, active: true, sort_order: this.bookingModal.resources.length, availabilities: [], _key: `new-${Date.now()}` }
+      const resource = { role: "doctor", doctor_id: null, staff_id: null, active: true, sort_order: this.bookingModal.resources.length, availabilities: this.completeBookingWeek([]), _key: `new-${Date.now()}` }
       this.bookingModal.resources.push(resource)
     },
     applyDoctorSchedule(resource) {
       if (resource?.role !== "doctor" || !resource.doctor_id) return
       resource.availabilities = this.defaultBookingAvailabilities(resource)
-    },
-    addBookingAvailability(resource) {
-      resource.availabilities ||= []
-      if (!resource.availabilities.length) {
-        resource.availabilities.push(...this.defaultBookingAvailabilities(resource))
-        return
-      }
-      resource.availabilities.push({ weekday: 0, start_time: "09:00", end_time: "17:00", slot_interval_minutes: this.clinicSchedule.interval_minutes || null, active: true, breaks: [] })
     },
     addBookingBreak(availability) {
       availability.breaks ||= []
@@ -1628,6 +1664,45 @@ export default {
       this.rows.splice(index, 1)
       if (this.selectedRow?.localId === row.localId) {
         this.selectedRow = this.activeSectionRows[0] || null
+      }
+    },
+
+    async duplicateRow(sourceRow) {
+      let row = sourceRow
+      if (!row?.id || this.hasUnsavedChanges) {
+        const sourceName = String(row?.name || '').trim()
+        await this.saveData(false)
+        if (this.hasUnsavedChanges) return
+        await this.fetchData({ keepState: true })
+        row = this.rows.find(item => item.name === sourceName)
+      }
+      if (!row?.id) return
+
+      const result = await Swal.fire({
+        title: 'کپی کامل خدمت',
+        text: `تمام مشخصات و تنظیمات وقت‌دهی «${row.name || 'خدمت'}» کپی می‌شود.`,
+        input: 'text',
+        inputLabel: 'نام خدمت جدید',
+        inputPlaceholder: 'نام دلخواه را وارد کنید',
+        inputValue: row.name ? `${row.name} - کپی` : '',
+        showCancelButton: true,
+        confirmButtonText: 'ایجاد نسخه کپی',
+        cancelButtonText: 'انصراف',
+        reverseButtons: true,
+        inputValidator: value => String(value || '').trim() ? undefined : 'نام خدمت جدید را وارد کنید.'
+      })
+      if (!result.isConfirmed) return
+
+      const newName = String(result.value || '').trim()
+      try {
+        await axios.post(`${API}/inventory/${row.id}/duplicate`, { name: newName })
+        await this.fetchData({ keepState: true })
+        const copiedRow = this.rows.find(item => item.name === newName)
+        if (copiedRow) this.selectRow(copiedRow)
+        await Swal.fire({ icon: 'success', toast: true, position: 'top-end', timer: 2200, showConfirmButton: false, title: 'خدمت با تمام تنظیمات کپی شد' })
+      } catch (error) {
+        const validationMessage = error?.response?.data?.errors?.name?.[0]
+        await Swal.fire({ icon: 'error', title: 'کپی انجام نشد', text: validationMessage || error?.response?.data?.message || 'دوباره تلاش کنید.' })
       }
     },
 
@@ -2701,8 +2776,12 @@ table {
 }
 
 .action-col {
-  width: 44px;
+  width: 76px;
 }
+
+.row-actions { display:flex; align-items:center; justify-content:center; gap:5px; }
+.row-duplicate { width:30px; height:30px; display:grid; place-items:center; padding:0; border:1px solid #bfdbfe; border-radius:8px; background:#eff6ff; color:#2563eb; font-family:inherit; font-size:16px; font-weight:900; cursor:pointer; }
+.row-duplicate:hover { border-color:#60a5fa; background:#dbeafe; color:#1d4ed8; }
 
 .booking-table-cell {
   width: 100%;
@@ -3483,6 +3562,27 @@ select:focus {
 .booking-online-pane .booking-card-grid { gap:12px; }.booking-online-pane .booking-toggle { min-height:55px; box-sizing:border-box; }.booking-field-card { min-height:79px; box-sizing:border-box; padding:10px 11px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; }.booking-field-card > span { color:#334155; font-size:11px; font-weight:800; }.booking-field-card small { display:block; min-height:25px; margin-top:3px; line-height:1.6; }.booking-field-card input { width:100%; margin-top:5px; }
 .booking-resource-cards { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }.booking-resource-card { padding:11px; border:1px solid #e4ebf4; border-radius:11px; background:#fff; box-shadow:0 3px 10px #1e293b08; }.resource-card-top { display:flex; align-items:center; gap:6px; margin-bottom:8px; }.resource-avatar { width:25px; height:25px; display:grid; place-items:center; border-radius:8px; background:#dbeafe; color:#1d4ed8; font-size:11px; font-weight:900; }.resource-card-top select { flex:1; border:0; font-size:11px; font-weight:800; color:#334155; background:transparent; }.booking-resource-card > select { width:100%; min-height:32px; border:1px solid #dbe4ef; border-radius:8px; padding:7px; font-size:11px; }.resource-remove { border:0; background:transparent; color:#ef4444; cursor:pointer; font-size:10px; }.resource-active { display:block; margin-top:7px; color:#64748b; font-size:10px; }.add-resource-card { min-height:105px; border:1px dashed #93c5fd; border-radius:11px; color:#2563eb; background:#f8fbff; cursor:pointer; font-size:11px; font-weight:800; }
 .schedule-resource { margin-bottom:10px; padding:10px; border:1px solid #e4ebf4; border-radius:11px; }.schedule-resource-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; font-size:11px; }.availability-card { display:grid; grid-template-columns:1.1fr 1fr auto 1fr auto; gap:6px; align-items:center; padding:7px; margin-top:6px; border-radius:8px; background:#f8fafc; }.break-list { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:5px; padding-top:3px; }.break-chip { display:flex; align-items:center; gap:3px; padding:4px 5px; border-radius:6px; color:#92400e; background:#fef3c7; font-size:10px; }.break-chip input { min-height:25px; padding:3px; border-color:#fcd34d; }.break-chip button { border:0; background:none; color:#b45309; cursor:pointer; }.break-add { border:0; background:transparent; color:#b45309; cursor:pointer; font-size:10px; }.empty-schedule { margin:6px 0 0; color:#94a3b8; font-size:10px; }
+.weekly-schedule-resource { padding:13px; background:#fbfdff; }
+.weekly-schedule-resource .schedule-resource-head > div { display:grid; gap:3px; }
+.weekly-schedule-resource .schedule-resource-head strong { color:#1e293b; font-size:12px; }
+.weekly-schedule-resource .schedule-resource-head small { color:#64748b; font-size:9px; }
+.weekly-schedule-list { display:grid; gap:7px; }
+.availability-card.weekly-day-card { grid-template-columns:150px 230px minmax(120px,1fr); gap:10px; min-height:48px; margin:0; padding:9px 11px; border:1px solid #e2e8f0; background:#f8fafc; transition:.16s; }
+.availability-card.weekly-day-card.active { border-color:#93c5fd; background:#eff6ff; box-shadow:inset -3px 0 0 #2563eb; }
+.weekly-day-toggle { display:flex; align-items:center; gap:8px; cursor:pointer; }
+.weekly-day-toggle input { position:absolute; opacity:0; pointer-events:none; }
+.weekly-day-toggle span { position:relative; width:34px; height:19px; flex:0 0 34px; border-radius:999px; background:#cbd5e1; transition:.16s; }
+.weekly-day-toggle span::after { content:""; position:absolute; top:3px; right:3px; width:13px; height:13px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(15,23,42,.25); transition:.16s; }
+.weekly-day-toggle input:checked + span { background:#2563eb; }
+.weekly-day-toggle input:checked + span::after { transform:translateX(-15px); }
+.weekly-day-toggle b { color:#475569; font-size:11px; }
+.weekly-day-card.active .weekly-day-toggle b { color:#1d4ed8; }
+.weekly-day-times { display:flex; align-items:center; gap:7px; }
+.weekly-day-times input { width:96px; direction:ltr; }
+.weekly-day-times input:disabled { opacity:.5; background:#e2e8f0; cursor:not-allowed; }
+.weekly-day-card .break-list { grid-column:3; padding:0; }
+.weekly-day-off { color:#94a3b8; font-size:9px; text-align:right; }
+@media(max-width:760px){.availability-card.weekly-day-card{grid-template-columns:1fr}.weekly-day-card .break-list{grid-column:1}.weekly-day-times input{flex:1;width:auto}}
 .booking-wizard-footer { display:flex; justify-content:space-between; align-items:center; padding:12px 20px 16px; border-top:1px solid #e8eef7; }.booking-wizard-footer > div { display:flex; gap:6px; }
 .booking-settings-grid label, .booking-json-label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: #475569; }
 .booking-settings-grid input, .booking-settings-grid select, .booking-json-label textarea, .booking-resource-row select { border: 1px solid #dbe4ef; border-radius: 10px; padding: 9px; background: #fff; }

@@ -10,6 +10,7 @@
             <button type="button" class="followup-action create-action" title="ایجاد کمپین" aria-label="ایجاد کمپین" @click.stop="openCreateCampaignModal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>ایجاد کمپین</span></button>
             <button type="button" class="followup-action archive-action" :class="{ active: showArchived }" title="نمایش آرشیوشده‌ها" aria-label="نمایش آرشیوشده‌ها" @click.stop="toggleArchivedView"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg><span>آرشیو</span><b v-if="archivedCampaigns.length">{{ archivedCampaigns.length }}</b></button>
             <button type="button" class="followup-action missed-action" :class="{ active: showMissedFollowups }" title="نمایش عدم پیگیری‌ها" aria-label="نمایش عدم پیگیری‌ها" @click.stop="showMissedFollowups = !showMissedFollowups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg><span>عدم پیگیری</span><b v-if="missedFollowups.length">{{ missedFollowups.length }}</b></button>
+            <button type="button" class="followup-action general-followup-action" title="ثبت پیگیری بدون کمپین" aria-label="پیگیری کلی" @click.stop="openGeneralFollowups"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>پیگیری کلی</span><b v-if="generalFollowupCount">{{ generalFollowupCount }}</b></button>
             <button v-if="serviceFollowupsEnabled" type="button" class="followup-action appointment-followups-action" title="ورود به پیگیری نوبت‌ها" aria-label="پیگیری نوبت‌ها" @click.stop="$emit('open-service-followups')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14l2 2 5-5"/></svg><span>پیگیری نوبت‌ها</span></button>
           </div>
         </div>
@@ -71,7 +72,7 @@
         <button type="button" @click.stop="toggleArchivedView">بازگشت</button>
       </div>
       <!-- Empty State -->
-      <div v-if="!showArchived && !campaigns.length" class="empty-campaigns">
+      <div v-if="!showArchived && !regularCampaigns.length" class="empty-campaigns">
         <div class="empty-icon">📣</div>
         <div class="empty-title">هنوز هیچ تبلیغی ثبت نشده</div>
         <div class="empty-text">
@@ -259,32 +260,6 @@
                   </div>
                   <div class="bar-num">
                     {{ getInterestCount(campaign, '3') }}
-                  </div>
-                </div>
-
-                <div class="bar-item">
-                  <div class="bar-label">وقت داده شد</div>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill level-ok"
-                      :style="{ width: percent(getAppointmentCount(campaign), getLeadCount(campaign)) + '%' }"
-                    ></div>
-                  </div>
-                  <div class="bar-num">
-                    {{ getAppointmentCount(campaign) }}
-                  </div>
-                </div>
-
-                <div class="bar-item">
-                  <div class="bar-label">بی‌پاسخ</div>
-                  <div class="bar-track">
-                    <div
-                      class="bar-fill level-no"
-                      :style="{ width: percent(getNoAnswerCount(campaign), getLeadCount(campaign)) + '%' }"
-                    ></div>
-                  </div>
-                  <div class="bar-num">
-                    {{ getNoAnswerCount(campaign) }}
                   </div>
                 </div>
 
@@ -841,7 +816,10 @@
               </span>
             </div>
 
-            <div class="campaign-modal-meta">
+            <div v-if="isGeneralFollowupCampaign(activeCampaign)" class="campaign-modal-meta">
+              <span>ثبت مستقیم پیگیری بدون نیاز به ساخت کمپین</span>
+            </div>
+            <div v-else class="campaign-modal-meta">
               <span>تاریخ: {{ formatDateFa(activeCampaign.date) }}</span>
               <span>•</span>
               <span v-if="activeCampaign.source">منبع: {{ activeCampaign.source }}</span>
@@ -971,6 +949,17 @@
                       </div>
 
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'consultant')" @dblclick.stop="autoFitFollowupColumn('consultant')"></div>
+                    </th>
+                    <th
+                      class="filterable resizable"
+                      :class="{ 'filtered-cell': isFiltered('source') }"
+                      :style="{ width: colWidths.source + 'px' }"
+                    >
+                      <div class="th-content">منبع <button class="filter-btn" @click.stop="toggleFilterMenu('source', $event)">⚙</button></div>
+                      <div v-if="activeFilter === 'source'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
+                        <label v-for="val in getUniqueValues('source')" :key="val" class="filter-option"><input type="checkbox" :checked="selectedFilters.source.includes(val)" @change="toggleValue('source', val)" /><span>{{ val }}</span></label>
+                      </div>
+                      <div class="resizer" @mousedown.stop.prevent="initResize($event, 'source')" @dblclick.stop="autoFitFollowupColumn('source')"></div>
                     </th>
                     <!-- وضعیت -->
                     <th
@@ -1142,6 +1131,14 @@
                         </option>
                       </select>
                       </div>
+                    </td>
+
+                    <td :class="{ 'filtered-cell': isFiltered('source') }">
+                      <input v-if="isGeneralFollowupCampaign(activeCampaign)" v-model="row.source" placeholder="منبع" />
+                      <select v-else v-model="row.source">
+                        <option value=""></option>
+                        <option v-for="channel in channelOptions" :key="channel.id" :value="channel.name">{{ channel.name }}</option>
+                      </select>
                     </td>
 
                     <td
@@ -1593,25 +1590,36 @@ export default {
       const patient = this.followupProfile || {};
       return [patient.first_name, patient.last_name].filter(Boolean).join(' ').trim() || patient.full_name || 'مراجعه‌کننده';
     },
-    archivedCampaigns() { return this.campaigns.filter(c => this.isCampaignArchived(c)); },
+    generalFollowupCampaign() {
+      return this.campaigns.find(campaign => this.isGeneralFollowupCampaign(campaign)) || null;
+    },
+    generalFollowupCount() {
+      return Array.isArray(this.generalFollowupCampaign?.rows) ? this.generalFollowupCampaign.rows.length : 0;
+    },
+    regularCampaigns() {
+      return this.campaigns.filter(campaign => !this.isGeneralFollowupCampaign(campaign));
+    },
+    archivedCampaigns() { return this.regularCampaigns.filter(c => this.isCampaignArchived(c)); },
     visibleCampaigns: {
       get() {
         return this.campaigns
+          .filter(c => !this.isGeneralFollowupCampaign(c))
           .filter(c => this.showArchived ? this.isCampaignArchived(c) : !this.isCampaignArchived(c))
           .slice()
           .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
       },
       set(value) {
-        const hidden = this.campaigns.filter(c => this.showArchived ? !this.isCampaignArchived(c) : this.isCampaignArchived(c));
+        const hidden = this.campaigns.filter(c => this.isGeneralFollowupCampaign(c) || (this.showArchived ? !this.isCampaignArchived(c) : this.isCampaignArchived(c)));
         this.campaigns = [...value, ...hidden];
       },
     },
     missedFollowups() {
-      const today = this.getTodayString();
-      return this.campaigns.flatMap(campaign => campaign.rows
-        .filter(row => row.followUpDate && row.followUpDate < today && (!row.contactDate || row.contactDate < row.followUpDate))
+      return this.campaigns
+        .filter(campaign => this.isActiveFollowupCampaign(campaign))
+        .flatMap(campaign => campaign.rows
+        .filter(row => this.isMissedFollowup(row))
         .map(row => ({ ...row, campaignId: campaign.id, campaignTitle: campaign.title })))
-        .sort((a, b) => String(a.followUpDate).localeCompare(String(b.followUpDate)));
+        .sort((a, b) => this.normalizeDateValue(a.followUpDate).localeCompare(this.normalizeDateValue(b.followUpDate)));
     },
     activeCampaign() {
       return this.campaigns.find(c => c.id === this.activeCampaignId) || null;
@@ -1703,7 +1711,7 @@ export default {
 
     filteredReportCampaigns() {
       const term = this.reportSearch.trim().toLowerCase();
-      return this.campaigns.filter(campaign => {
+      return this.campaigns.filter(campaign => !this.isGeneralFollowupCampaign(campaign)).filter(campaign => {
         const searchMatch = !term || [campaign.title, campaign.sourceName, campaign.source]
           .filter(Boolean).some(value => String(value).toLowerCase().includes(term));
         const statusMatch = !this.reportCampaignStatuses.length || this.reportCampaignStatuses.includes(campaign.campaignStatus || 'active');
@@ -2181,6 +2189,42 @@ export default {
       const status = String(campaign?.campaignStatus || '').trim().toLowerCase();
       return ['archived', 'archive', 'آرشیو', 'آرشیو شده', 'آرشیوشده'].includes(status);
     },
+    isGeneralFollowupCampaign(campaign) {
+      return Boolean(campaign?.isGeneralFollowup);
+    },
+    async openGeneralFollowups() {
+      this.showArchived = false;
+      this.showMissedFollowups = false;
+
+      let campaign = this.generalFollowupCampaign;
+      try {
+        const { data } = await axios.post('/api/campaigns/general');
+        const serverCampaign = {
+          ...(data.ui_payload || {}),
+          id: data.id,
+          title: 'پیگیری کلی',
+          date: data.ui_payload?.date || '',
+          cost: data.ui_payload?.cost ?? '',
+          campaignStatus: 'active',
+          isGeneralFollowup: true,
+          rows: Array.isArray(data.ui_payload?.rows) ? data.ui_payload.rows : [],
+          _serverPersisted: true,
+        };
+        const index = this.campaigns.findIndex(item => String(item.id) === String(serverCampaign.id));
+        if (index >= 0) this.campaigns.splice(index, 1, serverCampaign);
+        else this.campaigns.unshift(serverCampaign);
+        campaign = serverCampaign;
+        this.saveCampaignsToLocal();
+      } catch (error) {
+        console.error('General followups load error', error);
+        if (!campaign) {
+          this.campaignFormError = 'باز کردن پیگیری کلی انجام نشد؛ دوباره تلاش کنید.';
+          return;
+        }
+      }
+
+      this.openCampaign(campaign.id);
+    },
     toggleArchivedView() {
       this.showArchived = !this.showArchived;
       this.showMissedFollowups = false;
@@ -2394,7 +2438,7 @@ export default {
       document.body.style.cursor = "col-resize";
     },
 
-    createCampaign() {
+    async createCampaign() {
       this.campaignFormError = "";
       this.campaignDateError = "";
 
@@ -2412,7 +2456,7 @@ export default {
 
       const campaignDate = this.normalizeDateValue(this.newCampaign.date);
 
-      this.campaigns.unshift({
+      const campaign = {
         id: Date.now() + Math.floor(Math.random() * 1000),
         title,
         source: this.newCampaign.source,
@@ -2426,9 +2470,19 @@ export default {
         campaignStatus: "active",
         pinned: false,
         rows: [],
-      });
+      };
 
-      this.saveCampaignsToLocal();
+      try {
+        const { data } = await axios.post('/api/campaigns', this.campaignApiPayload(campaign));
+        campaign.id = data.id;
+        campaign._serverPersisted = true;
+        this.campaigns.unshift(campaign);
+        this.saveCampaignsToLocal();
+      } catch (error) {
+        console.error('Campaign create error', error);
+        this.campaignFormError = error.response?.data?.message || 'ذخیره کمپین روی سرور انجام نشد؛ دوباره تلاش کنید.';
+        return;
+      }
 
       this.newCampaign = {
         title: "",
@@ -2995,6 +3049,15 @@ export default {
       return isPending && this.normalizeDateValue(row?.followUpDate) === this.getTodayString();
     },
 
+    isMissedFollowup(row) {
+      if (!row?.followUpDate || row?.appointmentRegistered) return false;
+      const followUpDate = this.normalizeDateValue(row.followUpDate);
+      // The latest value of followUpDate is the commitment that matters:
+      // changing it postpones the follow-up, and clearing it marks it handled.
+      // Only a date left unchanged after its whole day has passed is missed.
+      return Boolean(followUpDate && followUpDate < this.getTodayString());
+    },
+
     percent(value, total) {
       if (!total) return 0;
       return Math.round((value / total) * 100);
@@ -3106,12 +3169,16 @@ export default {
     campaignApiPayload(campaign) {
       const uiPayload = JSON.parse(JSON.stringify(campaign));
       delete uiPayload._serverPersisted;
+      const normalizedDate = this.normalizeDateValue(campaign.date);
+      const serverDate = normalizedDate && moment(normalizedDate, 'YYYY-MM-DD', true).isValid()
+        ? moment(normalizedDate, 'YYYY-MM-DD').format('jYYYY-jMM-jDD')
+        : null;
       return {
         name: campaign.title || 'کمپین بدون عنوان',
-        starts_on: campaign.date || null,
-        ends_on: campaign.date || null,
+        starts_on: serverDate,
+        ends_on: serverDate,
         budget: this.moneyToNumber(campaign.cost) || 0,
-        note: campaign.sourceName || campaign.source || null,
+        note: this.isGeneralFollowupCampaign(campaign) ? '__system_general_followups__' : (campaign.sourceName || campaign.source || null),
         active: !this.isCampaignArchived(campaign),
         ui_payload: uiPayload,
       };
@@ -3138,6 +3205,8 @@ export default {
     async loadCampaignsFromServer() {
       this.campaignsLoadingFromServer = true;
       try {
+        this.loadCampaignsFromLocal();
+        const localCampaigns = this.campaigns.slice();
         const { data } = await axios.get('/api/campaigns');
         if (Array.isArray(data) && data.length) {
           const sharedCampaigns = data.map(item => ({
@@ -3150,13 +3219,16 @@ export default {
             rows: Array.isArray(item.ui_payload?.rows) ? item.ui_payload.rows : [],
             _serverPersisted: true,
           }));
-          localStorage.setItem('campaigns_flwup_v1', JSON.stringify(sharedCampaigns));
-          this.loadCampaignsFromLocal();
-          this.campaigns.forEach(campaign => { campaign._serverPersisted = true; });
+          const serverIds = new Set(sharedCampaigns.map(campaign => String(campaign.id)));
+          const unsyncedLocalCampaigns = localCampaigns.filter(campaign =>
+            !campaign._serverPersisted && !serverIds.has(String(campaign.id))
+          );
+          this.campaigns = [...sharedCampaigns, ...unsyncedLocalCampaigns];
+          this.saveCampaignsToLocal();
           return;
         }
 
-        this.loadCampaignsFromLocal();
+        this.campaigns = localCampaigns;
       } catch (error) {
         console.error('Campaign server load error', error);
         this.loadCampaignsFromLocal();
@@ -3185,6 +3257,7 @@ export default {
           sourceName: campaign.sourceName || "",
           date: campaign.date || "",
           cost: campaign.cost || "",
+          description: campaign.description || "",
           attachmentName: campaign.attachmentName || "",
           attachmentData: campaign.attachmentData || "",
           banners: Array.isArray(campaign.banners)
@@ -3196,6 +3269,7 @@ export default {
               }] : []),
           campaignStatus: ['archived', 'archive', 'آرشیو', 'آرشیو شده', 'آرشیوشده'].includes(String(campaign.campaignStatus || '').trim().toLowerCase()) ? 'archived' : (campaign.campaignStatus || 'active'),
           pinned: Boolean(campaign.pinned),
+          isGeneralFollowup: Boolean(campaign.isGeneralFollowup),
           _serverPersisted: Boolean(campaign._serverPersisted),
           rows: Array.isArray(campaign.rows)
             ? campaign.rows.map((r, idx) => ({
@@ -4764,6 +4838,9 @@ export default {
 .followup-action.missed-action{color:#b91c1c}
 .followup-action.missed-action.active{border-color:#fca5a5;background:#fee2e2;color:#b91c1c}
 .followup-action.missed-action b{background:#fee2e2;color:#b91c1c}
+.followup-action.general-followup-action{border-color:#c4b5fd;background:#f5f3ff;color:#6d28d9}
+.followup-action.general-followup-action:hover{border-color:#8b5cf6;background:#ede9fe;color:#5b21b6}
+.followup-action.general-followup-action b{background:#ddd6fe;color:#5b21b6}
 .followup-action.appointment-followups-action{border-color:#99f6e4;background:#f0fdfa;color:#0f766e}
 .followup-action.appointment-followups-action:hover{border-color:#2dd4bf;background:#ccfbf1;color:#115e59}
 @media(min-width:1500px){.header{padding:10px 14px}.title{font-size:19px}.followup-action{height:34px;padding:0 9px}}

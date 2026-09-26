@@ -69,9 +69,58 @@ class PatientMediaController extends Controller
             'breadcrumbs' => $this->breadcrumbs($patient, $folderId),
             'folders' => $folders,
             'media' => $media,
+            'shared_upload_metadata' => $this->sharedUploadMetadata($patient, $folderId),
             'sections' => $this->mediaSections(),
             'service_groups' => $this->serviceGroups(),
         ]);
+    }
+
+    private function sharedUploadMetadata(Patient $patient, mixed $folderId): ?array
+    {
+        if (! $folderId) {
+            return null;
+        }
+
+        $folder = PatientMediaFolder::query()
+            ->where('patient_id', $patient->id)
+            ->find($folderId);
+
+        while ($folder && $folder->folder_type !== 'service') {
+            $folder = $folder->parent_id
+                ? PatientMediaFolder::query()
+                    ->where('patient_id', $patient->id)
+                    ->find($folder->parent_id)
+                : null;
+        }
+
+        if (! $folder) {
+            return null;
+        }
+
+        $folderIds = PatientMediaFolder::query()
+            ->where('patient_id', $patient->id)
+            ->where('parent_id', $folder->id)
+            ->pluck('id')
+            ->push($folder->id);
+
+        $media = PatientMedia::query()
+            ->where('patient_id', $patient->id)
+            ->whereIn('folder_id', $folderIds)
+            ->latest('updated_at')
+            ->get()
+            ->first(fn (PatientMedia $item) => ! empty($item->services));
+
+        if (! $media) {
+            return null;
+        }
+
+        return [
+            'service_folder_id' => $folder->id,
+            'description' => $media->description ?: '',
+            'usage_consent' => (bool) $media->usage_consent,
+            'is_featured' => (bool) $media->is_featured,
+            'services' => $media->services ?: [],
+        ];
     }
 
     public function storeFolder(Request $request, Patient $patient)

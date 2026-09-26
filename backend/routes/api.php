@@ -149,6 +149,7 @@ Route::get('/reports/dashboard', [ClinicReportController::class, 'dashboard'])->
 Route::get('/reports/drilldown/{metric}', [ClinicReportController::class, 'drilldown'])->middleware('permission:reports.view');
 Route::get('/reports/export', [ClinicReportController::class, 'export'])->middleware('permission:reports.view');
 Route::apiResource('expenses', ExpenseController::class)->middleware('permission:bills.view');
+Route::post('/campaigns/general', [CampaignController::class, 'general'])->middleware('permission:followups.view');
 Route::apiResource('campaigns', CampaignController::class)->middleware('permission:followups.view');
 Route::get('/payroll/resources', [PayrollReportController::class, 'resources'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
 Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
@@ -188,6 +189,7 @@ Route::get('/inventory', [InventoryController::class, 'index'])->middleware('per
 Route::get('/inventory/context', [InventoryController::class, 'context'])->middleware('permission:inventory.view|appointments.view|resources.view');
 Route::post('/inventory/addons', [InventoryController::class, 'storeAddonDefinitions'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory', [InventoryController::class, 'store'])->middleware('permission:inventory.create|inventory.update');
+Route::post('/inventory/{inventory}/duplicate', [InventoryController::class, 'duplicate'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory/adjust-stock', [InventoryController::class, 'adjustStock'])->middleware('permission:inventory.update');
 Route::get('/inventory/{inventory}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');
 Route::get('/inventory/{inventory}/booking-settings', [InventoryBookingController::class, 'show'])->middleware('permission:inventory.view|appointments.view');

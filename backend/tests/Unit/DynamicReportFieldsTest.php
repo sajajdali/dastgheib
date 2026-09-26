@@ -7,6 +7,7 @@ use App\Models\Patient;
 use App\Reporting\DynamicReports\DynamicReportFieldRegistry;
 use App\Reporting\DynamicReports\ReportPatientContext;
 use App\Reporting\DynamicReports\Resolvers\ReportFieldResolver;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class DynamicReportFieldsTest extends TestCase
@@ -22,7 +23,12 @@ class DynamicReportFieldsTest extends TestCase
             'city' => 'تهران',
             'financial_status' => 'بدهکار',
         ]);
-        $appointment = new Appointment(['payment_method' => 'کارت‌خوان']);
+        $appointment = new Appointment([
+            'payment_method' => 'کارت‌خوان',
+            'month' => '1405-07',
+            'day_num' => 12,
+            'created_at' => Carbon::create(2024, 3, 20),
+        ]);
         $context = new ReportPatientContext($patient, $appointment, collect([$appointment]), collect(), 'gold');
         $fields = app(DynamicReportFieldRegistry::class);
 
@@ -35,12 +41,14 @@ class DynamicReportFieldsTest extends TestCase
         $this->assertSame('1042', $fields->resolve('fileNo', $context));
         $this->assertSame('تهران', $fields->resolve('city', $context));
         $this->assertSame('کارت‌خوان', $fields->resolve('payment', $context));
+        $this->assertSame('1405/07/12', $fields->resolve('appointmentDate', $context));
+        $this->assertSame('1403/01/01', $fields->resolve('appointmentCreatedDate', $context));
     }
 
     public function test_every_builder_field_is_whitelisted(): void
     {
         $fields = app(DynamicReportFieldRegistry::class);
-        $this->assertCount(31, $fields->keys());
+        $this->assertCount(33, $fields->keys());
         $this->assertSame($fields->keys(), array_keys($fields->labels()));
 
         foreach (config('dynamic_reports.field_resolvers') as $resolverClass) {

@@ -153,7 +153,9 @@
                 {{ photoLabel(photo) }}
               </option>
             </select>
-            <small v-if="frontPhotos.length">تمام‌رخ، نیم‌رخ، سایر و شیپ بدن قابل انتخاب است.</small>
+            <small v-if="frontPhotos.length" class="beauty-flow-default-photo-note">
+              زیبایار به‌صورت پیش‌فرض آخرین عکس «تمام‌رخ بعد» را برای نقطه‌گذاری باز می‌کند.
+            </small>
           </section>
 
           <section v-if="draftPoint" class="beauty-flow-editor">
@@ -429,7 +431,7 @@ export default {
         other: 7,
         body_shape: 8,
       }
-      const stageOrder = { before: 0, after: 1 }
+      const stageOrder = { after: 0, before: 1 }
 
       return [...this.frontPhotos].sort((first, second) => {
         const byAngle = (angleOrder[first.photo_angle_key] ?? 99) - (angleOrder[second.photo_angle_key] ?? 99)
@@ -695,6 +697,7 @@ export default {
     },
     async loadRecord() {
       if (!this.activePatient?.id) return
+      const explicitlySelectedPhotoId = this.selectedPhotoId
       this.recordLoading = true
       this.searchError = ''
       try {
@@ -705,6 +708,19 @@ export default {
         if (!res.ok) throw new Error(data.message || 'دریافت پرونده زیبایار انجام نشد.')
         this.activePatient = data.patient || this.activePatient
         this.frontPhotos = data.front_photos || []
+        if (!explicitlySelectedPhotoId) {
+          const latestFrontAfter = [...this.frontPhotos]
+            .filter(photo => photo.photo_angle_key === 'front' && photo.comparison_stage === 'after')
+            .sort((first, second) => {
+              const byDate = new Date(second.created_at || 0) - new Date(first.created_at || 0)
+              return byDate || Number(second.id || 0) - Number(first.id || 0)
+            })[0]
+          if (latestFrontAfter && String(data.selected_photo?.id || '') !== String(latestFrontAfter.id)) {
+            this.selectedPhotoId = latestFrontAfter.id
+            await this.loadRecord()
+            return
+          }
+        }
         this.selectedPhoto = data.selected_photo || null
         this.selectedPhotoId = this.selectedPhoto?.id || ''
         this.annotations = data.annotations || []
@@ -1344,6 +1360,16 @@ export default {
   color: #334155;
   font-size: 12px;
   font-weight: 900;
+}
+.beauty-flow-side-block .beauty-flow-default-photo-note {
+  padding: 9px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.8;
 }
 .beauty-flow-services-head {
   display: flex;

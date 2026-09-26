@@ -760,6 +760,7 @@ export default {
         await this.loadAttendanceStatus();
         this.restoreLastClinicPage();
         this.consumePatientProfileIntent();
+        this.consumeBeautyRecordIntent();
         this.consumeFollowupAppointmentIntent();
       } catch (error) {
         if (error.response?.status !== 401) {
@@ -871,6 +872,28 @@ export default {
       url.searchParams.delete('openPatientProfile');
       url.searchParams.delete('file_number');
       url.searchParams.delete('phone');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    },
+
+    consumeBeautyRecordIntent() {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('openBeautyRecord') !== '1') return;
+      if (
+        !this.user?.permissions?.includes('beauty.view')
+        || !this.featureEnabledForTenant('beauty')
+      ) return;
+
+      const patientId = Number(url.searchParams.get('patient_id'));
+      if (!Number.isInteger(patientId) || patientId <= 0) return;
+
+      this.pendingBeautyRecordRequest = {
+        id: patientId,
+        requestedAt: Date.now()
+      };
+      this.currentPage = 'dermatracker';
+
+      url.searchParams.delete('openBeautyRecord');
+      url.searchParams.delete('patient_id');
       window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
     },
 
@@ -1130,11 +1153,12 @@ export default {
         || !this.featureEnabledForTenant('beauty')
         || !patient?.id
       ) return;
-      this.pendingBeautyRecordRequest = {
-        ...patient,
-        requestedAt: Date.now()
-      };
-      this.currentPage = 'dermatracker';
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('openBeautyRecord', '1');
+      url.searchParams.set('patient_id', String(patient.id));
+      window.open(url.toString(), '_blank', 'noopener,noreferrer');
     },
 
     openBeautyRecordFromNotification(patient) {
