@@ -77,12 +77,20 @@
         <button type="button" role="tab" title="نمایش جدولی" aria-label="نمایش جدولی" :aria-selected="appointmentView === 'table'" :class="{ active: appointmentView === 'table' }" @click="switchAppointmentView('table')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 5v14M15 5v14"/></svg></button>
         <button type="button" role="tab" title="نمایش تایم‌لاین" aria-label="نمایش تایم‌لاین" :aria-selected="appointmentView === 'timeline'" :class="{ active: appointmentView === 'timeline' }" @click="switchAppointmentView('timeline')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></button>
       </div>
-      <div class="booking-timeline-filters table-booking-filters" aria-label="فیلتر جدولی وقت‌دهی خدمات">
+      <button type="button" class="booking-filters-toggle" :class="{ active: bookingFiltersOpen, 'has-filter': bookingTimelineFilterActive || timelineSlotFilter !== 'all' }" :title="bookingFiltersOpen ? 'بستن فیلترها' : 'نمایش فیلترها'" :aria-expanded="bookingFiltersOpen" @click.stop="bookingFiltersOpen = !bookingFiltersOpen">
+        <span>فیلترها</span><i>⌄</i>
+      </button>
+      <div v-if="bookingFiltersOpen" class="booking-timeline-filters table-booking-filters" aria-label="فیلتر جدولی وقت‌دهی خدمات">
         <label><span>بخش</span><select v-model="draftBookingRootSectionFilter" @change="onDraftBookingRootSectionChanged"><option value="">همه بخش‌ها</option><option v-for="section in enabledBookingRootSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
         <label><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
         <label><span>پزشک / اپراتور</span><select v-model="draftBookingResourceFilter"><option value="">همه منابع</option><option v-for="resource in bookingResourceFilterOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
         <button type="button" class="booking-filter-apply" @click="applyBookingTimelineFilters">اعمال فیلتر</button>
         <button v-if="bookingTimelineFilterActive" type="button" class="booking-filter-clear" @click="clearBookingTimelineFilters">پاک کردن</button>
+        <div class="booking-slot-filter">
+          <button type="button" :class="{active: timelineSlotFilter === 'all'}" @click="timelineSlotFilter = 'all'">همه ساعت‌ها</button>
+          <button type="button" :class="{active: timelineSlotFilter === 'empty'}" @click="timelineSlotFilter = 'empty'">خالی</button>
+          <button type="button" :class="{active: timelineSlotFilter === 'filled'}" @click="timelineSlotFilter = 'filled'">پر</button>
+        </div>
       </div>
       <div v-if="showBestStaffCard" class="best-staff-month-card">
         <img v-if="bestStaffOfMonth.image" :src="bestStaffOfMonth.image" alt="">
@@ -1255,7 +1263,10 @@
         <button type="button" role="tab" title="نمایش جدولی" aria-label="نمایش جدولی" :aria-selected="appointmentView === 'table'" :class="{ active: appointmentView === 'table' }" @click="switchAppointmentView('table')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M4 10h16M9 5v14M15 5v14"/></svg></button>
         <button type="button" role="tab" title="نمایش تایم‌لاین" aria-label="نمایش تایم‌لاین" :aria-selected="appointmentView === 'timeline'" :class="{ active: appointmentView === 'timeline' }" @click="switchAppointmentView('timeline')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/></svg></button>
       </div>
-      <div class="booking-timeline-filters" aria-label="فیلتر وقت‌دهی خدمات">
+      <button type="button" class="booking-filters-toggle" :class="{ active: bookingFiltersOpen, 'has-filter': bookingTimelineFilterActive || timelineSlotFilter !== 'all' }" :title="bookingFiltersOpen ? 'بستن فیلترها' : 'نمایش فیلترها'" :aria-expanded="bookingFiltersOpen" @click.stop="bookingFiltersOpen = !bookingFiltersOpen">
+        <span>فیلترها</span><i>⌄</i>
+      </button>
+      <div v-if="bookingFiltersOpen" class="booking-timeline-filters" aria-label="فیلتر وقت‌دهی خدمات">
         <label><span>بخش</span><select v-model="draftBookingRootSectionFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingRootSectionChanged"><option value="">همه بخش‌ها</option><option v-for="section in enabledBookingRootSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
         <label><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
         <label><span>پزشک / اپراتور</span><select v-model="draftBookingResourceFilter" :disabled="timelineScheduleLoading"><option value="">همه منابع</option><option v-for="resource in bookingResourceFilterOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
@@ -2472,6 +2483,7 @@ export default {
     return {
       expandedAddonServices: new WeakSet(),
       appointmentView: "table",
+      bookingFiltersOpen: false,
       appointmentReady: false,
       handledOpenViewRequestAt: null,
       searchQuery: "",
@@ -2658,7 +2670,7 @@ export default {
         { key: 'referral_credit', icon: '💳', title: 'واریز مبلغ برای معرف', description: 'اعلام مبلغ واریزی و موجودی جدید کیف پول معرف' },
         { key: 'treatment_care', icon: '🩺', title: 'توصیه‌های بعد از درمان', description: 'ارسال لینک راهنمای مراقبت و توصیه‌های درمان' },
         { key: 'payment_link', icon: '🔗', title: 'لینک پرداخت', description: 'ارسال لینک و مبلغ پرداخت برای مراجعه‌کننده' },
-        { key: 'welcome', icon: '🌿', title: 'پیام خوش‌آمدگویی', description: 'تشکر از مراجعه و خوش‌آمدگویی به مشتری' }
+        { key: 'welcome', icon: '⭐', title: 'نظرسنجی', description: 'ارسال لینک اختصاصی نظرسنجی برای این نوبت' }
       ],
       inventoryItems: [],
       bookingRootSectionFilter: "",
@@ -4951,6 +4963,7 @@ export default {
           referral_amount: this.moneyToNumber(row.referralScore),
           payment_link: row.paymentLink || null,
           payment_amount: this.moneyToNumber(row.amount),
+          appointment_id: row.appointmentId || null,
           reference
         });
         row.completionSmsStatuses = { ...(row.completionSmsStatuses || {}) };
@@ -8599,7 +8612,7 @@ this.calculateFinalAmount(row)
     },
 
     bookingScheduleAllowsRow(day, row) {
-      if (this.appointmentView !== 'timeline' || !this.bookingTimelineFilterActive) return true;
+      if (!this.bookingTimelineFilterActive) return true;
       const sections = this.bookingSectionsForFilters(this.bookingRootSectionFilter, this.bookingServiceFilter);
       if (!sections.length && !this.bookingResourceFilter) return true;
 
@@ -8756,7 +8769,7 @@ this.calculateFinalAmount(row)
         const cardOk = !this.amountFilterCardOnly || this.normalizePaymentDetails(row?.paymentDetails || {}).card > 0;
         const debtorOk = !this.amountFilterDebtorsOnly || this.isDebtor(row);
         const hasAppointment = !this.isEmptyAppointmentRow(row);
-        const keepEmptyBookingSlot = this.appointmentView === 'timeline' && !hasAppointment;
+        const keepEmptyBookingSlot = !hasAppointment;
         const bookingRootSectionOk = !this.bookingRootSectionFilter || keepEmptyBookingSlot || services.some(service => {
           const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
           return String(this.rootSectionIdFor(sectionId) || sectionId || '') === String(this.bookingRootSectionFilter);
@@ -8766,7 +8779,7 @@ this.calculateFinalAmount(row)
           return String(sectionId || '') === String(this.bookingServiceFilter);
         });
         const bookingResourceOk = !this.bookingResourceFilter || keepEmptyBookingSlot || this.bookingRowMatchesSelectedResource(row);
-        const timelineSlotOk = this.appointmentView !== 'timeline' || this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
+        const timelineSlotOk = this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
         const bookingScheduleOk = this.bookingScheduleAllowsRow(day, row);
         const bookingCapacityOk = !this.bookingSlotIsOccupied(day, row);
         const rowTime = String(row.time || '').slice(0, 5);
@@ -9246,6 +9259,8 @@ smsColor(val) {
 }
 
 .booking-timeline-filters { display:flex; align-items:end; gap:7px; padding:6px 8px; border:1px solid #dbe5f1; border-radius:11px; background:#fff; box-shadow:0 3px 12px rgba(15,23,42,.05); }
+.booking-filters-toggle{height:32px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border:1px solid #dbe5f1;border-radius:9px;background:#fff;color:#475569;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;box-shadow:0 3px 10px rgba(15,23,42,.05);transition:.18s}.booking-filters-toggle:hover,.booking-filters-toggle.active{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}.booking-filters-toggle i{font-style:normal;font-size:16px;line-height:1;transition:transform .2s ease}.booking-filters-toggle.active i{transform:rotate(180deg)}
+.booking-filters-toggle.has-filter:not(.active){border-color:#86efac;background:#f0fdf4;color:#15803d}.booking-filters-toggle.has-filter:not(.active)::before{content:'';width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.12)}
 .booking-timeline-filters label { display:grid; gap:3px; color:#64748b; font-size:9px; font-weight:800; }
 .booking-timeline-filters select { width:155px; min-height:31px; padding:4px 8px; border:1px solid #dbe5f1; border-radius:8px; background:#f8fafc; color:#334155; font-family:inherit; font-size:10px; }
 .booking-filter-apply,.booking-filter-clear { min-height:31px; padding:0 11px; border-radius:8px; font-family:inherit; font-size:9px; font-weight:900; cursor:pointer; white-space:nowrap; }

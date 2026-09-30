@@ -1,5 +1,6 @@
 <template>
-  <template v-if="isCentralApp">
+  <SatisfactionPublicPage v-if="surveyToken" :token="surveyToken" />
+  <template v-else-if="isCentralApp">
     <CentralAdmin />
     <a v-if="showLocalClinicShortcut" class="central-clinic-shortcut" :href="localClinicUrl">
       ورود به محیط کلینیک
@@ -380,6 +381,7 @@ import Bills from "./components/Bills.vue";
 import Setting from "./components/Setting.vue";
 import Store from "./components/Store.vue";
 import ServiceTickets from "./components/ServiceTickets.vue";
+import SatisfactionPublicPage from "./components/SatisfactionPublicPage.vue";
 
 import HRtimes from "./components/HRtimes.vue";
 import PayrollSettlement from "./components/PayrollSettlement.vue";
@@ -431,6 +433,7 @@ export default {
     Setting,
     Store,
     ServiceTickets,
+    SatisfactionPublicPage,
 
     HRtimes,
     PayrollSettlement
@@ -475,6 +478,7 @@ export default {
       ,isCentralApp: centralDomains.includes(window.location.hostname.toLowerCase())
       ,backGuardActive: false
       ,allowBrowserBack: false
+      ,surveyToken: window.location.pathname.match(/^\/r\/([A-Za-z0-9]+)\/?$/)?.[1] || ""
 
     };
 
@@ -484,6 +488,10 @@ export default {
 
     window.addEventListener("app:auth-expired", this.handleAuthExpired);
     window.addEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
+    if (this.surveyToken) {
+      this.authLoading = false;
+      return;
+    }
     if (this.isCentralApp) {
       document.body.classList.add("central-host");
       this.authLoading = false;

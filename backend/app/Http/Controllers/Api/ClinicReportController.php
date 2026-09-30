@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
+use App\Models\Expense;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use App\Services\ClinicReportService;
@@ -41,30 +42,61 @@ class ClinicReportController extends Controller
             ->when($from, fn (Builder $query) => $this->afterOrOn($query, $from))
             ->when($to, fn (Builder $query) => $this->beforeOrOn($query, $to));
 
-        // نرخ کنسلی فقط بین نتیجه‌های قطعی نوبت محاسبه می‌شود.
-        // «پاسخ نداد» نیز طبق قرارداد گزارش، کنسلی محسوب می‌شود.
-        $eligible = (clone $appointments)->where(function (Builder $query) {
-            $this->cancelledStatus($query)->orWhere('status', 'like', '%آمد%')->orWhere('status', 'like', '%پاسخ نداد%');
-        });
+        // فقط نتیجه‌های قطعی «آمد»، «کنسل شد» و «پاسخ نداد» در نرخ دخیل‌اند.
+        // «پاسخ نداد» در این گزارش جزو کنسلی‌ها محسوب می‌شود.
+        $eligible = (clone $appointments)->whereIn('status', ['آمد', 'کنسل شد', 'پاسخ نداد']);
         $total = (clone $eligible)->count();
-        $cancelled = (clone $eligible)->where(fn (Builder $query) => $this->cancelledStatus($query)->orWhere('status', 'like', '%پاسخ نداد%'))->count();
-        $attended = (clone $eligible)->where('status', 'like', '%آمد%')->count();
+        $cancelled = (clone $eligible)->whereIn('status', ['کنسل شد', 'پاسخ نداد'])->count();
+        $noAnswer = (clone $eligible)->where('status', 'پاسخ نداد')->count();
+        $attended = (clone $eligible)->where('status', 'آمد')->count();
 
         return response()->json([
             'from' => $from,
             'to' => $to,
             'total' => $total,
             'cancelled' => $cancelled,
+            'no_answer' => $noAnswer,
             'attended' => $attended,
             'rate' => $total ? round(($cancelled / $total) * 100, 1) : 0,
+            'calculated_at' => now()->toIso8601String(),
         ]);
     }
 
-    private function cancelledStatus(Builder $query): Builder
+    public function expenses(Request $request)
     {
-        return $query->where('status', 'like', '%کنسل%')
-            ->orWhere('status', 'like', '%لغو%')
-            ->orWhere('status', 'like', '%Ú©Ù†Ø³Ù„%');
+        $from = $this->normalizeDate((string) $request->query('from', ''));
+        $to = $this->normalizeDate((string) $request->query('to', ''));
+        if (! $from || ! $to || $from > $to) {
+            return response()->json(['message' => 'بازهٔ تاریخ گزارش معتبر نیست.'], 422);
+        }
+
+        $query = Expense::query()
+            ->where('type', 'expense')
+            ->whereBetween('occurred_on', [$from, $to]);
+        $items = (clone $query)
+            ->selectRaw('category, SUM(amount) AS amount')
+            ->groupBy('category')
+            ->orderByDesc('amount')
+            ->get()
+            ->map(fn ($row) => [
+                'category' => trim((string) $row->category) ?: 'بدون دسته‌بندی',
+                'amount' => (float) $row->amount,
+            ])
+            ->groupBy('category')
+            ->map(fn ($rows, $category) => [
+                'category' => $category,
+                'amount' => round((float) $rows->sum('amount')),
+            ])
+            ->sortByDesc('amount')
+            ->values();
+
+        return response()->json([
+            'from' => $from,
+            'to' => $to,
+            'total' => round((float) (clone $query)->sum('amount')),
+            'items' => $items,
+            'calculated_at' => now()->toIso8601String(),
+        ]);
     }
 
     private function normalizeDate(string $value): ?string

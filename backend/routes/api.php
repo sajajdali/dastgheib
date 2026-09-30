@@ -37,9 +37,11 @@ use App\Http\Controllers\Api\AutomaticSmsScenarioController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ClinicReportController;
 use App\Http\Controllers\Api\DynamicReportController;
+use App\Http\Controllers\Api\ReportWidgetController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\AppointmentScheduleMonthController;
+use App\Http\Controllers\Api\SatisfactionController;
 
 
 
@@ -50,6 +52,8 @@ use App\Http\Controllers\Api\AppointmentScheduleMonthController;
 |--------------------------------------------------------------------------
 */
 //تنظیمات
+Route::get('/public/satisfaction/{token}', [SatisfactionController::class, 'show'])->middleware('throttle:60,1');
+Route::post('/public/satisfaction/{token}', [SatisfactionController::class, 'submit'])->middleware('throttle:10,1');
 Route::middleware('auth')->group(function () {
 Route::get('/auth/user', [AuthController::class, 'user']);
 Route::put('/auth/user', [AuthController::class, 'updateUser']);
@@ -60,9 +64,12 @@ Route::post('/store/checkout', [StoreCheckoutController::class, 'checkout']);
 Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIndex']);
 Route::post('/service-tickets', [CentralServiceTicketController::class, 'tenantStore'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/settings', [SettingController::class, 'index']);
+Route::put('/settings/satisfaction', [SatisfactionController::class, 'updateSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::get('/patients/{patient}/satisfaction', [SatisfactionController::class, 'patientResponses'])->middleware('permission:patients.view');
 Route::get('/calendar/events', [CalendarController::class, 'index']);
 Route::put('/calendar/overrides/{date}', [CalendarController::class, 'saveOverride'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/internal', [SettingController::class, 'saveInternalSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::post('/settings/company-logo', [SettingController::class, 'uploadCompanyLogo'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/attendance-status', [SettingController::class, 'saveAttendanceStatus'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/users/{user}/photo', [SettingController::class, 'uploadUserPhoto'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::delete('/settings/users/{user}', [SettingController::class, 'destroyUser'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
@@ -145,7 +152,43 @@ Route::delete('/attendance/months/{attendanceMonth}', [AttendanceMonthController
 Route::apiResource('tickets', TicketController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::get('/personal-report', [PersonalReportController::class, 'show']);
 Route::get('/clinic-report/cancellation-rate', [ClinicReportController::class, 'cancellationRate'])->middleware('permission:reports.view');
+Route::get('/clinic-report/expenses', [ClinicReportController::class, 'expenses'])->middleware('permission:reports.view');
 Route::get('/reports/dashboard', [ClinicReportController::class, 'dashboard'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/customer-segments', [ReportWidgetController::class, 'customerSegments'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/customer-segments/calculate', [ReportWidgetController::class, 'calculateCustomerSegments'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/dashboard-summary', [ReportWidgetController::class, 'dashboardSummary'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/dashboard-summary/calculate', [ReportWidgetController::class, 'calculateDashboardSummary'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/staff-income/roster', [ReportWidgetController::class, 'staffIncomeRoster'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/staff-income', [ReportWidgetController::class, 'staffIncome'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/staff-income/calculate', [ReportWidgetController::class, 'calculateStaffIncome'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/advertising-roi', [ReportWidgetController::class, 'advertisingRoi'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/advertising-roi/calculate', [ReportWidgetController::class, 'calculateAdvertisingRoi'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/loyalty', [ReportWidgetController::class, 'loyalty'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/loyalty/calculate', [ReportWidgetController::class, 'calculateLoyalty'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/cancellation-rate', [ReportWidgetController::class, 'cancellationRate'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/cancellation-rate/calculate', [ReportWidgetController::class, 'calculateCancellationRate'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/photo-analysis', [ReportWidgetController::class, 'photoAnalysis'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/photo-analysis/calculate', [ReportWidgetController::class, 'calculatePhotoAnalysis'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/expenses', [ReportWidgetController::class, 'expenses'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/expenses/calculate', [ReportWidgetController::class, 'calculateExpenses'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/customer-acquisition', [ReportWidgetController::class, 'customerAcquisition'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/customer-acquisition/calculate', [ReportWidgetController::class, 'calculateCustomerAcquisition'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/campaign-performance', [ReportWidgetController::class, 'campaignPerformance'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/campaign-performance/calculate', [ReportWidgetController::class, 'calculateCampaignPerformance'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/advertising-channels', [ReportWidgetController::class, 'advertisingChannels'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/advertising-channels/calculate', [ReportWidgetController::class, 'calculateAdvertisingChannels'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/doctor-performance', [ReportWidgetController::class, 'doctorPerformance'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/doctor-performance/calculate', [ReportWidgetController::class, 'calculateDoctorPerformance'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/age-statistics', [ReportWidgetController::class, 'ageStatistics'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/age-statistics/calculate', [ReportWidgetController::class, 'calculateAgeStatistics'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/city-statistics', [ReportWidgetController::class, 'cityStatistics'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/city-statistics/calculate', [ReportWidgetController::class, 'calculateCityStatistics'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/top-services', [ReportWidgetController::class, 'topServices'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/top-services/calculate', [ReportWidgetController::class, 'calculateTopServices'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/staff-appointments', [ReportWidgetController::class, 'staffAppointments'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/staff-appointments/calculate', [ReportWidgetController::class, 'calculateStaffAppointments'])->middleware('permission:reports.view');
+Route::get('/reports/widgets/satisfaction', [ReportWidgetController::class, 'satisfaction'])->middleware('permission:reports.view');
+Route::post('/reports/widgets/satisfaction/calculate', [ReportWidgetController::class, 'calculateSatisfaction'])->middleware('permission:reports.view');
 Route::get('/reports/drilldown/{metric}', [ClinicReportController::class, 'drilldown'])->middleware('permission:reports.view');
 Route::get('/reports/export', [ClinicReportController::class, 'export'])->middleware('permission:reports.view');
 Route::apiResource('expenses', ExpenseController::class)->middleware('permission:bills.view');

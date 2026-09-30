@@ -570,19 +570,62 @@
           </div>
         </section>
 
-        <section class="profile-rating-card">
-          <div class="rating-bars">
-            <div v-for="rate in [5, 4, 3, 2, 1]" :key="rate" class="rating-bar-row">
-              <span>{{ rate }} ستاره</span>
-              <div><i :style="{ width: ratingWidth(rate) }"></i></div>
-              <b>{{ ratingCount(rate) }}</b>
+        <section class="profile-rating-card profile-satisfaction-card">
+          <button
+            type="button"
+            class="profile-satisfaction-overview"
+            :class="{ 'is-open': satisfactionExpanded }"
+            :aria-expanded="satisfactionExpanded"
+            @click="satisfactionExpanded = !satisfactionExpanded"
+          >
+            <div class="rating-bars">
+              <div v-for="rate in [5, 4, 3, 2, 1]" :key="rate" class="rating-bar-row">
+                <span>{{ satisfactionRatingLabel(rate) }}</span>
+                <div><i :style="{ width: satisfactionRatingWidth(rate) }"></i></div>
+                <b>{{ satisfactionRatingCount(rate) }}</b>
+              </div>
             </div>
-          </div>
-          <div class="rating-summary">
-            <h3>میزان رضایت مندی</h3>
-            <strong>4.6</strong>
-            <div class="rating-stars">★ ★ ★ ★ ☆</div>
-            <p>بر اساس {{ Math.max(appointmentResults.length, 1) }} نظر ثبت شده</p>
+            <div class="rating-summary">
+              <h3>میزان رضایت‌مندی</h3>
+              <strong>{{ satisfactionAverage() }}</strong>
+              <div class="rating-stars">★ ★ ★ ★ ★</div>
+              <p>بر اساس {{ satisfactionResponses.length }} نظر ثبت‌شده</p>
+              <span class="profile-satisfaction-toggle">
+                {{ satisfactionExpanded ? 'بستن جزئیات' : 'مشاهده جزئیات' }}
+                <i>⌄</i>
+              </span>
+            </div>
+          </button>
+
+          <div v-if="satisfactionExpanded" class="profile-satisfaction-details">
+            <div v-if="satisfactionLoading" class="profile-loading-line">
+              در حال دریافت نظرات...
+            </div>
+            <div v-else-if="satisfactionError" class="profile-satisfaction-error">{{ satisfactionError }}</div>
+            <div v-else-if="!satisfactionResponses.length" class="profile-empty-history">
+              هنوز نظری برای این مراجعه‌کننده ثبت نشده است.
+            </div>
+            <div v-else class="profile-satisfaction-list">
+              <article v-for="response in satisfactionResponses" :key="response.id" class="profile-satisfaction-item">
+                <header>
+                  <div>
+                    <b>{{ response.appointment ? `نوبت ${formatAppointmentDate(response.appointment)}` : 'نظر ثبت‌شده' }}</b>
+                    <span class="profile-satisfaction-meta">
+                      <em>شماره فرم: {{ Number(response.form_number || response.id).toLocaleString('fa-IR') }}</em>
+                      <em>تاریخ تکمیل: {{ formatMediaDate(response.submitted_at || response.created_at) }}</em>
+                    </span>
+                  </div>
+                  <span v-if="response.average_score" class="profile-satisfaction-score">{{ response.average_score }} از ۵</span>
+                </header>
+                <div class="profile-satisfaction-answers">
+                  <div v-for="answer in response.answers" :key="answer.id" class="profile-satisfaction-answer" :class="{ 'is-text': !answer.score }">
+                    <span>{{ answer.question }}</span>
+                    <strong>{{ answer.answer || 'بدون پاسخ' }}</strong>
+                    <small v-if="answer.score">{{ answer.score }} از ۵</small>
+                  </div>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
       </div>
@@ -1712,6 +1755,10 @@ export default {
       ],
       appointmentResults: [],
       appointmentLoading: false,
+      satisfactionResponses: [],
+      satisfactionLoading: false,
+      satisfactionError: '',
+      satisfactionExpanded: false,
       activeAppointmentFilter: null,
       selectedAppointmentFilters: {
         services: [],
@@ -2452,10 +2499,12 @@ export default {
     openPatientProfile(patient) {
       this.activePatientProfile = patient
       this.profileViewOpen = true
+      this.satisfactionExpanded = false
       this.$nextTick(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
       this.fetchPatientAppointmentsFor(patient)
+      this.fetchPatientSatisfaction(patient)
     },
 
     async openRequestedPatientProfile(request) {
@@ -2509,6 +2558,9 @@ export default {
     closePatientProfile() {
       this.profileViewOpen = false
       this.activePatientProfile = null
+      this.satisfactionResponses = []
+      this.satisfactionError = ''
+      this.satisfactionExpanded = false
       this.$nextTick(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
@@ -2688,15 +2740,59 @@ export default {
       return amount > 0 ? this.formatMoneyValue(amount) : '-'
     },
 
-    ratingCount(rate) {
-      const base = Math.max(this.appointmentResults.length, 1)
-      const defaults = { 5: base, 4: Math.max(Math.floor(base / 3), 0), 3: 1, 2: 0, 1: 0 }
-      return defaults[rate] || 0
+    satisfactionAverage() {
+      const scores = (this.satisfactionResponses || [])
+        .flatMap(response => response.answers || [])
+        .map(answer => Number(answer.score || 0))
+        .filter(score => score > 0)
+
+      if (!scores.length) return '—'
+      return (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1)
     },
 
-    ratingWidth(rate) {
-      const max = Math.max(...[5, 4, 3, 2, 1].map(item => this.ratingCount(item)), 1)
-      return `${Math.round((this.ratingCount(rate) / max) * 100)}%`
+    satisfactionRatingCount(rate) {
+      return (this.satisfactionResponses || [])
+        .flatMap(response => response.answers || [])
+        .filter(answer => Number(answer.score) === Number(rate)).length
+    },
+
+    satisfactionRatingLabel(rate) {
+      const defaults = { 5: 'عالی', 4: 'خوب', 3: 'متوسط', 2: 'بد', 1: 'ضعیف' }
+      const answers = (this.satisfactionResponses || []).flatMap(response => response.answers || [])
+
+      for (const answer of answers) {
+        const option = (answer.options || []).find(item => Number(item.score) === Number(rate))
+        if (option?.label) return option.label
+      }
+
+      return defaults[rate] || String(rate)
+    },
+
+    satisfactionRatingWidth(rate) {
+      const total = [5, 4, 3, 2, 1]
+        .reduce((sum, item) => sum + this.satisfactionRatingCount(item), 0)
+      return `${total ? Math.round((this.satisfactionRatingCount(rate) / total) * 100) : 0}%`
+    },
+
+    async fetchPatientSatisfaction(patient = {}) {
+      this.satisfactionResponses = []
+      this.satisfactionError = ''
+      if (!patient?.id) return
+
+      this.satisfactionLoading = true
+      try {
+        const response = await fetch(`/api/patients/${patient.id}/satisfaction`, {
+          headers: { Accept: 'application/json' }
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data?.message || 'دریافت نظرات انجام نشد')
+        this.satisfactionResponses = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : [])
+      } catch (error) {
+        console.error(error)
+        this.satisfactionError = error.message || 'دریافت نظرات انجام نشد'
+      } finally {
+        this.satisfactionLoading = false
+      }
     },
 
     async openMediaModal(patient) {
@@ -5685,47 +5781,56 @@ select:focus {
 }
 
 .profile-rating-card {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 18px;
-  padding: 18px;
+  padding: 0;
+  overflow: hidden;
 }
 
-.rating-bars {
+.profile-satisfaction-overview {
+  width: 100%;
   display: grid;
-  gap: 10px;
+  grid-template-columns: 1fr 280px;
+  align-items: center;
+  gap: 18px;
+  padding: 18px;
+  border: 0;
+  background: #fff;
+  font-family: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: background-color .2s ease;
 }
+
+.profile-satisfaction-overview:hover { background: #fbfdff; }
+.profile-satisfaction-overview.is-open { border-bottom: 1px solid #eef2f7; }
+
+.rating-bars { display: grid; gap: 10px; }
 
 .rating-bar-row {
   display: grid;
-  grid-template-columns: 64px 1fr 32px;
+  grid-template-columns: minmax(72px, 100px) 1fr 32px;
   align-items: center;
   gap: 10px;
   color: #64748b;
   font-size: 12px;
 }
 
-.rating-bar-row div {
+.rating-bar-row > div {
   height: 8px;
+  overflow: hidden;
   background: #eef2f7;
   border-radius: 999px;
-  overflow: hidden;
 }
 
 .rating-bar-row i {
   display: block;
   height: 100%;
-  border-radius: inherit;
   background: linear-gradient(90deg, #22c55e, #14b8a6);
+  border-radius: inherit;
+  transition: width .45s ease;
 }
 
-.rating-bar-row:nth-child(3) i {
-  background: #facc15;
-}
-
-.rating-bar-row:nth-child(n+4) i {
-  background: #ef4444;
-}
+.rating-bar-row:nth-child(3) i { background: #facc15; }
+.rating-bar-row:nth-child(n+4) i { background: #ef4444; }
 
 .rating-summary {
   text-align: center;
@@ -5733,14 +5838,8 @@ select:focus {
   padding-right: 18px;
 }
 
-.rating-summary h3 {
-  margin: 0 0 8px;
-  color: #0f172a;
-  font-size: 16px;
-  font-weight: 900;
-}
-
-.rating-summary strong {
+.rating-summary h3 { margin: 0 0 8px; color: #0f172a; font-size: 16px; font-weight: 900; }
+.rating-summary > strong {
   display: block;
   color: #143b67;
   font-size: 46px;
@@ -5748,17 +5847,100 @@ select:focus {
   font-weight: 950;
 }
 
-.rating-stars {
-  color: #facc15;
-  font-size: 26px;
-  letter-spacing: 2px;
-  margin: 8px 0;
+.rating-stars { margin: 8px 0; color: #facc15; font-size: 26px; letter-spacing: 2px; }
+.rating-summary p { margin: 0; color: #94a3b8; font-size: 12px; }
+
+.profile-satisfaction-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 900;
 }
 
-.rating-summary p {
-  margin: 0;
-  color: #94a3b8;
-  font-size: 12px;
+.profile-satisfaction-toggle i {
+  font-style: normal;
+  font-size: 18px;
+  transition: transform .2s ease;
+}
+
+.profile-satisfaction-overview.is-open .profile-satisfaction-toggle i { transform: rotate(180deg); }
+.profile-satisfaction-details { padding: 16px 18px 18px; background: #fff; }
+.profile-satisfaction-list { display: grid; gap: 12px; }
+
+.profile-satisfaction-item {
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+}
+
+.profile-satisfaction-item > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 11px;
+  margin-bottom: 11px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.profile-satisfaction-item > header div {
+  display: grid;
+  gap: 4px;
+}
+
+.profile-satisfaction-item > header b { color: #1e293b; font-size: 13px; }
+.profile-satisfaction-item > header span { color: #94a3b8; font-size: 11px; }
+
+.profile-satisfaction-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+}
+
+.profile-satisfaction-meta em {
+  color: #64748b;
+  font-style: normal;
+}
+
+.profile-satisfaction-score {
+  padding: 6px 10px;
+  color: #047857 !important;
+  background: #d1fae5;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.profile-satisfaction-answers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.profile-satisfaction-answer {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  background: #fff;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+}
+
+.profile-satisfaction-answer.is-text { grid-column: 1 / -1; }
+.profile-satisfaction-answer span { color: #64748b; font-size: 11px; }
+.profile-satisfaction-answer strong { color: #0f172a; font-size: 13px; line-height: 1.8; }
+.profile-satisfaction-answer small { color: #0f766e; font-size: 10px; font-weight: 800; }
+
+.profile-satisfaction-error {
+  padding: 14px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 12px;
+  text-align: center;
 }
 
 @media (max-width: 900px) {
@@ -5777,16 +5959,10 @@ select:focus {
     margin-left: 0;
   }
 
-  .profile-rating-card {
-    grid-template-columns: 1fr;
-  }
-
-  .rating-summary {
-    border-right: 0;
-    border-top: 1px solid #eef2f7;
-    padding-right: 0;
-    padding-top: 16px;
-  }
+  .profile-satisfaction-overview { grid-template-columns: 1fr; }
+  .rating-summary { border-right: 0; border-top: 1px solid #eef2f7; padding: 16px 0 0; }
+  .profile-satisfaction-answers { grid-template-columns: 1fr; }
+  .profile-satisfaction-answer.is-text { grid-column: auto; }
 }
 
 @media (max-width: 620px) {
@@ -5801,6 +5977,9 @@ select:focus {
   .profile-info-row:last-child:nth-child(odd) {
     grid-column: auto;
   }
+
+  .profile-satisfaction-overview { padding: 14px; }
+  .profile-satisfaction-details { padding: 12px 14px 14px; }
 }
 
 .result-table tbody tr:nth-child(even) {

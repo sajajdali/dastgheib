@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 use App\Services\CustomerLevelService;
 use App\Support\ActivityLogger;
+use App\Http\Controllers\Api\SatisfactionController;
 
 class SettingController extends Controller
 {
@@ -25,7 +26,7 @@ class SettingController extends Controller
         return [
             ['id' => 'appointment', 'group' => 'ثبت نوبت', 'title' => 'پیامک ثبت نوبت', 'category' => 'appointment', 'parameters' => ['نام و نام خانوادگی بیمار', 'تاریخ نوبت', 'ساعت نوبت', 'نام پزشک', 'نام کلینیک']],
             ['id' => 'info', 'group' => 'ثبت نوبت', 'title' => 'پیامک اطلاعات', 'category' => 'info', 'parameters' => ['نام بیمار', 'آدرس مرکز', 'لینک اینستاگرام', 'شماره تماس', 'لینک لوکیشن']],
-            ['id' => 'welcome', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'پیام خوش‌آمدگویی', 'category' => 'welcome', 'parameters' => ['نام و نام خانوادگی بیمار', 'نام کلینیک']],
+            ['id' => 'welcome', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'نظرسنجی', 'category' => 'welcome', 'parameters' => ['نام و نام خانوادگی بیمار', 'نام کلینیک', 'لینک رضایت‌مندی']],
             ['id' => 'referral-credit', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'واریز مبلغ برای معرف', 'category' => 'referral_credit', 'parameters' => ['نام بیمار', 'مبلغ واریزی', 'مانده اعتبار معرف']],
             ['id' => 'treatment-care', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'توصیه‌های بعد از درمان', 'category' => 'treatment_care', 'parameters' => ['نام بیمار', 'لینک راهنمای درمان']],
             ['id' => 'payment-link', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'لینک پرداخت', 'category' => 'payment_link', 'parameters' => ['نام بیمار', 'لینک پرداخت', 'مبلغ قابل پرداخت']],
@@ -175,6 +176,7 @@ class SettingController extends Controller
                 'latitude' => AppSetting::getByKey('clinic_latitude', ''),
                 'longitude' => AppSetting::getByKey('clinic_longitude', ''),
             ],
+            'satisfaction_form' => SatisfactionController::form(),
             'customer_levels' => CustomerLevelService::settings(),
             'clinic_schedule' => $this->clinicScheduleSettings(),
             'appointment_columns' => [
@@ -241,6 +243,18 @@ class SettingController extends Controller
             ],
             'users' => \App\Models\User::select('name as user')->get(),
         ]);
+    }
+
+    public function uploadCompanyLogo(Request $request)
+    {
+        $request->validate(['logo'=>['required','image','mimes:jpg,jpeg,png,webp','max:4096']]);
+        $previous = (string) AppSetting::getByKey('company_logo_path', '');
+        if ($previous !== '') Storage::disk('public')->delete($previous);
+        $path = $request->file('logo')->store('company', 'public');
+        $url = Storage::disk('public')->url($path);
+        AppSetting::updateOrCreate(['key'=>'company_logo_path'], ['value'=>$path]);
+        AppSetting::updateOrCreate(['key'=>'company_logo'], ['value'=>$url]);
+        return response()->json(['message'=>'لوگوی مجموعه ذخیره شد.','logo'=>$url]);
     }
 
     // ۲. ذخیره کل تنظیمات داخلی (پیامک، پرونده، اطلاعات مجموعه)

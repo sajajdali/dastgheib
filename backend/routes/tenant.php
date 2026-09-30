@@ -40,6 +40,10 @@ Route::middleware([
                 ])
                 : view('welcome');
         });
+        Route::get('/r/{token}', function () {
+            $frontend = public_path('app.html');
+            return is_file($frontend) ? response()->file($frontend, ['Cache-Control'=>'no-store, no-cache, must-revalidate, max-age=0']) : view('welcome');
+        })->where('token', '[A-Za-z0-9]+');
     });
 
     Route::middleware(['web', 'api'])

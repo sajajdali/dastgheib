@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\DynamicReport;
+use App\Models\ReportWidgetSnapshot;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
@@ -26,4 +27,10 @@ Broadcast::channel('clinic.{tenantId}.appointments', function (User $user, strin
 Broadcast::channel('clinic.{tenantId}.reports.{reportId}', function (User $user, string $tenantId, string $reportId): bool {
     if ((string) tenant('id') !== $tenantId) return false;
     return DynamicReport::query()->whereKey($reportId)->where('user_id', $user->id)->exists();
+});
+
+Broadcast::channel('clinic.{tenantId}.report-widgets.{snapshotId}', function (User $user, string $tenantId, string $snapshotId): bool {
+    if ((string) tenant('id') !== $tenantId || ! $user->can('reports.view')) return false;
+
+    return ReportWidgetSnapshot::query()->whereKey($snapshotId)->exists();
 });

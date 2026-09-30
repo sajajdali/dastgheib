@@ -3,7 +3,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Patient;
+use App\Models\Appointment;
+use App\Models\SatisfactionInvitation;
 use App\Services\ShsmsService;
+use Illuminate\Support\Str;
 use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +54,7 @@ class CompletionSmsController extends Controller
             'referrer_phone' => ['nullable','string','max:30'], 'referral_amount' => ['nullable','numeric','min:0'],
             'payment_link' => ['nullable','string','max:2000'], 'payment_amount' => ['nullable','numeric','min:0'],
             'reference' => ['required','string','max:190'],
+            'appointment_id' => ['nullable','integer','exists:appointments,id'],
         ]);
         if (! $this->sms->hasCredentials()) {
             return response()->json(['message'=>'اتصال SHSMS برای این کلینیک تنظیم نشده است. توکن API را از تنظیمات پیامک وارد کنید.'], 422);
@@ -72,6 +76,10 @@ class CompletionSmsController extends Controller
                 $link = $type === 'payment_link'
                     ? (string) ($data['payment_link'] ?? '')
                     : (string) config('services.shsms.treatment_link');
+                if ($type === 'welcome') {
+                    if (empty($data['appointment_id'])) throw new \RuntimeException('شناسه نوبت برای ساخت لینک رضایت‌مندی موجود نیست.');
+                    $link = $this->satisfactionLink($request, (int) $data['appointment_id']);
+                }
                 $this->sendTemplateSms($recipient, $template, $this->paramsFor($type, [
                     'name' => $data['patient_name'] ?? '',
                     'amount' => number_format($amount),
@@ -241,11 +249,38 @@ class CompletionSmsController extends Controller
         return match($type) {
             'appointment' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? '', $values['doctor'] ?? '', $values['clinic'] ?? ''],
             'info' => [$values['name'] ?? '', $values['clinic_address'] ?? '', $values['clinic_instagram_url'] ?? '', $values['clinic_phone'] ?? '', $values['clinic_location_url'] ?? ''],
-            'welcome' => [$values['name'] ?? '', (string) AppSetting::getByKey('clinic_name', '')],
+            'welcome' => [$values['name'] ?? '', (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', '')), $values['link'] ?? ''],
             'referral_credit' => [$values['name'] ?? '', $values['amount'] ?? '', $values['balance'] ?? ''],
             'treatment_care' => [$values['name'] ?? '', $values['link'] ?? ''],
             'payment_link' => [$values['name'] ?? '', $values['link'] ?? '', $values['amount'] ?? ''],
             default => array_values($values),
         };
+    }
+
+    private function satisfactionLink(Request $request, int $appointmentId): string
+    {
+        $appointment = Appointment::findOrFail($appointmentId);
+        $patient = Patient::query()
+            ->when($appointment->file_number, fn ($query, $value) => $query->where('file_number', $value))
+            ->when(! $appointment->file_number && $appointment->phone, fn ($query) => $query->where('phone', $appointment->phone))
+            ->first();
+        $invite = SatisfactionInvitation::firstOrNew(['appointment_id'=>$appointment->id]);
+        if (! $invite->exists) {
+            do { $token = Str::upper(Str::random(8)); } while (SatisfactionInvitation::where('token', $token)->exists());
+            $form = SatisfactionController::form();
+            $form['patient_name'] = trim((string) ($patient ? $patient->first_name.' '.$patient->last_name : $appointment->lastname));
+            $form['clinic_name'] = (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', ''));
+            $form['logo_url'] = (string) AppSetting::getByKey('company_logo', '');
+            $invite->fill(['token'=>$token,'patient_id'=>$patient?->id,'form_snapshot'=>$form,'expires_at'=>now()->addDays(30)]);
+        } elseif (! $invite->answered_at) {
+            $form = SatisfactionController::form();
+            $form['patient_name'] = trim((string) ($patient ? $patient->first_name.' '.$patient->last_name : $appointment->lastname));
+            $form['clinic_name'] = (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', ''));
+            $form['logo_url'] = (string) AppSetting::getByKey('company_logo', '');
+            $invite->form_snapshot = $form;
+        }
+        $invite->sent_at = now(); $invite->save();
+        $base = rtrim((string) config('app.frontend_url', config('app.url')), '/');
+        return $base.'/r/'.$invite->token;
     }
 }

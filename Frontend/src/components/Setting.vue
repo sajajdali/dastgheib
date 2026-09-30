@@ -620,7 +620,9 @@
               >
               <small>نام دقیق template تعریف‌شده در پنل SHSMS را وارد کنید.</small>
             </label>
-            <button type="button" class="sms-sample-text-btn" @click="openSmsTemplateText(template.category, template.title)">متن پیشنهادی SHSMS</button>
+            <button type="button" class="sms-sample-text-btn" @click="openSmsTemplateText(template.category, template.title)">
+              {{ template.category === 'welcome' ? 'مشاهده و کپی متن پیشنهادی' : 'متن پیشنهادی SHSMS' }}
+            </button>
             <section class="sms-template-parameter-list" :aria-label="`ترتیب پارامترهای ${template.title}`">
               <header><strong>ترتیب پارامترهای ارسالی</strong><small>این موارد به‌ترتیب به الگوی SHSMS فرستاده می‌شوند.</small></header>
               <ol>
@@ -657,6 +659,11 @@
 
       <section class="satisfaction-builder">
         <div class="satisfaction-question-list">
+          <article class="satisfaction-copy-editor">
+            <label class="satisfaction-title-field">تیتر اول صفحه نظرسنجی<input v-model.trim="satisfactionTitle" type="text" maxlength="150" placeholder="نظرسنجی کلینیک"></label>
+            <label>متن شروع فرم<textarea v-model.trim="satisfactionIntroText" rows="4" placeholder="متنی که پیش از شروع سؤال‌ها نمایش داده می‌شود"></textarea></label>
+            <label>متن پایان فرم<textarea v-model.trim="satisfactionCompletionText" rows="4" placeholder="متنی که پس از ثبت پاسخ نمایش داده می‌شود"></textarea></label>
+          </article>
           <article
             v-for="(question, index) in satisfactionQuestions"
             :key="question.id"
@@ -694,27 +701,52 @@
               <span class="toggle-track"><i></i></span>
               <b>{{ question.required ? 'اجباری' : 'اختیاری' }}</b>
             </label>
+            <div v-if="question.type === 'rating'" class="satisfaction-option-editor">
+              <div class="satisfaction-option-editor-head">
+                <strong>گزینه‌های پاسخ این سؤال</strong>
+                <small>متن هر گزینه را تغییر دهید یا نمایش آن را خاموش کنید.</small>
+              </div>
+              <div class="satisfaction-option-editor-grid">
+                <div
+                  v-for="option in question.options"
+                  :key="`${question.id}-editor-${option.value}`"
+                  class="satisfaction-option-editor-row"
+                  :class="{ disabled: !option.active }"
+                >
+                  <input v-model.trim="option.label" type="text" :placeholder="option.defaultLabel">
+                  <label class="satisfaction-option-toggle" :class="{ active: option.active }">
+                    <input v-model="option.active" type="checkbox">
+                    <i></i>
+                    <b>{{ option.active ? 'فعال' : 'غیرفعال' }}</b>
+                  </label>
+                </div>
+              </div>
+            </div>
           </article>
         </div>
 
         <aside class="satisfaction-preview">
           <h3>صفحه رضایت مندی</h3>
+          <span class="satisfaction-preview-title">{{ satisfactionTitle || 'نظرسنجی کلینیک' }}</span>
+          <p class="satisfaction-preview-copy">{{ satisfactionIntroText }}</p>
           <article v-for="question in satisfactionQuestions" :key="`preview-${question.id}`" class="satisfaction-preview-question">
             <strong>{{ question.title || 'سوال بدون عنوان' }}</strong>
             <div v-if="question.type === 'rating'" class="satisfaction-options">
               <button
-                v-for="option in satisfactionOptions"
+                v-for="option in question.options.filter(item => item.active)"
                 :key="`${question.id}-${option.value}`"
                 type="button"
                 :class="['satisfaction-option', option.value, { selected: question.previewValue === option.value }]"
                 @click="question.previewValue = option.value"
               >
-                {{ option.label }}
+                {{ option.label || option.defaultLabel }}
               </button>
+              <small v-if="!question.options.some(item => item.active)" class="satisfaction-no-options">هیچ گزینه‌ای برای این سؤال فعال نیست.</small>
             </div>
             <textarea v-else-if="question.type === 'textarea'" v-model="question.previewText" placeholder="توضیحات"></textarea>
             <input v-else v-model="question.previewText" type="text" placeholder="پاسخ کوتاه">
           </article>
+          <p class="satisfaction-preview-completion">{{ satisfactionCompletionText }}</p>
         </aside>
       </section>
 
@@ -797,8 +829,6 @@ const featureEnabled = (feature) => {
   const normalized = props.enabledFeatures.map(item => aliases[item] || item);
   return normalized.includes(feature);
 };
-const SATISFACTION_SETTINGS_KEY = "satisfaction_form_settings_v1";
-
 const activeSection = ref(canViewSettings.value ? "internal" : "resources");
 const openAccordion = ref("");
 watch(() => props.initialSection, (section) => {
@@ -870,7 +900,7 @@ const leadAlertDefinitions = [
 const smsTemplateTextSamples = {
   appointment: "سلام %param1%\nنوبت شما در تاریخ %param2% ساعت %param3% با پزشک %param4% در کلینیک %param5% ثبت شد.",
   info: "سلام %param1%\nآدرس مرکز: %param2%\nلینک اینستاگرام: %param3%\nشماره تماس: %param4%\nلوکیشن: %param5%\nبا تشکر",
-  welcome: "%param1% عزیز، از مراجعه شما به %param2% سپاسگزاریم.",
+  welcome: "%param1% عزیز،\nنظر شما برای %param2% ارزشمند است:\n%param3%",
   referral_credit: "%param1% عزیز\nمبلغ %param2% تومان به اعتبار شما واریز شد.\nمانده اعتبار: %param3% تومان",
   treatment_care: "%param1% عزیز\nراهنمای مراقبت پس از درمان:\n%param2%",
   payment_link: "%param1% عزیز\nبرای پرداخت مبلغ %param3% تومان از لینک زیر استفاده کنید:\n%param2%",
@@ -1065,18 +1095,31 @@ const toggleCustomerLevelCriterion = (level, criterion) => {
   customerLevelCriteria.value[level][criterion] = !customerLevelCriteria.value[level][criterion];
 };
 
-const satisfactionOptions = [
-  { value: "excellent", label: "عالی" },
-  { value: "good", label: "خوب" },
-  { value: "average", label: "متوسط" },
-  { value: "bad", label: "بد" },
-  { value: "weak", label: "ضعیف" }
+const defaultSatisfactionOptions = [
+  { value: "excellent", label: "عالی", score: 5 },
+  { value: "good", label: "خوب", score: 4 },
+  { value: "average", label: "متوسط", score: 3 },
+  { value: "bad", label: "بد", score: 2 },
+  { value: "weak", label: "ضعیف", score: 1 }
 ];
+const makeSatisfactionOptions = (savedOptions = []) => defaultSatisfactionOptions.map(defaultOption => {
+  const savedOption = Array.isArray(savedOptions)
+    ? savedOptions.find(option => option?.value === defaultOption.value)
+    : null;
+  return {
+    value: defaultOption.value,
+    defaultLabel: defaultOption.label,
+    label: typeof savedOption?.label === "string" ? savedOption.label : defaultOption.label,
+    active: savedOption?.active !== false,
+    score: Number(savedOption?.score || defaultOption.score)
+  };
+});
 const makeSatisfactionQuestion = (title = "", type = "rating") => ({
   id: `satisfaction-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   title,
   type,
   required: type !== "textarea",
+  options: makeSatisfactionOptions(),
   previewValue: "",
   previewText: ""
 });
@@ -1089,27 +1132,21 @@ const defaultSatisfactionQuestions = () => [
   makeSatisfactionQuestion("توضیحات:", "textarea")
 ];
 const satisfactionQuestions = ref(defaultSatisfactionQuestions());
+const satisfactionTitle = ref("نظرسنجی کلینیک");
+const satisfactionIntroText = ref("از اینکه ما را برای مراقبت از سلامتتان انتخاب کردید، صمیمانه سپاسگزاریم. با پاسخ به چند سؤال کوتاه به ما کمک می‌کنید بهتر شویم.");
+const satisfactionCompletionText = ref("پاسخ‌های شما با موفقیت ثبت شد. از همراهی شما سپاسگزاریم.");
 const satisfactionSaveMessage = ref("");
 const draggedSatisfactionIndex = ref(null);
 
-const loadSatisfactionSettings = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SATISFACTION_SETTINGS_KEY) || "[]");
-    if (Array.isArray(saved) && saved.length) {
-      satisfactionQuestions.value = saved.map(question => ({
-        ...makeSatisfactionQuestion(),
-        ...question,
-        id: question.id || `satisfaction-loaded-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        type: ["rating", "textarea", "text"].includes(question.type) ? question.type : "rating"
-      }));
-    }
-  } catch {
-    satisfactionQuestions.value = defaultSatisfactionQuestions();
-  }
-};
-const persistSatisfactionSettings = () => {
-  const payload = satisfactionQuestions.value.map(({ id, title, type, required }) => ({ id, title, type, required }));
-  localStorage.setItem(SATISFACTION_SETTINGS_KEY, JSON.stringify(payload));
+const satisfactionPayload = () => {
+  const payload = satisfactionQuestions.value.map(({ id, title, type, required, options }) => ({
+    id,
+    title,
+    type,
+    required,
+    options: makeSatisfactionOptions(options).map(({ value, label, active, score }) => ({ value, label, active, score }))
+  }));
+  return { title: satisfactionTitle.value || "نظرسنجی کلینیک", intro_text: satisfactionIntroText.value, completion_text: satisfactionCompletionText.value, questions: payload };
 };
 const addSatisfactionQuestion = () => {
   satisfactionQuestions.value.push(makeSatisfactionQuestion("سوال جدید", "rating"));
@@ -1144,12 +1181,18 @@ const dropSatisfactionQuestion = (targetIndex) => {
 };
 const resetSatisfactionDefaults = () => {
   satisfactionQuestions.value = defaultSatisfactionQuestions();
-  persistSatisfactionSettings();
+  satisfactionTitle.value = "نظرسنجی کلینیک";
+  satisfactionIntroText.value = "از اینکه ما را برای مراقبت از سلامتتان انتخاب کردید، صمیمانه سپاسگزاریم. با پاسخ به چند سؤال کوتاه به ما کمک می‌کنید بهتر شویم.";
+  satisfactionCompletionText.value = "پاسخ‌های شما با موفقیت ثبت شد. از همراهی شما سپاسگزاریم.";
   satisfactionSaveMessage.value = "فرم به سوال‌های پیش‌فرض برگشت.";
 };
-const saveSatisfactionSettings = () => {
-  persistSatisfactionSettings();
-  satisfactionSaveMessage.value = "فرم رضایت‌مندی ذخیره شد.";
+const saveSatisfactionSettings = async () => {
+  try {
+    const { data } = await axios.put('/api/settings/satisfaction', satisfactionPayload());
+    satisfactionSaveMessage.value = data.message || "فرم رضایت‌مندی ذخیره شد.";
+  } catch (error) {
+    satisfactionSaveMessage.value = error.response?.data?.message || "ذخیره فرم انجام نشد.";
+  }
 };
 
 // بخش دسترسی‌ها
@@ -1310,10 +1353,19 @@ const savePaymentOptions = async () => {
 const addPerson = (index) => { accessSections.value[index].people.push({ name: "", selected_permissions: [] }); };
 const removePerson = (index) => { if (accessSections.value[index].people.length > 1) accessSections.value[index].people.pop(); };
 
-const handleLogoUpload = (event) => {
+const handleLogoUpload = async (event) => {
   const file = event.target.files[0];
   if (file) {
     company.value.logoFile = file;
+    const formData = new FormData();
+    formData.append('logo', file);
+    try {
+      const { data } = await axios.post('/api/settings/company-logo', formData);
+      company.value.logoUrl = data.logo || '';
+      satisfactionSaveMessage.value = data.message || 'لوگوی مجموعه ذخیره شد.';
+    } catch (error) {
+      await Swal.fire({ icon:'error', title:'آپلود لوگو انجام نشد', text:error.response?.data?.message || 'فایل لوگو معتبر نیست.' });
+    }
   }
 };
 
@@ -1467,6 +1519,16 @@ const fetchSettings = async () => {
         profile_photo_url: u.profile_photo_url || null,
         profile_thumbnail_url: u.profile_thumbnail_url || null,
         avatar_url: u.avatar_url || null
+      }));
+    }
+    if (data.satisfaction_form?.questions?.length) {
+      satisfactionTitle.value = data.satisfaction_form.title || "نظرسنجی کلینیک";
+      satisfactionIntroText.value = data.satisfaction_form.intro_text || "";
+      satisfactionCompletionText.value = data.satisfaction_form.completion_text || "";
+      satisfactionQuestions.value = data.satisfaction_form.questions.map(question => ({
+        ...makeSatisfactionQuestion(), ...question,
+        type: ["rating", "textarea", "text"].includes(question.type) ? question.type : "rating",
+        options: makeSatisfactionOptions(question.options)
       }));
     }
     if (data.roles) roles.value = data.roles;
@@ -1739,7 +1801,6 @@ onMounted(() => {
   }
   fetchSettings();
   fetchPaymentOptions();
-  loadSatisfactionSettings();
 });
 </script>
 
@@ -2226,8 +2287,13 @@ textarea{ min-height:120px; resize:none; }
 .satisfaction-settings-wrapper{width:100%;box-sizing:border-box;display:grid;gap:18px;padding:24px;border:1px solid #dbeafe;border-radius:26px;background:#f8fbff;box-shadow:0 14px 38px rgba(37,99,235,.08);text-align:center}.satisfaction-settings-head{display:flex;align-items:center;justify-content:space-between;gap:18px;text-align:right}.satisfaction-settings-head span{color:#2563eb;font-size:11px;font-weight:900}.satisfaction-settings-head h2{margin:5px 0;color:#172033}.satisfaction-settings-head p{margin:0;color:#64748b;font-size:12px;line-height:1.9}.satisfaction-settings-head button,.satisfaction-actions button{height:42px;padding:0 16px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}.satisfaction-builder{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.9fr);gap:16px;align-items:start}.satisfaction-question-list{display:grid;gap:10px}.satisfaction-question-editor{display:grid;grid-template-columns:1.2fr .7fr auto;align-items:end;gap:10px;padding:14px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;text-align:right}.question-editor-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between}.question-editor-head strong{color:#1e293b}.question-editor-head button{width:32px;height:32px;border:0;border-radius:9px;background:#fee2e2;color:#dc2626;font-size:19px;cursor:pointer}.question-editor-head button:disabled{opacity:.35;cursor:not-allowed}.satisfaction-question-editor label{display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}.satisfaction-question-editor input,.satisfaction-question-editor select,.satisfaction-preview input,.satisfaction-preview textarea{box-sizing:border-box;width:100%;min-height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;text-align:center}.satisfaction-switch{align-self:center;justify-self:center}.satisfaction-preview{display:grid;gap:15px;padding:20px;border:1px solid #e2e8f0;border-radius:22px;background:#fff;text-align:center}.satisfaction-preview h3{margin:0;color:#0f172a;font-size:22px}.satisfaction-preview-question{display:grid;gap:10px;justify-items:center;padding:15px;border:1px solid #eef2f7;border-radius:16px;background:#fbfdff}.satisfaction-preview-question strong{color:#1e293b;font-size:14px}.satisfaction-options{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}.satisfaction-option{min-width:72px;height:36px;padding:0 12px;border:2px solid transparent;border-radius:999px;background:#f8fafc;font-family:inherit;font-size:11px;font-weight:1000;cursor:pointer;transition:.18s}.satisfaction-option.excellent{color:#166534;background:#dcfce7}.satisfaction-option.good{color:#15803d;background:#f0fdf4}.satisfaction-option.average{color:#475569;background:#f1f5f9}.satisfaction-option.bad{color:#b91c1c;background:#fee2e2}.satisfaction-option.weak{color:#fff;background:#dc2626}.satisfaction-option.selected{transform:translateY(-2px);box-shadow:0 8px 18px rgba(15,23,42,.16)}.satisfaction-option.excellent.selected{border-color:#166534;background:#15803d;color:#fff}.satisfaction-option.good.selected{border-color:#22c55e;background:#bbf7d0;color:#14532d}.satisfaction-option.average.selected{border-color:#64748b;background:#cbd5e1;color:#1e293b}.satisfaction-option.bad.selected{border-color:#f87171;background:#fecaca;color:#7f1d1d}.satisfaction-option.weak.selected{border-color:#7f1d1d;background:#991b1b;color:#fff}.satisfaction-preview textarea{min-height:92px;padding:12px;resize:vertical}.satisfaction-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}.satisfaction-actions span{margin-left:auto;color:#15803d;font-size:12px;font-weight:900}.satisfaction-actions button{background:#64748b}.satisfaction-actions button.primary{background:#16a34a}
 .satisfaction-question-editor{cursor:grab}.satisfaction-question-editor.dragging{opacity:.55;border-color:#60a5fa;background:#eff6ff;cursor:grabbing}.drag-handle{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:16px;cursor:grab}.question-actions{display:flex;align-items:center;gap:6px}.question-actions button{background:#f1f5f9!important;color:#475569!important;font-size:14px!important}.question-actions button:last-child{background:#fee2e2!important;color:#dc2626!important;font-size:19px!important}
 .satisfaction-required-toggle{height:40px;align-self:end;justify-self:start;display:inline-flex!important;grid-template-columns:none!important;align-items:center;gap:8px;padding:0 10px!important;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:900;cursor:pointer;transition:border-color .18s ease,background-color .18s ease,color .18s ease,box-shadow .18s ease}.satisfaction-required-toggle input{position:absolute;opacity:0;pointer-events:none}.satisfaction-required-toggle .toggle-track{position:relative;width:30px;height:18px;flex:0 0 30px;border-radius:999px;background:#cbd5e1;transition:background-color .18s ease}.satisfaction-required-toggle .toggle-track i{position:absolute;top:3px;right:3px;width:12px;height:12px;border-radius:999px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.18);transition:transform .18s ease}.satisfaction-required-toggle b{line-height:1;color:inherit}.satisfaction-required-toggle.required{border-color:#bbf7d0;background:#f0fdf4;color:#15803d;box-shadow:0 8px 18px rgba(34,197,94,.08)}.satisfaction-required-toggle.required .toggle-track{background:#22c55e}.satisfaction-required-toggle.required .toggle-track i{transform:translateX(-12px)}.satisfaction-required-toggle:hover{border-color:#bfdbfe;background:#fff}
+.satisfaction-option-editor{grid-column:1/-1;display:grid;gap:10px;padding:13px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.satisfaction-option-editor-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.satisfaction-option-editor-head strong{color:#1e3a8a;font-size:12px}.satisfaction-option-editor-head small{color:#64748b;font-size:10px}.satisfaction-option-editor-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.satisfaction-option-editor-row{display:grid!important;gap:7px!important;padding:9px;border:1px solid #dbeafe;border-radius:12px;background:#fff;transition:.18s}.satisfaction-option-editor-row.disabled{opacity:.58;background:#f1f5f9}.satisfaction-option-editor-row>input{min-width:0!important;height:36px!important;min-height:36px!important;padding:0 8px!important}.satisfaction-option-toggle{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;color:#64748b;font-size:10px;font-weight:900;cursor:pointer}.satisfaction-option-toggle>input{position:absolute!important;width:1px!important;min-height:1px!important;opacity:0;pointer-events:none}.satisfaction-option-toggle i{position:relative;width:28px;height:17px;border-radius:999px;background:#cbd5e1;transition:.18s}.satisfaction-option-toggle i:after{content:'';position:absolute;top:3px;right:3px;width:11px;height:11px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.2);transition:.18s}.satisfaction-option-toggle.active{color:#15803d}.satisfaction-option-toggle.active i{background:#22c55e}.satisfaction-option-toggle.active i:after{transform:translateX(-11px)}.satisfaction-no-options{color:#b91c1c;font-size:11px;font-weight:900}
+.satisfaction-copy-editor{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px;border:1px solid #dbeafe;border-radius:16px;background:#fff;text-align:right}.satisfaction-copy-editor label{display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}.satisfaction-copy-editor .satisfaction-title-field{grid-column:1/-1}.satisfaction-copy-editor input,.satisfaction-copy-editor textarea{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:10px;font:inherit;line-height:1.8}.satisfaction-copy-editor textarea{resize:vertical}.satisfaction-preview-title{display:inline-flex;justify-self:center;padding:6px 14px;border-radius:999px;background:#e3efe9;color:#1f6f54;font-size:12px;font-weight:900}.satisfaction-preview-copy,.satisfaction-preview-completion{margin:0;color:#64748b;font-size:12px;line-height:1.9}.satisfaction-preview-completion{padding:10px;border-radius:10px;background:#f0fdf4;color:#15803d}
 
-@media(max-width:768px){ .top-tabs{ align-items:center; gap:6px; } .tab-btn{flex:0 0 auto;padding:7px 12px;text-align:center}.row-box,.user-two-line-form,.template-fields,.lead-alert-options{ grid-template-columns:1fr; } .password-eye-field,.user-control-column{ grid-column:auto; grid-row:auto; }.user-control-column{ grid-template-columns:1fr 42px; } .accordion{ width:100%; } .sms-provider-card,.sms-section-head,.lead-alert-head,.satisfaction-settings-head{ align-items:stretch; flex-direction:column; } .provider-field{ width:100%; }.payment-settings-wrapper,.satisfaction-settings-wrapper{padding:16px}.payment-settings-head{align-items:flex-start;flex-direction:column}.payment-settings-actions,.satisfaction-actions{align-items:stretch;flex-direction:column}.payment-settings-actions button,.satisfaction-actions button{width:100%}.lead-recipient-field>div{flex-direction:column}.lead-recipient-field button{height:42px}.satisfaction-builder,.satisfaction-question-editor{grid-template-columns:1fr}.satisfaction-preview{padding:14px}.satisfaction-actions span{margin-left:0} }
+.satisfaction-question-editor .satisfaction-option-toggle{display:flex!important;grid-template-columns:none!important;align-items:center;justify-content:center;gap:6px!important;color:#64748b;font-size:10px}
+.satisfaction-question-editor .satisfaction-option-toggle.active{color:#15803d}
+@media(max-width:768px){ .top-tabs{ align-items:center; gap:6px; } .tab-btn{flex:0 0 auto;padding:7px 12px;text-align:center}.row-box,.user-two-line-form,.template-fields,.lead-alert-options{ grid-template-columns:1fr; } .password-eye-field,.user-control-column{ grid-column:auto; grid-row:auto; }.user-control-column{ grid-template-columns:1fr 42px; } .accordion{ width:100%; } .sms-provider-card,.sms-section-head,.lead-alert-head,.satisfaction-settings-head,.satisfaction-option-editor-head{ align-items:stretch; flex-direction:column; } .provider-field{ width:100%; }.payment-settings-wrapper,.satisfaction-settings-wrapper{padding:16px}.payment-settings-head{align-items:flex-start;flex-direction:column}.payment-settings-actions,.satisfaction-actions{align-items:stretch;flex-direction:column}.payment-settings-actions button,.satisfaction-actions button{width:100%}.lead-recipient-field>div{flex-direction:column}.lead-recipient-field button{height:42px}.satisfaction-builder,.satisfaction-question-editor,.satisfaction-option-editor-grid,.satisfaction-copy-editor{grid-template-columns:1fr}.satisfaction-preview{padding:14px}.satisfaction-actions span{margin-left:0} }
+@media(min-width:769px) and (max-width:1180px){.satisfaction-option-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(min-width:769px) and (max-width:1180px){ .user-two-line-form{ grid-template-columns:1fr 150px 1fr; }.password-eye-field{ grid-column:1; }.user-control-column{ grid-column:2; } }
 
 /* Unified settings actions */

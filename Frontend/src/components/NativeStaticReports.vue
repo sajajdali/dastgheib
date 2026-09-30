@@ -7,8 +7,8 @@
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px">
         <h1 style="margin:0;font-size:22px;font-weight:800;color:#0f172a">گزارشات</h1>
         <div style="display:flex;gap:8px;background:#e6ebf3;border-radius:999px;padding:4px">
-          <button :style="v.tR" @click="v.onTR">گزارش</button>
-          <button :style="v.tA" @click="v.onTA">آمار و تحلیل</button>
+          <button :style="v.tR" @click="v.onTR">داشبورد</button>
+          <button :style="v.tA" @click="$emit('open-builder')">گزارش‌ساز</button>
         </div>
       </div>
   
@@ -18,21 +18,34 @@
         <div style="background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px" data-screen-label="نوار تاریخ و ابزارها">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="font-size:13px;font-weight:600;color:#334155">از تاریخ</span>
-            <input :value="v.fromV" @input="v.onFrom" style="width:110px;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;font-size:13px;color:#0f172a;text-align:center;outline:none;background:#f8fafc">
+            <date-picker
+              :model-value="v.fromV"
+              format="jYYYY/jMM/jDD"
+              display-format="jYYYY/jMM/jDD"
+              auto-submit
+              popover="bottom-right"
+              append-to="body"
+              input-class="report-date-input"
+              placeholder="انتخاب تاریخ شروع"
+              color="#2563eb"
+              @update:model-value="updateReportDate('from', $event)"
+            />
             <span style="font-size:13px;font-weight:600;color:#334155">تا تاریخ</span>
-            <input :value="v.toV" @input="v.onTo" style="width:110px;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;font-size:13px;color:#0f172a;text-align:center;outline:none;background:#f8fafc">
+            <date-picker
+              :model-value="v.toV"
+              format="jYYYY/jMM/jDD"
+              display-format="jYYYY/jMM/jDD"
+              auto-submit
+              popover="bottom-right"
+              append-to="body"
+              input-class="report-date-input"
+              placeholder="انتخاب تاریخ پایان"
+              color="#2563eb"
+              @update:model-value="updateReportDate('to', $event)"
+            />
             <button @click="v.toggleOpen" style="background:#2563eb;color:#ffffff;border:none;border-radius:10px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,0.3)">{{ v.openLbl }}</button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <button @click="v.openFilter" style="display:flex;align-items:center;gap:7px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;color:#334155;cursor:pointer">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
-              فیلترها
-              <span :style="'display:' + (v.filtBadge) + ';background:#2563eb;color:#ffffff;border-radius:999px;min-width:18px;height:18px;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;padding:0 5px'">{{ v.filtCnt }}</span>
-            </button>
-            <button @click="v.exportX" style="display:flex;align-items:center;gap:7px;background:#0d9488;color:#ffffff;border:none;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"></path></svg>
-              خروجی اکسل
-            </button>
             <div style="position:relative">
               <button @click="v.toggleMng" style="display:flex;align-items:center;gap:7px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;color:#334155;cursor:pointer">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 5h7M4 12h7M4 19h7M15 5h5M15 12h5M15 19h5"></path></svg>
@@ -53,18 +66,14 @@
         <template v-if="v.showDash">
         <div>
   
-          <div style="background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:14px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:16px" data-screen-label="فیلترهای سریع">
-            <template v-for="(g, gI) in v.qgroups" :key="gI">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <span style="font-size:12px;font-weight:700;color:#64748b">{{ g.label }}:</span>
-                <template v-for="(op, opI) in g.opts" :key="opI">
-                  <button :style="op.st" @click="op.on">{{ op.t }}</button>
-                </template>
-              </div>
-            </template>
-          </div>
-  
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:16px" data-screen-label="باکس‌های کلی">
+          <section class="kpi-summary-section" data-screen-label="شاخص‌های کلیدی گزارش">
+            <div class="kpi-summary-toolbar">
+              <div><strong>شاخص‌های کلیدی</strong><small>{{ v.kpiSubtitle }}</small></div>
+              <button type="button" :disabled="v.kpiCalculating" @click="calculateDashboardSummary" :title="v.kpiReady ? 'محاسبه مجدد شاخص‌ها' : 'محاسبه شاخص‌ها'" aria-label="محاسبه شاخص‌های کلیدی گزارش" class="report-refresh-button">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+              </button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px" data-screen-label="باکس‌های کلی">
             <template v-for="(kp, kpI) in v.kpis" :key="kpI">
               <div :style="'background:' + (kp.bg) + ';border:1px solid ' + (kp.bd) + ';border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:16px;display:flex;flex-direction:column;gap:8px;justify-content:center;grid-column:' + (kp.sp)">
                 <span :style="'font-size:' + (kp.ts) + ';font-weight:600;color:' + (kp.tc)">{{ kp.t }}</span>
@@ -77,9 +86,17 @@
               <span style="font-size:21px;font-weight:800;white-space:nowrap">{{ v.estV }}</span>
               <span style="font-size:11px;opacity:0.8">{{ v.estNote }}</span>
             </div>
-          </div>
+            </div>
+            <div v-if="v.kpiCalculating" class="kpi-summary-loading" aria-live="polite">
+              <div class="staff-income-loading-card">
+                <div class="staff-income-loading-ring"></div>
+                <strong>در حال محاسبه شاخص‌های گزارش</strong>
+                <small>{{ v.kpiStage || 'در حال آماده‌سازی اطلاعات…' }}</small>
+                <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
+              </div>
+            </div>
   
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px" data-screen-label="ماه‌ها">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px" data-screen-label="ماه‌ها">
             <template v-for="(mo, moI) in v.monthsV" :key="moI">
               <div :style="mo.st" @click="mo.on">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -94,14 +111,30 @@
               </div>
             </template>
           </div>
+          </section>
   
           <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-flow:dense;gap:16px" data-screen-label="داشبوردها">
   
-            <div :draggable="true" @dragstart="v.dh.ctype" @dragover="v.dv.ctype" @drop="v.dp.ctype" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.ctype) + ';order:' + (v.o.ctype)" data-screen-label="دسته‌بندی مشتریان">
+            <div :draggable="true" @dragstart="v.dh.ctype" @dragover="v.dv.ctype" @drop="v.dp.ctype" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.ctype) + ';order:' + (v.o.ctype)" data-screen-label="دسته‌بندی مشتریان">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc" title="جابجایی">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">دسته‌بندی مشتریان (معمولی / خوب / CIP / مشکل‌ساز)</span>
+                <small v-if="v.ctCompletedAt" style="color:#64748b;font-size:10px;white-space:nowrap">محاسبه: {{ v.ctCompletedAt }}</small>
+                <button v-if="v.ctReady" type="button" :disabled="v.ctBusy" @click="calculateCustomerSegments" title="محاسبه مجدد" aria-label="محاسبه مجدد گزارش دسته‌بندی مشتریان" class="report-refresh-button">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
+                <button v-else type="button" :disabled="v.ctCalculating" @click="calculateCustomerSegments" title="محاسبه گزارش" aria-label="محاسبه گزارش دسته‌بندی مشتریان" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.ctype" @change="v.hide.ctype" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
+              </div>
+              <div v-if="v.ctCalculating" class="staff-income-loading" aria-live="polite">
+                <div class="staff-income-loading-card">
+                  <div class="staff-income-loading-ring"></div>
+                  <strong>در حال محاسبه دسته‌بندی مشتریان</strong>
+                  <small>{{ v.ctStage || 'در حال آماده‌سازی اطلاعات…' }}</small>
+                  <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
+                </div>
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
                 <div style="position:relative;width:150px;height:150px;flex-shrink:0">
@@ -136,50 +169,14 @@
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.roi" @dragover="v.dv.roi" @drop="v.dp.roi" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:18px;min-width:0;grid-column:span 3;display:' + (v.dsp.roi) + ';order:' + (v.o.roi)" data-screen-label="بازگشت هزینه تبلیغات">
-              <div style="display:flex;align-items:center;gap:10px">
-                <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
-                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">بازگشت هزینه تبلیغات</span>
-                <span :style="v.roiBadgeStyle">{{ v.roiOkTxt }}</span>
-                <input type="checkbox" :checked="v.ck.roi" @change="v.hide.roi" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
-              </div>
-              <div style="display:flex;gap:12px">
-                <div style="flex:1;background:#fef2f2;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
-                  <span style="font-size:11.5px;color:#b91c1c;font-weight:600">هزینه تبلیغات</span>
-                  <span style="font-size:18px;font-weight:800;color:#991b1b">{{ v.roiCost }}</span>
-                </div>
-                <div style="flex:1;background:#f0fdf4;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
-                  <span style="font-size:11.5px;color:#15803d;font-weight:600">درآمد حاصل</span>
-                  <span style="font-size:18px;font-weight:800;color:#166534">{{ v.roiRev }}</span>
-                </div>
-                <div style="flex:1;background:#eff6ff;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
-                  <span style="font-size:11.5px;color:#1d4ed8;font-weight:600">نسبت بازگشت</span>
-                  <span style="font-size:18px;font-weight:800;color:#1e40af;direction:ltr;text-align:right">{{ v.roiX }}x</span>
-                </div>
-              </div>
-              <div style="display:flex;align-items:flex-end;gap:22px;height:130px;padding:0 8px">
-                <template v-for="(b, bI) in v.roiBars" :key="bI">
-                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%">
-                    <div style="display:flex;align-items:flex-end;gap:5px;flex:1">
-                      <div :style="'width:15px;height:' + (b.ch) + ';background:#fca5a5;border-radius:5px 5px 0 0'"></div>
-                      <div :style="'width:15px;height:' + (b.rh) + ';background:#22c55e;border-radius:5px 5px 0 0'"></div>
-                    </div>
-                    <span style="font-size:11px;color:#64748b">{{ b.n }}</span>
-                  </div>
-                </template>
-              </div>
-              <div style="display:flex;gap:16px;font-size:11px;color:#64748b">
-                <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#fca5a5;display:inline-block"></i>هزینه</span>
-                <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#22c55e;display:inline-block"></i>درآمد برگشتی</span>
-              </div>
-            </div>
-  
-            <div :draggable="true" @dragstart="v.dh.loyal" @dragover="v.dv.loyal" @drop="v.dp.loyal" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.loyal) + ';order:' + (v.o.loyal)" data-screen-label="مشتریان وفادار">
+            <div :draggable="true" @dragstart="v.dh.loyal" @dragover="v.dv.loyal" @drop="v.dp.loyal" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.loyal) + ';order:' + (v.o.loyal)" data-screen-label="مشتریان وفادار">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">مشتریان وفادار</span>
+                <small v-if="v.loyaltyCompletedAt" class="report-calculated-at">محاسبه: {{ v.loyaltyCompletedAt }}</small>
                 <button :style="v.l3st" @click="v.onL3">۳ ماه</button>
                 <button :style="v.l6st" @click="v.onL6">۶ ماه</button>
+                <button type="button" :disabled="v.loyaltyCalculating" @click="calculateLoyalty" :title="v.loyaltyReady ? 'محاسبه مجدد' : 'محاسبه وفاداری'" aria-label="محاسبه مشتریان وفادار" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.loyal" @change="v.hide.loyal" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;gap:12px">
@@ -206,12 +203,17 @@
                   <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#fee2e2;display:inline-block"></i>ریزش</span>
                 </div>
               </div>
+              <div v-if="v.loyaltyCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه وفاداری مشتریان</strong><small>{{ v.loyaltyStage || 'در حال بررسی انجام‌کارها…' }}</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.cancel" @dragover="v.dv.cancel" @drop="v.dp.cancel" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.cancel) + ';order:' + (v.o.cancel)" data-screen-label="نرخ کنسلی">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">نرخ کنسلی</span>
+                <small v-if="v.cnCompletedAt" class="report-calculated-at">محاسبه: {{ v.cnCompletedAt }}</small>
+                <button type="button" :disabled="v.cnLoading" @click="calculateCancellationRate" :title="v.cnReady ? 'محاسبه مجدد' : 'محاسبه نرخ کنسلی'" aria-label="محاسبه نرخ کنسلی" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.cancel" @change="v.hide.cancel" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -239,51 +241,54 @@
                 </div>
               </div>
               <transition name="cancel-loading">
-                <div v-if="v.cnLoading" class="cancel-rate-loading" aria-live="polite">
-                  <span class="cancel-rate-loading-ring"></span>
-                  <div><strong>در حال محاسبهٔ نرخ کنسلی</strong><small>نوبت‌های این بازه بررسی می‌شوند</small></div>
-                </div>
+                <div v-if="v.cnLoading" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبهٔ نرخ کنسلی</strong><small>نوبت‌های این بازه بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
               </transition>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.bills" @dragover="v.dv.bills" @drop="v.dp.bills" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.bills) + ';order:' + (v.o.bills)" data-screen-label="هزینه‌های جاری">
-              <div style="display:flex;align-items:center;gap:10px">
+            <div :draggable="true" @dragstart="v.dh.bills" @dragover="v.dv.bills" @drop="v.dp.bills" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;overflow:hidden;grid-column:span 2;display:' + (v.dsp.bills) + ';order:' + (v.o.bills)" data-screen-label="هزینه‌های جاری">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
-                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">هزینه‌ها <span style="font-size:11.5px;color:#94a3b8;font-weight:500">(هزینه‌های ثبت‌شده در بازهٔ انتخابی)</span></span>
+                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">هزینه‌ها</span>
+                <small v-if="v.billCompletedAt" class="report-calculated-at">محاسبه: {{ v.billCompletedAt }}</small>
+                <button type="button" :disabled="s.expenseLoading" @click="calculateExpenses" :title="v.billReady ? 'محاسبه مجدد هزینه‌ها' : 'محاسبه هزینه‌ها'" aria-label="محاسبه هزینه‌ها" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.bills" @change="v.hide.bills" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;flex-direction:column;gap:8px">
-                <p v-if="s.reportLoading" role="status" style="font-size:12px;color:#64748b">در حال بارگذاری هزینه‌ها…</p>
-                <p v-else-if="s.reportError" role="alert" style="font-size:12px;color:#b91c1c">{{ s.reportError }} <button type="button" @click="loadReportSummary">تلاش مجدد</button></p>
-                <p v-else-if="!v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است.</p>
+                <p v-if="s.expenseError" role="alert" style="font-size:12px;color:#b91c1c;overflow-wrap:anywhere">{{ s.expenseError }}</p>
+                <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است.</p>
                 <template v-for="(b, bI) in v.billRows" :key="bI">
-                  <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:9px 12px">
-                    <span style="flex:1;font-weight:600;color:#334155">{{ b.n }}</span>
-                    <div style="width:90px;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (b.w) + ';background:#f59e0b;border-radius:999px'"></div></div>
-                    <span style="min-width:60px;text-align:left;font-weight:800;color:#0f172a;white-space:nowrap">{{ b.v }}</span>
+                  <div class="expense-row">
+                    <span class="expense-row__name">{{ b.n }}</span>
+                    <div class="expense-row__bar"><div :style="'height:100%;width:' + (b.w) + ';background:#f59e0b;border-radius:999px'"></div></div>
+                    <span class="expense-money">{{ b.v }}</span>
                   </div>
                 </template>
               </div>
-              <div style="display:flex;gap:12px;flex-wrap:wrap">
-                <div style="flex:1;min-width:110px;background:#eff6ff;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
+              <div class="expense-summary-list">
+                <div class="expense-summary-row" style="background:#eff6ff">
                   <span style="font-size:11.5px;color:#1d4ed8;font-weight:600">درآمد کل دوره</span>
-                  <span style="font-size:17px;font-weight:800;color:#1e40af;white-space:nowrap">{{ v.billRevV }}</span>
+                  <span class="expense-summary-value" style="color:#1e40af">{{ v.billRevV }}</span>
                 </div>
-                <div style="flex:1;min-width:110px;background:#fef2f2;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
+                <div class="expense-summary-row" style="background:#fef2f2">
                   <span style="font-size:11.5px;color:#b91c1c;font-weight:600">جمع هزینه‌ها</span>
-                  <span style="font-size:17px;font-weight:800;color:#991b1b;white-space:nowrap">{{ v.billSumV }}</span>
+                  <span class="expense-summary-value" style="color:#991b1b">{{ v.billSumV }}</span>
                 </div>
-                <div style="flex:1;min-width:110px;background:#f0fdf4;border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">
+                <div class="expense-summary-row" style="background:#f0fdf4">
                   <span style="font-size:11.5px;color:#15803d;font-weight:600">درآمد پس از کسر</span>
-                  <span style="font-size:17px;font-weight:800;color:#166534;white-space:nowrap">{{ v.billNetV }}</span>
+                  <span class="expense-summary-value" style="color:#166534">{{ v.billNetV }}</span>
                 </div>
               </div>
+              <div v-if="s.expenseLoading" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه هزینه‌ها</strong><small>اطلاعات ثبت‌شده در بخش هزینه‌ها بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.staffinc" @dragover="v.dv.staffinc" @drop="v.dp.staffinc" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.staffinc) + ';order:' + (v.o.staffinc)" data-screen-label="درآمد پرسنل">
+            <div :draggable="true" @dragstart="v.dh.staffinc" @dragover="v.dv.staffinc" @drop="v.dp.staffinc" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.staffinc) + ';order:' + (v.o.staffinc)" data-screen-label="درآمد پرسنل">
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">درآمد پرسنل و سقف (تارگت)</span>
+                <small v-if="v.staffIncomeCompletedAt" class="report-calculated-at">محاسبه: {{ v.staffIncomeCompletedAt }}</small>
+                <button type="button" :disabled="v.staffIncomeCalculating" @click="calculateStaffIncome" :title="v.staffIncomeReady ? 'محاسبه مجدد' : 'محاسبه درآمد پرسنل'" aria-label="محاسبه درآمد پرسنل و سقف" class="report-refresh-button">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.staffinc" @change="v.hide.staffinc" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -299,7 +304,8 @@
                   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;z-index:2">
                     <span :style="'font-size:11.5px;font-weight:800;color:' + (b.vc)">{{ b.v }}</span>
                     <span v-if="b.reached" style="padding:2px 7px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:9px;font-weight:900">رسیده به تارگت</span>
-                    <img :src="b.ph" :style="'width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ' + (b.c)" alt="">
+                    <img v-if="b.ph" :src="b.ph" :style="'width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ' + (b.c)" alt="">
+                    <span v-else :style="'width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#e2e8f0;color:#475569;font-size:10px;font-weight:900;border:2px solid ' + (b.c)">{{ b.initial }}</span>
                     <div :style="'width:30px;height:' + (b.h) + ';background:' + (b.c) + ';border-radius:7px 7px 0 0'"></div>
                     <span style="font-size:10.5px;color:#64748b;height:20px;text-align:center;white-space:nowrap">{{ b.n }}</span>
                   </div>
@@ -309,15 +315,26 @@
                 <span style="font-size:12.5px;color:#475569;font-weight:600">جمع کل: <b style="color:#0f172a;font-size:15px">{{ v.staffSum }}</b></span>
                 <span style="font-size:12px;color:#b45309;font-weight:700">{{ v.staffOverTxt }}</span>
               </div>
+              <div v-if="v.staffIncomeCalculating" class="staff-income-loading" aria-live="polite">
+                <div class="staff-income-loading-card">
+                  <div class="staff-income-loading-ring"></div>
+                  <strong>در حال محاسبه درآمد پرسنل</strong>
+                  <small>{{ v.staffIncomeStage || 'در حال آماده‌سازی اطلاعات…' }}</small>
+                  <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
+                </div>
+              </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.qc" @dragover="v.dv.qc" @drop="v.dp.qc" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.qc) + ';order:' + (v.o.qc)" data-screen-label="رضایتمندی">
+            <div :draggable="true" @dragstart="v.dh.qc" @dragover="v.dv.qc" @drop="v.dp.qc" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 4;display:' + (v.dsp.qc) + ';order:' + (v.o.qc)" data-screen-label="رضایتمندی">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
-                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">رضایت‌مندی (QC)</span>
+                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">گزارش رضایت‌مندی <small v-if="v.qcCompletedAt" class="report-calculated-at">{{ v.qcCompletedAt }}</small></span>
+                <button type="button" :disabled="v.qcLoading" @click="calculateSatisfaction" :title="v.qcReady ? 'رفرش گزارش رضایت‌مندی' : 'ایجاد گزارش رضایت‌مندی'" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.qc" @change="v.hide.qc" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+              <div v-if="!v.qcLoading" style="display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap">
                 <div style="position:relative;width:150px;height:150px;flex-shrink:0">
                   <svg width="150" height="150" viewBox="0 0 120 120">
                     <g transform="rotate(-90 60 60)">
@@ -331,44 +348,61 @@
                   </div>
                 </div>
                 <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px">
-                  <template v-for="(r, rI) in v.qcRows" :key="rI">
-                    <div style="display:flex;align-items:center;gap:10px;font-size:12.5px">
-                      <span style="width:52px;color:#334155;font-weight:600">{{ r.n }}</span>
-                      <div style="flex:1;height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + (r.c) + ';border-radius:999px'"></div></div>
-                      <span style="width:38px;text-align:left;font-weight:800;color:#0f172a">{{ r.p }}</span>
+                  <div v-for="row in v.qcRows" :key="row.score" style="display:flex;align-items:center;gap:10px;font-size:12.5px">
+                    <span :title="row.label" style="width:92px;color:#334155;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.label }}</span>
+                    <div style="flex:1;height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden">
+                      <div :style="{height:'100%',width:row.width,background:row.color,borderRadius:'999px',transition:'width .4s ease'}"></div>
                     </div>
-                  </template>
+                    <span style="width:38px;text-align:left;font-weight:800;color:#0f172a">{{ row.percentage }}</span>
+                  </div>
+                </div>
+              </div>
+              <div v-if="v.qcLoading" class="staff-income-loading" aria-live="polite">
+                <div class="staff-income-loading-card">
+                  <div class="staff-income-loading-ring"></div>
+                  <strong>در حال آماده‌سازی گزارش رضایت‌مندی</strong>
+                  <small>پاسخ‌های پنج‌گزینه‌ای در حال محاسبه هستند…</small>
+                  <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
                 </div>
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.adch" @dragover="v.dv.adch" @drop="v.dp.adch" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 4;display:' + (v.dsp.adch) + ';order:' + (v.o.adch)" data-screen-label="آمار تبلیغات">
+            <div :draggable="true" @dragstart="v.dh.adch" @dragover="v.dv.adch" @drop="v.dp.adch" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 4;display:' + (v.dsp.adch) + ';order:' + (v.o.adch)" data-screen-label="آمار تبلیغات">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">آمار کانال‌های تبلیغاتی <span style="font-size:11.5px;color:#94a3b8;font-weight:500">(درآمد بر اساس انجام کار)</span></span>
+                <small v-if="v.adChannelsCompletedAt" class="report-calculated-at">محاسبه: {{ v.adChannelsCompletedAt }}</small>
+                <button type="button" :disabled="v.adChannelsCalculating" @click="calculateAdvertisingChannels" :title="v.adChannelsReady ? 'محاسبه مجدد آمار کانال‌ها' : 'ایجاد آمار کانال‌ها'" aria-label="ایجاد آمار کانال‌های تبلیغاتی" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.adch" @change="v.hide.adch" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div style="overflow-x:auto"><div style="min-width:560px;display:flex;flex-direction:column;gap:10px">
-              <div style="display:grid;grid-template-columns:110px 70px 90px 90px 70px 1fr;gap:10px;align-items:center;font-size:11.5px;color:#94a3b8;font-weight:700;padding:0 4px">
+              <div style="overflow-x:auto"><div style="min-width:720px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:grid;grid-template-columns:140px 85px 115px 115px 80px 1fr;gap:10px;align-items:center;font-size:11.5px;color:#94a3b8;font-weight:700;padding:0 4px">
                 <span>کانال</span><span>مراجعین</span><span>هزینه</span><span>درآمد</span><span>بازگشت</span><span></span>
               </div>
               <template v-for="(r, rI) in v.adRows" :key="rI">
-                <div style="display:grid;grid-template-columns:110px 70px 90px 90px 70px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:10px 4px">
-                  <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img :src="r.lg" style="width:18px;height:18px;object-fit:contain;flex-shrink:0" alt="">{{ r.n }}</span>
+                <div style="display:grid;grid-template-columns:140px 85px 115px 115px 80px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:12px;padding:12px 4px">
+                  <span style="font-weight:800;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:8px"><img :src="r.lg" style="width:22px;height:22px;object-fit:contain;flex-shrink:0" alt="">{{ r.n }}</span>
                   <span style="color:#334155;font-weight:600">{{ r.cnt }}</span>
-                  <span style="color:#b91c1c;font-weight:600">{{ r.cost }}</span>
-                  <span style="color:#15803d;font-weight:700">{{ r.rev }}</span>
-                  <span :style="'font-weight:800;color:' + (r.rc) + ';direction:ltr;text-align:right'">{{ r.roi }}</span>
+                  <span style="color:#b91c1c;font-weight:800">{{ r.cost }}</span>
+                  <span style="color:#15803d;font-weight:800">{{ r.rev }}</span>
+                  <span :style="'font-weight:900;color:' + r.rc">{{ r.roi }}</span>
                   <div style="height:9px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-left:8px"><div :style="'height:100%;width:' + (r.w) + ';background:#2563eb;border-radius:999px'"></div></div>
                 </div>
               </template>
+              <div v-if="v.adChannelsReady && !v.adRows.length" class="report-widget-empty">در این بازه مراجعه انجام‌شده یا کمپین کانال‌دار ثبت نشده است.</div>
               </div></div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.docs" @dragover="v.dv.docs" @drop="v.dp.docs" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.docs) + ';order:' + (v.o.docs)" data-screen-label="پزشکان">
+            <div :draggable="true" @dragstart="v.dh.docs" @dragover="v.dv.docs" @drop="v.dp.docs" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.docs) + ';order:' + (v.o.docs)" data-screen-label="پزشکان">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">پزشکان — آورده، پرداختی و تبدیل مشاوره به انجام کار</span>
+                <small v-if="v.doctorPerformanceCompletedAt" class="report-calculated-at">محاسبه: {{ v.doctorPerformanceCompletedAt }}</small>
+                <button type="button" :disabled="v.doctorPerformanceCalculating" @click="calculateDoctorPerformance" :title="v.doctorPerformanceReady ? 'محاسبه مجدد عملکرد پزشکان' : 'ایجاد گزارش عملکرد پزشکان'" aria-label="ایجاد گزارش عملکرد پزشکان" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.docs" @change="v.hide.docs" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="overflow-x:auto"><div style="min-width:800px;display:flex;flex-direction:column;gap:10px">
@@ -390,13 +424,19 @@
                   </div>
                 </div>
               </template>
+              <div v-if="v.doctorPerformanceReady && !v.docRows.length" class="report-widget-empty">پزشکی برای نمایش در این گزارش ثبت نشده است.</div>
               </div></div>
+              <div v-if="v.doctorPerformanceCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه عملکرد پزشکان</strong><small>آورده، پرداختی و نرخ تبدیل پزشکان بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.photo" @dragover="v.dv.photo" @drop="v.dp.photo" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.photo) + ';order:' + (v.o.photo)" data-screen-label="آنالیز عکس">
+            <div :draggable="true" @dragstart="v.dh.photo" @dragover="v.dv.photo" @drop="v.dp.photo" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.photo) + ';order:' + (v.o.photo)" data-screen-label="آنالیز عکس">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">آنالیز عکس‌ها</span>
+                <small v-if="v.photoCompletedAt" class="report-calculated-at">محاسبه: {{ v.photoCompletedAt }}</small>
+                <button type="button" :disabled="v.photoCalculating" @click="calculatePhotoAnalysis" :title="v.photoReady ? 'محاسبه مجدد آنالیز عکس‌ها' : 'ایجاد آنالیز عکس‌ها'" aria-label="ایجاد آنالیز عکس‌ها" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <span style="font-size:11.5px;color:#94a3b8">{{ v.phTotal }}</span>
                 <input type="checkbox" :checked="v.ck.photo" @change="v.hide.photo" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
@@ -409,14 +449,19 @@
                   <div style="height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + (r.c) + ';border-radius:999px'"></div></div>
                 </div>
               </template>
+              <div v-if="!v.phRows.length" class="report-widget-empty">برای نمایش کیفیت عکس‌ها براساس تگ و برترین‌ها، گزارش را محاسبه کنید.</div>
+              <div v-if="v.photoCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آنالیز عکس‌ها</strong><small>عکس‌ها، تگ‌ها و کیفیت تصاویر بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.city" @dragover="v.dv.city" @drop="v.dp.city" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.city) + ';order:' + (v.o.city)" data-screen-label="آمار شهرها">
+            <div :draggable="true" @dragstart="v.dh.city" @dragover="v.dv.city" @drop="v.dp.city" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.city) + ';order:' + (v.o.city)" data-screen-label="آمار شهرها">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">آمار بر اساس شهر</span>
+                <small v-if="v.cityCompletedAt" class="report-calculated-at">محاسبه: {{ v.cityCompletedAt }}</small>
+                <button type="button" :disabled="v.cityCalculating" @click="calculateCityStatistics" class="report-refresh-button" title="ایجاد یا محاسبه مجدد آمار شهرها" aria-label="ایجاد یا محاسبه مجدد آمار شهرها"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.city" @change="v.hide.city" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
+              <div v-if="v.cityCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آمار شهرها</strong><small>نوبت‌های انجام‌شده و پرداختی‌های این بازه بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
               <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
                 <div style="position:relative;width:340px;max-width:100%;aspect-ratio:400/340;flex-shrink:0">
                   <svg viewBox="0 0 400 340" style="width:100%;height:100%;display:block">
@@ -447,13 +492,16 @@
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.age" @dragover="v.dv.age" @drop="v.dp.age" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.age) + ';order:' + (v.o.age)" data-screen-label="آمار سنی">
+            <div :draggable="true" @dragstart="v.dh.age" @dragover="v.dv.age" @drop="v.dp.age" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.age) + ';order:' + (v.o.age)" data-screen-label="آمار سنی">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">آمار سنی</span>
                 <span style="background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:3px 12px;font-size:11.5px;font-weight:800">میانگین سن: {{ v.avgAge }}</span>
+                <small v-if="v.ageCompletedAt" class="report-calculated-at">محاسبه: {{ v.ageCompletedAt }}</small>
+                <button type="button" :disabled="v.ageCalculating" @click="calculateAgeStatistics" :title="v.ageReady ? 'محاسبه مجدد آمار سنی' : 'ایجاد آمار سنی'" aria-label="ایجاد یا محاسبه مجدد آمار سنی" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.age" @change="v.hide.age" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
+              <div v-if="v.ageCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آمار سنی</strong><small>اطلاعات مراجعین و پرداختی‌های این بازه بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
               <div style="display:grid;grid-template-columns:70px 1fr 55px 70px 90px;gap:10px;align-items:center;font-size:11px;color:#94a3b8;font-weight:700">
                 <span>بازه سنی</span><span></span><span>تعداد</span><span>پرداختی</span><span>خدمت پرتکرار</span>
               </div>
@@ -492,72 +540,105 @@
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.topsvc" @dragover="v.dv.topsvc" @drop="v.dp.topsvc" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.topsvc) + ';order:' + (v.o.topsvc)" data-screen-label="پردرآمدترین خدمات">
+            <div :draggable="true" @dragstart="v.dh.topsvc" @dragover="v.dv.topsvc" @drop="v.dp.topsvc" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.topsvc) + ';order:' + (v.o.topsvc)" data-screen-label="پردرآمدترین خدمات">
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">پردرآمدترین و پرسودترین خدمات</span>
-                <span style="font-size:11.5px;color:#94a3b8">مرتب‌سازی:</span>
-                <button :style="v.srtRevSt" @click="v.onSrtRev">بیشترین درآمد</button>
-                <button :style="v.srtProfSt" @click="v.onSrtProf">بیشترین سود</button>
+                <small v-if="v.topServicesCompletedAt" class="report-calculated-at">محاسبه: {{ v.topServicesCompletedAt }}</small>
+                <button type="button" :disabled="v.topServicesCalculating" @click="calculateTopServices" :title="v.topServicesReady ? 'رفرش گزارش' : 'ایجاد گزارش'" aria-label="ایجاد یا رفرش گزارش پردرآمدترین و پرسودترین خدمات" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.topsvc" @change="v.hide.topsvc" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <template v-for="(r, rI) in v.svcRows" :key="rI">
+              <div v-if="v.topServicesError" class="report-widget-empty" style="color:#b91c1c;border-color:#fecaca;background:#fff7f7">{{ v.topServicesError }}</div>
+              <div v-else-if="v.topServicesReady && !v.svcRows.length" class="report-widget-empty">در این بازه خدمت انجام‌شده‌ای برای محاسبه وجود ندارد.</div>
+              <template v-for="r in v.svcRows" :key="r.key">
                 <div style="display:grid;grid-template-columns:26px 130px 1fr 90px 90px;gap:10px;align-items:center;font-size:12.5px">
                   <span style="width:24px;height:24px;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center">{{ r.i }}</span>
-                  <span style="font-weight:700;color:#0f172a">{{ r.n }}</span>
+                  <span style="font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.n }}</span>
                   <div style="display:flex;flex-direction:column;gap:4px">
-                    <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.wr) + ';background:#2563eb;border-radius:999px'"></div></div>
-                    <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.wp) + ';background:#16a34a;border-radius:999px'"></div></div>
+                    <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wr + ';background:#2563eb;border-radius:999px'"></div></div>
+                    <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wp + ';background:#16a34a;border-radius:999px'"></div></div>
                   </div>
                   <span style="color:#1d4ed8;font-weight:700">{{ r.rev }}</span>
                   <span style="color:#15803d;font-weight:700">{{ r.prof }}</span>
                 </div>
               </template>
-              <div style="display:flex;gap:16px;font-size:11px;color:#64748b;justify-content:flex-end">
+              <button v-if="v.hasMoreServices" type="button" class="top-services-more" @click="v.toggleServices">
+                <span>{{ v.servicesMoreLabel }}</span>
+                <span class="top-services-more-arrow" aria-hidden="true">{{ v.servicesExpanded ? '↑' : '↓' }}</span>
+              </button>
+              <div v-if="v.svcRows.length" style="display:flex;gap:16px;font-size:11px;color:#64748b;justify-content:flex-end">
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#2563eb;display:inline-block"></i>درآمد</span>
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#16a34a;display:inline-block"></i>سود</span>
               </div>
+              <div v-if="v.topServicesCalculating" class="staff-income-loading" aria-live="polite">
+                <div class="staff-income-loading-card">
+                  <div class="staff-income-loading-ring"></div>
+                  <strong>در حال محاسبه خدمات پردرآمد و پرسود</strong>
+                  <small>درآمد، هزینه‌ها و پورسانت‌های این بازه بررسی می‌شوند</small>
+                  <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
+                </div>
+              </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.cac" @dragover="v.dv.cac" @drop="v.dp.cac" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.cac) + ';order:' + (v.o.cac)" data-screen-label="هزینه جذب مشتری">
+            <div :draggable="true" @dragstart="v.dh.cac" @dragover="v.dv.cac" @drop="v.dp.cac" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.cac) + ';order:' + (v.o.cac)" data-screen-label="هزینه جذب مشتری">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">هزینه جذب هر مشتری</span>
+                <small v-if="v.cacCompletedAt" class="report-calculated-at">محاسبه: {{ v.cacCompletedAt }}</small>
+                <button type="button" :disabled="v.cacCalculating" @click="calculateCustomerAcquisition" :title="v.cacReady ? 'محاسبه مجدد هزینه جذب' : 'ایجاد گزارش هزینه جذب'" aria-label="ایجاد گزارش هزینه جذب مشتری" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.cac" @change="v.hide.cac" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="background:linear-gradient(135deg,#f8fafc,#eff6ff);border-radius:14px;padding:18px;text-align:center;display:flex;flex-direction:column;gap:4px">
                 <span style="font-size:28px;font-weight:800;color:#1d4ed8">{{ v.cacPer }}</span>
-                <span style="font-size:11.5px;color:#94a3b8">به ازای هر مشتری جدید</span>
+                <span style="font-size:11.5px;color:#94a3b8">هزینه ثبت‌شده روی کمپین ÷ مشتریان یکتای «وقت داده شد»</span>
               </div>
               <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <div style="flex:1;min-width:110px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">هزینه تبلیغات</span><span style="font-size:15px;font-weight:800;color:#b91c1c">{{ v.cacCost }}</span></div>
-                <div style="flex:1;min-width:110px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">مشتریان جدید</span><span style="font-size:15px;font-weight:800;color:#0f172a">{{ v.cacNew }}</span></div>
-                <div style="flex:1;min-width:110px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">میانگین درآمد هر مشتری</span><span style="font-size:15px;font-weight:800;color:#15803d">{{ v.cacAvg }}</span></div>
-                <div style="flex:1;min-width:110px;background:#f0fdf4;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#15803d">نسبت درآمد به هزینه جذب</span><span style="font-size:15px;font-weight:800;color:#15803d;direction:ltr;text-align:right">{{ v.cacRatio }}</span></div>
+                <div style="flex:1;min-width:100px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">هزینه کمپین‌ها</span><span style="font-size:15px;font-weight:800;color:#b91c1c">{{ v.cacCost }}</span></div>
+                <div style="flex:1;min-width:110px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">وقت داده شد</span><span style="font-size:15px;font-weight:800;color:#0f172a">{{ v.cacAppointments }}</span></div>
+                <div style="flex:1;min-width:90px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">نرخ جذب</span><span style="font-size:15px;font-weight:800;color:#15803d">{{ v.cacRate }}</span></div>
+              </div>
+              <div v-if="v.cacCampaignRows.length" style="display:flex;flex-direction:column;gap:7px">
+                <div v-for="row in v.cacCampaignRows" :key="row.id" class="cac-campaign-row">
+                  <span>{{ row.name }}</span><small>{{ row.cost }} ÷ {{ row.appointments }} · جذب {{ row.rate }}</small><b>{{ row.per }}</b>
+                </div>
+              </div>
+              <div v-if="v.cacCalculating" class="staff-income-loading" aria-live="polite">
+                <div class="staff-income-loading-card">
+                  <div class="staff-income-loading-ring"></div>
+                  <strong>در حال محاسبه هزینه جذب مشتری</strong>
+                  <small>هزینه کمپین‌ها و مشتریان جذب‌شده بررسی می‌شوند</small>
+                  <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
+                </div>
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.campperf" @dragover="v.dv.campperf" @drop="v.dp.campperf" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.campperf) + ';order:' + (v.o.campperf)" data-screen-label="بازدهی کمپین‌ها">
+            <div :draggable="true" @dragstart="v.dh.campperf" @dragover="v.dv.campperf" @drop="v.dp.campperf" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.campperf) + ';order:' + (v.o.campperf)" data-screen-label="بازدهی کمپین‌ها">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">بازدهی کمپین‌ها</span>
-                <template v-for="(op, opI) in v.cpChips" :key="opI">
-                  <button :style="op.st" @click="op.on">{{ op.t }}</button>
-                </template>
+                <small v-if="v.campaignPerformanceCompletedAt" class="report-calculated-at">محاسبه: {{ v.campaignPerformanceCompletedAt }}</small>
+                <button type="button" :disabled="v.campaignPerformanceCalculating" @click="calculateCampaignPerformance" :title="v.campaignPerformanceReady ? 'محاسبه مجدد بازدهی کمپین‌ها' : 'ایجاد گزارش بازدهی کمپین‌ها'" aria-label="ایجاد گزارش بازدهی کمپین‌ها" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.campperf" @change="v.hide.campperf" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <template v-for="(r, rI) in v.cpRows" :key="rI">
-                <div style="display:flex;flex-direction:column;gap:5px;background:#f8fafc;border-radius:12px;padding:10px 14px">
-                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;flex-wrap:wrap;gap:4px">
-                    <span style="font-weight:700;color:#0f172a">{{ r.n }} <span style="color:#94a3b8;font-size:10.5px;font-weight:500">{{ r.date }}</span></span>
-                    <span style="color:#64748b;font-size:11.5px">هزینه {{ r.cost }} · تمایل {{ r.des }} · بازدهی <b style="color:#1d4ed8;direction:ltr;display:inline-block">{{ r.eff }}x</b></span>
+                <div style="display:flex;flex-direction:column;gap:7px;background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:11px 14px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;flex-wrap:wrap;gap:7px">
+                    <span style="font-weight:800;color:#0f172a">{{ r.n }}</span>
+                    <span style="display:flex;align-items:center;gap:10px;color:#64748b;font-size:11.5px"><span>{{ r.leads }} لید</span><span>{{ r.appointments }} وقت داده شد</span><b :style="'color:' + r.c + ';font-size:13px'">{{ r.rate }}</b></span>
                   </div>
-                  <div style="height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:linear-gradient(90deg,#60a5fa,#1d4ed8);border-radius:999px'"></div></div>
+                  <div style="height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + r.bar + ';border-radius:999px;transition:width .25s ease'"></div></div>
                 </div>
               </template>
+              <div v-if="v.campaignPerformanceReady && !v.cpRows.length" class="report-widget-empty">در این بازه کمپینی با لید دارای شماره تماس ثبت نشده است.</div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.campdes" @dragover="v.dv.campdes" @drop="v.dp.campdes" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.campdes) + ';order:' + (v.o.campdes)" data-screen-label="کمپین‌ها بر اساس درجه تمایل">
+            <div v-if="false">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">کمپین‌ها بر اساس درجه تمایل</span>
@@ -583,26 +664,53 @@
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.staffapt" @dragover="v.dv.staffapt" @drop="v.dp.staffapt" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.staffapt) + ';order:' + (v.o.staffapt)" data-screen-label="وقت‌دهی پرسنل">
-              <div style="display:flex;align-items:center;gap:10px">
+            <div :draggable="true" @dragstart="v.dh.staffapt" @dragover="v.dv.staffapt" @drop="v.dp.staffapt" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.staffapt) + ';order:' + (v.o.staffapt)" data-screen-label="وقت‌دهی پرسنل">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">وقت‌دهی پرسنل</span>
+                <small v-if="v.staffAppointmentsCompletedAt" class="report-calculated-at">محاسبه: {{ v.staffAppointmentsCompletedAt }}</small>
+                <button type="button" :disabled="v.staffAppointmentsCalculating" @click="calculateStaffAppointments" :title="v.staffAppointmentsReady ? 'رفرش گزارش وقت‌دهی پرسنل' : 'ایجاد گزارش وقت‌دهی پرسنل'" aria-label="ایجاد یا رفرش گزارش وقت‌دهی پرسنل" class="report-refresh-button">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
+                </button>
                 <input type="checkbox" :checked="v.ck.staffapt" @change="v.hide.staffapt" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <template v-for="(r, rI) in v.aptRows" :key="rI">
-                <div style="display:flex;align-items:center;gap:10px;font-size:12.5px">
-                  <img :src="r.ph" :style="'width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid ' + (r.ac) + ';flex-shrink:0'" alt="">
-                  <span style="width:90px;font-weight:700;color:#0f172a">{{ r.n }}</span>
-                  <div style="flex:1;height:10px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + (r.ac) + ';border-radius:999px'"></div></div>
-                  <span style="width:64px;text-align:left;font-weight:800;color:#0f172a">{{ r.cnt }} وقت</span>
+              <div style="overflow-x:auto"><div style="min-width:760px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:grid;grid-template-columns:150px 100px 90px 90px 110px 90px 1fr;gap:10px;align-items:center;font-size:11.5px;color:#94a3b8;font-weight:700;padding:0 4px">
+                  <span>پرسنل</span><span>آورده</span><span>پورسانت</span><span>حقوق ثابت</span><span>جمع پرداختی</span><span>تعداد نوبت</span><span>نرخ تبدیل</span>
                 </div>
-              </template>
+                <template v-for="r in v.aptRows" :key="r.id">
+                  <div style="display:grid;grid-template-columns:150px 100px 90px 90px 110px 90px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:10px 4px">
+                    <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img :src="r.ph" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e2e8f0" alt="">{{ r.n }}</span>
+                    <span style="color:#0f172a;font-weight:700">{{ r.bring }}</span>
+                    <span style="color:#334155">{{ r.pors }}</span>
+                    <span style="color:#334155">{{ r.fix }}</span>
+                    <span style="color:#b91c1c;font-weight:700">{{ r.pay }}</span>
+                    <span style="color:#334155;font-weight:700">{{ r.cnt }}</span>
+                    <div style="display:flex;align-items:center;gap:8px;margin-left:8px" :title="r.rateTitle">
+                      <div style="flex:1;height:9px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.w + ';background:' + r.color + ';border-radius:999px'"></div></div>
+                      <span :style="'width:45px;text-align:left;font-weight:900;color:' + r.color">{{ r.rate }}</span>
+                    </div>
+                  </div>
+                </template>
+                <div v-if="v.staffAppointmentsReady && !v.aptRows.length" class="report-widget-empty">در این بازه اطلاعاتی برای پرسنل وقت‌دهی ثبت نشده است.</div>
+                <div v-if="v.staffAppointmentsError" class="report-widget-empty" style="color:#b91c1c;border-color:#fecaca;background:#fff7f7">{{ v.staffAppointmentsError }}</div>
+              </div></div>
+              <div v-if="v.staffAppointmentsCalculating" class="staff-income-loading" aria-live="polite">
+                <div class="staff-income-loading-card">
+                  <div class="staff-income-loading-ring"></div>
+                  <strong>در حال محاسبه وقت‌دهی پرسنل</strong>
+                  <small>نوبت‌ها، مبالغ و پرداختی‌های ثبت‌کنندگان بررسی می‌شوند</small>
+                  <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
+                </div>
+              </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.cap" @dragover="v.dv.cap" @drop="v.dp.cap" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.cap) + ';order:' + (v.o.cap)" data-screen-label="گنجایش مجموعه">
+            <div :draggable="true" @dragstart="v.dh.cap" @dragover="v.dv.cap" @drop="v.dp.cap" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.cap) + ';order:' + (v.o.cap)" data-screen-label="گنجایش مجموعه">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">گنجایش مجموعه</span>
+                <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
+                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('capacity')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش گنجایش مجموعه" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.cap" @change="v.hide.cap" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -625,16 +733,19 @@
                   <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="color:#64748b">تا تکمیل گنجایش</span><b style="color:#7c3aed">{{ v.capRemain }}</b></div>
                   <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;background:#f8fafc;border-radius:12px;padding:10px 12px">
                     گنجایش (میلیون تومان):
-                    <input type="number" :value="v.capV" @input="v.onCap" style="flex:1;width:80px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;color:#0f172a;outline:none;direction:ltr;text-align:center">
+                    <input type="text" inputmode="numeric" :value="v.capV" @input="v.onCap" style="flex:1;width:80px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;color:#0f172a;outline:none;direction:ltr;text-align:center">
                   </label>
                 </div>
               </div>
+              <div v-if="v.capacityCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه گنجایش مجموعه</strong><small>درآمد واقعی بازه با هدف واردشده مقایسه می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.gender" @dragover="v.dv.gender" @drop="v.dp.gender" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.gender) + ';order:' + (v.o.gender)" data-screen-label="ترکیب جنسیتی">
+            <div :draggable="true" @dragstart="v.dh.gender" @dragover="v.dv.gender" @drop="v.dp.gender" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.gender) + ';order:' + (v.o.gender)" data-screen-label="ترکیب جنسیتی">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">ترکیب جنسیتی مراجعین</span>
+                <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
+                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('gender')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش ترکیب جنسیتی" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.gender" @change="v.hide.gender" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;justify-content:space-around;align-items:flex-end;gap:16px">
@@ -669,12 +780,16 @@
                   <span style="font-size:11.5px;color:#64748b">آقا · {{ v.gM.cnt }} نفر</span>
                 </div>
               </div>
+              <small v-if="v.gUnknown" style="text-align:center;color:#94a3b8;font-size:10.5px">جنسیت ثبت‌نشده: {{ v.gUnknown }} نفر</small>
+              <div v-if="v.genderCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه ترکیب جنسیتی</strong><small>اطلاعات بیماران ثبت‌شده بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.newold" @dragover="v.dv.newold" @drop="v.dp.newold" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.newold) + ';order:' + (v.o.newold)" data-screen-label="مشتریان جدید و قدیم">
+            <div :draggable="true" @dragstart="v.dh.newold" @dragover="v.dv.newold" @drop="v.dp.newold" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.newold) + ';order:' + (v.o.newold)" data-screen-label="مشتریان جدید و قدیم">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">مشتریان جدید و قدیم</span>
+                <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
+                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('newold')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش مشتریان جدید و قدیم" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.newold" @change="v.hide.newold" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -702,12 +817,15 @@
                   </div>
                 </div>
               </div>
+              <div v-if="v.newOldCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه مشتریان جدید و قدیمی</strong><small>تعداد نوبت‌های هر مشتری بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.status" @dragover="v.dv.status" @drop="v.dp.status" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.status) + ';order:' + (v.o.status)" data-screen-label="وضعیت مشتری‌ها">
+            <div :draggable="true" @dragstart="v.dh.status" @dragover="v.dv.status" @drop="v.dp.status" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.status) + ';order:' + (v.o.status)" data-screen-label="وضعیت مشتری‌ها">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">وضعیت مشتری‌ها</span>
+                <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
+                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('status')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش وضعیت مشتری‌ها" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.status" @change="v.hide.status" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -738,6 +856,7 @@
                   </template>
                 </div>
               </div>
+              <div v-if="v.statusCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه وضعیت مشتری‌ها</strong><small>وضعیت نوبت‌های این بازه بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
           </div>
@@ -836,25 +955,60 @@
 
 <script>
 import axios from 'axios'
+import DatePicker from 'vue3-persian-datetime-picker'
+import { subscribeReportWidgetProgress } from '../services/presence'
 
 export default {
   name: 'ClinicReport',
+  components: { DatePicker },
+  emits: ['open-builder'],
   props: {
     estCancel: { type: Number, default: 30 },
     capacityDefault: { type: Number, default: 2500 },
     defaultOpen: { type: Boolean, default: true }
   },
   data() {
-    const KEYS = ['ctype','staffinc','roi','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','campdes','staffapt','sect','cap','gender','newold','status'];
+    const KEYS = ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'];
+    const faDigits = '۰۱۲۳۴۵۶۷۸۹';
+    const toEnglish = value => String(value).replace(/[۰-۹]/g, digit => String(faDigits.indexOf(digit)));
+    const currentParts = Object.fromEntries(
+      new Intl.DateTimeFormat('fa-IR-u-ca-persian', {year:'numeric',month:'2-digit',day:'2-digit'})
+        .formatToParts(new Date())
+        .filter(part => ['year','month','day'].includes(part.type))
+        .map(part => [part.type, toEnglish(part.value)])
+    );
+    const currentYear = Number(currentParts.year) || 1405;
+    const currentMonth = Number(currentParts.month) || 1;
+    const currentDay = Number(currentParts.day) || 1;
+    const currentMonthText = String(currentMonth).padStart(2, '0');
+    const currentDayText = String(currentDay).padStart(2, '0');
     return {
-      KEYS: ['ctype','staffinc','roi','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','campdes','staffapt','sect','cap','gender','newold','status'],
-      NAMES: {ctype:'دسته‌بندی مشتریان',roi:'بازگشت هزینه تبلیغات',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'هزینه‌ها',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',campdes:'کمپین‌ها بر اساس درجه تمایل',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
+      KEYS: ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'],
+      NAMES: {ctype:'دسته‌بندی مشتریان',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'هزینه‌ها',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
       s: {
       tab:'r', open:(this.defaultOpen===false?false:true), filterOpen:false, mngOpen:false,
       filters:{}, bdFrom:'', bdTo:'', hidden:{}, order:KEYS.slice(), ddOpen:null, ddQ:'',
       monthSel:3, loyalRange:6, staff:'همه', cap:String(this.capacityDefault ?? 2500),
-      reportSummary:null, reportLoading:false, reportError:'', svcSort:'rev', campSort:'perf', from:'۱۴۰۵/۰۲/۰۱', to:'۱۴۰۵/۰۴/۳۱'}
-      ,cancellationReport: null, cancellationLoading: false, reportSummary: null, reportLoading: false, staffTarget: 120
+      reportSummary:null, reportLoading:false, reportError:'', topServicesExpanded:false, campSort:'quality', from:`${currentYear}/${currentMonthText}/01`, to:`${currentYear}/${currentMonthText}/${currentDayText}`}
+      ,cancellationReport: null, cancellationLoading: false, expenseReport: null, expenseLoading: false, expenseError: '', reportSummary: null, reportLoading: false, staffTarget: 120
+      ,customerSegmentSnapshot: null, customerSegmentLoading: false
+      ,dashboardSnapshot: null, dashboardLoading: false
+      ,staffRoster: [], staffIncomeSnapshot: null, staffIncomeLoading: false
+      ,advertisingRoiSnapshot: null, advertisingRoiLoading: false
+      ,loyaltySnapshot: null, loyaltyLoading: false
+      ,cancellationSnapshot: null
+      ,photoSnapshot: null, photoLoading: false
+      ,expenseSnapshot: null
+      ,customerAcquisitionSnapshot: null, customerAcquisitionLoading: false
+      ,campaignPerformanceSnapshot: null, campaignPerformanceLoading: false
+      ,advertisingChannelsSnapshot: null, advertisingChannelsLoading: false
+      ,doctorPerformanceSnapshot: null, doctorPerformanceLoading: false
+      ,ageStatisticsSnapshot: null, ageStatisticsLoading: false, ageStatisticsProgress: 0
+      ,cityStatisticsSnapshot: null, cityStatisticsLoading: false, cityStatisticsProgress: 0
+      ,topServicesSnapshot: null, topServicesLoading: false
+      ,staffAppointmentsSnapshot: null, staffAppointmentsLoading: false
+      ,satisfactionSnapshot: null, satisfactionLoading: false
+      ,overviewLoadingSource: null
     };
   },
   computed: {
@@ -946,24 +1100,29 @@ export default {
     // KPIs
     const gUp = {gb:'#dcfce7', gc:'#15803d'}, gDn = {gb:'#fee2e2', gc:'#b91c1c'};
     const sm = {sp:'auto', vs:'21px', ts:'12px'}, lg = {sp:'span 2', vs:'30px', ts:'13.5px'};
-    const actualRevenue = S.reportSummary ? Number(S.reportSummary.kpis?.recognized_revenue || 0) / 1000000 : null;
+    const dashboardSnapshot = this.dashboardSnapshot;
+    const dashboardReady = dashboardSnapshot?.status === 'completed' && Number(dashboardSnapshot?.result?.schema_version || 0) >= 3;
+    const actualRevenue = dashboardReady ? Number(S.reportSummary?.kpis?.recognized_revenue || 0) / 1000000 : null;
     const actualRevenueText = actualRevenue === null ? '—' : actualRevenue.toLocaleString('fa-IR', {minimumFractionDigits: actualRevenue % 1 ? 1 : 0, maximumFractionDigits: 1}) + ' میلیون';
     const reportMoney = value => Number(value || 0).toLocaleString('fa-IR', {minimumFractionDigits: Number(value || 0) % 1000000 ? 1 : 0, maximumFractionDigits: 1}) + ' میلیون';
     const advertisingCost = S.reportSummary?.expenses?.advertising_total;
     const netProfit = S.reportSummary?.kpis?.net_profit;
+    const dashboardKpis = S.reportSummary?.kpis || {};
+    const kpiMoney = value => dashboardReady ? reportMoney(Number(value || 0) / 1000000) : '--';
     const kpis = [
-      {t:'درآمد کل', v:actualRevenueText, g:S.reportLoading ? 'در حال بروزرسانی…' : 'از نوبت‌های انجام‌شده', ...gUp, bg:'#eff6ff', bd:'#bfdbfe', tc:'#1d4ed8', ...lg},
-      {t:'سود خالص', v:S.reportSummary ? reportMoney(netProfit / 1000000) : '—', g:S.reportLoading ? 'در حال بروزرسانی…' : 'درآمد پس از کسر همه هزینه‌ها', ...gUp, bg:'#f0fdf4', bd:'#bbf7d0', tc:'#15803d', ...lg},
-      {t:'تبلیغات', v:S.reportSummary ? reportMoney(advertisingCost / 1000000) : '—', g:S.reportLoading ? 'در حال بروزرسانی…' : 'هزینه تبلیغات ثبت‌شده', ...gDn, bg:'#fff7ed', bd:'#fed7aa', tc:'#c2410c', ...sm},
-      {t:'هزینه پزشک', v:mm(512*k), g:'↑ +۶٪', ...gDn, bg:'#f0f9ff', bd:'#bae6fd', tc:'#0369a1', ...sm},
-      {t:'حقوق پرسنل', v:mm(238*k), g:'— ۰٪', gb:'#f1f5f9', gc:'#64748b', bg:'#faf5ff', bd:'#e9d5ff', tc:'#7c3aed', ...sm},
-      {t:'مواد مصرفی', v:mm(174*k), g:'↓ −۳٪', ...gUp, bg:'#fffbeb', bd:'#fde68a', tc:'#b45309', ...sm},
-      {t:'میزان تخفیف‌ها', v:mm(96*k), g:'↑ +۹٪', ...gDn, bg:'#fdf2f8', bd:'#fbcfe8', tc:'#be185d', ...sm},
-      {t:'تعداد مراجعین', v:fa(512*k)+' نفر', g:'↑ +۱۱٪', ...gUp, bg:'#f0fdfa', bd:'#99f6e4', tc:'#0d9488', ...sm}
+      {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? 'از نوبت‌های انجام‌شده' : '--', ...gUp, bg:'#eff6ff', bd:'#bfdbfe', tc:'#1d4ed8', ...lg},
+      {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'پس از کسر هزینه‌های ثبت‌شده' : '--', ...gUp, bg:'#f0fdf4', bd:'#bbf7d0', tc:'#15803d', ...lg},
+      {t:'تبلیغات', v:kpiMoney(advertisingCost), g:dashboardReady ? 'هزینه تبلیغات ثبت‌شده' : '--', ...gDn, bg:'#fff7ed', bd:'#fed7aa', tc:'#c2410c', ...sm},
+      {t:'هزینه پزشک', v:kpiMoney(dashboardKpis.doctor_cost), g:dashboardReady ? 'حقوق و پورسانت پزشکان' : '--', ...gDn, bg:'#f0f9ff', bd:'#bae6fd', tc:'#0369a1', ...sm},
+      {t:'حقوق پرسنل', v:kpiMoney(dashboardKpis.staff_cost), g:dashboardReady ? 'حقوق و پورسانت پرسنل' : '--', gb:'#f1f5f9', gc:'#64748b', bg:'#faf5ff', bd:'#e9d5ff', tc:'#7c3aed', ...sm},
+      {t:'مواد مصرفی', v:kpiMoney(dashboardKpis.materials_cost), g:dashboardReady ? 'مصرف ثبت‌شده در خدمات' : '--', ...gUp, bg:'#fffbeb', bd:'#fde68a', tc:'#b45309', ...sm},
+      {t:'هزینه‌ها', v:kpiMoney(dashboardKpis.expenses), g:dashboardReady ? 'جمع هزینه‌های ثبت‌شده در بازه' : '--', ...gDn, bg:'#fff1f2', bd:'#fecdd3', tc:'#be123c', ...sm},
+      {t:'میزان تخفیف‌ها', v:kpiMoney(dashboardKpis.discount_total), g:dashboardReady ? 'تخفیف نوبت‌های انجام‌شده' : '--', ...gDn, bg:'#fdf2f8', bd:'#fbcfe8', tc:'#be185d', ...sm},
+      {t:'تعداد مراجعین', v:dashboardReady ? fa(dashboardKpis.visitors_count || 0)+' نفر' : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده' : '--', ...gUp, bg:'#f0fdfa', bd:'#99f6e4', tc:'#0d9488', ...sm}
     ];
 
     // Expenses are already grouped and date-filtered by the report API.
-    const expenses = S.reportSummary?.expenses;
+    const expenses = this.expenseSnapshot?.status === 'completed' ? this.expenseSnapshot.result : null;
     const billItems = expenses?.items || [];
     const billMax = Math.max(0, ...billItems.map(item => Number(item.amount) || 0));
     const billMoney = value => Number(value || 0).toLocaleString('fa-IR') + ' تومان';
@@ -974,31 +1133,44 @@ export default {
     }));
     const billSum = Number(expenses?.total || 0);
     const billRev = Number(S.reportSummary?.kpis?.recognized_revenue || 0);
-    const billRevV = expenses ? billMoney(billRev) : '—';
+    const billRevV = expenses && S.reportSummary ? billMoney(billRev) : '—';
     const billSumV = expenses ? billMoney(billSum) : '—';
-    const billNetV = expenses ? billMoney(billRev - billSum) : '—';
+    const billNetV = expenses && S.reportSummary ? billMoney(billRev - billSum) : '—';
     const cancelP = this.estCancel ?? 30;
-    const estV = mm(730 * k * (1 - cancelP/100));
-    const estNote = 'بر اساس وقت‌های آینده با ' + fa(cancelP) + '٪ کنسلی';
+    const forecastCancellation = S.reportSummary?.forecast?.previous_month_cancellation_rate;
 
     // months
-    const MONTHS = [
-      {name:'فروردین', g:12, pts:'0,24 12,20 24,22 36,14 48,15 60,6'},
-      {name:'اردیبهشت', g:8, pts:'0,22 12,23 24,18 36,19 48,12 60,8'},
-      {name:'خرداد', g:-5, pts:'0,10 12,13 24,11 36,17 48,16 60,23'},
-      {name:'تیر', g:14, pts:'0,26 12,21 24,23 36,15 48,12 60,5'}
-    ];
+    const jalaliDigits = value => Number(String(value).replace(/[۰-۹]/g, digit => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)));
+    const todayParts = Object.fromEntries(new Intl.DateTimeFormat('fa-IR-u-ca-persian', {year:'numeric',month:'numeric'}).formatToParts(new Date()).map(part => [part.type, part.value]));
+    const currentJalaliYear = jalaliDigits(todayParts.year);
+    const currentJalaliMonth = jalaliDigits(todayParts.month);
+    const latestMonthKeys = Array.from({length:4}, (_, index) => {
+      const absolute = currentJalaliYear * 12 + currentJalaliMonth - 1 - (3 - index);
+      return `${Math.floor(absolute / 12)}-${String((absolute % 12) + 1).padStart(2, '0')}`;
+    });
+    const selectedReportMonth = String(S.from || '').replaceAll('/','-').slice(0,7);
+    const isLatestReportMonth = selectedReportMonth === latestMonthKeys[latestMonthKeys.length - 1];
+    const estV = dashboardReady && isLatestReportMonth ? kpiMoney(dashboardKpis.forecast_revenue) : '--';
+    const estNote = dashboardReady && isLatestReportMonth ? 'بر اساس وقت‌های آینده با ' + fa(forecastCancellation ?? cancelP) + '٪ کنسلی' : '--';
+    const monthlyTrendRows = dashboardReady && Array.isArray(S.reportSummary?.monthly_trends)
+      ? S.reportSummary.monthly_trends
+      : latestMonthKeys.map(month => ({month,revenue:null,growth_percent:null}));
+    const MONTH_NAMES = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
     const box = a => 'flex:1;min-width:160px;background:' + (a?'#eff6ff':'#ffffff') + ';border:1.5px solid ' + (a?'#2563eb':'#e2e8f0') + ';border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 3px rgba(15,23,42,0.05)';
-    const monthsV = MONTHS.map((m, i) => ({
-      name: m.name + ' ۱۴۰۵',
-      val: mm(1840 * MF[i] * ff),
-      g: fa(Math.abs(m.g)) + '٪' + (m.g > 0 ? '+' : '−'),
-      arrow: m.g > 0 ? '↑' : '↓',
-      col: m.g > 0 ? '#16a34a' : '#dc2626',
-      pts: m.pts,
-      st: box(i === S.monthSel),
-      on: () => this.selectReportMonth(i)
-    }));
+    const monthsV = monthlyTrendRows.map(row => {
+      const [year, month] = String(row.month).split('-').map(Number);
+      const growth = row.growth_percent == null ? null : Number(row.growth_percent);
+      return {
+        name: `${MONTH_NAMES[month - 1] || row.month} ${fa(year)}`,
+        val: dashboardReady ? reportMoney(Number(row.revenue || 0) / 1000000) : '--',
+        g: dashboardReady ? (growth == null ? 'بدون مبنای مقایسه' : `${fa(Math.abs(growth))}٪`) : '--',
+        arrow: !dashboardReady || growth == null ? '' : (growth >= 0 ? '↑' : '↓'),
+        col: !dashboardReady || growth == null ? '#94a3b8' : (growth >= 0 ? '#16a34a' : '#dc2626'),
+        pts: !dashboardReady ? '0,20 60,20' : (growth == null ? '0,18 60,18' : (growth >= 0 ? '0,24 15,22 30,18 45,14 60,7' : '0,7 15,11 30,15 45,19 60,24')),
+        st: box(String(S.from || '').replaceAll('/','-').startsWith(row.month)),
+        on: () => this.selectReportMonthKey(row.month)
+      };
+    });
 
     // donut segment helper
     const segs = fracs => {
@@ -1012,33 +1184,48 @@ export default {
     const arc = p => (p * C) + ' ' + C;
 
     // Customer segmentation is calculated by the report API for the selected date range.
-    const segmentRows = S.reportSummary?.customer_segments || [];
+    const segmentSnapshot = this.customerSegmentSnapshot;
+    const ctReady = segmentSnapshot?.status === 'completed' && Array.isArray(segmentSnapshot?.result);
+    const segmentRows = segmentSnapshot?.result || [];
     const segmentByKey = Object.fromEntries(segmentRows.map(row => [row.key, row]));
     const orderedSegments = ['silver', 'blue', 'gold', 'problematic'].map(key => segmentByKey[key] || {key, count: 0, revenue: 0});
-    const ctT = orderedSegments.reduce((sum, row) => sum + Number(row.count || 0), 0);
-    const ctP = orderedSegments.map(row => ctT > 0 ? Number(row.count || 0) / ctT : 0);
+    const previewSegments = [
+      {key:'silver', count:null, revenue:null},
+      {key:'blue', count:null, revenue:null},
+      {key:'gold', count:null, revenue:null},
+      {key:'problematic', count:null, revenue:null}
+    ];
+    const displayedSegments = ctReady ? orderedSegments : previewSegments;
+    const ctT = ctReady ? displayedSegments.reduce((sum, row) => sum + Number(row.count || 0), 0) : null;
+    const ctP = ctReady
+      ? displayedSegments.map(row => ctT > 0 ? Number(row.count || 0) / ctT : 0)
+      : [0.52, 0.16, 0.22, 0.10];
     const [cs1, cs2, cs3, cs4] = segs(ctP);
     const ctCols = ['#94a3b8','#93c5fd','#f59e0b','#dc2626'];
     const ctNames = ['معمولی','خوب','CIP','مشکل‌ساز'];
     const ctLegend = ctP.map((p, i) => ({
       n: ctNames[i],
       c: ctCols[i],
-      cnt: fa(orderedSegments[i].count)+' نفر',
-      p: pc(p*100),
+      cnt: ctReady ? fa(displayedSegments[i].count)+' نفر' : '-- نفر',
+      p: ctReady ? pc(p*100) : '--٪',
       w: (p*100)+'%',
-      rev: Number(orderedSegments[i].revenue || 0).toLocaleString('fa-IR') + ' تومان'
+      rev: ctReady ? Number(displayedSegments[i].revenue || 0).toLocaleString('fa-IR') + ' تومان' : '--- تومان'
     }));
 
     // Advertising ROI: costs are advertising expenses and returned revenue is
     // revenue from completed appointments attributed to a campaign.
-    const roiData = S.reportSummary?.advertising_roi;
+    const advertisingRoiSnapshot = this.advertisingRoiSnapshot;
+    const roiReady = advertisingRoiSnapshot?.status === 'completed' && advertisingRoiSnapshot?.result;
+    const roiData = roiReady ? advertisingRoiSnapshot.result : null;
     const jalaliMonthNames = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-    const roiTimeline = roiData?.timeline || [];
+    const roiTimeline = roiReady ? (roiData?.timeline || []) : latestMonthKeys.map(month => ({month,cost:null,revenue:null,placeholder:true}));
     const roiMax = Math.max(0, ...roiTimeline.flatMap(row => [Number(row.cost || 0), Number(row.revenue || 0)]));
-    const roiBars = roiTimeline.map(row => ({
+    const roiBars = roiTimeline.map((row,index) => ({
       n: jalaliMonthNames[Math.max(0, Number(String(row.month || '').slice(5, 7)) - 1)] || row.month,
-      ch: (roiMax > 0 ? Math.max(3, Math.round(Number(row.cost || 0) / roiMax * 100)) : 0) + 'px',
-      rh: (roiMax > 0 ? Math.max(3, Math.round(Number(row.revenue || 0) / roiMax * 100)) : 0) + 'px'
+      ch: (row.placeholder ? 28 + index * 4 : (roiMax > 0 ? Math.max(3, Math.round(Number(row.cost || 0) / roiMax * 100)) : 0)) + 'px',
+      rh: (row.placeholder ? 52 + index * 5 : (roiMax > 0 ? Math.max(3, Math.round(Number(row.revenue || 0) / roiMax * 100)) : 0)) + 'px',
+      cc: row.placeholder ? '#cbd5e1' : '#fca5a5',
+      rc: row.placeholder ? '#94a3b8' : '#22c55e'
     }));
     const roiMoney = value => {
       const millions = Number(value || 0) / 1000000;
@@ -1046,83 +1233,115 @@ export default {
     };
 
     // loyal
-    const L = S.loyalRange === 6 ? {tot:940, ret:611} : {tot:480, ret:300};
-    const loyP = L.ret / L.tot;
+    const loyaltySnapshot = this.loyaltySnapshot;
+    const loyaltyReady = loyaltySnapshot?.status === 'completed' && loyaltySnapshot?.result;
+    const loyaltyPeriod = loyaltyReady ? loyaltySnapshot.result[String(S.loyalRange)] : null;
+    const L = {tot:Number(loyaltyPeriod?.total || 0),ret:Number(loyaltyPeriod?.returned || 0),lost:Number(loyaltyPeriod?.churned || 0)};
+    const loyP = loyaltyReady && L.tot ? L.ret / L.tot : 0;
 
     // cancel
-    const came = Math.round(512*k), canc = Math.round(62*k);
-    const cnR = canc / (came + canc);
+    const cancellationSnapshot = this.cancellationSnapshot;
+    const cancellationReady = cancellationSnapshot?.status === 'completed' && cancellationSnapshot?.result;
+    const cancellationResult = cancellationReady ? cancellationSnapshot.result : null;
 
     // staff income
-    const STAFF = [
-      {n:'سارا احمدی', v:148, apt:142, ac:'#2563eb', ph:'https://i.pravatar.cc/72?img=47'},
-      {n:'مریم رضایی', v:112, apt:128, ac:'#0d9488', ph:'https://i.pravatar.cc/72?img=45'},
-      {n:'نگار موسوی', v:96, apt:117, ac:'#7c3aed', ph:'https://i.pravatar.cc/72?img=44'},
-      {n:'الهام کریمی', v:131, apt:96, ac:'#db2777', ph:'https://i.pravatar.cc/72?img=43'},
-      {n:'رویا شریفی', v:88, apt:84, ac:'#f59e0b', ph:'https://i.pravatar.cc/72?img=41'}
-    ];
-    const target = Math.max(0, Number(S.staffTarget) || 0);
+    const staffIncomeSnapshot = this.staffIncomeSnapshot;
+    const staffIncomeReady = staffIncomeSnapshot?.status === 'completed' && staffIncomeSnapshot?.result;
+    const staffResultRows = staffIncomeReady && Array.isArray(staffIncomeSnapshot.result.staff) ? staffIncomeSnapshot.result.staff : [];
+    const staffResultById = Object.fromEntries(staffResultRows.map(row => [String(row.id), row]));
+    const staffColors = ['#2563eb','#0d9488','#7c3aed','#db2777','#f59e0b','#0891b2','#4f46e5'];
+    const STAFF = this.staffRoster.map((staff, index) => {
+      const result = staffResultById[String(staff.id)] || {};
+      return {id:staff.id,n:staff.name,ph:staff.avatar_url,ac:staffColors[index % staffColors.length],v:staffIncomeReady ? Number(result.income || 0) : null,reached:!!result.target_reached};
+    });
+    const target = staffIncomeReady ? Math.max(0, Number(staffIncomeSnapshot.result.target || 0)) : null;
     const staffChips = ['همه'].concat(STAFF.map(s => s.n)).map(n => ({t: n, st: chip(S.staff === n), on: () => this.set({staff: n})}));
     const shown = STAFF.filter(s => S.staff === 'همه' || s.n === S.staff);
+    const chartMaximum = staffIncomeReady ? Math.max(target || 0, ...shown.map(s => Number(s.v || 0)), 1) : 1;
     const staffBars = shown.map(s => {
-      const v = Math.round(s.v * k);
-      const reached = v >= target;
-      return {n: s.n.split(' ')[0], ph: s.ph, v: mm(v), h: Math.round(v * 0.75) + 'px', c: reached ? '#16a34a' : '#2563eb', vc: reached ? '#15803d' : '#334155', reached};
+      const reached = staffIncomeReady && s.reached;
+      const height = staffIncomeReady ? Math.max(4, Math.round(Number(s.v || 0) / chartMaximum * 125)) : 54;
+      return {n: s.n.split(' ')[0], initial:String(s.n || 'پ').trim().charAt(0), ph:s.ph, v:staffIncomeReady ? mm(Number(s.v || 0) / 1000000) : '--', h:height+'px', c:staffIncomeReady ? (reached ? '#16a34a' : s.ac) : '#cbd5e1', vc:reached ? '#15803d' : '#334155', reached};
     });
-    const overCnt = shown.filter(s => Math.round(s.v*k) >= target).length;
-    const staffOverTxt = overCnt > 0 ? '⭐ ' + fa(overCnt) + ' نفر به تارگت رسیدند' : 'هنوز کسی به تارگت نرسیده است';
-    const targetB = (22 + Math.round(target * 0.75)) + 'px';
+    const overCnt = staffIncomeReady ? shown.filter(s => s.reached).length : null;
+    const staffOverTxt = !staffIncomeReady ? '-- نفر به تارگت رسیدند' : (overCnt > 0 ? '⭐ ' + fa(overCnt) + ' نفر به تارگت رسیدند' : 'هنوز کسی به تارگت نرسیده است');
+    const targetB = staffIncomeReady ? (22 + Math.min(125, Math.round((target || 0) / chartMaximum * 125))) + 'px' : '86px';
 
-    // qc
-    const qcRows = [
-      {n:'عالی', p:pc(58), w:'58%', c:'#16a34a'},
-      {n:'خوب', p:pc(29), w:'29%', c:'#4ade80'},
-      {n:'متوسط', p:pc(9), w:'9%', c:'#f59e0b'},
-      {n:'ناراضی', p:pc(4), w:'4%', c:'#dc2626'}
-    ];
+    // satisfaction (only five-option questions)
+    const satisfactionReady = this.satisfactionSnapshot?.status === 'completed';
+    const satisfactionResult = satisfactionReady ? (this.satisfactionSnapshot.result || {}) : {};
+    const satisfactionColors = {5:'#16a34a',4:'#4ade80',3:'#f59e0b',2:'#f97316',1:'#dc2626'};
+    const satisfactionLabels = {5:'عالی',4:'خوب',3:'متوسط',2:'بد',1:'ضعیف'};
+    const satisfactionOptions = (satisfactionResult.questions || []).flatMap(question => question.options || []);
+    const satisfactionAnswerTotal = satisfactionOptions.reduce((sum, option) => sum + Number(option.count || 0), 0);
+    const qcRows = [5,4,3,2,1].map(score => {
+      const matching = satisfactionOptions.filter(option => Number(option.score) === score);
+      const count = matching.reduce((sum, option) => sum + Number(option.count || 0), 0);
+      const percentage = satisfactionAnswerTotal ? Math.round(count / satisfactionAnswerTotal * 100) : 0;
+      return {
+        score,
+        label:matching.find(option => option.label)?.label || satisfactionLabels[score],
+        width:satisfactionReady ? `${percentage}%` : `${18 + score * 11}%`,
+        percentage:satisfactionReady ? pc(percentage) : '—',
+        color:satisfactionReady ? satisfactionColors[score] : '#cbd5e1'
+      };
+    });
 
     // ad channels
-    const ADS = [
-      {n:'اینستاگرام', lg:'https://cdn.simpleicons.org/instagram/E4405F', cnt:210, cost:45, rev:168},
-      {n:'معرفی دوستان', lg:'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232563eb"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>', cnt:90, cost:0, rev:85},
-      {n:'گوگل', lg:'https://cdn.simpleicons.org/google', cnt:60, cost:18, rev:52},
-      {n:'یوتیوب', lg:'https://cdn.simpleicons.org/youtube/FF0000', cnt:25, cost:12, rev:20}
+    const adChannelsReady = this.advertisingChannelsSnapshot?.status === 'completed';
+    const ADS = adChannelsReady ? (this.advertisingChannelsSnapshot?.result?.channels || []) : [
+      {name:'اینستاگرام',completed:210,cost:45000000,revenue:168000000,ratio:3.7,sample:true},
+      {name:'معرفی دوستان',completed:90,cost:0,revenue:85000000,ratio:null,sample:true},
+      {name:'گوگل',completed:60,cost:18000000,revenue:52000000,ratio:2.9,sample:true},
+      {name:'یوتیوب',completed:25,cost:12000000,revenue:20000000,ratio:1.7,sample:true}
     ];
-    const adRows = ADS.map(a => {
-      const r = a.cost ? a.rev / a.cost : 0;
-      return {n: a.n, lg: a.lg, cnt: fa(a.cnt*k), cost: a.cost ? mm(a.cost*k) : '—', rev: mm(a.rev*k),
-        roi: a.cost ? (Math.round(r*10)/10).toLocaleString('fa-IR') + 'x' : '∞',
-        rc: (!a.cost || r >= 1) ? '#15803d' : '#b91c1c', w: Math.round(a.rev/168*100)+'%'};
+    const adMaxCompleted = Math.max(1,...ADS.map(row => Number(row.completed || 0)));
+    const adMoney = value => {
+      const amount = Number(value || 0);
+      if (Math.abs(amount) >= 1000000) return (amount / 1000000).toLocaleString('fa-IR', {maximumFractionDigits:1}) + ' میلیون';
+      return amount.toLocaleString('fa-IR') + ' تومان';
+    };
+    const channelIcon = name => String(name || '').includes('اینستاگرام') ? 'https://cdn.simpleicons.org/instagram/E4405F'
+      : String(name || '').includes('گوگل') ? 'https://cdn.simpleicons.org/google'
+      : String(name || '').includes('یوتیوب') ? 'https://cdn.simpleicons.org/youtube/FF0000'
+      : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232563eb"><circle cx="12" cy="12" r="9"/><path fill="white" d="M7 11h10v2H7z"/></svg>';
+    const adRows = ADS.map(row => {
+      const ratio = row.ratio == null ? null : Number(row.ratio);
+      return {n:row.name,lg:row.icon_url || channelIcon(row.name),cnt:row.sample?'--':fa(row.completed || 0),cost:row.sample?'--':(Number(row.cost || 0)>0?adMoney(row.cost):'—'),rev:row.sample?'--':adMoney(row.revenue || 0),
+        roi:row.sample?'--':(ratio == null?'∞':ratio.toLocaleString('fa-IR',{maximumFractionDigits:2})+'x'),
+        rc:ratio == null?'#64748b':(ratio>=1?'#15803d':'#b91c1c'),w:Math.round(Number(row.completed || 0)/adMaxCompleted*100)+'%'};
     });
 
     // docs
-    const DOCS = [
-      {n:'دکتر محمدی', ph:'https://i.pravatar.cc/72?img=12', bring:620, pors:93, fix:40, cons:120, done:78},
-      {n:'دکتر افشار', ph:'https://i.pravatar.cc/72?img=13', bring:480, pors:72, fix:40, cons:95, done:52},
-      {n:'دکتر سلطانی', ph:'https://i.pravatar.cc/72?img=59', bring:390, pors:58, fix:35, cons:80, done:36}
+    const doctorPerformanceReady = this.doctorPerformanceSnapshot?.status === 'completed';
+    const DOCS = doctorPerformanceReady ? (this.doctorPerformanceSnapshot?.result?.doctors || []) : [
+      {doctor_id:'sample-1',name:'پزشک نمونه ۱',avatar_url:'https://i.pravatar.cc/72?img=12',conversion_rate:68,sample:true},
+      {doctor_id:'sample-2',name:'پزشک نمونه ۲',avatar_url:'https://i.pravatar.cc/72?img=13',conversion_rate:52,sample:true},
+      {doctor_id:'sample-3',name:'پزشک نمونه ۳',avatar_url:'https://i.pravatar.cc/72?img=59',conversion_rate:36,sample:true}
     ];
-    const bestConv = Math.max(...DOCS.map(d => d.done/d.cons));
+    const realConversions = DOCS.filter(d => !d.sample && d.conversion_rate != null).map(d => Number(d.conversion_rate));
+    const bestConv = realConversions.length ? Math.max(...realConversions) : null;
     const docRows = DOCS.map(d => {
-      const conv = d.done / d.cons;
-      return {n: d.n, ph: d.ph, bring: mm(d.bring*k), pors: mm(d.pors*k), fix: mm(d.fix), pay: mm(d.pors*k + d.fix),
-        cons: fa(d.cons*k), done: fa(d.done*k), convP: pc(conv*100), convW: Math.round(conv*100)+'%',
-        cc: conv >= 0.6 ? '#15803d' : conv >= 0.5 ? '#f59e0b' : '#dc2626',
-        bd: conv === bestConv ? 'inline-block' : 'none'};
+      const conv = Math.max(0, Math.min(100, Number(d.conversion_rate || 0)));
+      const sample = !!d.sample;
+      return {id:d.doctor_id,n:d.name,ph:d.avatar_url || 'https://i.pravatar.cc/72?img=68',bring:sample?'--':reportMoney(Number(d.revenue || 0)/1000000),pors:sample?'--':reportMoney(Number(d.commission || 0)/1000000),fix:sample?'--':reportMoney(Number(d.salary || 0)/1000000),pay:sample?'--':reportMoney(Number(d.payment_total || 0)/1000000),
+        cons:sample?'--':fa(d.consultations || 0),done:sample?'--':fa(d.converted || 0),convP:sample?'--':(d.conversion_rate==null?'--٪':pc(conv)),convW:conv+'%',
+        cc:conv>=60?'#15803d':conv>=40?'#f59e0b':'#dc2626',bd:!sample && bestConv!==null && conv===bestConv?'inline-block':'none'};
     });
 
     // photos
-    const PH = [
-      {n:'ژل لب', up:20, ok:5},
-      {n:'لیفت با نخ', up:100, ok:4},
-      {n:'بوتاکس', up:64, ok:22},
-      {n:'فیلر گونه', up:41, ok:18}
+    const photoReady = this.photoSnapshot?.status === 'completed';
+    const PH = photoReady ? (this.photoSnapshot?.result?.photo_quality || []) : [
+      {tag:'تگ خدمات نمونه ۱',total:10,qualified:3,percent:30},
+      {tag:'تگ خدمات نمونه ۲',total:8,qualified:4,percent:50},
+      {tag:'تگ خدمات نمونه ۳',total:12,qualified:2,percent:16.7}
     ];
-    const phRows = PH.map(p => {
-      const r = p.ok / p.up;
-      return {n: p.n, txt: 'از ' + fa(p.up*k) + ' عکس، ' + fa(p.ok*k) + ' با کیفیت —', p: pc(r*100),
-        w: Math.round(r*100)+'%', c: r >= 0.3 ? '#16a34a' : r >= 0.15 ? '#f59e0b' : '#dc2626'};
+    const phRows = PH.map(row => {
+      const ratio = Number(row.percent || 0) / 100;
+      return {n:row.tag,txt:'از '+fa(row.total || 0)+' عکس، '+fa(row.qualified || 0)+' برترین —',p:pc(row.percent || 0),
+        w:Math.max(0,Math.min(100,Number(row.percent || 0)))+'%',c:ratio>=0.3?'#16a34a':ratio>=0.15?'#f59e0b':'#dc2626'};
     });
-    const phTotal = 'مجموع: ' + fa(225*k) + ' عکس';
+    const phTotal = photoReady ? 'مجموع: '+fa(PH.reduce((sum,row)=>sum+Number(row.total || 0),0))+' ثبت تگ عکس' : 'نمایش نمونه قبل از محاسبه';
 
     // cities
     const CT = [
@@ -1160,12 +1379,15 @@ export default {
       {n:'زاهدان', x:'13%', y:'70%'},
       {n:'بوشهر', x:'65%', y:'74%'}
     ];
-    const cityRows = CT.map(c => ({n: c.n, cnt: fa(c.cnt*k), rev: mm(c.rev*k), w: Math.round(c.cnt/268*100)+'%'}));
-    const cityDots = CT.map(c => ({n: c.n, x: c.x, y: c.y, r: Math.max(9, Math.round(c.cnt/268*30)) + 'px',
-      bg: 'rgba(37,99,235,0.45)', bc: '#2563eb', tc: '#334155'
-    })).concat(CT0.map(c => ({n: c.n, x: c.x, y: c.y, r: '8px',
-      bg: '#ffffff', bc: '#cbd5e1', tc: '#b6c2d1'
-    })));
+    const cityReady = this.cityStatisticsSnapshot?.status === 'completed';
+    const cityData = cityReady ? (this.cityStatisticsSnapshot?.result?.rows || []) : [];
+    const cityRows = cityReady
+      ? cityData.map(c=>({n:c.city,cnt:fa(c.count),rev:mm(c.payment/1000000),w:c.percent+'%'}))
+      : CT.map(c=>({n:c.n,cnt:'—',rev:'—',w:Math.round(c.cnt/268*100)+'%'}));
+    const cityMax = Math.max(1,...cityData.map(c=>c.count||0));
+    const cityDots = cityReady
+      ? CT.concat(CT0).filter(c=>cityData.some(x=>x.city===c.n)).map(c=>{const d=cityData.find(x=>x.city===c.n);return {n:c.n,x:c.x,y:c.y,r:Math.max(9,Math.round((d?.count||0)/cityMax*28))+'px',bg:'rgba(37,99,235,0.45)',bc:'#2563eb',tc:'#334155'}})
+      : CT.map(c=>({n:c.n,x:c.x,y:c.y,r:Math.max(9,Math.round(c.cnt/268*30))+'px',bg:'rgba(37,99,235,0.32)',bc:'#60a5fa',tc:'#64748b'})).concat(CT0.map(c=>({n:c.n,x:c.x,y:c.y,r:'8px',bg:'#ffffff',bc:'#cbd5e1',tc:'#b6c2d1'})));
 
     // ages
     const AG = [
@@ -1174,7 +1396,10 @@ export default {
       {rng:'۴۰ تا ۵۰', cnt:118, pay:420, svc:'لیفت با نخ'},
       {rng:'بالای ۵۰', cnt:54, pay:230, svc:'فیلر گونه'}
     ];
-    const ageRows = AG.map(a => ({rng: a.rng, cnt: fa(a.cnt*k), pay: mm(a.pay*k), svc: a.svc, w: Math.round(a.cnt/198*100)+'%'}));
+    const ageReady = this.ageStatisticsSnapshot?.status === 'completed';
+    const ageData = ageReady ? (this.ageStatisticsSnapshot?.result?.rows || []) : AG.map(a => ({...a, cnt:'—', pay:'—', svc:'—'}));
+    const ageMax = ageReady ? Math.max(1, ...ageData.map(a => a.count || 0)) : 198;
+    const ageRows = ageData.map(a => ({rng: a.range || a.rng, cnt: ageReady ? fa(a.count || 0) : '—', pay: ageReady ? mm((a.payment || 0) / 1000000) : '—', svc: ageReady ? (a.top_service || '—') : '—', w: Math.round((a.count ?? ({'زیر ۳۰':142,'۳۰ تا ۴۰':198,'۴۰ تا ۵۰':118,'بالای ۵۰':54}[a.rng] || 0)) / ageMax * 100)+'%'}));
 
     // sections
     const SE = [
@@ -1188,66 +1413,114 @@ export default {
       wp: Math.round(s.prof/seTot*100)+'%', wr: Math.round((s.rev-s.prof)/seTot*100)+'%'}));
 
     // top services
-    const SV = [
-      {n:'بوتاکس', rev:420, prof:210},
-      {n:'ژل لب', rev:380, prof:190},
-      {n:'لیفت با نخ', rev:310, prof:140},
-      {n:'لیزر موهای زائد', rev:280, prof:120},
-      {n:'هایفو', rev:190, prof:95},
-      {n:'مزوتراپی', rev:140, prof:60}
+    const topServicesReady = this.topServicesSnapshot?.status === 'completed';
+    const topServicesPreview = [
+      {name:'لیفت با نخ',revenue:100,profit:68,sample:true},
+      {name:'تزریق ژل',revenue:82,profit:54,sample:true},
+      {name:'هایفوتراپی',revenue:68,profit:42,sample:true},
+      {name:'بوتاکس',revenue:51,profit:31,sample:true},
+      {name:'پاکسازی پوست',revenue:39,profit:23,sample:true}
     ];
-    const sorted = SV.slice().sort((a,b) => S.svcSort === 'rev' ? b.rev - a.rev : b.prof - a.prof);
-    const svcRows = sorted.map((s, i) => ({i: fa(i+1), n: s.n, rev: mm(s.rev*k), prof: mm(s.prof*k),
-      wr: Math.round(s.rev/420*100)+'%', wp: Math.round(s.prof/420*100)+'%'}));
+    const SV = topServicesReady ? (this.topServicesSnapshot?.result?.rows || []) : topServicesPreview;
+    const maxServiceValue = Math.max(1, ...SV.flatMap(s => [Number(s.revenue)||0, Math.max(0,Number(s.profit)||0)]));
+    const serviceRow = (s, i) => ({key:s.name, i:fa(i+1), n:s.name, rev:s.sample?'—':mm((Number(s.revenue)||0)/1000000), prof:s.sample?'—':mm((Number(s.profit)||0)/1000000),
+      wr:Math.round((Number(s.revenue)||0)/maxServiceValue*100)+'%', wp:Math.round(Math.max(0,Number(s.profit)||0)/maxServiceValue*100)+'%'});
+    const allServiceRows = SV.slice().sort((a,b)=>Number(b.revenue)-Number(a.revenue)).map(serviceRow);
+    const svcRows = S.topServicesExpanded ? allServiceRows : allServiceRows.slice(0,6);
 
     // cac
-    const adCost = 75, newC = Math.round(176*k);
-    const cacPer = fa(adCost*1000000*k/newC/1000) + ' هزار تومان';
+    const acquisitionReady = this.customerAcquisitionSnapshot?.status === 'completed';
+    const acquisition = acquisitionReady ? this.customerAcquisitionSnapshot.result : null;
+    const cacMoney = value => value == null ? '--' : Number(value).toLocaleString('fa-IR') + ' تومان';
+    const cacPer = acquisition ? cacMoney(acquisition.cost_per_appointment) : '--';
+    const cacCampaignRows = (acquisition?.campaigns || []).map(row => ({
+      id: row.campaign_id,
+      name: row.name,
+      cost: cacMoney(row.advertising_cost),
+      appointments: fa(row.appointments || 0) + ' نوبت',
+      per: row.cost_per_appointment == null ? 'بدون نوبت' : cacMoney(row.cost_per_appointment),
+      rate: row.acquisition_rate == null ? '--٪' : pc(row.acquisition_rate)
+    }));
 
     // campaigns
-    const CAMPS = [
-      {n:'جشنواره تابستانه', eff:3.2, des:2.6, date:'۱۴۰۵/۰۳', dateN:3, cost:38, d1:45, d2:78, d3:120},
-      {n:'کمپین عید نوروز', eff:2.7, des:2.9, date:'۱۴۰۵/۰۱', dateN:2, cost:52, d1:60, d2:95, d3:88},
-      {n:'همکاری بلاگر', eff:1.9, des:2.1, date:'۱۴۰۵/۰۲', dateN:1, cost:30, d1:70, d2:40, d3:25},
-      {n:'کمپین یلدا', eff:1.2, des:1.5, date:'۱۴۰۴/۰۹', dateN:0, cost:24, d1:55, d2:28, d3:12}
+    const CAMPS = dashboardReady ? (S.reportSummary?.campaigns || []).map(row => ({
+      n:row.name,date:row.date || '',dateN:String(row.date || ''),cost:Number(row.cost || 0),quality:Number(row.quality || 0),qualityLabel:row.quality_label || 'ضعیف',leads:Number(row.leads || 0),d1:Number(row.interest_counts?.['1'] || 0),d2:Number(row.interest_counts?.['2'] || 0),d3:Number(row.interest_counts?.['3'] || 0)
+    })) : [
+      {n:'کمپین نمونه ۱',date:'۱۴۰۵/۰۶',dateN:'1405-06',cost:10000000,quality:78,qualityLabel:'عالی',leads:24,d1:3,d2:7,d3:9},
+      {n:'کمپین نمونه ۲',date:'۱۴۰۵/۰۵',dateN:'1405-05',cost:6500000,quality:54,qualityLabel:'خوب',leads:16,d1:5,d2:6,d3:3},
+      {n:'کمپین نمونه ۳',date:'۱۴۰۵/۰۴',dateN:'1405-04',cost:4000000,quality:31,qualityLabel:'متوسط',leads:11,d1:6,d2:3,d3:1}
     ];
-    const cSorted = CAMPS.slice().sort((a,b) => S.campSort === 'perf' ? b.eff - a.eff : S.campSort === 'des' ? b.des - a.des : b.dateN - a.dateN);
-    const cpRows = cSorted.map(c => ({n: c.n, date: c.date, cost: mm(c.cost), des: c.des.toLocaleString('fa-IR'),
-      eff: c.eff.toLocaleString('fa-IR'), w: Math.round(c.eff/3.2*100)+'%'}));
-    const cpChips = [['perf','بازدهی'],['des','درجه تمایل'],['date','تاریخ']].map(([id,t]) => ({t, st: chip(S.campSort === id), on: () => this.set({campSort: id})}));
-    const cdRows = CAMPS.map(c => ({n: c.n, cost: mm(c.cost),
-      h1: Math.round(c.d1/120*120)+'px', h2: Math.round(c.d2/120*120)+'px', h3: Math.round(c.d3/120*120)+'px'}));
+    const campaignPerformanceReady = this.campaignPerformanceSnapshot?.status === 'completed';
+    const campaignPerformanceRows = campaignPerformanceReady
+      ? (this.campaignPerformanceSnapshot?.result?.campaigns || [])
+      : [
+          {campaign_id:'sample-1',name:'کمپین نمونه ۱',leads:20,appointments:12,performance_rate:60,sample:true},
+          {campaign_id:'sample-2',name:'کمپین نمونه ۲',leads:18,appointments:7,performance_rate:38.9,sample:true},
+          {campaign_id:'sample-3',name:'کمپین نمونه ۳',leads:14,appointments:3,performance_rate:21.4,sample:true}
+        ];
+    const cpRows = campaignPerformanceRows.map(row => {
+      const rate = Math.max(0, Math.min(100, Number(row.performance_rate || 0)));
+      return {id:row.campaign_id,n:row.name,leads:row.sample?'--':fa(row.leads || 0),appointments:row.sample?'--':fa(row.appointments || 0),rate:row.sample?'--':pc(rate),w:rate+'%',c:rate>=50?'#15803d':rate>=25?'#d97706':'#dc2626',bar:rate>=50?'linear-gradient(90deg,#4ade80,#16a34a)':rate>=25?'linear-gradient(90deg,#fbbf24,#f59e0b)':'linear-gradient(90deg,#fca5a5,#ef4444)'};
+    });
+    const interestMax = Math.max(1,...CAMPS.flatMap(c => [c.d1,c.d2,c.d3]));
+    const cdRows = CAMPS.map(c => ({n: c.n, cost: cacMoney(c.cost),
+      h1: Math.round(c.d1/interestMax*120)+'px', h2: Math.round(c.d2/interestMax*120)+'px', h3: Math.round(c.d3/interestMax*120)+'px'}));
 
-    // staff appointments
-    const aptRows = STAFF.map(s => ({n: s.n, init: s.n[0], ph: s.ph, ac: s.ac, cnt: fa(s.apt*k), w: Math.round(s.apt/142*100)+'%'}));
+    // staff appointments, attributed to the user who originally registered each appointment
+    const staffAppointmentsReady = this.staffAppointmentsSnapshot?.status === 'completed';
+    const staffAppointmentPreview = STAFF.length ? STAFF.slice(0,3).map((staff,index) => ({
+      row_id:`preview-${staff.id}`,staff_id:staff.id,name:staff.n,avatar_url:staff.ph,
+      conversion_rate:[68,52,36][index] ?? 36,sample:true
+    })) : [
+      {row_id:'preview-1',name:'پرسنل نمونه ۱',conversion_rate:68,sample:true},
+      {row_id:'preview-2',name:'پرسنل نمونه ۲',conversion_rate:52,sample:true},
+      {row_id:'preview-3',name:'پرسنل نمونه ۳',conversion_rate:36,sample:true}
+    ];
+    const staffAppointmentRows = staffAppointmentsReady ? (this.staffAppointmentsSnapshot?.result?.staff || []) : staffAppointmentPreview;
+    const aptRows = staffAppointmentRows.map(row => {
+      const rate = Math.max(0, Math.min(100, Number(row.conversion_rate || 0)));
+      const color = rate >= 60 ? '#15803d' : rate >= 40 ? '#f59e0b' : '#dc2626';
+      const sample = !!row.sample;
+      return {id:row.row_id || row.staff_id,n:row.name,ph:row.avatar_url || 'https://i.pravatar.cc/72?img=68',
+        bring:sample?'—':reportMoney(Number(row.revenue || 0)/1000000),pors:sample?'—':reportMoney(Number(row.commission || 0)/1000000),
+        fix:sample?'—':reportMoney(Number(row.salary || 0)/1000000),pay:sample?'—':reportMoney(Number(row.payment_total || 0)/1000000),
+        cnt:sample?'—':fa(row.appointments || 0),rate:sample?'—':(row.conversion_rate==null?'--٪':pc(rate)),w:rate+'%',color:sample?'#cbd5e1':color,
+        rateTitle:sample?'پیش‌نمایش گزارش':`${fa(row.completed || 0)} نوبت انجام‌شده از ${fa(row.appointments || 0)} نوبت`};
+    });
 
     // capacity
-    const capN = Math.max(1, parseFloat(S.cap) || 2500);
-    const filled = 1840 * k;
+    const normalizedCapacity = String(S.cap ?? '').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٬,\s]/g,'');
+    const capN = Math.max(1, parseFloat(normalizedCapacity) || 2500);
+    const filled = dashboardReady ? Math.max(0, Number(actualRevenue || 0)) : 650;
     const capF = Math.min(1, filled / capN);
 
     // gender
-    const gTot = Math.round(512*k);
-    const fP = 0.78;
-    const gF = {p: pc(78), cnt: fa(gTot*fP), y: String(Math.round(200*(1-fP)))};
-    const gM = {p: pc(22), cnt: fa(gTot*(1-fP)), y: String(Math.round(200*fP))};
+    const customerOverview = dashboardReady ? (S.reportSummary?.customer_overview || {}) : {};
+    const genderData = customerOverview.gender || {};
+    const femaleCount = dashboardReady ? Number(genderData.female || 0) : 399;
+    const maleCount = dashboardReady ? Number(genderData.male || 0) : 113;
+    const gTot = femaleCount + maleCount;
+    const fP = gTot ? femaleCount / gTot : 0;
+    const mP = gTot ? maleCount / gTot : 0;
+    const unknownGenderCount = dashboardReady ? Number(genderData.unknown || 0) : 0;
+    const gF = {p:dashboardReady?pc(Math.round(fP*100)):'—',cnt:dashboardReady?fa(femaleCount):'—',y:String(Math.round(200*(1-fP)))};
+    const gM = {p:dashboardReady?pc(Math.round(mP*100)):'—',cnt:dashboardReady?fa(maleCount):'—',y:String(Math.round(200*(1-mP)))};
 
     // new/old
-    const nNew = Math.round(176*k), nOld = Math.round(336*k), nT = nNew + nOld;
-    const [ns1, ns2] = segs([nNew/nT, nOld/nT]);
+    const customerFrequency = customerOverview.customers || {};
+    const nNew = dashboardReady ? Number(customerFrequency.new || 0) : 176;
+    const nOld = dashboardReady ? Number(customerFrequency.old || 0) : 336;
+    const nT = nNew + nOld;
+    const [ns1, ns2] = segs(nT ? [nNew/nT, nOld/nT] : [0,0]);
 
     // status
-    const ST = [
-      {n:'آمد', v:512, c:'#8bc97b'},
-      {n:'وقت داده شد', v:31, c:'#2e7d32'},
-      {n:'کنسل شد', v:62, c:'#e02424'},
-      {n:'انتقال روز', v:25, c:'#3b82f6'},
-      {n:'پاسخ نداد', v:20, c:'#f2a0a0'},
-      {n:'پیگیری', v:12, c:'#f6d5d5'}
-    ];
+    const statusColors = ['#8bc97b','#2e7d32','#e02424','#3b82f6','#f2a0a0','#f6d5d5'];
+    const previewStatuses = [{name:'آمد',count:512},{name:'وقت داده شد',count:31},{name:'کنسل شد',count:62},{name:'انتقال روز',count:25},{name:'پاسخ نداد',count:20},{name:'پیگیری',count:12}];
+    const ST = (dashboardReady ? (customerOverview.statuses || []) : previewStatuses).slice(0,6).map((row,index)=>({n:row.name,v:Number(row.count||0),c:statusColors[index]}));
+    while(ST.length<6) ST.push({n:'—',v:0,c:statusColors[ST.length]});
     const stT = ST.reduce((a,s) => a + s.v, 0);
-    const stSegs = segs(ST.map(s => s.v/stT));
-    const stLegend = ST.map(s => ({n: s.n, c: s.c, cnt: fa(s.v*k), p: pc(Math.round(s.v/stT*100))}));
+    const stSegs = segs(ST.map(s => stT ? s.v/stT : 0));
+    const stLegend = ST.filter(s=>s.v>0).map(s => ({n:s.n,c:s.c,cnt:dashboardReady?fa(s.v):'—',p:dashboardReady?pc(Math.round(s.v/stT*100)):'—'}));
 
     const tabSt = a => 'border:none;border-radius:999px;padding:8px 22px;font-size:13px;cursor:pointer;font-weight:' + (a?'800':'600') + ';background:' + (a?'#ffffff':'transparent') + ';color:' + (a?'#1d4ed8':'#64748b') + ';box-shadow:' + (a?'0 1px 4px rgba(15,23,42,0.1)':'none');
 
@@ -1278,56 +1551,133 @@ export default {
       dashList,
       // kpis & months
       kpis, estV, estNote, monthsV,
-      billRows, billRevV, billSumV, billNetV,
+      kpiReady: !!dashboardReady,
+      kpiCalculating: ['queued','processing'].includes(dashboardSnapshot?.status),
+      kpiProgress: Number(dashboardSnapshot?.progress || 0),
+      kpiStage: dashboardSnapshot?.stage || '',
+      kpiCompletedAt: this.formatSnapshotDate(dashboardSnapshot?.completed_at),
+      kpiSubtitle: dashboardSnapshot?.status === 'failed'
+        ? (dashboardSnapshot.error || 'محاسبه ناموفق بود؛ دوباره تلاش کنید')
+        : (dashboardReady
+          ? `محاسبه‌شده برای بازه انتخابی${dashboardSnapshot?.completed_at ? ` · ${this.formatSnapshotDate(dashboardSnapshot.completed_at)}` : ''}`
+          : 'برای محاسبه داده‌های واقعی، روی آیکن بزنید'),
+      billRows, billRevV, billSumV, billNetV, billReady: !!expenses, billCompletedAt: this.formatSnapshotDate(this.expenseSnapshot?.completed_at),
       // dash maps
       o, dsp, ck, hide, dh, dv, dp,
       // ctype
-      cs1, cs2, cs3, cs4, ctLegend, ctTotal: fa(ctT),
+      cs1, cs2, cs3, cs4, ctLegend, ctTotal: ctReady ? fa(ctT) : '--',
+      ctReady,
+      ctChecking: this.customerSegmentLoading && !['queued','processing'].includes(segmentSnapshot?.status),
+      ctCalculating: ['queued','processing'].includes(segmentSnapshot?.status),
+      ctBusy: ['queued','processing'].includes(segmentSnapshot?.status),
+      ctProgress: Number(segmentSnapshot?.progress || 0),
+      ctStage: segmentSnapshot?.stage || (this.customerSegmentLoading ? 'در حال بررسی نتیجه ذخیره‌شده…' : 'برای این بازه هنوز گزارشی محاسبه نشده است.'),
+      ctError: segmentSnapshot?.error || '',
+      ctCompletedAt: this.formatSnapshotDate(segmentSnapshot?.completed_at),
+      ctActionLabel: ['queued','processing'].includes(segmentSnapshot?.status) ? `${fa(segmentSnapshot?.progress || 0)}٪` : (segmentSnapshot?.status === 'completed' ? 'به‌روزرسانی' : 'محاسبه'),
       // roi
-      roiCost: roiData ? roiMoney(roiData.cost) : '—',
-      roiRev: roiData ? roiMoney(roiData.revenue) : '—',
-      roiX: roiData?.ratio == null ? '—' : Number(roiData.ratio).toLocaleString('fa-IR', {maximumFractionDigits: 2}),
-      roiOkTxt: roiData ? (roiData.cost <= 0 ? 'بدون هزینه ثبت‌شده' : (roiData.returned ? '✓ هزینه برگشته' : 'هزینه برنگشته')) : 'در حال محاسبه…',
-      roiBadgeStyle: 'border-radius:999px;padding:3px 12px;font-size:11.5px;font-weight:800;background:' + (!roiData || roiData.cost <= 0 ? '#f1f5f9' : (roiData.returned ? '#dcfce7' : '#fee2e2')) + ';color:' + (!roiData || roiData.cost <= 0 ? '#64748b' : (roiData.returned ? '#15803d' : '#b91c1c')),
+      roiCost: roiReady ? roiMoney(roiData.cost) : '--',
+      roiRev: roiReady ? roiMoney(roiData.revenue) : '--',
+      roiX: roiReady && roiData?.ratio != null ? Number(roiData.ratio).toLocaleString('fa-IR', {maximumFractionDigits: 2}) : '--',
+      roiOkTxt: roiReady ? (roiData.cost <= 0 ? 'بدون هزینه ثبت‌شده' : (roiData.returned ? '✓ هزینه برگشته' : 'هزینه برنگشته')) : '--',
+      roiBadgeStyle: 'border-radius:999px;padding:3px 12px;font-size:11.5px;font-weight:800;background:' + (!roiReady || roiData.cost <= 0 ? '#f1f5f9' : (roiData.returned ? '#dcfce7' : '#fee2e2')) + ';color:' + (!roiReady || roiData.cost <= 0 ? '#64748b' : (roiData.returned ? '#15803d' : '#b91c1c')),
+      roiReady: !!roiReady,
+      roiCalculating: ['queued','processing'].includes(advertisingRoiSnapshot?.status),
+      roiProgress: Number(advertisingRoiSnapshot?.progress || 0),
+      roiStage: advertisingRoiSnapshot?.stage || '',
       roiBars,
       // loyal
       l3st: chip(S.loyalRange === 3), l6st: chip(S.loyalRange === 6),
       onL3: () => this.set({loyalRange: 3}), onL6: () => this.set({loyalRange: 6}),
-      loyTot: fa(L.tot*ff), loyRet: fa(L.ret*ff), loyLost: fa((L.tot-L.ret)*ff),
-      loyP: pc(Math.round(loyP*100)), loyRetW: Math.round(loyP*100)+'%',
+      loyTot: loyaltyReady ? fa(L.tot) : '--', loyRet: loyaltyReady ? fa(L.ret) : '--', loyLost: loyaltyReady ? fa(L.lost) : '--',
+      loyP: loyaltyReady ? pc(Number(loyaltyPeriod?.return_rate || 0)) : '--٪', loyRetW: loyaltyReady ? Math.round(loyP*100)+'%' : '42%',
+      loyaltyReady: !!loyaltyReady,
+      loyaltyCalculating: ['queued','processing'].includes(loyaltySnapshot?.status),
+      loyaltyProgress: Number(loyaltySnapshot?.progress || 0),
+      loyaltyStage: loyaltySnapshot?.stage || '',
+      loyaltyCompletedAt: this.formatSnapshotDate(loyaltySnapshot?.completed_at),
       // cancel
-      cnCame: fa(S.cancellationReport?.attended ?? came) + ' نفر',
-      cnCanc: fa(S.cancellationReport?.cancelled ?? canc) + ' نفر',
-      cnRate: pc(S.cancellationReport?.rate ?? Math.round(cnR*1000)/10),
-      cnDa: arc((S.cancellationReport?.rate ?? (cnR * 100)) / 100),
+      cnCame: cancellationReady ? fa(cancellationResult.attended || 0) + ' نفر' : '-- نفر',
+      cnCanc: cancellationReady ? fa(cancellationResult.cancelled || 0) + ' نفر' : '-- نفر',
+      cnRate: cancellationReady ? pc(cancellationResult.rate || 0) : '--٪',
+      cnDa: arc(cancellationReady ? Number(cancellationResult.rate || 0) / 100 : 0),
       cnLoading: S.cancellationLoading,
+      cnReady: cancellationReady,
+      cnCompletedAt: this.formatSnapshotDate(cancellationSnapshot?.completed_at),
       // staff
-      staffChips, staffBars, targetB, targetTxt: 'سقف: ' + mm(target),
-      staffSum: mm(shown.reduce((a,s) => a + s.v*k, 0)), staffOverTxt,
+      staffChips, staffBars, targetB, targetTxt: staffIncomeReady ? 'سقف: ' + mm(target / 1000000) : 'سقف: --',
+      staffSum: staffIncomeReady ? mm(shown.reduce((sum,staff) => sum + Number(staff.v || 0), 0) / 1000000) : '--', staffOverTxt,
+      staffIncomeReady: !!staffIncomeReady,
+      staffIncomeCalculating: ['queued','processing'].includes(staffIncomeSnapshot?.status),
+      staffIncomeCompletedAt: this.formatSnapshotDate(staffIncomeSnapshot?.completed_at),
+      staffIncomeProgress: Number(staffIncomeSnapshot?.progress || 0),
+      staffIncomeStage: staffIncomeSnapshot?.stage || '',
       // qc
-      qcDa: arc(0.87), qcPct: pc(87), qcRows,
+      qcDa: arc(satisfactionReady ? Number(satisfactionResult.percentage || 0) / 100 : .72),
+      qcPct: satisfactionReady ? pc(Number(satisfactionResult.percentage || 0)) : '—',
+      qcRows,
+      qcReady:satisfactionReady,
+      qcLoading:this.satisfactionLoading,
+      qcCompletedAt:this.formatSnapshotDate(this.satisfactionSnapshot?.completed_at),
       // others
-      adRows, docRows, phRows, phTotal, cityRows, cityDots, ageRows, avgAge: (36.4).toLocaleString('fa-IR') + ' سال',
-      sectRows, svcRows,
-      srtRevSt: chip(S.svcSort === 'rev'), srtProfSt: chip(S.svcSort === 'prof'),
-      onSrtRev: () => this.set({svcSort:'rev'}), onSrtProf: () => this.set({svcSort:'prof'}),
-      cacPer, cacCost: mm(adCost*k), cacNew: fa(newC) + ' نفر', cacAvg: (3.6).toLocaleString('fa-IR') + ' میلیون', cacRatio: (7.4).toLocaleString('fa-IR') + 'x',
-      cpRows, cpChips, cdRows, aptRows,
+      adRows, adChannelsReady, adChannelsCalculating:this.advertisingChannelsLoading,
+      adChannelsCompletedAt:this.formatSnapshotDate(this.advertisingChannelsSnapshot?.completed_at),
+      docRows, doctorPerformanceReady, doctorPerformanceCalculating:this.doctorPerformanceLoading,
+      doctorPerformanceCompletedAt:this.formatSnapshotDate(this.doctorPerformanceSnapshot?.completed_at),
+      phRows, phTotal,
+      photoReady, photoCalculating: this.photoLoading,
+      photoCompletedAt: this.formatSnapshotDate(this.photoSnapshot?.completed_at),
+      cityRows, cityDots, cityReady, cityCalculating:this.cityStatisticsLoading, cityProgress:this.cityStatisticsProgress, cityCompletedAt:this.formatSnapshotDate(this.cityStatisticsSnapshot?.completed_at), ageRows, ageReady, ageCalculating:this.ageStatisticsLoading, ageProgress:this.ageStatisticsProgress, ageCompletedAt:this.formatSnapshotDate(this.ageStatisticsSnapshot?.completed_at), avgAge: ageReady ? Number(this.ageStatisticsSnapshot?.result?.average_age || 0).toLocaleString('fa-IR') + ' سال' : '—',
+      sectRows, svcRows, topServicesReady, topServicesCalculating:this.topServicesLoading,
+      topServicesCompletedAt:this.formatSnapshotDate(this.topServicesSnapshot?.completed_at),
+      topServicesError:this.topServicesSnapshot?.status === 'failed' ? (this.topServicesSnapshot.error || 'محاسبه گزارش خدمات ناموفق بود.') : '',
+      hasMoreServices:allServiceRows.length>6, servicesExpanded:S.topServicesExpanded, servicesMoreLabel:S.topServicesExpanded?'نمایش کمتر':'نمایش بیشتر',
+      toggleServices:()=>this.set({topServicesExpanded:!S.topServicesExpanded}),
+      cacPer, cacCost: acquisition ? cacMoney(acquisition.advertising_cost) : '--', cacAppointments: acquisition ? fa(acquisition.appointments || 0) + ' نفر' : '--', cacCampaignRows,
+      cacRate: acquisition?.acquisition_rate == null ? '--٪' : pc(acquisition.acquisition_rate),
+      cacReady: acquisitionReady, cacCalculating: this.customerAcquisitionLoading,
+      cacCompletedAt: this.formatSnapshotDate(this.customerAcquisitionSnapshot?.completed_at),
+      cpRows, cdRows, aptRows, staffAppointmentsReady, staffAppointmentsCalculating:this.staffAppointmentsLoading,
+      staffAppointmentsCompletedAt:this.formatSnapshotDate(this.staffAppointmentsSnapshot?.completed_at),
+      staffAppointmentsError:this.staffAppointmentsSnapshot?.status === 'failed' ? (this.staffAppointmentsSnapshot.error || 'محاسبه گزارش وقت‌دهی پرسنل ناموفق بود.') : '',
+      campaignPerformanceReady,
+      campaignPerformanceCalculating: this.campaignPerformanceLoading,
+      campaignPerformanceCompletedAt: this.formatSnapshotDate(this.campaignPerformanceSnapshot?.completed_at),
       // capacity
-      capDa: arc(capF), capW: Math.round(capF*100)+'%', capPct: pc(Math.round(capF*100)), capFilled: mm(filled),
-      capRemain: mm(Math.max(0, capN - filled)), capV: S.cap, onCap: e => this.set({cap: e.target.value}),
+      capDa:arc(capF),capW:Math.round(capF*100)+'%',capPct:dashboardReady?pc(Math.round(capF*100)):'—',capFilled:dashboardReady?mm(filled):'—',
+      capRemain:dashboardReady?mm(Math.max(0,capN-filled)):'—',capV:capN.toLocaleString('fa-IR'),onCap:e=>this.set({cap:e.target.value}),
       // gender / newold / status
-      gF, gM,
-      ns1, ns2, noTotal: fa(nT), noNew: fa(nNew), noOld: fa(nOld),
-      noNewP: pc(Math.round(nNew/nT*100)), noOldP: pc(Math.round(nOld/nT*100)),
+      gF, gM, gUnknown:dashboardReady&&unknownGenderCount?fa(unknownGenderCount):'',
+      ns1,ns2,noTotal:dashboardReady?fa(nT):'—',noNew:dashboardReady?fa(nNew):'—',noOld:dashboardReady?fa(nOld):'—',
+      noNewP:dashboardReady&&nT?pc(Math.round(nNew/nT*100)):'—',noOldP:dashboardReady&&nT?pc(Math.round(nOld/nT*100)):'—',
       ss1: stSegs[0], ss2: stSegs[1], ss3: stSegs[2], ss4: stSegs[3], ss5: stSegs[4], ss6: stSegs[5],
-      stLegend, stTotal: fa(stT*k)
+      stLegend,stTotal:dashboardReady?fa(stT):'—',overviewReady:dashboardReady,
+      overviewBusy:this.dashboardLoading || ['queued','processing'].includes(dashboardSnapshot?.status),
+      capacityCalculating:this.overviewLoadingSource==='capacity' && (this.dashboardLoading || ['queued','processing'].includes(dashboardSnapshot?.status)),
+      genderCalculating:this.overviewLoadingSource==='gender' && (this.dashboardLoading || ['queued','processing'].includes(dashboardSnapshot?.status)),
+      newOldCalculating:this.overviewLoadingSource==='newold' && (this.dashboardLoading || ['queued','processing'].includes(dashboardSnapshot?.status)),
+      statusCalculating:this.overviewLoadingSource==='status' && (this.dashboardLoading || ['queued','processing'].includes(dashboardSnapshot?.status)),
+      overviewCompletedAt:dashboardReady?this.formatSnapshotDate(dashboardSnapshot?.completed_at):''
     };
     }
   },
   mounted() {
-    this.loadCancellationRate();
-    this.loadReportSummary();
+    this.loadDashboardSnapshot();
+    this.loadCustomerSegmentSnapshot();
+    this.loadStaffRoster();
+    this.loadStaffIncomeSnapshot();
+    this.loadAdvertisingRoiSnapshot();
+    this.loadLoyaltySnapshot();
+    this.loadCancellationSnapshot();
+    this.loadPhotoAnalysisSnapshot();
+    this.loadExpenseSnapshot();
+    this.loadCustomerAcquisitionSnapshot();
+    this.loadCampaignPerformanceSnapshot();
+    this.loadAdvertisingChannelsSnapshot();
+    this.loadDoctorPerformanceSnapshot();
+    this.loadAgeStatisticsSnapshot(); this.loadCityStatisticsSnapshot(); this.loadTopServicesSnapshot();
+    this.loadStaffAppointmentsSnapshot();
+    this.loadSatisfactionSnapshot();
     this.loadStaffTarget();
     this._onPointerDown = e => {
       const h = e.target && e.target.closest && e.target.closest('[data-drag-handle]');
@@ -1373,46 +1723,731 @@ export default {
     document.addEventListener('pointerdown', this._onPointerDown, true);
   },
   unmounted() {
+    clearTimeout(this.customerSegmentPollingTimer);
+    clearTimeout(this.dashboardPollingTimer);
+    clearTimeout(this.staffIncomePollingTimer);
+    clearTimeout(this.advertisingRoiPollingTimer);
+    clearTimeout(this.loyaltyPollingTimer);
+    this.stopCustomerSegmentRealtime();
+    this.stopDashboardRealtime();
+    this.stopStaffIncomeRealtime();
+    this.stopAdvertisingRoiRealtime();
+    this.stopLoyaltyRealtime();
     document.removeEventListener('pointerdown', this._onPointerDown, true);
   },
   beforeDestroy() {
+    clearTimeout(this.customerSegmentPollingTimer);
+    clearTimeout(this.dashboardPollingTimer);
+    clearTimeout(this.staffIncomePollingTimer);
+    clearTimeout(this.advertisingRoiPollingTimer);
+    clearTimeout(this.loyaltyPollingTimer);
+    this.stopCustomerSegmentRealtime();
+    this.stopDashboardRealtime();
+    this.stopStaffIncomeRealtime();
+    this.stopAdvertisingRoiRealtime();
+    this.stopLoyaltyRealtime();
     document.removeEventListener('pointerdown', this._onPointerDown, true);
   },
   methods: {
+    async selectReportMonthKey(monthKey) {
+      const [year, month] = String(monthKey).split('-').map(Number);
+      const lastDay = month <= 6 ? 31 : (month <= 11 ? 30 : 29);
+      this._customerSegmentRequestId = (this._customerSegmentRequestId || 0) + 1;
+      this._dashboardRequestId = (this._dashboardRequestId || 0) + 1;
+      this._advertisingRoiRequestId = (this._advertisingRoiRequestId || 0) + 1;
+      this._loyaltyRequestId = (this._loyaltyRequestId || 0) + 1;
+      this._cancellationRequestId = (this._cancellationRequestId || 0) + 1;
+      this._expenseRequestId = (this._expenseRequestId || 0) + 1;
+      clearTimeout(this.customerSegmentPollingTimer);
+      clearTimeout(this.dashboardPollingTimer);
+      clearTimeout(this.staffIncomePollingTimer);
+      clearTimeout(this.advertisingRoiPollingTimer);
+      clearTimeout(this.loyaltyPollingTimer);
+      this.stopCustomerSegmentRealtime();
+      this.stopDashboardRealtime();
+      this.stopStaffIncomeRealtime();
+      this.stopAdvertisingRoiRealtime();
+      this.stopLoyaltyRealtime();
+      this.customerSegmentSnapshot = null;
+      this.dashboardSnapshot = null;
+      this.staffIncomeSnapshot = null;
+      this.advertisingRoiSnapshot = null;
+      this.loyaltySnapshot = null;
+      this.cancellationSnapshot = null;
+      this.photoSnapshot = null;
+      this.expenseSnapshot = null;
+      this.customerAcquisitionSnapshot = null;
+      this.campaignPerformanceSnapshot = null;
+      this.advertisingChannelsSnapshot = null;
+      this.doctorPerformanceSnapshot = null;
+      this.ageStatisticsSnapshot = null;
+      this.topServicesSnapshot = null;
+      this.staffAppointmentsSnapshot = null;
+      this.satisfactionSnapshot = null;
+      this.set({from:`${year}/${String(month).padStart(2,'0')}/01`,to:`${year}/${String(month).padStart(2,'0')}/${lastDay}`,cancellationReport:null,cancellationLoading:false,expenseReport:null,expenseLoading:false,expenseError:'',reportSummary:null,reportLoading:false,reportError:''});
+      await this.loadDashboardSnapshot();
+      if (!['completed','queued','processing'].includes(this.dashboardSnapshot?.status)) await this.calculateDashboardSummary();
+      this.loadCustomerSegmentSnapshot();
+      this.loadStaffIncomeSnapshot();
+      this.loadAdvertisingRoiSnapshot();
+      this.loadLoyaltySnapshot();
+      this.loadCancellationSnapshot();
+      this.loadPhotoAnalysisSnapshot();
+      this.loadExpenseSnapshot();
+      this.loadCustomerAcquisitionSnapshot();
+      this.loadCampaignPerformanceSnapshot();
+      this.loadAdvertisingChannelsSnapshot();
+      this.loadDoctorPerformanceSnapshot();
+      this.loadAgeStatisticsSnapshot(); this.loadCityStatisticsSnapshot(); this.loadTopServicesSnapshot();
+      this.loadStaffAppointmentsSnapshot();
+      this.loadSatisfactionSnapshot();
+    },
     selectReportMonth(index) {
+      this._customerSegmentRequestId = (this._customerSegmentRequestId || 0) + 1;
+      this._cancellationRequestId = (this._cancellationRequestId || 0) + 1;
+      this._expenseRequestId = (this._expenseRequestId || 0) + 1;
+      clearTimeout(this.customerSegmentPollingTimer);
+      clearTimeout(this.dashboardPollingTimer);
+      clearTimeout(this.staffIncomePollingTimer);
+      clearTimeout(this.advertisingRoiPollingTimer);
+      clearTimeout(this.loyaltyPollingTimer);
+      this.stopCustomerSegmentRealtime();
+      this.stopDashboardRealtime();
+      this.stopStaffIncomeRealtime();
+      this.stopAdvertisingRoiRealtime();
+      this.stopLoyaltyRealtime();
       const month = String(index + 1).padStart(2, '0');
       this.set({
         monthSel: index,
         from: `1405/${month}/01`,
         to: `1405/${month}/31`,
         cancellationReport: null,
+        expenseReport: null,
+        expenseLoading: false,
+        expenseError: '',
       });
-      this.loadCancellationRate();
-      this.loadReportSummary();
+      this.customerSegmentSnapshot = null;
+      this.dashboardSnapshot = null;
+      this.staffIncomeSnapshot = null;
+      this.advertisingRoiSnapshot = null;
+      this.loyaltySnapshot = null;
+      this.cancellationSnapshot = null;
+      this.photoSnapshot = null;
+      this.expenseSnapshot = null;
+      this.customerAcquisitionSnapshot = null;
+      this.campaignPerformanceSnapshot = null;
+      this.advertisingChannelsSnapshot = null;
+      this.doctorPerformanceSnapshot = null;
+      this.ageStatisticsSnapshot = null;
+      this.topServicesSnapshot = null;
+      this.staffAppointmentsSnapshot = null;
+      this.satisfactionSnapshot = null;
+      this.set({reportSummary:null, reportLoading:false, reportError:''});
+      this.loadDashboardSnapshot();
+      this.loadCustomerSegmentSnapshot();
+      this.loadStaffIncomeSnapshot();
+      this.loadAdvertisingRoiSnapshot();
+      this.loadLoyaltySnapshot();
+      this.loadCancellationSnapshot();
+      this.loadPhotoAnalysisSnapshot();
+      this.loadExpenseSnapshot();
+      this.loadCustomerAcquisitionSnapshot();
+      this.loadCampaignPerformanceSnapshot();
+      this.loadAdvertisingChannelsSnapshot();
+      this.loadDoctorPerformanceSnapshot();
+      this.loadAgeStatisticsSnapshot(); this.loadCityStatisticsSnapshot(); this.loadTopServicesSnapshot();
+      this.loadStaffAppointmentsSnapshot();
+      this.loadSatisfactionSnapshot();
     },
     updateReportDate(key, value) {
       this._reportRequestId = (this._reportRequestId || 0) + 1;
-      this.set({[key]: value, reportSummary: null, reportLoading: true, reportError: ''});
+      this._customerSegmentRequestId = (this._customerSegmentRequestId || 0) + 1;
+      this._dashboardRequestId = (this._dashboardRequestId || 0) + 1;
+      this._staffIncomeRequestId = (this._staffIncomeRequestId || 0) + 1;
+      this._advertisingRoiRequestId = (this._advertisingRoiRequestId || 0) + 1;
+      this._loyaltyRequestId = (this._loyaltyRequestId || 0) + 1;
+      this._cancellationRequestId = (this._cancellationRequestId || 0) + 1;
+      this._expenseRequestId = (this._expenseRequestId || 0) + 1;
+      clearTimeout(this.customerSegmentPollingTimer);
+      clearTimeout(this.dashboardPollingTimer);
+      clearTimeout(this.staffIncomePollingTimer);
+      clearTimeout(this.advertisingRoiPollingTimer);
+      clearTimeout(this.loyaltyPollingTimer);
+      this.stopCustomerSegmentRealtime();
+      this.stopDashboardRealtime();
+      this.stopStaffIncomeRealtime();
+      this.stopAdvertisingRoiRealtime();
+      this.stopLoyaltyRealtime();
+      this.customerSegmentSnapshot = null;
+      this.dashboardSnapshot = null;
+      this.staffIncomeSnapshot = null;
+      this.advertisingRoiSnapshot = null;
+      this.loyaltySnapshot = null;
+      this.cancellationSnapshot = null;
+      this.photoSnapshot = null;
+      this.expenseSnapshot = null;
+      this.customerAcquisitionSnapshot = null;
+      this.campaignPerformanceSnapshot = null;
+      this.advertisingChannelsSnapshot = null;
+      this.doctorPerformanceSnapshot = null;
+      this.ageStatisticsSnapshot = null;
+      this.topServicesSnapshot = null;
+      this.staffAppointmentsSnapshot = null;
+      this.satisfactionSnapshot = null;
+      this.set({[key]: value, cancellationReport: null, cancellationLoading: false, expenseReport: null, expenseLoading: false, expenseError: '', reportSummary: null, reportLoading: false, reportError: ''});
       clearTimeout(this._cancellationTimer);
       this._cancellationTimer = setTimeout(() => {
-        this.loadCancellationRate();
-        this.loadReportSummary();
+        this.loadDashboardSnapshot();
+        this.loadCustomerSegmentSnapshot();
+        this.loadStaffIncomeSnapshot();
+        this.loadAdvertisingRoiSnapshot();
+        this.loadLoyaltySnapshot();
+        this.loadCancellationSnapshot();
+        this.loadPhotoAnalysisSnapshot();
+        this.loadExpenseSnapshot();
+        this.loadCustomerAcquisitionSnapshot();
+        this.loadCampaignPerformanceSnapshot();
+        this.loadAdvertisingChannelsSnapshot();
+        this.loadDoctorPerformanceSnapshot();
+        this.loadAgeStatisticsSnapshot(); this.loadCityStatisticsSnapshot(); this.loadTopServicesSnapshot();
+        this.loadStaffAppointmentsSnapshot();
+        this.loadSatisfactionSnapshot();
       }, 350);
     },
-    async loadCancellationRate() {
+    formatSnapshotDate(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('fa-IR', {dateStyle:'short', timeStyle:'short'});
+    },
+    async loadPhotoAnalysisSnapshot() {
+      const requestId = (this._photoRequestId || 0) + 1;
+      this._photoRequestId = requestId;
+      this.photoLoading = true;
+      try {
+        const { data } = await axios.get('/api/reports/widgets/photo-analysis', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId === this._photoRequestId) this.photoSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._photoRequestId) this.photoSnapshot = {status:'failed', error:error.response?.data?.message || 'دریافت آنالیز عکس‌ها انجام نشد.'};
+      } finally {
+        if (requestId === this._photoRequestId) this.photoLoading = false;
+      }
+    },
+    async calculatePhotoAnalysis() {
+      if (this.photoLoading) return;
+      const requestId = (this._photoRequestId || 0) + 1;
+      this._photoRequestId = requestId;
+      this.photoLoading = true;
+      try {
+        const { data } = await axios.post('/api/reports/widgets/photo-analysis/calculate', {from:this.s.from,to:this.s.to});
+        if (requestId === this._photoRequestId) this.photoSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._photoRequestId) this.photoSnapshot = {status:'failed', error:error.response?.data?.message || 'ایجاد آنالیز عکس‌ها انجام نشد.'};
+      } finally {
+        if (requestId === this._photoRequestId) this.photoLoading = false;
+      }
+    },
+    async loadCustomerSegmentSnapshot() {
+      clearTimeout(this.customerSegmentPollingTimer);
+      const requestId = (this._customerSegmentRequestId || 0) + 1;
+      this._customerSegmentRequestId = requestId;
+      this.customerSegmentLoading = true;
+      try {
+        const { data } = await axios.get('/api/reports/widgets/customer-segments', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId !== this._customerSegmentRequestId) return;
+        this.customerSegmentSnapshot = data.snapshot || null;
+        if (['queued','processing'].includes(this.customerSegmentSnapshot?.status)) {
+          this.watchCustomerSegmentSnapshot(this.customerSegmentSnapshot.id);
+          this.customerSegmentPollingTimer = setTimeout(() => this.loadCustomerSegmentSnapshot(), 10000);
+        } else {
+          this.stopCustomerSegmentRealtime();
+        }
+      } catch (error) {
+        if (requestId !== this._customerSegmentRequestId) return;
+        this.customerSegmentSnapshot = {status:'failed', error:error.response?.data?.message || 'دریافت گزارش انجام نشد.'};
+      } finally {
+        if (requestId === this._customerSegmentRequestId) this.customerSegmentLoading = false;
+      }
+    },
+    async calculateCustomerSegments() {
+      if (['queued','processing'].includes(this.customerSegmentSnapshot?.status)) return;
+      this._customerSegmentRequestId = (this._customerSegmentRequestId || 0) + 1;
+      clearTimeout(this.customerSegmentPollingTimer);
+      this.customerSegmentLoading = true;
+      try {
+        const { data } = await axios.post('/api/reports/widgets/customer-segments/calculate', {from:this.s.from,to:this.s.to});
+        this.customerSegmentSnapshot = data.snapshot;
+        this.watchCustomerSegmentSnapshot(data.snapshot?.id);
+        this.customerSegmentPollingTimer = setTimeout(() => this.loadCustomerSegmentSnapshot(), 10000);
+      } catch (error) {
+        this.customerSegmentSnapshot = {status:'failed', error:error.response?.data?.message || 'شروع محاسبه انجام نشد.'};
+      } finally {
+        this.customerSegmentLoading = false;
+      }
+    },
+    watchCustomerSegmentSnapshot(snapshotId) {
+      if (!snapshotId || this._customerSegmentRealtimeId === String(snapshotId)) return;
+      this.stopCustomerSegmentRealtime();
+      this._customerSegmentRealtimeId = String(snapshotId);
+      this._stopCustomerSegmentRealtime = subscribeReportWidgetProgress(snapshotId, (snapshot) => {
+        if (String(snapshot?.id || '') !== this._customerSegmentRealtimeId) return;
+        this.customerSegmentSnapshot = {...(this.customerSegmentSnapshot || {}), ...snapshot};
+        if (['completed','failed'].includes(snapshot.status)) {
+          clearTimeout(this.customerSegmentPollingTimer);
+          this.stopCustomerSegmentRealtime();
+        }
+      });
+    },
+    stopCustomerSegmentRealtime() {
+      if (typeof this._stopCustomerSegmentRealtime === 'function') this._stopCustomerSegmentRealtime();
+      this._stopCustomerSegmentRealtime = null;
+      this._customerSegmentRealtimeId = null;
+    },
+    async loadDashboardSnapshot() {
+      clearTimeout(this.dashboardPollingTimer);
+      const requestId = (this._dashboardRequestId || 0) + 1;
+      this._dashboardRequestId = requestId;
+      this.dashboardLoading = true;
+      try {
+        const { data } = await axios.get('/api/reports/widgets/dashboard-summary', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId !== this._dashboardRequestId) return;
+        this.dashboardSnapshot = data.snapshot || null;
+        this.set({reportSummary: this.dashboardSnapshot?.status === 'completed' ? this.dashboardSnapshot.result : null, reportError:''});
+        if (['queued','processing'].includes(this.dashboardSnapshot?.status)) {
+          this.watchDashboardSnapshot(this.dashboardSnapshot.id);
+          this.dashboardPollingTimer = setTimeout(() => this.loadDashboardSnapshot(), 10000);
+        } else {
+          this.overviewLoadingSource = null;
+          this.stopDashboardRealtime();
+        }
+      } catch (error) {
+        if (requestId !== this._dashboardRequestId) return;
+        this.dashboardSnapshot = {status:'failed', error:error.response?.data?.message || 'دریافت شاخص‌های گزارش انجام نشد.'};
+        this.set({reportSummary:null, reportError:this.dashboardSnapshot.error});
+      } finally {
+        if (requestId === this._dashboardRequestId) this.dashboardLoading = false;
+      }
+    },
+    async calculateCustomerOverview(source) {
+      if (this.dashboardLoading || ['queued','processing'].includes(this.dashboardSnapshot?.status)) return;
+      this.overviewLoadingSource = source;
+      await this.calculateDashboardSummary();
+      if (!['queued','processing'].includes(this.dashboardSnapshot?.status)) this.overviewLoadingSource = null;
+    },
+    async calculateDashboardSummary() {
+      if (['queued','processing'].includes(this.dashboardSnapshot?.status)) return;
+      this._dashboardRequestId = (this._dashboardRequestId || 0) + 1;
+      clearTimeout(this.dashboardPollingTimer);
+      this.dashboardLoading = true;
+      try {
+        const { data } = await axios.post('/api/reports/widgets/dashboard-summary/calculate', {from:this.s.from,to:this.s.to});
+        this.dashboardSnapshot = data.snapshot;
+        this.set({reportSummary:null, reportError:''});
+        this.watchDashboardSnapshot(data.snapshot?.id);
+        this.dashboardPollingTimer = setTimeout(() => this.loadDashboardSnapshot(), 10000);
+      } catch (error) {
+        this.dashboardSnapshot = {status:'failed', error:error.response?.data?.message || 'شروع محاسبه شاخص‌ها انجام نشد.'};
+        this.set({reportError:this.dashboardSnapshot.error});
+      } finally {
+        this.dashboardLoading = false;
+      }
+    },
+    watchDashboardSnapshot(snapshotId) {
+      if (!snapshotId || this._dashboardRealtimeId === String(snapshotId)) return;
+      this.stopDashboardRealtime();
+      this._dashboardRealtimeId = String(snapshotId);
+      this._stopDashboardRealtime = subscribeReportWidgetProgress(snapshotId, (snapshot) => {
+        if (String(snapshot?.id || '') !== this._dashboardRealtimeId) return;
+        this.dashboardSnapshot = {...(this.dashboardSnapshot || {}), ...snapshot};
+        if (snapshot.status === 'completed') this.set({reportSummary:snapshot.result, reportError:''});
+        if (snapshot.status === 'failed') this.set({reportSummary:null, reportError:snapshot.error || 'محاسبه شاخص‌ها ناموفق بود.'});
+        if (['completed','failed'].includes(snapshot.status)) {
+          this.overviewLoadingSource = null;
+          clearTimeout(this.dashboardPollingTimer);
+          this.stopDashboardRealtime();
+        }
+      });
+    },
+    stopDashboardRealtime() {
+      if (typeof this._stopDashboardRealtime === 'function') this._stopDashboardRealtime();
+      this._stopDashboardRealtime = null;
+      this._dashboardRealtimeId = null;
+    },
+    async loadStaffRoster() {
+      try {
+        const { data } = await axios.get('/api/reports/widgets/staff-income/roster');
+        this.staffRoster = Array.isArray(data.staff) ? data.staff : [];
+        if (this.s.staff !== 'همه' && !this.staffRoster.some(staff => staff.name === this.s.staff)) this.set({staff:'همه'});
+      } catch (error) {
+        console.warn('Staff report roster could not be loaded.', error);
+      }
+    },
+    async loadStaffIncomeSnapshot() {
+      clearTimeout(this.staffIncomePollingTimer);
+      const requestId = (this._staffIncomeRequestId || 0) + 1;
+      this._staffIncomeRequestId = requestId;
+      this.staffIncomeLoading = true;
+      try {
+        const { data } = await axios.get('/api/reports/widgets/staff-income', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId !== this._staffIncomeRequestId) return;
+        this.staffIncomeSnapshot = data.snapshot || null;
+        if (['queued','processing'].includes(this.staffIncomeSnapshot?.status)) {
+          this.watchStaffIncomeSnapshot(this.staffIncomeSnapshot.id);
+          this.staffIncomePollingTimer = setTimeout(() => this.loadStaffIncomeSnapshot(), 10000);
+        } else {
+          this.stopStaffIncomeRealtime();
+        }
+      } catch (error) {
+        if (requestId !== this._staffIncomeRequestId) return;
+        this.staffIncomeSnapshot = {status:'failed',error:error.response?.data?.message || 'دریافت گزارش پرسنل انجام نشد.'};
+      } finally {
+        if (requestId === this._staffIncomeRequestId) this.staffIncomeLoading = false;
+      }
+    },
+    async calculateStaffIncome() {
+      if (['queued','processing'].includes(this.staffIncomeSnapshot?.status)) return;
+      this._staffIncomeRequestId = (this._staffIncomeRequestId || 0) + 1;
+      clearTimeout(this.staffIncomePollingTimer);
+      this.staffIncomeLoading = true;
+      try {
+        const { data } = await axios.post('/api/reports/widgets/staff-income/calculate', {from:this.s.from,to:this.s.to});
+        this.staffIncomeSnapshot = data.snapshot;
+        this.watchStaffIncomeSnapshot(data.snapshot?.id);
+        this.staffIncomePollingTimer = setTimeout(() => this.loadStaffIncomeSnapshot(), 10000);
+      } catch (error) {
+        this.staffIncomeSnapshot = {status:'failed',error:error.response?.data?.message || 'شروع محاسبه گزارش پرسنل انجام نشد.'};
+      } finally {
+        this.staffIncomeLoading = false;
+      }
+    },
+    watchStaffIncomeSnapshot(snapshotId) {
+      if (!snapshotId || this._staffIncomeRealtimeId === String(snapshotId)) return;
+      this.stopStaffIncomeRealtime();
+      this._staffIncomeRealtimeId = String(snapshotId);
+      this._stopStaffIncomeRealtime = subscribeReportWidgetProgress(snapshotId, snapshot => {
+        if (String(snapshot?.id || '') !== this._staffIncomeRealtimeId) return;
+        this.staffIncomeSnapshot = {...(this.staffIncomeSnapshot || {}),...snapshot};
+        if (['completed','failed'].includes(snapshot.status)) {
+          clearTimeout(this.staffIncomePollingTimer);
+          this.stopStaffIncomeRealtime();
+        }
+      });
+    },
+    stopStaffIncomeRealtime() {
+      if (typeof this._stopStaffIncomeRealtime === 'function') this._stopStaffIncomeRealtime();
+      this._stopStaffIncomeRealtime = null;
+      this._staffIncomeRealtimeId = null;
+    },
+    async loadAdvertisingRoiSnapshot() {
+      clearTimeout(this.advertisingRoiPollingTimer);
+      const requestId = (this._advertisingRoiRequestId || 0) + 1;
+      this._advertisingRoiRequestId = requestId;
+      this.advertisingRoiLoading = true;
+      try {
+        const { data } = await axios.get('/api/reports/widgets/advertising-roi', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId !== this._advertisingRoiRequestId) return;
+        this.advertisingRoiSnapshot = data.snapshot || null;
+        if (['queued','processing'].includes(this.advertisingRoiSnapshot?.status)) {
+          this.watchAdvertisingRoiSnapshot(this.advertisingRoiSnapshot.id);
+          this.advertisingRoiPollingTimer = setTimeout(() => this.loadAdvertisingRoiSnapshot(), 10000);
+        } else {
+          this.stopAdvertisingRoiRealtime();
+        }
+      } catch (error) {
+        if (requestId !== this._advertisingRoiRequestId) return;
+        this.advertisingRoiSnapshot = {status:'failed',error:error.response?.data?.message || 'دریافت گزارش تبلیغات انجام نشد.'};
+      } finally {
+        if (requestId === this._advertisingRoiRequestId) this.advertisingRoiLoading = false;
+      }
+    },
+    async calculateAdvertisingRoi() {
+      if (['queued','processing'].includes(this.advertisingRoiSnapshot?.status)) return;
+      this._advertisingRoiRequestId = (this._advertisingRoiRequestId || 0) + 1;
+      clearTimeout(this.advertisingRoiPollingTimer);
+      this.advertisingRoiLoading = true;
+      try {
+        const { data } = await axios.post('/api/reports/widgets/advertising-roi/calculate', {from:this.s.from,to:this.s.to});
+        this.advertisingRoiSnapshot = data.snapshot;
+        this.watchAdvertisingRoiSnapshot(data.snapshot?.id);
+        this.advertisingRoiPollingTimer = setTimeout(() => this.loadAdvertisingRoiSnapshot(), 10000);
+      } catch (error) {
+        this.advertisingRoiSnapshot = {status:'failed',error:error.response?.data?.message || 'شروع محاسبه گزارش تبلیغات انجام نشد.'};
+      } finally {
+        this.advertisingRoiLoading = false;
+      }
+    },
+    watchAdvertisingRoiSnapshot(snapshotId) {
+      if (!snapshotId || this._advertisingRoiRealtimeId === String(snapshotId)) return;
+      this.stopAdvertisingRoiRealtime();
+      this._advertisingRoiRealtimeId = String(snapshotId);
+      this._stopAdvertisingRoiRealtime = subscribeReportWidgetProgress(snapshotId, snapshot => {
+        if (String(snapshot?.id || '') !== this._advertisingRoiRealtimeId) return;
+        this.advertisingRoiSnapshot = {...(this.advertisingRoiSnapshot || {}),...snapshot};
+        if (['completed','failed'].includes(snapshot.status)) {
+          clearTimeout(this.advertisingRoiPollingTimer);
+          this.stopAdvertisingRoiRealtime();
+        }
+      });
+    },
+    stopAdvertisingRoiRealtime() {
+      if (typeof this._stopAdvertisingRoiRealtime === 'function') this._stopAdvertisingRoiRealtime();
+      this._stopAdvertisingRoiRealtime = null;
+      this._advertisingRoiRealtimeId = null;
+    },
+    async loadLoyaltySnapshot() {
+      clearTimeout(this.loyaltyPollingTimer);
+      const requestId = (this._loyaltyRequestId || 0) + 1;
+      this._loyaltyRequestId = requestId;
+      this.loyaltyLoading = true;
+      try {
+        const { data } = await axios.get('/api/reports/widgets/loyalty', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId !== this._loyaltyRequestId) return;
+        this.loyaltySnapshot = data.snapshot || null;
+        if (['queued','processing'].includes(this.loyaltySnapshot?.status)) {
+          this.watchLoyaltySnapshot(this.loyaltySnapshot.id);
+          this.loyaltyPollingTimer = setTimeout(() => this.loadLoyaltySnapshot(),10000);
+        } else this.stopLoyaltyRealtime();
+      } catch (error) {
+        if (requestId === this._loyaltyRequestId) this.loyaltySnapshot={status:'failed',error:error.response?.data?.message || 'دریافت گزارش وفاداری انجام نشد.'};
+      } finally { if (requestId === this._loyaltyRequestId) this.loyaltyLoading=false; }
+    },
+    async calculateLoyalty() {
+      if (['queued','processing'].includes(this.loyaltySnapshot?.status)) return;
+      this._loyaltyRequestId=(this._loyaltyRequestId||0)+1;
+      clearTimeout(this.loyaltyPollingTimer);
+      this.loyaltyLoading=true;
+      try {
+        const {data}=await axios.post('/api/reports/widgets/loyalty/calculate',{from:this.s.from,to:this.s.to});
+        this.loyaltySnapshot=data.snapshot;
+        this.watchLoyaltySnapshot(data.snapshot?.id);
+        this.loyaltyPollingTimer=setTimeout(()=>this.loadLoyaltySnapshot(),10000);
+      } catch(error) { this.loyaltySnapshot={status:'failed',error:error.response?.data?.message || 'شروع محاسبه وفاداری انجام نشد.'}; }
+      finally { this.loyaltyLoading=false; }
+    },
+    watchLoyaltySnapshot(snapshotId) {
+      if (!snapshotId || this._loyaltyRealtimeId===String(snapshotId)) return;
+      this.stopLoyaltyRealtime();
+      this._loyaltyRealtimeId=String(snapshotId);
+      this._stopLoyaltyRealtime=subscribeReportWidgetProgress(snapshotId,snapshot=>{
+        if (String(snapshot?.id||'')!==this._loyaltyRealtimeId) return;
+        this.loyaltySnapshot={...(this.loyaltySnapshot||{}),...snapshot};
+        if (['completed','failed'].includes(snapshot.status)) { clearTimeout(this.loyaltyPollingTimer); this.stopLoyaltyRealtime(); }
+      });
+    },
+    stopLoyaltyRealtime() {
+      if (typeof this._stopLoyaltyRealtime==='function') this._stopLoyaltyRealtime();
+      this._stopLoyaltyRealtime=null; this._loyaltyRealtimeId=null;
+    },
+    async calculateExpenses() {
+      const requestId = (this._expenseRequestId || 0) + 1;
+      this._expenseRequestId = requestId;
+      this.set({expenseLoading:true,expenseError:''});
+      try {
+        const {data} = await axios.post('/api/reports/widgets/expenses/calculate', {from:this.s.from,to:this.s.to});
+        if (requestId === this._expenseRequestId) {
+          this.expenseSnapshot = data.snapshot || null;
+          this.set({expenseReport:this.expenseSnapshot?.result || null});
+        }
+      } catch (error) {
+        if (requestId === this._expenseRequestId) this.set({expenseError:error.response?.data?.message || 'محاسبه هزینه‌ها انجام نشد.'});
+      } finally {
+        if (requestId === this._expenseRequestId) this.set({expenseLoading:false});
+      }
+    },
+    async loadExpenseSnapshot() {
+      const requestId = (this._expenseRequestId || 0) + 1;
+      this._expenseRequestId = requestId;
+      try {
+        const {data} = await axios.get('/api/reports/widgets/expenses', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId === this._expenseRequestId) {
+          this.expenseSnapshot = data.snapshot || null;
+          this.set({expenseReport:this.expenseSnapshot?.result || null, expenseError:''});
+        }
+      } catch (error) {
+        if (requestId === this._expenseRequestId) this.set({expenseError:error.response?.data?.message || 'دریافت گزارش هزینه‌ها انجام نشد.'});
+      }
+    },
+    async loadCustomerAcquisitionSnapshot() {
+      const requestId = (this._customerAcquisitionRequestId || 0) + 1;
+      this._customerAcquisitionRequestId = requestId;
+      this.customerAcquisitionLoading = true;
+      try {
+        const {data} = await axios.get('/api/reports/widgets/customer-acquisition', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId === this._customerAcquisitionRequestId) this.customerAcquisitionSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._customerAcquisitionRequestId) this.customerAcquisitionSnapshot = {status:'failed',error:error.response?.data?.message || 'دریافت هزینه جذب انجام نشد.'};
+      } finally {
+        if (requestId === this._customerAcquisitionRequestId) this.customerAcquisitionLoading = false;
+      }
+    },
+    async calculateCustomerAcquisition() {
+      if (this.customerAcquisitionLoading) return;
+      const requestId = (this._customerAcquisitionRequestId || 0) + 1;
+      this._customerAcquisitionRequestId = requestId;
+      this.customerAcquisitionLoading = true;
+      try {
+        const {data} = await axios.post('/api/reports/widgets/customer-acquisition/calculate', {from:this.s.from,to:this.s.to});
+        if (requestId === this._customerAcquisitionRequestId) this.customerAcquisitionSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._customerAcquisitionRequestId) this.customerAcquisitionSnapshot = {status:'failed',error:error.response?.data?.message || 'محاسبه هزینه جذب انجام نشد.'};
+      } finally {
+        if (requestId === this._customerAcquisitionRequestId) this.customerAcquisitionLoading = false;
+      }
+    },
+    async loadCampaignPerformanceSnapshot() {
+      const requestId = (this._campaignPerformanceRequestId || 0) + 1;
+      this._campaignPerformanceRequestId = requestId;
+      this.campaignPerformanceLoading = true;
+      try {
+        const {data} = await axios.get('/api/reports/widgets/campaign-performance', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId === this._campaignPerformanceRequestId) this.campaignPerformanceSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._campaignPerformanceRequestId) this.campaignPerformanceSnapshot = {status:'failed',error:error.response?.data?.message || 'دریافت بازدهی کمپین‌ها انجام نشد.'};
+      } finally {
+        if (requestId === this._campaignPerformanceRequestId) this.campaignPerformanceLoading = false;
+      }
+    },
+    async calculateCampaignPerformance() {
+      if (this.campaignPerformanceLoading) return;
+      const requestId = (this._campaignPerformanceRequestId || 0) + 1;
+      this._campaignPerformanceRequestId = requestId;
+      this.campaignPerformanceLoading = true;
+      try {
+        const {data} = await axios.post('/api/reports/widgets/campaign-performance/calculate', {from:this.s.from,to:this.s.to});
+        if (requestId === this._campaignPerformanceRequestId) this.campaignPerformanceSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._campaignPerformanceRequestId) this.campaignPerformanceSnapshot = {status:'failed',error:error.response?.data?.message || 'محاسبه بازدهی کمپین‌ها انجام نشد.'};
+      } finally {
+        if (requestId === this._campaignPerformanceRequestId) this.campaignPerformanceLoading = false;
+      }
+    },
+    async loadAdvertisingChannelsSnapshot() {
+      const requestId = (this._advertisingChannelsRequestId || 0) + 1;
+      this._advertisingChannelsRequestId = requestId;
+      this.advertisingChannelsLoading = true;
+      try {
+        const {data} = await axios.get('/api/reports/widgets/advertising-channels', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId === this._advertisingChannelsRequestId) this.advertisingChannelsSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._advertisingChannelsRequestId) this.advertisingChannelsSnapshot = {status:'failed',error:error.response?.data?.message || 'دریافت آمار کانال‌ها انجام نشد.'};
+      } finally {
+        if (requestId === this._advertisingChannelsRequestId) this.advertisingChannelsLoading = false;
+      }
+    },
+    async calculateAdvertisingChannels() {
+      if (this.advertisingChannelsLoading) return;
+      const requestId = (this._advertisingChannelsRequestId || 0) + 1;
+      this._advertisingChannelsRequestId = requestId;
+      this.advertisingChannelsLoading = true;
+      try {
+        const {data} = await axios.post('/api/reports/widgets/advertising-channels/calculate', {from:this.s.from,to:this.s.to});
+        if (requestId === this._advertisingChannelsRequestId) this.advertisingChannelsSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._advertisingChannelsRequestId) this.advertisingChannelsSnapshot = {status:'failed',error:error.response?.data?.message || 'محاسبه آمار کانال‌ها انجام نشد.'};
+      } finally {
+        if (requestId === this._advertisingChannelsRequestId) this.advertisingChannelsLoading = false;
+      }
+    },
+    async loadDoctorPerformanceSnapshot() {
+      const requestId = (this._doctorPerformanceRequestId || 0) + 1;
+      this._doctorPerformanceRequestId = requestId;
+      this.doctorPerformanceLoading = true;
+      try {
+        const {data} = await axios.get('/api/reports/widgets/doctor-performance', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId === this._doctorPerformanceRequestId) this.doctorPerformanceSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._doctorPerformanceRequestId) this.doctorPerformanceSnapshot = {status:'failed',error:error.response?.data?.message || 'دریافت گزارش پزشکان انجام نشد.'};
+      } finally {
+        if (requestId === this._doctorPerformanceRequestId) this.doctorPerformanceLoading = false;
+      }
+    },
+    async calculateDoctorPerformance() {
+      if (this.doctorPerformanceLoading) return;
+      const requestId = (this._doctorPerformanceRequestId || 0) + 1;
+      this._doctorPerformanceRequestId = requestId;
+      this.doctorPerformanceLoading = true;
+      try {
+        const {data} = await axios.post('/api/reports/widgets/doctor-performance/calculate', {from:this.s.from,to:this.s.to});
+        if (requestId === this._doctorPerformanceRequestId) this.doctorPerformanceSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._doctorPerformanceRequestId) this.doctorPerformanceSnapshot = {status:'failed',error:error.response?.data?.message || 'محاسبه گزارش پزشکان انجام نشد.'};
+      } finally {
+        if (requestId === this._doctorPerformanceRequestId) this.doctorPerformanceLoading = false;
+      }
+    },
+    async loadAgeStatisticsSnapshot() {
+      try { const {data}=await axios.get('/api/reports/widgets/age-statistics',{params:{from:this.s.from,to:this.s.to}}); this.ageStatisticsSnapshot=data.snapshot||null; }
+      catch(error) { this.ageStatisticsSnapshot={status:'failed',error:error.response?.data?.message||'دریافت آمار سنی انجام نشد.'}; }
+    },
+    async loadCityStatisticsSnapshot(){this.cityStatisticsLoading=false;clearInterval(this.cityStatisticsProgressTimer);try{const {data}=await axios.get('/api/reports/widgets/city-statistics',{params:{from:this.s.from,to:this.s.to}});this.cityStatisticsSnapshot=data.snapshot||null;this.cityStatisticsProgress=data.snapshot?.status==='completed'?100:0}catch(e){this.cityStatisticsSnapshot=null;this.cityStatisticsProgress=0}},
+    async calculateCityStatistics(){if(this.cityStatisticsLoading)return;this.cityStatisticsLoading=true;this.cityStatisticsProgress=8;clearInterval(this.cityStatisticsProgressTimer);this.cityStatisticsProgressTimer=setInterval(()=>{if(this.cityStatisticsProgress<92)this.cityStatisticsProgress=Math.min(92,this.cityStatisticsProgress+Math.ceil((100-this.cityStatisticsProgress)/6))},450);try{const {data}=await axios.post('/api/reports/widgets/city-statistics/calculate',{from:this.s.from,to:this.s.to});this.cityStatisticsProgress=100;this.cityStatisticsSnapshot=data.snapshot||null}finally{clearInterval(this.cityStatisticsProgressTimer);this.cityStatisticsLoading=false}},
+    async loadTopServicesSnapshot(){
+      const requestId=(this._topServicesRequestId||0)+1;this._topServicesRequestId=requestId;this.topServicesLoading=true;
+      try{const {data}=await axios.get('/api/reports/widgets/top-services',{params:{from:this.s.from,to:this.s.to}});if(requestId===this._topServicesRequestId)this.topServicesSnapshot=data.snapshot||null}
+      catch(error){if(requestId===this._topServicesRequestId)this.topServicesSnapshot={status:'failed',error:error.response?.data?.message||'دریافت گزارش خدمات انجام نشد.'}}
+      finally{if(requestId===this._topServicesRequestId)this.topServicesLoading=false}
+    },
+    async calculateTopServices(){
+      if(this.topServicesLoading)return;const requestId=(this._topServicesRequestId||0)+1;this._topServicesRequestId=requestId;this.topServicesLoading=true;
+      try{const {data}=await axios.post('/api/reports/widgets/top-services/calculate',{from:this.s.from,to:this.s.to});if(requestId===this._topServicesRequestId)this.topServicesSnapshot=data.snapshot||null}
+      catch(error){if(requestId===this._topServicesRequestId)this.topServicesSnapshot={status:'failed',error:error.response?.data?.message||'محاسبه گزارش خدمات انجام نشد.'}}
+      finally{if(requestId===this._topServicesRequestId)this.topServicesLoading=false}
+    },
+    async loadStaffAppointmentsSnapshot(){
+      const requestId=(this._staffAppointmentsRequestId||0)+1;this._staffAppointmentsRequestId=requestId;this.staffAppointmentsLoading=true;
+      try{const {data}=await axios.get('/api/reports/widgets/staff-appointments',{params:{from:this.s.from,to:this.s.to}});if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsSnapshot=data.snapshot||null}
+      catch(error){if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsSnapshot={status:'failed',error:error.response?.data?.message||'دریافت گزارش وقت‌دهی پرسنل انجام نشد.'}}
+      finally{if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsLoading=false}
+    },
+    async calculateStaffAppointments(){
+      if(this.staffAppointmentsLoading)return;const requestId=(this._staffAppointmentsRequestId||0)+1;this._staffAppointmentsRequestId=requestId;this.staffAppointmentsLoading=true;
+      try{const {data}=await axios.post('/api/reports/widgets/staff-appointments/calculate',{from:this.s.from,to:this.s.to});if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsSnapshot=data.snapshot||null}
+      catch(error){if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsSnapshot={status:'failed',error:error.response?.data?.message||'محاسبه گزارش وقت‌دهی پرسنل انجام نشد.'}}
+      finally{if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsLoading=false}
+    },
+    async loadSatisfactionSnapshot(){
+      const requestId=(this._satisfactionRequestId||0)+1;this._satisfactionRequestId=requestId;this.satisfactionLoading=true;
+      try{const {data}=await axios.get('/api/reports/widgets/satisfaction',{params:{from:this.s.from,to:this.s.to}});if(requestId===this._satisfactionRequestId)this.satisfactionSnapshot=data.snapshot||null}
+      catch(error){if(requestId===this._satisfactionRequestId)this.satisfactionSnapshot={status:'failed',error:error.response?.data?.message||'دریافت گزارش رضایت‌مندی انجام نشد.'}}
+      finally{if(requestId===this._satisfactionRequestId)this.satisfactionLoading=false}
+    },
+    async calculateSatisfaction(){
+      if(this.satisfactionLoading)return;const requestId=(this._satisfactionRequestId||0)+1;this._satisfactionRequestId=requestId;this.satisfactionLoading=true;
+      try{const {data}=await axios.post('/api/reports/widgets/satisfaction/calculate',{from:this.s.from,to:this.s.to});if(requestId===this._satisfactionRequestId)this.satisfactionSnapshot=data.snapshot||null}
+      catch(error){if(requestId===this._satisfactionRequestId)this.satisfactionSnapshot={status:'failed',error:error.response?.data?.message||'محاسبه گزارش رضایت‌مندی انجام نشد.'}}
+      finally{if(requestId===this._satisfactionRequestId)this.satisfactionLoading=false}
+    },
+    async calculateAgeStatistics() {
+      if (this.ageStatisticsLoading) return;
+      this.ageStatisticsLoading=true;
+      this.ageStatisticsProgress=8;
+      clearInterval(this.ageStatisticsProgressTimer);
+      this.ageStatisticsProgressTimer=setInterval(()=>{ if(this.ageStatisticsProgress<92) this.ageStatisticsProgress=Math.min(92,this.ageStatisticsProgress+Math.ceil((100-this.ageStatisticsProgress)/6)); }, 450);
+      try { const {data}=await axios.post('/api/reports/widgets/age-statistics/calculate',{from:this.s.from,to:this.s.to}); this.ageStatisticsProgress=100; this.ageStatisticsSnapshot=data.snapshot||null; }
+      catch(error) { this.ageStatisticsSnapshot={status:'failed',error:error.response?.data?.message||'محاسبه آمار سنی انجام نشد.'}; }
+      finally { clearInterval(this.ageStatisticsProgressTimer); this.ageStatisticsLoading=false; if(this.ageStatisticsSnapshot?.status!=='completed') this.ageStatisticsProgress=0; }
+    },
+    async loadCancellationSnapshot() {
       const requestId = (this._cancellationRequestId || 0) + 1;
       this._cancellationRequestId = requestId;
-      this.set({cancellationLoading: true});
       try {
-        const { data } = await axios.get('/api/clinic-report/cancellation-rate', {
-          params: { from: this.s.from, to: this.s.to },
-        });
-        if (requestId === this._cancellationRequestId) this.set({cancellationReport: data});
+        const {data} = await axios.get('/api/reports/widgets/cancellation-rate', {params:{from:this.s.from,to:this.s.to}});
+        if (requestId === this._cancellationRequestId) this.cancellationSnapshot = data.snapshot || null;
       } catch (error) {
-        // Until a valid date range is entered, retain the last successful value.
-        console.warn('Clinic cancellation report could not be loaded.', error);
+        if (requestId === this._cancellationRequestId) this.cancellationSnapshot = {status:'failed',error:error.response?.data?.message || 'دریافت نرخ کنسلی انجام نشد.'};
+      }
+    },
+    async calculateCancellationRate() {
+      if (this.s.cancellationLoading) return;
+      const requestId = (this._cancellationRequestId || 0) + 1;
+      this._cancellationRequestId = requestId;
+      this.set({cancellationLoading:true});
+      try {
+        const {data} = await axios.post('/api/reports/widgets/cancellation-rate/calculate', {from:this.s.from,to:this.s.to});
+        if (requestId === this._cancellationRequestId) this.cancellationSnapshot = data.snapshot || null;
+      } catch (error) {
+        if (requestId === this._cancellationRequestId) this.cancellationSnapshot = {status:'failed',error:error.response?.data?.message || 'محاسبه نرخ کنسلی انجام نشد.'};
       } finally {
-        if (requestId === this._cancellationRequestId) this.set({cancellationLoading: false});
+        if (requestId === this._cancellationRequestId) this.set({cancellationLoading:false});
       }
     },
     async loadReportSummary() {
@@ -1474,6 +2509,18 @@ html,body{margin:0;padding:0;background:#f1f4f9}
 a{color:#2563eb;text-decoration:none}
 a:hover{color:#1d4ed8}
 input,button,select{font-family:'Vazirmatn',sans-serif}
+.report-date-input{width:130px!important;height:38px!important;border:1px solid #e2e8f0!important;border-radius:10px!important;padding:8px 12px!important;background:#f8fafc!important;color:#0f172a!important;font-size:13px!important;text-align:center!important;outline:none!important;cursor:pointer!important;box-shadow:none!important}.report-date-input:focus{border-color:#60a5fa!important;box-shadow:0 0 0 3px rgba(37,99,235,.1)!important}
+.report-refresh-button{width:34px;height:34px;min-width:34px;padding:0;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 7px rgba(37,99,235,.13);transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}.report-refresh-button:hover:not(:disabled){background:#dbeafe;border-color:#60a5fa;box-shadow:0 4px 10px rgba(37,99,235,.18);transform:translateY(-1px)}.report-refresh-button:disabled{cursor:wait;opacity:.65}.report-refresh-button--labeled{width:auto;min-width:34px;padding:0 10px;font-size:10.5px;font-weight:900;white-space:nowrap}.report-calculated-at{color:#64748b;font-size:10px;white-space:nowrap}
+.satisfaction-report-question{padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.satisfaction-report-question header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.satisfaction-report-question header strong{color:#0f172a;font-size:12.5px;line-height:1.8}.satisfaction-report-question header span{flex:0 0 auto;color:#64748b;font-size:10px;white-space:nowrap}.satisfaction-report-row{display:grid;grid-template-columns:minmax(58px,85px) 1fr 42px 24px;align-items:center;gap:8px;margin-top:8px;color:#475569;font-size:11px}.satisfaction-report-row>div{height:8px;overflow:hidden;background:#e2e8f0;border-radius:999px}.satisfaction-report-row i{display:block;height:100%;border-radius:inherit;transition:width .4s ease}.satisfaction-report-row b{color:#0f172a;text-align:left}.satisfaction-report-row small{color:#64748b;text-align:left}
+.report-widget-empty{min-height:82px;display:grid;place-items:center;padding:14px;border:1px dashed #bfdbfe;border-radius:12px;background:#f8fbff;color:#64748b;font-size:11px;font-weight:800;text-align:center;line-height:1.8}
+.expense-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(48px,90px) minmax(0,auto);align-items:center;gap:10px;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:9px 12px;min-width:0}.expense-row__name{min-width:0;font-weight:600;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expense-row__bar{width:100%;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden}.expense-money{min-width:0;max-width:145px;text-align:left;font-weight:800;color:#0f172a;white-space:normal;overflow-wrap:anywhere;line-height:1.5}.expense-summary-list{display:flex;flex-direction:column;gap:7px;min-width:0}.expense-summary-row{min-width:0;min-height:42px;border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.expense-summary-value{min-width:0;max-width:100%;font-size:clamp(11px,1.05vw,15px);font-weight:800;line-height:1.4;white-space:nowrap;text-align:left;direction:rtl;font-variant-numeric:tabular-nums}
+.cac-campaign-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:11px;color:#334155}.cac-campaign-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.cac-campaign-row>small{color:#64748b;white-space:nowrap}.cac-campaign-row>b{color:#1d4ed8;white-space:nowrap;font-size:11px}
+.top-services-more{align-self:center;display:inline-flex;align-items:center;gap:4px;margin-top:3px;padding:2px 4px;border:0;background:transparent;color:#2563eb;font:inherit;font-size:10px;font-weight:800;line-height:1.5;cursor:pointer}
+.top-services-more:hover{color:#1d4ed8;text-decoration:underline;text-underline-offset:3px}
+.top-services-more:focus-visible{outline:1px solid #60a5fa;outline-offset:3px;border-radius:3px}
+.top-services-more-arrow{font-size:11px;line-height:1;transition:transform .15s ease}
+.top-services-loading-track>div{width:42%;animation:top-services-loading-slide 1.15s ease-in-out infinite}
+@keyframes top-services-loading-slide{0%{transform:translateX(145%)}50%{transform:translateX(0)}100%{transform:translateX(-145%)}}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
 [data-drag="1"]{opacity:0.45;outline:2px dashed #2563eb;outline-offset:-3px}
@@ -1490,4 +2537,20 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 }
 [data-hover="1"]:hover{background:#f1f5f9}
 .cancel-rate-loading{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;gap:12px;border-radius:16px;background:linear-gradient(110deg,rgba(255,255,255,.91),rgba(239,246,255,.95),rgba(255,255,255,.91));backdrop-filter:blur(3px);overflow:hidden}.cancel-rate-loading::before{content:'';position:absolute;inset:0;background:linear-gradient(100deg,transparent 25%,rgba(255,255,255,.85) 50%,transparent 75%);animation:cancel-rate-shimmer 1.35s ease-in-out infinite}.cancel-rate-loading>div{position:relative;display:grid;gap:4px}.cancel-rate-loading strong{color:#1d4ed8;font-size:12px}.cancel-rate-loading small{color:#64748b;font-size:10.5px}.cancel-rate-loading-ring{position:relative;width:34px;height:34px;border:3px solid #bfdbfe;border-top-color:#2563eb;border-right-color:#14b8a6;border-radius:50%;animation:cancel-rate-spin .72s linear infinite}.cancel-loading-enter-active,.cancel-loading-leave-active{transition:opacity .2s ease}.cancel-loading-enter-from,.cancel-loading-leave-to{opacity:0}@keyframes cancel-rate-spin{to{transform:rotate(360deg)}}@keyframes cancel-rate-shimmer{from{transform:translateX(110%)}to{transform:translateX(-110%)}}
+.cancellation-calculate-button{width:32px;height:32px;padding:0;border:1px solid #fecaca;border-radius:9px;background:#fef2f2;color:#dc2626;cursor:pointer;display:grid;place-items:center;box-shadow:0 2px 7px rgba(220,38,38,.1)}.cancellation-calculate-button:disabled{cursor:wait;opacity:.65}
+.customer-segment-loading{position:absolute;z-index:6;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.76);backdrop-filter:blur(4px)}
+.customer-segment-loading-card{width:min(320px,calc(100% - 32px));padding:18px 20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 16px 38px rgba(30,64,175,.2);display:grid;justify-items:center;gap:9px;text-align:center}
+.customer-segment-loading-card strong{color:#172554;font-size:12.5px}.customer-segment-loading-card small{min-height:17px;color:#64748b;font-size:9.5px;font-weight:700}
+.customer-segment-loading-ring{width:62px;height:62px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#38bdf8;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}
+.customer-segment-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}
+.customer-segment-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.customer-segment-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#38bdf8);transition:width .45s ease;box-shadow:0 0 9px rgba(37,99,235,.3)}
+@keyframes customer-segment-spin{to{transform:rotate(360deg)}}@keyframes customer-segment-unspin{to{transform:rotate(-360deg)}}
+.kpi-summary-section{position:relative;margin-bottom:16px;padding-top:42px}.kpi-summary-toolbar{position:absolute;z-index:3;top:0;right:0;left:0;height:36px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px}.kpi-summary-toolbar>div{display:flex;align-items:center;gap:9px;min-width:0}.kpi-summary-toolbar strong{font-size:13px;color:#1e293b;white-space:nowrap}.kpi-summary-toolbar small{font-size:9.5px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kpi-calculate-button{min-width:35px;height:35px;padding:0 10px;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10.5px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px rgba(37,99,235,.14)}.kpi-calculate-button:disabled{cursor:wait;opacity:.78}
+.kpi-summary-loading{position:absolute;z-index:7;inset:42px 0 0;display:grid;place-items:center;border-radius:16px;background:rgba(248,250,252,.76);backdrop-filter:blur(4px)}.kpi-summary-loading-card{width:min(350px,calc(100% - 32px));padding:20px 22px;border:1px solid #bfdbfe;border-radius:20px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 18px 42px rgba(30,64,175,.2);display:grid;justify-items:center;gap:10px;text-align:center}.kpi-summary-loading-card strong{color:#172554;font-size:13px}.kpi-summary-loading-card small{min-height:17px;color:#64748b;font-size:10px;font-weight:700}.kpi-summary-loading-ring{width:66px;height:66px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#14b8a6;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.kpi-summary-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.kpi-summary-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.kpi-summary-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#14b8a6);transition:width .45s ease;box-shadow:0 0 9px rgba(37,99,235,.3)}
+.staff-income-calculate-button{min-width:34px;height:34px;padding:0 10px;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;box-shadow:0 2px 7px rgba(37,99,235,.12)}.staff-income-calculate-button:disabled{cursor:wait;opacity:.78}
+.staff-income-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.78);backdrop-filter:blur(4px)}.staff-income-loading-card{width:min(320px,calc(100% - 32px));padding:18px 20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 16px 38px rgba(30,64,175,.2);display:grid;justify-items:center;gap:9px;text-align:center}.staff-income-loading-card strong{color:#172554;font-size:12.5px}.staff-income-loading-card small{min-height:17px;color:#64748b;font-size:9.5px;font-weight:700}.staff-income-loading-ring{width:62px;height:62px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#7c3aed;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.staff-income-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.staff-income-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.staff-income-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#7c3aed);transition:width .45s ease}
+.roi-calculate-button{min-width:34px;height:34px;padding:0 10px;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;box-shadow:0 2px 7px rgba(37,99,235,.12)}.roi-calculate-button:disabled{cursor:wait;opacity:.78}.roi-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.78);backdrop-filter:blur(4px)}.roi-loading-card{width:min(320px,calc(100% - 32px));padding:18px 20px;border:1px solid #bbf7d0;border-radius:18px;background:linear-gradient(145deg,#fff,#f0fdf4);box-shadow:0 16px 38px rgba(21,128,61,.17);display:grid;justify-items:center;gap:9px;text-align:center}.roi-loading-card strong{color:#14532d;font-size:12.5px}.roi-loading-card small{min-height:17px;color:#64748b;font-size:9.5px;font-weight:700}.roi-loading-ring{width:62px;height:62px;border:5px solid #dcfce7;border-top-color:#22c55e;border-right-color:#2563eb;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.roi-loading-ring span{color:#15803d;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.roi-loading-track{width:100%;height:8px;border-radius:999px;background:#dcfce7;overflow:hidden}.roi-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#22c55e,#2563eb);transition:width .45s ease}
+.loyalty-calculate-button{width:32px;height:32px;padding:0;border:1px solid #bbf7d0;border-radius:9px;background:#f0fdf4;color:#15803d;cursor:pointer;display:grid;place-items:center}.loyalty-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.8);backdrop-filter:blur(4px)}.loyalty-loading-card{width:min(290px,calc(100% - 28px));padding:17px 18px;border:1px solid #bbf7d0;border-radius:17px;background:linear-gradient(145deg,#fff,#f0fdf4);box-shadow:0 15px 34px rgba(21,128,61,.17);display:grid;justify-items:center;gap:8px;text-align:center}.loyalty-loading-card strong{color:#14532d;font-size:12px}.loyalty-loading-card small{color:#64748b;font-size:9.5px;font-weight:700}.loyalty-loading-ring{width:58px;height:58px;border:5px solid #dcfce7;border-top-color:#22c55e;border-right-color:#0d9488;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.loyalty-loading-ring span{color:#15803d;font-size:10.5px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.loyalty-loading-track{width:100%;height:8px;border-radius:999px;background:#dcfce7;overflow:hidden}.loyalty-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#22c55e,#0d9488);transition:width .45s ease}
+.age-statistics-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.78);backdrop-filter:blur(4px)}.age-statistics-loading-card{width:min(320px,calc(100% - 32px));padding:18px 20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 16px 38px rgba(30,64,175,.2);display:grid;justify-items:center;gap:9px;text-align:center}.age-statistics-loading-card strong{color:#172554;font-size:12.5px}.age-statistics-loading-card small{min-height:17px;color:#64748b;font-size:9.5px;font-weight:700}.age-statistics-loading-ring{width:62px;height:62px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#14b8a6;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.age-statistics-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.age-statistics-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.age-statistics-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#14b8a6);transition:width .45s ease}
+.city-statistics-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.78);backdrop-filter:blur(4px)}.city-statistics-loading-card{width:min(320px,calc(100% - 32px));padding:18px 20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 16px 38px rgba(30,64,175,.2);display:grid;justify-items:center;gap:9px;text-align:center}.city-statistics-loading-card strong{color:#172554;font-size:12.5px}.city-statistics-loading-card small{min-height:17px;color:#64748b;font-size:9.5px;font-weight:700}.city-statistics-loading-ring{width:62px;height:62px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#14b8a6;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.city-statistics-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.city-statistics-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.city-statistics-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#14b8a6);transition:width .45s ease}
 </style>
