@@ -1578,15 +1578,17 @@
                 v-model="activeTimelineDraft.timelineDoctors"
                 :options="doctorOptions.map(item => item.name)"
                 :multiple="true"
-                :max="2"
+                :max="1"
                 :searchable="true"
                 :close-on-select="false"
                 :clear-on-select="false"
-                placeholder="یک یا دو پزشک را انتخاب کنید"
+                placeholder="پزشک را انتخاب کنید"
                 select-label="انتخاب"
                 selected-label="انتخاب شد"
                 deselect-label="حذف"
                 class="timeline-doctor-multiselect"
+                @select="syncTimelineDoctorToServices"
+                @remove="syncTimelineDoctorToServices"
               />
             </label>
             <label>
@@ -1673,6 +1675,32 @@
                     </label>
                   </div>
                   <small v-else>برای این خدمت تگی تعریف نشده است.</small>
+                </div>
+                <button v-if="service.name" type="button" class="timeline-service-details-toggle" :class="{ active: service._timelineDetailsOpen }" @click.stop="service._timelineDetailsOpen = !service._timelineDetailsOpen">
+                  <span>جزئیات همین خدمت</span><b>{{ service._timelineDetailsOpen ? '⌃' : '⌄' }}</b>
+                </button>
+                <div v-if="service.name && service._timelineDetailsOpen" class="timeline-service-details">
+                  <div class="timeline-service-detail-grid">
+                    <label><span>پزشک</span><select v-model="service.doctor" :disabled="Boolean(activeTimelineDraft.timelineDoctors?.[0])"><option value="">بدون پزشک</option><option v-if="activeTimelineDraft.timelineDoctors?.[0]" :value="activeTimelineDraft.timelineDoctors[0]">{{ activeTimelineDraft.timelineDoctors[0] }}</option><option v-for="doc in doctorsForService(activeTimelineDraft, service).filter(item => item.name !== activeTimelineDraft.timelineDoctors?.[0])" :key="doc.id" :value="doc.name">{{ doc.name }}</option></select></label>
+                    <label><span>مشاور</span><select v-model="service.consultant" @change="calculateRowAmount(activeTimelineDraft)"><option value="">بدون مشاور</option><option v-for="cons in consultantOptions" :key="cons" :value="cons">{{ cons }}</option></select></label>
+                    <label><span>تعداد / سی‌سی</span><input v-model="service.cc" type="text" inputmode="numeric" placeholder="۱" @input="updateRowAmounts(activeTimelineDraft)"></label>
+                    <label><span>قیمت خدمت</span><input :value="formatDisplayMoney(serviceLinePrice(service))" type="text" disabled></label>
+                    <label><span>{{ service.adjustment_mode === 'surcharge' ? 'مبلغ مازاد' : 'مبلغ تخفیف' }}</span><div class="timeline-service-adjustment"><input v-model="service.discount" type="text" inputmode="numeric" placeholder="۰" @input="handleServiceDiscountInput(service, activeTimelineDraft)"><button type="button" title="تغییر بین تخفیف و مازاد" @click.stop="toggleServiceAdjustment(service, activeTimelineDraft)">↻</button></div></label>
+                    <label v-if="service.adjustment_mode === 'surcharge'" class="timeline-service-commission"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"><span>محاسبه مازاد در پورسانت پزشک</span></label>
+                  </div>
+
+                  <div class="timeline-addon-box">
+                    <button type="button" class="timeline-addon-toggle" :class="{ active: expandedAddonServices.has(service) }" @click.stop="toggleServiceAddons(service)"><span>خدمات جانبی</span><b>{{ service.addons?.length || 0 }} مورد {{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b></button>
+                    <div v-if="expandedAddonServices.has(service)" class="timeline-addon-content">
+                      <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="timeline-addon-row">
+                        <label><span>نام جانبی</span><select v-model="addon.name" @change="onAddonChanged(service, addon, activeTimelineDraft)"><option value="">انتخاب جانبی</option><option v-for="name in serviceAddonOptions(service, addon)" :key="name" :value="name">{{ name }}</option></select></label>
+                        <label><span>تعداد / سی‌سی</span><input v-model="addon.cc" type="text" inputmode="numeric" placeholder="۱" @input="updateRowAmounts(activeTimelineDraft)"></label>
+                        <label><span>قیمت</span><input :value="formatDisplayMoney(serviceLinePrice(addon))" type="text" disabled></label>
+                        <button type="button" class="timeline-addon-remove" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeTimelineDraft)">×</button>
+                      </div>
+                      <button type="button" class="timeline-addon-add" @click.stop="addServiceAddon(service)">+ افزودن خدمت جانبی</button>
+                    </div>
+                  </div>
                 </div>
               </article>
             </div>
@@ -3960,8 +3988,11 @@ export default {
         addons: Array.isArray(service.addons) ? service.addons.map(addon => ({ ...addon, discount: addon.discount ? this.formatDisplayMoney(addon.discount) : "", adjustment_mode: addon.adjustment_mode || "discount", surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) })) : []
       }));
       draft.timelineDoctors = Array.isArray(draft.timelineDoctors)
-        ? draft.timelineDoctors.slice(0, 2)
-        : [...new Set(draft.services.map(service => service.doctor).filter(Boolean))].slice(0, 2);
+        ? draft.timelineDoctors.slice(0, 1)
+        : [...new Set(draft.services.map(service => service.doctor).filter(Boolean))].slice(0, 1);
+      if (draft.timelineDoctors[0]) {
+        draft.services.forEach(service => { service.doctor = draft.timelineDoctors[0]; });
+      }
       draft.timelineConsultant = draft.timelineConsultant
         || draft.services.find(service => service.consultant)?.consultant
         || draft.consultant
@@ -4138,7 +4169,7 @@ export default {
         await Swal.fire({ icon:'warning', title:'اطلاعات نوبت کامل نیست', text:this.timelineValidationSummary || 'لطفا فیلدهای اجباری را کامل کنید.' });
         return;
       }
-      const doctors = [...new Set((draft.timelineDoctors || []).filter(Boolean))].slice(0, 2);
+      const doctors = [...new Set((draft.timelineDoctors || []).filter(Boolean))].slice(0, 1);
       const consultant = draft.timelineConsultant || '';
       draft.status = draft.status || 'وقت داده شد';
       draft.doctor = doctors.join('، ');
@@ -4148,6 +4179,7 @@ export default {
       // copy the appointment consultant to service lines that have none so
       // commission calculations and server-side earning lines use it too.
       (draft.services || []).forEach(service => {
+        if (doctors[0]) service.doctor = doctors[0];
         if (!String(service.consultant || '').trim()) service.consultant = consultant;
       });
 
@@ -7453,6 +7485,10 @@ this.calculateFinalAmount(row)
     addTimelineService() {
       if (!this.activeTimelineDraft) return;
       this.addService(this.activeTimelineDraft);
+      const addedService = this.activeTimelineDraft.services[this.activeTimelineDraft.services.length - 1];
+      if (addedService && this.activeTimelineDraft.timelineDoctors?.[0]) {
+        addedService.doctor = this.activeTimelineDraft.timelineDoctors[0];
+      }
       this.$nextTick(() => {
         const rows = this.$el.querySelectorAll('.timeline-service-row');
         const addedRow = rows[rows.length - 1];
@@ -7462,6 +7498,15 @@ this.calculateFinalAmount(row)
         addedRow.classList.add('timeline-service-row-new');
         setTimeout(() => addedRow.classList.remove('timeline-service-row-new'), 1200);
         setTimeout(() => addedRow.querySelector('select')?.focus({ preventScroll: true }), 450);
+      });
+    },
+
+    syncTimelineDoctorToServices() {
+      this.$nextTick(() => {
+        if (!this.activeTimelineDraft) return;
+        const doctor = this.activeTimelineDraft.timelineDoctors?.[0] || '';
+        (this.activeTimelineDraft.services || []).forEach(service => { service.doctor = doctor; });
+        this.calculateRowAmount(this.activeTimelineDraft);
       });
     },
 
@@ -9864,6 +9909,24 @@ smsColor(val) {
 .timeline-tag-options label { min-height: 32px; display: inline-flex; flex-direction: row!important; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 999px; background: #f8fafc; color: #64748b; cursor: pointer; }
 .timeline-tag-options label.active { border-color: #86efac; background: #f0fdf4; color: #15803d; }
 .timeline-tag-options input { width: 14px!important; height: 14px!important; min-height: 14px!important; padding: 0!important; accent-color: #16a34a; }
+.timeline-service-details-toggle { width: 100%; min-height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; color: #475569; font-family: inherit; font-weight: 900; cursor: pointer; }
+.timeline-service-details-toggle.active { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.timeline-service-details { display: grid; gap: 12px; padding: 13px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fbff; }
+.timeline-service-detail-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 11px; align-items: end; }
+.timeline-service-detail-grid label > span { color: #475569; font-size: 10px; }
+.timeline-service-adjustment { display: grid; grid-template-columns: 1fr 38px; gap: 6px; }
+.timeline-service-adjustment button { border: 0; border-radius: 8px; background: #dbeafe; color: #1d4ed8; font-size: 17px; cursor: pointer; }
+.timeline-service-commission { grid-column: 1/-1; min-height: 36px; flex-direction: row!important; align-items: center; padding: 7px 10px; border-radius: 8px; background: #fff7ed; color: #c2410c!important; }
+.timeline-service-commission input { width: 16px!important; height: 16px!important; min-height: 16px!important; padding: 0!important; accent-color: #f97316; }
+.timeline-addon-box { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.timeline-addon-toggle { width: 100%; min-height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border: 0; background: #fff; color: #334155; font-family: inherit; font-weight: 900; cursor: pointer; }
+.timeline-addon-toggle b { color: #64748b; font-size: 10px; }
+.timeline-addon-toggle.active { background: #f0fdf4; color: #15803d; }
+.timeline-addon-content { display: grid; gap: 9px; padding: 10px; border-top: 1px solid #e2e8f0; }
+.timeline-addon-row { display: grid; grid-template-columns: 1.5fr .65fr .8fr 32px; gap: 8px; align-items: end; padding: 9px; border-radius: 9px; background: #f8fafc; }
+.timeline-addon-row label > span { color: #64748b; font-size: 9px; }
+.timeline-addon-remove { width: 32px; height: 38px; border: 0; border-radius: 8px; background: #fee2e2; color: #dc2626; font-size: 18px; cursor: pointer; }
+.timeline-addon-add { min-height: 36px; border: 1px dashed #86efac; border-radius: 8px; background: #f0fdf4; color: #15803d; font-family: inherit; font-weight: 900; cursor: pointer; }
 
 .timeline-service-list .service-item {
   padding: 10px;
@@ -9899,6 +9962,8 @@ smsColor(val) {
 @media(max-width:800px) {
   .timeline-service-fields { grid-template-columns: 1fr; }
   .timeline-service-sections-head { align-items: flex-start; flex-direction: column; }
+  .timeline-service-detail-grid,.timeline-addon-row { grid-template-columns: 1fr; }
+  .timeline-addon-remove { width: 100%; }
 }
 
 .timeline-modal label,
