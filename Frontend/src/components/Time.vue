@@ -1651,28 +1651,29 @@
                 <div class="timeline-service-fields">
                   <label>
                     <span>زیر‌بخش</span>
-                    <Multiselect v-model="service.sectionId" :options="serviceSubsectionOptions(service, activeTimelineDraft)" :custom-label="serviceSectionLabel" :multiple="false" :searchable="true" :close-on-select="true" :clear-on-select="false" :allow-empty="true" placeholder="انتخاب زیر‌بخش" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-section-multiselect" @select="onServiceSectionChanged(service, activeTimelineDraft)" @remove="onServiceSectionChanged(service, activeTimelineDraft)" />
+                    <select v-model="service.sectionId" @change="onServiceSectionChanged(service, activeTimelineDraft)">
+                      <option value="">انتخاب زیر‌بخش</option>
+                      <option v-for="sectionId in serviceSubsectionOptions(service, activeTimelineDraft)" :key="sectionId" :value="String(sectionId)">{{ serviceSectionLabel(sectionId) }}</option>
+                    </select>
                   </label>
                   <label>
                     <span>خدمت</span>
-                    <Multiselect v-model="service.name" :options="serviceOptionsFor(service, activeTimelineDraft)" :multiple="false" :searchable="true" :internal-search="true" :close-on-select="true" :clear-on-select="false" :allow-empty="true" :disabled="!service.sectionId" :placeholder="service.sectionId ? 'جستجو و انتخاب خدمت' : 'ابتدا زیر‌بخش را انتخاب کنید'" select-label="" selected-label="انتخاب شده" deselect-label="حذف" class="service-multiselect" @select="onServiceNameChanged(service, activeTimelineDraft)" @remove="onServiceNameChanged(service, activeTimelineDraft)" />
+                    <select v-model="service.name" :disabled="!service.sectionId" @change="onServiceNameChanged(service, activeTimelineDraft)">
+                      <option value="">{{ service.sectionId ? 'انتخاب خدمت' : 'ابتدا زیر‌بخش را انتخاب کنید' }}</option>
+                      <option v-for="serviceName in serviceOptionsFor(service, activeTimelineDraft)" :key="serviceName" :value="serviceName">{{ serviceName }}</option>
+                    </select>
                   </label>
-                  <div class="timeline-service-tag-field">
-                    <span>تگ‌ها</span>
-                    <div class="service-tag-picker" @click.stop>
-                      <button type="button" class="service-tag-trigger" :disabled="!service.name" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
-                        <b v-if="service.tags?.length">{{ service.tags.length }} تگ انتخاب شده</b>
-                        <em v-else>{{ service.name ? 'انتخاب تگ' : 'ابتدا خدمت را انتخاب کنید' }}</em>
-                        <i>⌄</i>
-                      </button>
-                      <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
-                        <label v-for="tag in serviceTagsForSelection(service, activeTimelineDraft)" :key="tag"><input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, activeTimelineDraft)"><span>{{ tag }}</span></label>
-                        <span v-if="!serviceTagsForSelection(service, activeTimelineDraft).length" class="service-tag-menu-empty">تگی برای این خدمت ثبت نشده است.</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-                <div v-if="service.tags?.length" class="service-tag-chips timeline-service-tags"><button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, activeTimelineDraft)">{{ tag }} <b>×</b></button></div>
+                <div v-if="service.name" class="timeline-service-tags">
+                  <span>تگ‌ها</span>
+                  <div v-if="serviceTagsForSelection(service, activeTimelineDraft).length" class="timeline-tag-options">
+                    <label v-for="tag in serviceTagsForSelection(service, activeTimelineDraft)" :key="tag" :class="{ active: (service.tags || []).includes(tag) }">
+                      <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, activeTimelineDraft)">
+                      <span>{{ tag }}</span>
+                    </label>
+                  </div>
+                  <small v-else>برای این خدمت تگی تعریف نشده است.</small>
+                </div>
               </article>
             </div>
           </section>
@@ -9793,7 +9794,7 @@ smsColor(val) {
 .timeline-service-section-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .timeline-service-section-options label {
   display: inline-flex;
-  flex-direction: row;
+  flex-direction: row!important;
   align-items: center;
   gap: 7px;
   min-height: 36px;
@@ -9831,13 +9832,16 @@ smsColor(val) {
 .timeline-service-row > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .timeline-service-row > header strong { color: #1e3a8a; font-size: 12px; }
 .timeline-service-row > header button { width: 28px; height: 28px; border: 0; border-radius: 8px; background: #fee2e2; color: #dc2626; font-size: 18px; cursor: pointer; }
-.timeline-service-fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; align-items: start; }
+.timeline-service-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; align-items: start; }
 .timeline-service-fields > label > span,
-.timeline-service-tag-field > span { color: #475569; font-size: 10px; font-weight: 900; }
-.timeline-service-tag-field { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
-.timeline-service-tag-field .service-tag-trigger { width: 100%; min-height: 43px; justify-content: space-between; }
-.timeline-service-tag-field .service-tag-trigger:disabled { cursor: not-allowed; opacity: .58; }
-.timeline-service-tags { margin-top: -3px; }
+.timeline-service-tags > span { color: #475569; font-size: 10px; font-weight: 900; }
+.timeline-service-fields select { height: 42px; }
+.timeline-service-tags { display: grid; gap: 8px; padding-top: 2px; border-top: 1px dashed #e2e8f0; }
+.timeline-service-tags small { color: #94a3b8; font-size: 10px; }
+.timeline-tag-options { display: flex; flex-wrap: wrap; gap: 7px; }
+.timeline-tag-options label { min-height: 32px; display: inline-flex; flex-direction: row!important; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 999px; background: #f8fafc; color: #64748b; cursor: pointer; }
+.timeline-tag-options label.active { border-color: #86efac; background: #f0fdf4; color: #15803d; }
+.timeline-tag-options input { width: 14px!important; height: 14px!important; min-height: 14px!important; padding: 0!important; accent-color: #16a34a; }
 
 .timeline-service-list .service-item {
   padding: 10px;
