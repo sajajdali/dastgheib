@@ -280,7 +280,40 @@ class CompletionSmsController extends Controller
             $invite->form_snapshot = $form;
         }
         $invite->sent_at = now(); $invite->save();
-        $base = rtrim((string) config('app.frontend_url', config('app.url')), '/');
+        $base = $this->tenantFrontendUrl($request);
         return $base.'/r/'.$invite->token;
+    }
+
+    private function tenantFrontendUrl(Request $request): string
+    {
+        $configuredUrl = (string) config('app.frontend_url', config('app.url'));
+        $configuredParts = parse_url($configuredUrl) ?: [];
+        $requestHost = strtolower($request->getHost());
+
+        $tenantDomains = tenant()?->domains()
+            ->orderBy('id')
+            ->pluck('domain')
+            ->map(fn ($domain) => trim((string) $domain))
+            ->filter()
+            ->values() ?? collect();
+
+        $tenantDomain = $tenantDomains->first(function (string $domain) use ($requestHost): bool {
+            $host = parse_url(str_contains($domain, '://') ? $domain : 'http://'.$domain, PHP_URL_HOST);
+
+            return strtolower((string) $host) === $requestHost;
+        }) ?? $tenantDomains->first();
+
+        if (! $tenantDomain) {
+            return rtrim($configuredUrl, '/');
+        }
+
+        $domainHasScheme = str_contains($tenantDomain, '://');
+        $tenantParts = parse_url($domainHasScheme ? $tenantDomain : 'http://'.$tenantDomain) ?: [];
+        $scheme = ($domainHasScheme ? ($tenantParts['scheme'] ?? null) : null)
+            ?? ($configuredParts['scheme'] ?? $request->getScheme());
+        $host = $tenantParts['host'] ?? $tenantDomain;
+        $port = $tenantParts['port'] ?? ($configuredParts['port'] ?? null);
+
+        return $scheme.'://'.$host.($port ? ':'.$port : '');
     }
 }
