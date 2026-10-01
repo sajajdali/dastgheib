@@ -1609,7 +1609,7 @@
             </label>
           </section>
 
-          <section v-if="false" class="timeline-service-panel">
+          <section class="timeline-service-panel">
             <div class="service-popup-header">
               <div class="service-popup-title">
                 خدمات {{ activeTimelineDraft.lastname || 'بیمار' }}
@@ -1618,6 +1618,20 @@
               <button type="button" class="add-service-line-btn" :disabled="!activeTimelineDraft.serviceTypes?.length" @click.stop="addService(activeTimelineDraft)">
                 + افزودن خدمت
               </button>
+            </div>
+
+            <div class="timeline-service-sections">
+              <div class="timeline-service-sections-head">
+                <strong>بخش</strong>
+                <small>یک یا چند بخش را انتخاب کنید</small>
+              </div>
+              <div class="timeline-service-section-options">
+                <label v-for="section in sortedServiceSections" :key="section.id" :class="{ active: activeTimelineDraft.serviceTypes?.map(String).includes(String(section.id)) }">
+                  <input v-model="activeTimelineDraft.serviceTypes" type="checkbox" :value="String(section.id)" @change="onRowServiceTypesChanged(activeTimelineDraft)">
+                  <span>{{ section.name }}</span>
+                </label>
+                <p v-if="!sortedServiceSections.length">ابتدا بخش‌های خدمات را در انبار تعریف کنید.</p>
+              </div>
             </div>
 
             <div v-if="!activeTimelineDraft.serviceTypes?.length" class="service-prerequisite">
@@ -1684,6 +1698,25 @@
                     @remove="onServiceNameChanged(service, activeTimelineDraft)"
                   />
 
+                  <div v-if="service.name" class="service-tag-picker" @click.stop>
+                    <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
+                      <span>تگ‌ها</span>
+                      <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
+                      <em v-else>انتخاب تگ</em>
+                      <i>⌄</i>
+                    </button>
+                    <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
+                      <label v-for="tag in serviceTagsForSelection(service, activeTimelineDraft)" :key="tag">
+                        <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, activeTimelineDraft)">
+                        <span>{{ tag }}</span>
+                      </label>
+                      <span v-if="!serviceTagsForSelection(service, activeTimelineDraft).length" class="service-tag-menu-empty">تگی برای این خدمت در انبار ثبت نشده است.</span>
+                    </div>
+                    <div v-if="service.tags?.length" class="service-tag-chips">
+                      <button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, activeTimelineDraft)">{{ tag }} <b>×</b></button>
+                    </div>
+                  </div>
+
                   <select v-model="service.doctor" class="service-select" :disabled="!activeTimelineDraft.serviceTypes?.length || !service.sectionId" @change="calculateRowAmount(activeTimelineDraft)">
                     <option value="">انتخاب پزشک</option>
                     <option v-for="doc in doctorsForService(activeTimelineDraft, service)" :key="doc.id" :value="doc.name">
@@ -1728,7 +1761,7 @@
                     <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeTimelineDraft)">×</button>
                   </div>
 
-                  <div v-if="!row.serviceTypes?.length" class="service-prerequisite">
+                  <div v-if="!activeTimelineDraft.serviceTypes?.length" class="service-prerequisite">
                     <span>۱</span>
                     <div>
                       <strong>ابتدا بخش را مشخص کنید</strong>
@@ -4012,6 +4045,7 @@ export default {
         name: service.name || "",
         sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name, draft),
         rootSectionId: service.rootSectionId || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name, draft)),
+        tags: Array.isArray(service.tags) ? [...service.tags] : [],
         cc: service.cc || "",
         doctor: service.doctor || "",
         consultant: service.consultant || "",
@@ -9833,6 +9867,42 @@ smsColor(val) {
 .timeline-service-panel .service-popup-header {
   margin-bottom: 12px;
 }
+
+.timeline-service-sections {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.timeline-service-sections-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.timeline-service-sections-head strong { color: #1e3a8a; font-size: 13px; }
+.timeline-service-sections-head small { color: #64748b; font-size: 10px; }
+.timeline-service-section-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.timeline-service-section-options label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.timeline-service-section-options label.active { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; }
+.timeline-service-section-options input { width: 16px!important; height: 16px!important; accent-color: #2563eb; }
+.timeline-service-section-options p { margin: 0; color: #64748b; font-size: 11px; }
 
 .timeline-service-panel .referral-section {
   grid-template-columns: repeat(3, minmax(0, 1fr));
