@@ -1642,135 +1642,38 @@
               </div>
             </div>
 
-            <div class="referral-section">
-              <input v-model="activeTimelineDraft.referrerPhone" type="number" placeholder="شماره موبایل معرف" class="service-select" @input="calculateReferralRewardForRow(activeTimelineDraft)" />
-              <div class="money-input-wrap">
-                <input :value="formatDisplayMoney(activeTimelineDraft.referralScore || 0)" type="text" placeholder="مبلغ امتیاز" class="service-select money-input score-disabled" disabled />
-                <span class="money-suffix">تومان</span>
-                <button type="button" class="pay-score-btn" title="کسر از مبلغ" @click.stop="applyReferralScore(activeTimelineDraft)">کارت</button>
-              </div>
-              <div class="wallet-payment-box">
-                <button type="button" :disabled="!moneyToNumber(activeTimelineDraft.walletBalance)" @click.stop="applyWalletBalance(activeTimelineDraft)">
-                  {{ moneyToNumber(activeTimelineDraft.walletApplied) ? `اعمال شد: ${formatDisplayMoney(activeTimelineDraft.walletApplied)} تومان` : 'پرداخت از کیف پول' }}
-                </button>
-              </div>
-            </div>
-
-            <div class="service-popup-meta timeline-service-list">
-              <div class="service-item" v-for="(service, sIndex) in activeTimelineDraft.services" :key="sIndex">
-                <div class="service-main-row">
-
-                  <Multiselect
-                    v-model="service.sectionId"
-                    :options="serviceSubsectionOptions(service, activeTimelineDraft)"
-                    :custom-label="serviceSectionLabel"
-                    :multiple="false"
-                    :searchable="true"
-                    :close-on-select="true"
-                    :clear-on-select="false"
-                    :allow-empty="true"
-                    :disabled="!activeTimelineDraft.serviceTypes?.length"
-                    :placeholder="activeTimelineDraft.serviceTypes?.length ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
-                    select-label=""
-                    selected-label="انتخاب شد"
-                    deselect-label="حذف"
-                    class="service-multiselect service-section-multiselect"
-                    @select="onServiceSectionChanged(service, activeTimelineDraft)"
-                    @remove="onServiceSectionChanged(service, activeTimelineDraft)"
-                  />
-
-                  <Multiselect
-                    v-model="service.name"
-                    :options="serviceOptionsFor(service, activeTimelineDraft)"
-                    :multiple="false"
-                    :searchable="true"
-                    :internal-search="true"
-                    :close-on-select="true"
-                    :clear-on-select="false"
-                    :allow-empty="true"
-                    :disabled="!activeTimelineDraft.serviceTypes?.length"
-                    :placeholder="activeTimelineDraft.serviceTypes?.length ? 'جستجو و انتخاب خدمت' : 'ابتدا بخش را انتخاب کنید'"
-                    select-label=""
-                    selected-label="انتخاب شده"
-                    deselect-label="حذف"
-                    class="service-multiselect"
-                    @select="onServiceNameChanged(service, activeTimelineDraft)"
-                    @remove="onServiceNameChanged(service, activeTimelineDraft)"
-                  />
-
-                  <div v-if="service.name" class="service-tag-picker" @click.stop>
-                    <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
-                      <span>تگ‌ها</span>
-                      <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
-                      <em v-else>انتخاب تگ</em>
-                      <i>⌄</i>
-                    </button>
-                    <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
-                      <label v-for="tag in serviceTagsForSelection(service, activeTimelineDraft)" :key="tag">
-                        <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, activeTimelineDraft)">
-                        <span>{{ tag }}</span>
-                      </label>
-                      <span v-if="!serviceTagsForSelection(service, activeTimelineDraft).length" class="service-tag-menu-empty">تگی برای این خدمت در انبار ثبت نشده است.</span>
-                    </div>
-                    <div v-if="service.tags?.length" class="service-tag-chips">
-                      <button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, activeTimelineDraft)">{{ tag }} <b>×</b></button>
+            <div v-if="activeTimelineDraft.serviceTypes?.length" class="timeline-service-list">
+              <article v-for="(service, sIndex) in activeTimelineDraft.services" :key="sIndex" class="timeline-service-row">
+                <header>
+                  <strong>خدمت {{ sIndex + 1 }}</strong>
+                  <button v-if="activeTimelineDraft.services.length > 1" type="button" title="حذف خدمت" @click.stop="removeService(activeTimelineDraft, sIndex)">×</button>
+                </header>
+                <div class="timeline-service-fields">
+                  <label>
+                    <span>زیر‌بخش</span>
+                    <Multiselect v-model="service.sectionId" :options="serviceSubsectionOptions(service, activeTimelineDraft)" :custom-label="serviceSectionLabel" :multiple="false" :searchable="true" :close-on-select="true" :clear-on-select="false" :allow-empty="true" placeholder="انتخاب زیر‌بخش" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-section-multiselect" @select="onServiceSectionChanged(service, activeTimelineDraft)" @remove="onServiceSectionChanged(service, activeTimelineDraft)" />
+                  </label>
+                  <label>
+                    <span>خدمت</span>
+                    <Multiselect v-model="service.name" :options="serviceOptionsFor(service, activeTimelineDraft)" :multiple="false" :searchable="true" :internal-search="true" :close-on-select="true" :clear-on-select="false" :allow-empty="true" :disabled="!service.sectionId" :placeholder="service.sectionId ? 'جستجو و انتخاب خدمت' : 'ابتدا زیر‌بخش را انتخاب کنید'" select-label="" selected-label="انتخاب شده" deselect-label="حذف" class="service-multiselect" @select="onServiceNameChanged(service, activeTimelineDraft)" @remove="onServiceNameChanged(service, activeTimelineDraft)" />
+                  </label>
+                  <div class="timeline-service-tag-field">
+                    <span>تگ‌ها</span>
+                    <div class="service-tag-picker" @click.stop>
+                      <button type="button" class="service-tag-trigger" :disabled="!service.name" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
+                        <b v-if="service.tags?.length">{{ service.tags.length }} تگ انتخاب شده</b>
+                        <em v-else>{{ service.name ? 'انتخاب تگ' : 'ابتدا خدمت را انتخاب کنید' }}</em>
+                        <i>⌄</i>
+                      </button>
+                      <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
+                        <label v-for="tag in serviceTagsForSelection(service, activeTimelineDraft)" :key="tag"><input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, activeTimelineDraft)"><span>{{ tag }}</span></label>
+                        <span v-if="!serviceTagsForSelection(service, activeTimelineDraft).length" class="service-tag-menu-empty">تگی برای این خدمت ثبت نشده است.</span>
+                      </div>
                     </div>
                   </div>
-
-                  <select v-model="service.doctor" class="service-select" :disabled="!activeTimelineDraft.serviceTypes?.length || !service.sectionId" @change="calculateRowAmount(activeTimelineDraft)">
-                    <option value="">انتخاب پزشک</option>
-                    <option v-for="doc in doctorsForService(activeTimelineDraft, service)" :key="doc.id" :value="doc.name">
-                      {{ doc.name }}
-                    </option>
-                  </select>
-
-                  <select v-model="service.consultant" class="service-select" @change="calculateRowAmount(activeTimelineDraft)">
-                    <option value="">انتخاب مشاور</option>
-                    <option v-for="cons in consultantOptions" :key="cons" :value="cons">
-                      {{ cons }}
-                    </option>
-                  </select>
-
-                  <input v-model="service.cc" type="text" placeholder="تعداد سی‌سی" class="cc-input" @input="updateRowAmounts(activeTimelineDraft)" />
-                  <span class="service-price-chip">{{ service.name ? `${formatDisplayMoney(serviceLinePrice(service))} تومان` : 'قیمت' }}</span>
-                  <div class="service-discount-wrap" :class="{ surcharge: service.adjustment_mode === 'surcharge' }">
-                    <input v-model="service.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(service, activeTimelineDraft)">
-                    <span>{{ service.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(service, activeTimelineDraft)">↻</button>
-                  </div>
-                  <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
-
-                  <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" @click.stop="toggleServiceAddons(service)">
-                    جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b aria-hidden="true">{{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b>
-                  </button>
-
-                  <button v-if="activeTimelineDraft.services.length > 1" type="button" class="remove-service-btn" @click.stop="removeService(activeTimelineDraft, sIndex)">
-                    -
-                  </button>
                 </div>
-
-                <div v-if="expandedAddonServices.has(service)" class="service-addons-panel">
-                  <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>امکان افزودن چند مورد</small></div>
-                  <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
-                    <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, activeTimelineDraft)" @remove="onAddonChanged(service, addon, activeTimelineDraft)" />
-                    <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="updateRowAmounts(activeTimelineDraft)">
-                    <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
-                          <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
-                            <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, activeTimelineDraft)">
-                            <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, activeTimelineDraft)">↻</button>
-                          </div>
-                    <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeTimelineDraft)">×</button>
-                  </div>
-
-                  <div v-if="!activeTimelineDraft.serviceTypes?.length" class="service-prerequisite">
-                    <span>۱</span>
-                    <div>
-                      <strong>ابتدا بخش را مشخص کنید</strong>
-                      <p>از ستون «بخش»، یک یا چند بخش را انتخاب کنید؛ سپس فقط خدمات، محصولات و پزشکان مرتبط با همان بخش‌ها اینجا نمایش داده می‌شوند.</p>
-                    </div>
-                  </div>
-                  <button type="button" class="add-another-addon-btn" @click.stop="addServiceAddon(service)">+ افزودن جانبی دیگر</button>
-                </div>
-              </div>
+                <div v-if="service.tags?.length" class="service-tag-chips timeline-service-tags"><button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, activeTimelineDraft)">{{ tag }} <b>×</b></button></div>
+              </article>
             </div>
           </section>
 
@@ -9909,9 +9812,32 @@ smsColor(val) {
 }
 
 .timeline-service-list {
+  display: grid;
   gap: 10px;
   margin-bottom: 0;
 }
+
+.timeline-service-row {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.timeline-service-row:focus-within { z-index: 20; border-color: #93c5fd; }
+.timeline-service-row > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.timeline-service-row > header strong { color: #1e3a8a; font-size: 12px; }
+.timeline-service-row > header button { width: 28px; height: 28px; border: 0; border-radius: 8px; background: #fee2e2; color: #dc2626; font-size: 18px; cursor: pointer; }
+.timeline-service-fields { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; align-items: start; }
+.timeline-service-fields > label > span,
+.timeline-service-tag-field > span { color: #475569; font-size: 10px; font-weight: 900; }
+.timeline-service-tag-field { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.timeline-service-tag-field .service-tag-trigger { width: 100%; min-height: 43px; justify-content: space-between; }
+.timeline-service-tag-field .service-tag-trigger:disabled { cursor: not-allowed; opacity: .58; }
+.timeline-service-tags { margin-top: -3px; }
 
 .timeline-service-list .service-item {
   padding: 10px;
@@ -9942,6 +9868,11 @@ smsColor(val) {
 .timeline-service-panel .pay-score-btn {
   font-size: 10px;
   font-weight: 900;
+}
+
+@media(max-width:800px) {
+  .timeline-service-fields { grid-template-columns: 1fr; }
+  .timeline-service-sections-head { align-items: flex-start; flex-direction: column; }
 }
 
 .timeline-modal label,
