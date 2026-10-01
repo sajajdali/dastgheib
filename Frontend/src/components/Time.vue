@@ -1615,7 +1615,7 @@
                 خدمات {{ activeTimelineDraft.lastname || 'بیمار' }}
               </div>
 
-              <button type="button" class="add-service-line-btn" :disabled="!activeTimelineDraft.serviceTypes?.length" @click.stop="addService(activeTimelineDraft)">
+              <button type="button" class="add-service-line-btn" :disabled="!activeTimelineDraft.serviceTypes?.length" @click.stop="addTimelineService">
                 + افزودن خدمت
               </button>
             </div>
@@ -7439,6 +7439,7 @@ this.calculateFinalAmount(row)
         name: "",
         sectionId: this.defaultServiceSectionId(row),
         rootSectionId: this.rootSectionIdFor(this.defaultServiceSectionId(row)),
+        tags: [],
         cc: "",
         doctor: "",
         consultant: "",
@@ -7447,6 +7448,21 @@ this.calculateFinalAmount(row)
         ,addons: []
       });
 
+    },
+
+    addTimelineService() {
+      if (!this.activeTimelineDraft) return;
+      this.addService(this.activeTimelineDraft);
+      this.$nextTick(() => {
+        const rows = this.$el.querySelectorAll('.timeline-service-row');
+        const addedRow = rows[rows.length - 1];
+        if (!addedRow) return;
+
+        addedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        addedRow.classList.add('timeline-service-row-new');
+        setTimeout(() => addedRow.classList.remove('timeline-service-row-new'), 1200);
+        setTimeout(() => addedRow.querySelector('select')?.focus({ preventScroll: true }), 450);
+      });
     },
 
     removeService(row, i) {
@@ -9829,6 +9845,12 @@ smsColor(val) {
 }
 
 .timeline-service-row:focus-within { z-index: 20; border-color: #93c5fd; }
+.timeline-service-row-new { animation: timelineServiceAdded 1.2s ease-out; }
+@keyframes timelineServiceAdded {
+  0% { border-color: #22c55e; background: #dcfce7; box-shadow: 0 0 0 5px rgba(34,197,94,.16); transform: translateY(5px); }
+  45% { border-color: #4ade80; background: #f0fdf4; box-shadow: 0 0 0 3px rgba(34,197,94,.1); }
+  100% { border-color: #dbeafe; background: #fff; box-shadow: none; transform: translateY(0); }
+}
 .timeline-service-row > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .timeline-service-row > header strong { color: #1e3a8a; font-size: 12px; }
 .timeline-service-row > header button { width: 28px; height: 28px; border: 0; border-radius: 8px; background: #fee2e2; color: #dc2626; font-size: 18px; cursor: pointer; }
