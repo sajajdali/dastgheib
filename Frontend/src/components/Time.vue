@@ -1573,7 +1573,7 @@
 
           <section class="timeline-quick-team">
             <label>
-              انتخاب پزشک (حداکثر دو نفر)
+              انتخاب پزشک
               <Multiselect
                 v-model="activeTimelineDraft.timelineDoctors"
                 :options="doctorOptions.map(item => item.name)"
@@ -3534,7 +3534,8 @@ export default {
         'appointmentId', 'lockVersion', 'patientId', 'profileThumbnailUrl',
         'profilePhotoUrl', 'hasPatientFile', 'walletBalance', 'originalDebt',
         'patientOutstandingDebt', 'customerLevel', 'noteMessageCount',
-        'doctorNoteUnread', 'timelineDoctors', 'timelineConsultant'
+        'doctorNoteUnread', 'timelineDoctors', 'timelineConsultant',
+        'registeredBy', 'registeredAt', 'lastEditedBy', 'lastEditedAt'
       ]);
       return JSON.stringify({ dayNum: Number(day?.dayNum || 0), sortOrder: rowIndex, row }, (key, value) => {
         if (key.startsWith('_') || transient.has(key)) return undefined;
