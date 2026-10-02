@@ -1576,6 +1576,9 @@ export default {
       },
 
       debouncedSaveLocal: null,
+      campaignPersistedFingerprints: {},
+      campaignSaveInProgress: false,
+      campaignSaveQueued: false,
       followupConsultantPhoneRestricted: false,
     };
   },
@@ -1766,7 +1769,7 @@ export default {
     this.debouncedSaveLocal = debounce(() => {
       this.saveCampaignsToLocal();
       this.saveCampaignsToServer();
-    }, 700);
+    }, 900);
   },
 
   mounted() {
@@ -2477,6 +2480,7 @@ export default {
         campaign.id = data.id;
         campaign._serverPersisted = true;
         this.campaigns.unshift(campaign);
+        this.markCampaignPersisted(campaign);
         this.saveCampaignsToLocal();
       } catch (error) {
         console.error('Campaign create error', error);
@@ -3184,21 +3188,71 @@ export default {
       };
     },
 
+    campaignStorageKey(campaign) {
+      return String(campaign?.id ?? campaign?._localId ?? "");
+    },
+
+    campaignFingerprint(campaign) {
+      return JSON.stringify(campaign, (key, value) => (
+        key === "_serverPersisted" ? undefined : value
+      ));
+    },
+
+    markCampaignPersisted(campaign) {
+      const key = this.campaignStorageKey(campaign);
+      if (!key) return;
+      this.campaignPersistedFingerprints[key] = this.campaignFingerprint(campaign);
+    },
+
+    markCampaignsPersisted(campaigns = this.campaigns) {
+      (campaigns || []).forEach(campaign => this.markCampaignPersisted(campaign));
+    },
+
     async saveCampaignsToServer() {
       if (this.campaignsLoadingFromServer) return;
-      for (const campaign of this.campaigns) {
-        try {
+      if (this.campaignSaveInProgress) {
+        this.campaignSaveQueued = true;
+        return;
+      }
+
+      const changedCampaigns = this.campaigns.filter(campaign => {
+        if (!campaign._serverPersisted) return true;
+        const key = this.campaignStorageKey(campaign);
+        return this.campaignPersistedFingerprints[key] !== this.campaignFingerprint(campaign);
+      });
+      if (!changedCampaigns.length) return;
+
+      this.campaignSaveInProgress = true;
+      try {
+        for (const campaign of changedCampaigns) {
+          const requestFingerprint = this.campaignFingerprint(campaign);
+          try {
           const payload = this.campaignApiPayload(campaign);
           if (campaign._serverPersisted) {
             await axios.put(`/api/campaigns/${campaign.id}`, payload);
+            const key = this.campaignStorageKey(campaign);
+            this.campaignPersistedFingerprints[key] = requestFingerprint;
           } else {
+            const previousKey = this.campaignStorageKey(campaign);
             const { data } = await axios.post('/api/campaigns', payload);
             campaign.id = data.id;
             campaign._serverPersisted = true;
+            if (previousKey && previousKey !== this.campaignStorageKey(campaign)) {
+              delete this.campaignPersistedFingerprints[previousKey];
+            }
+            this.markCampaignPersisted(campaign);
           }
-        } catch (error) {
-          console.error('Campaign server save error', error);
+          } catch (error) {
+            console.error('Campaign server save error', error);
+          }
         }
+      } finally {
+        this.campaignSaveInProgress = false;
+      }
+
+      if (this.campaignSaveQueued) {
+        this.campaignSaveQueued = false;
+        this.debouncedSaveLocal();
       }
     },
 
@@ -3224,6 +3278,7 @@ export default {
             !campaign._serverPersisted && !serverIds.has(String(campaign.id))
           );
           this.campaigns = [...sharedCampaigns, ...unsyncedLocalCampaigns];
+          this.markCampaignsPersisted(sharedCampaigns);
           this.saveCampaignsToLocal();
           return;
         }

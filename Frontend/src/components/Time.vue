@@ -6052,13 +6052,12 @@ export default {
       return true;
     },
 
-    saveData(delay = 0, force = false) {
+    saveData(delay = 700, force = false) {
       if (this.isFetching && !force) return Promise.resolve(false);
 
       const completion = new Promise(resolve => this.saveWaiters.push(resolve));
 
       clearTimeout(this.saveTimeout);
-      this.persistPendingDraft();
 
       // ماه و آرایه روزها را هنگام زمان‌بندی ذخیره ثابت نگه می‌داریم؛
       // ممکن است کاربر پیش از اجرای debounce ماه دیگری را انتخاب کند.
@@ -6068,6 +6067,10 @@ export default {
       this.saveTimeout =
         setTimeout(async () => {
           this.saveTimeout = null;
+
+          // نوشتن کل ماه در localStorage کار سنگینی است. آن را فقط یک‌بار
+          // پس از توقف ویرایش انجام می‌دهیم، نه در هر ضربه کلید.
+          this.persistPendingDraft();
 
           // ارسال هم‌زمانِ یک ماه می‌تواند باعث بازنویسی‌های متداخل شود.
           // تغییر جدید را پس از پایان درخواست فعلی، یک‌بار دیگر ذخیره می‌کنیم.
@@ -9128,20 +9131,17 @@ smsColor(val) {
 
       handler() {
         if (this.suspendScheduleAutosave) return;
-        const fingerprint = this.scheduleFingerprint();
-        if (fingerprint === this.lastPersistedScheduleFingerprint) return;
         // Hydration is already protected by isFetching and the server
         // fingerprint. Do not suppress a later change: it may be the user's
         // first and only edit (for example selecting a patient in one action).
         if (this.isFetching) {
-          this.lastPersistedScheduleFingerprint = fingerprint;
+          this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
           return;
         }
         if (!this.isFetching) {
           const month = this.months[this.currentMonth];
           if (month) this.monthDaysCache[month] = this.days;
           this.draftRevision++;
-          this.persistPendingDraft();
         }
         this.saveData();
       },
