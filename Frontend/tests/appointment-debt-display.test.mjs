@@ -129,9 +129,12 @@ test("empty scheduler select fields do not render dash placeholders", () => {
   assert.match(source, /return \['-', '–', '—'\]\.includes\(normalized\) \? '' : normalized/);
 });
 
-test("pending SMS rows without a valid mobile number are blocked in Persian", () => {
-  assert.match(source, /invalidPhones = pending\.filter/);
-  assert.match(source, /title: 'شماره موبایل وارد نشده است'/);
+test("pending SMS rows without a valid mobile number are skipped without blocking valid rows", () => {
+  assert.match(source, /const pending = this\.pendingSmsQueue\.filter/);
+  assert.match(source, /pendingSmsQueue\.filter\(item =>[\s\S]*?normalizePhoneDigits\(item\.row\?\.phone\)/);
+  assert.match(source, /if \(!pending\.length\) return/);
+  assert.doesNotMatch(source, /invalidPhones = pending\.filter/);
+  assert.doesNotMatch(source, /title: 'شماره موبایل وارد نشده است'/);
   assert.match(source, /شماره موبایل این ردیف وارد نشده یا معتبر نیست/);
 });
 

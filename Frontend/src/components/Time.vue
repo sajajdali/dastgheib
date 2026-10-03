@@ -7779,20 +7779,11 @@ this.calculateFinalAmount(row)
     },
 
     openSmsPanel() {
-      const pending = this.pendingSmsQueue;
-      const invalidPhones = pending.filter(item => !/^09\d{9}$/.test(this.normalizePhoneDigits(item.row?.phone)));
-      if (invalidPhones.length) {
-        const first = invalidPhones[0];
-        const label = first.row?.lastname || `ردیف ساعت ${first.row?.time || ''}`.trim() || 'یکی از ردیف‌ها';
-        const more = invalidPhones.length > 1 ? ` و ${invalidPhones.length - 1} ردیف دیگر` : '';
-        Swal.fire({
-          icon: 'warning',
-          title: 'شماره موبایل وارد نشده است',
-          text: `${label}${more} شماره موبایل معتبر ندارد. ابتدا شماره ۱۱ رقمی را وارد کنید و سپس پیامک را ارسال کنید.`,
-          confirmButtonText: 'متوجه شدم'
-        });
-        return;
-      }
+      const pending = this.pendingSmsQueue.filter(item =>
+        /^09\d{9}$/.test(this.normalizePhoneDigits(item.row?.phone))
+      );
+      if (!pending.length) return;
+
       this.smsQueue = pending.map(item => ({ ...item, status: 'waiting', message: '' }));
       this.smsQueueCompleted = 0;
       this.smsQueueConfirmed = false;
