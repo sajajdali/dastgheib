@@ -334,34 +334,30 @@
                 </button>
                 <input type="checkbox" :checked="v.ck.qc" @change="v.hide.qc" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div v-if="!v.qcLoading" style="display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap">
-                <div style="position:relative;width:150px;height:150px;flex-shrink:0">
-                  <svg width="150" height="150" viewBox="0 0 120 120">
-                    <g transform="rotate(-90 60 60)">
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#eef2f7" stroke-width="12"></circle>
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#16a34a" stroke-width="12" stroke-linecap="round" :stroke-dasharray="v.qcDa"></circle>
-                    </g>
-                  </svg>
-                  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
-                    <span style="font-size:22px;font-weight:800;color:#16a34a">{{ v.qcPct }}</span>
-                    <span style="font-size:10.5px;color:#94a3b8">رضایت کلی</span>
-                  </div>
+              <div v-if="!v.qcLoading" class="satisfaction-report-content">
+                <div v-if="v.qcReady" class="satisfaction-report-summary">
+                  <div><strong>{{ v.qcPct }}</strong><span>رضایت کلی</span></div>
+                  <div><strong>{{ v.qcAverage }}</strong><span>میانگین از ۵</span></div>
+                  <div><strong>{{ v.qcResponses }}</strong><span>شرکت‌کننده</span></div>
                 </div>
-                <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:10px">
-                  <div v-for="row in v.qcRows" :key="row.score" style="display:flex;align-items:center;gap:10px;font-size:12.5px">
-                    <span :title="row.label" style="width:92px;color:#334155;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.label }}</span>
-                    <div style="flex:1;height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden">
-                      <div :style="{height:'100%',width:row.width,background:row.color,borderRadius:'999px',transition:'width .4s ease'}"></div>
+                <div v-if="v.qcReady && v.qcQuestions.length" class="satisfaction-report-questions">
+                  <article v-for="question in v.qcQuestions" :key="question.key" class="satisfaction-report-question">
+                    <header><strong>{{ question.title }}</strong><span>{{ question.average }} از ۵ · {{ question.total }} پاسخ</span></header>
+                    <div v-for="option in question.options" :key="option.value || `${option.score}-${option.label}`" class="satisfaction-report-row">
+                      <span :title="option.label">{{ option.label }}</span>
+                      <div><i :style="{ width: option.width, background: option.color }"></i></div>
+                      <b>{{ option.percentage }}</b><small>{{ option.count }}</small>
                     </div>
-                    <span style="width:38px;text-align:left;font-weight:800;color:#0f172a">{{ row.percentage }}</span>
-                  </div>
+                  </article>
                 </div>
+                <div v-else-if="v.qcReady" class="satisfaction-report-empty">در این بازه پاسخ چندگزینه‌ای ثبت نشده است.</div>
+                <div v-else class="satisfaction-report-empty">برای ایجاد گزارش، دکمهٔ محاسبه را بزنید.</div>
               </div>
               <div v-if="v.qcLoading" class="staff-income-loading" aria-live="polite">
                 <div class="staff-income-loading-card">
                   <div class="staff-income-loading-ring"></div>
                   <strong>در حال آماده‌سازی گزارش رضایت‌مندی</strong>
-                  <small>پاسخ‌های پنج‌گزینه‌ای در حال محاسبه هستند…</small>
+                  <small>پاسخ‌های چندگزینه‌ای در حال محاسبه هستند…</small>
                   <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
                 </div>
               </div>
@@ -377,7 +373,7 @@
                 </button>
                 <input type="checkbox" :checked="v.ck.adch" @change="v.hide.adch" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div style="overflow-x:auto"><div style="min-width:720px;display:flex;flex-direction:column;gap:10px">
+              <div class="report-card-scroll report-card-scroll-wide"><div style="min-width:720px;display:flex;flex-direction:column;gap:10px">
               <div style="display:grid;grid-template-columns:140px 85px 115px 115px 80px 1fr;gap:10px;align-items:center;font-size:11.5px;color:#94a3b8;font-weight:700;padding:0 4px">
                 <span>کانال</span><span>مراجعین</span><span>هزینه</span><span>درآمد</span><span>بازگشت</span><span></span>
               </div>
@@ -552,22 +548,20 @@
               </div>
               <div v-if="v.topServicesError" class="report-widget-empty" style="color:#b91c1c;border-color:#fecaca;background:#fff7f7">{{ v.topServicesError }}</div>
               <div v-else-if="v.topServicesReady && !v.svcRows.length" class="report-widget-empty">در این بازه خدمت انجام‌شده‌ای برای محاسبه وجود ندارد.</div>
-              <template v-for="r in v.svcRows" :key="r.key">
-                <div style="display:grid;grid-template-columns:26px 130px 1fr 90px 90px;gap:10px;align-items:center;font-size:12.5px">
-                  <span style="width:24px;height:24px;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center">{{ r.i }}</span>
-                  <span style="font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.n }}</span>
-                  <div style="display:flex;flex-direction:column;gap:4px">
-                    <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wr + ';background:#2563eb;border-radius:999px'"></div></div>
-                    <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wp + ';background:#16a34a;border-radius:999px'"></div></div>
+              <div v-if="v.svcRows.length" class="report-card-scroll top-services-scroll">
+                <template v-for="r in v.svcRows" :key="r.key">
+                  <div style="display:grid;grid-template-columns:26px 130px 1fr 90px 90px;gap:10px;align-items:center;font-size:12.5px">
+                    <span style="width:24px;height:24px;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center">{{ r.i }}</span>
+                    <span style="font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.n }}</span>
+                    <div style="display:flex;flex-direction:column;gap:4px">
+                      <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wr + ';background:#2563eb;border-radius:999px'"></div></div>
+                      <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wp + ';background:#16a34a;border-radius:999px'"></div></div>
+                    </div>
+                    <span style="color:#1d4ed8;font-weight:700">{{ r.rev }}</span>
+                    <span style="color:#15803d;font-weight:700">{{ r.prof }}</span>
                   </div>
-                  <span style="color:#1d4ed8;font-weight:700">{{ r.rev }}</span>
-                  <span style="color:#15803d;font-weight:700">{{ r.prof }}</span>
-                </div>
-              </template>
-              <button v-if="v.hasMoreServices" type="button" class="top-services-more" @click="v.toggleServices">
-                <span>{{ v.servicesMoreLabel }}</span>
-                <span class="top-services-more-arrow" aria-hidden="true">{{ v.servicesExpanded ? '↑' : '↓' }}</span>
-              </button>
+                </template>
+              </div>
               <div v-if="v.svcRows.length" style="display:flex;gap:16px;font-size:11px;color:#64748b;justify-content:flex-end">
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#2563eb;display:inline-block"></i>درآمد</span>
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#16a34a;display:inline-block"></i>سود</span>
@@ -626,15 +620,17 @@
                 </button>
                 <input type="checkbox" :checked="v.ck.campperf" @change="v.hide.campperf" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <template v-for="(r, rI) in v.cpRows" :key="rI">
-                <div style="display:flex;flex-direction:column;gap:7px;background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:11px 14px">
-                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;flex-wrap:wrap;gap:7px">
-                    <span style="font-weight:800;color:#0f172a">{{ r.n }}</span>
-                    <span style="display:flex;align-items:center;gap:10px;color:#64748b;font-size:11.5px"><span>{{ r.leads }} لید</span><span>{{ r.appointments }} وقت داده شد</span><b :style="'color:' + r.c + ';font-size:13px'">{{ r.rate }}</b></span>
+              <div v-if="v.cpRows.length" class="report-card-scroll campaign-performance-scroll">
+                <template v-for="(r, rI) in v.cpRows" :key="rI">
+                  <div style="display:flex;flex-direction:column;gap:7px;background:#f8fafc;border:1px solid #eef2f7;border-radius:12px;padding:11px 14px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px;flex-wrap:wrap;gap:7px">
+                      <span style="font-weight:800;color:#0f172a">{{ r.n }}</span>
+                      <span style="display:flex;align-items:center;gap:10px;color:#64748b;font-size:11.5px"><span>{{ r.leads }} لید</span><span>{{ r.appointments }} وقت داده شد</span><b :style="'color:' + r.c + ';font-size:13px'">{{ r.rate }}</b></span>
+                    </div>
+                    <div style="height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + r.bar + ';border-radius:999px;transition:width .25s ease'"></div></div>
                   </div>
-                  <div style="height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + r.bar + ';border-radius:999px;transition:width .25s ease'"></div></div>
-                </div>
-              </template>
+                </template>
+              </div>
               <div v-if="v.campaignPerformanceReady && !v.cpRows.length" class="report-widget-empty">در این بازه کمپینی با لید دارای شماره تماس ثبت نشده است.</div>
             </div>
   
@@ -1267,25 +1263,23 @@ export default {
     const staffOverTxt = !staffIncomeReady ? '-- نفر به تارگت رسیدند' : (overCnt > 0 ? '⭐ ' + fa(overCnt) + ' نفر به تارگت رسیدند' : 'هنوز کسی به تارگت نرسیده است');
     const targetB = staffIncomeReady ? (22 + Math.min(125, Math.round((target || 0) / chartMaximum * 125))) + 'px' : '86px';
 
-    // satisfaction (only five-option questions)
+    // satisfaction (multiple-choice questions, separated by question)
     const satisfactionReady = this.satisfactionSnapshot?.status === 'completed';
     const satisfactionResult = satisfactionReady ? (this.satisfactionSnapshot.result || {}) : {};
     const satisfactionColors = {5:'#16a34a',4:'#4ade80',3:'#f59e0b',2:'#f97316',1:'#dc2626'};
-    const satisfactionLabels = {5:'عالی',4:'خوب',3:'متوسط',2:'بد',1:'ضعیف'};
-    const satisfactionOptions = (satisfactionResult.questions || []).flatMap(question => question.options || []);
-    const satisfactionAnswerTotal = satisfactionOptions.reduce((sum, option) => sum + Number(option.count || 0), 0);
-    const qcRows = [5,4,3,2,1].map(score => {
-      const matching = satisfactionOptions.filter(option => Number(option.score) === score);
-      const count = matching.reduce((sum, option) => sum + Number(option.count || 0), 0);
-      const percentage = satisfactionAnswerTotal ? Math.round(count / satisfactionAnswerTotal * 100) : 0;
-      return {
-        score,
-        label:matching.find(option => option.label)?.label || satisfactionLabels[score],
-        width:satisfactionReady ? `${percentage}%` : `${18 + score * 11}%`,
-        percentage:satisfactionReady ? pc(percentage) : '—',
-        color:satisfactionReady ? satisfactionColors[score] : '#cbd5e1'
-      };
-    });
+    const qcQuestions = (satisfactionResult.questions || []).map(question => ({
+      key:question.key,
+      title:question.question,
+      total:fa(Number(question.total || 0)),
+      average:Number(question.average || 0).toLocaleString('fa-IR', {maximumFractionDigits:1}),
+      options:(question.options || []).map(option => ({
+        ...option,
+        count:fa(Number(option.count || 0)),
+        width:`${Number(option.percentage || 0)}%`,
+        percentage:pc(Number(option.percentage || 0)),
+        color:satisfactionColors[Number(option.score)] || '#64748b'
+      }))
+    }));
 
     // ad channels
     const adChannelsReady = this.advertisingChannelsSnapshot?.status === 'completed';
@@ -1426,7 +1420,7 @@ export default {
     const serviceRow = (s, i) => ({key:s.name, i:fa(i+1), n:s.name, rev:s.sample?'—':mm((Number(s.revenue)||0)/1000000), prof:s.sample?'—':mm((Number(s.profit)||0)/1000000),
       wr:Math.round((Number(s.revenue)||0)/maxServiceValue*100)+'%', wp:Math.round(Math.max(0,Number(s.profit)||0)/maxServiceValue*100)+'%'});
     const allServiceRows = SV.slice().sort((a,b)=>Number(b.revenue)-Number(a.revenue)).map(serviceRow);
-    const svcRows = S.topServicesExpanded ? allServiceRows : allServiceRows.slice(0,6);
+    const svcRows = allServiceRows;
 
     // cac
     const acquisitionReady = this.customerAcquisitionSnapshot?.status === 'completed';
@@ -1613,9 +1607,10 @@ export default {
       staffIncomeProgress: Number(staffIncomeSnapshot?.progress || 0),
       staffIncomeStage: staffIncomeSnapshot?.stage || '',
       // qc
-      qcDa: arc(satisfactionReady ? Number(satisfactionResult.percentage || 0) / 100 : .72),
       qcPct: satisfactionReady ? pc(Number(satisfactionResult.percentage || 0)) : '—',
-      qcRows,
+      qcAverage:satisfactionReady ? Number(satisfactionResult.average || 0).toLocaleString('fa-IR', {maximumFractionDigits:1}) : '—',
+      qcResponses:satisfactionReady ? fa(Number(satisfactionResult.responses_count || 0)) : '—',
+      qcQuestions,
       qcReady:satisfactionReady,
       qcLoading:this.satisfactionLoading,
       qcCompletedAt:this.formatSnapshotDate(this.satisfactionSnapshot?.completed_at),
@@ -2511,7 +2506,7 @@ a:hover{color:#1d4ed8}
 input,button,select{font-family:'Vazirmatn',sans-serif}
 .report-date-input{width:130px!important;height:38px!important;border:1px solid #e2e8f0!important;border-radius:10px!important;padding:8px 12px!important;background:#f8fafc!important;color:#0f172a!important;font-size:13px!important;text-align:center!important;outline:none!important;cursor:pointer!important;box-shadow:none!important}.report-date-input:focus{border-color:#60a5fa!important;box-shadow:0 0 0 3px rgba(37,99,235,.1)!important}
 .report-refresh-button{width:34px;height:34px;min-width:34px;padding:0;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 7px rgba(37,99,235,.13);transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}.report-refresh-button:hover:not(:disabled){background:#dbeafe;border-color:#60a5fa;box-shadow:0 4px 10px rgba(37,99,235,.18);transform:translateY(-1px)}.report-refresh-button:disabled{cursor:wait;opacity:.65}.report-refresh-button--labeled{width:auto;min-width:34px;padding:0 10px;font-size:10.5px;font-weight:900;white-space:nowrap}.report-calculated-at{color:#64748b;font-size:10px;white-space:nowrap}
-.satisfaction-report-question{padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.satisfaction-report-question header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}.satisfaction-report-question header strong{color:#0f172a;font-size:12.5px;line-height:1.8}.satisfaction-report-question header span{flex:0 0 auto;color:#64748b;font-size:10px;white-space:nowrap}.satisfaction-report-row{display:grid;grid-template-columns:minmax(58px,85px) 1fr 42px 24px;align-items:center;gap:8px;margin-top:8px;color:#475569;font-size:11px}.satisfaction-report-row>div{height:8px;overflow:hidden;background:#e2e8f0;border-radius:999px}.satisfaction-report-row i{display:block;height:100%;border-radius:inherit;transition:width .4s ease}.satisfaction-report-row b{color:#0f172a;text-align:left}.satisfaction-report-row small{color:#64748b;text-align:left}
+.satisfaction-report-content{display:grid;gap:12px}.satisfaction-report-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.satisfaction-report-summary div{display:grid;gap:2px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.satisfaction-report-summary strong{color:#15803d;font-size:17px}.satisfaction-report-summary span{color:#94a3b8;font-size:9.5px}.satisfaction-report-questions{display:grid;gap:10px;max-height:360px;overflow:auto;padding-left:3px}.satisfaction-report-question{padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#fff}.satisfaction-report-question header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:9px}.satisfaction-report-question header strong{color:#0f172a;font-size:11.5px;line-height:1.7}.satisfaction-report-question header span{flex:0 0 auto;color:#64748b;font-size:9.5px;white-space:nowrap}.satisfaction-report-row{display:grid;grid-template-columns:minmax(52px,78px) 1fr 38px 22px;align-items:center;gap:7px;margin-top:7px;color:#475569;font-size:10px}.satisfaction-report-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.satisfaction-report-row>div{height:6px;overflow:hidden;background:#f1f5f9;border-radius:999px}.satisfaction-report-row i{display:block;height:100%;border-radius:inherit;transition:width .4s ease}.satisfaction-report-row b{color:#0f172a;text-align:left}.satisfaction-report-row small{color:#94a3b8;text-align:left}.satisfaction-report-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:12px;color:#94a3b8;font-size:11px;text-align:center}
 .report-widget-empty{min-height:82px;display:grid;place-items:center;padding:14px;border:1px dashed #bfdbfe;border-radius:12px;background:#f8fbff;color:#64748b;font-size:11px;font-weight:800;text-align:center;line-height:1.8}
 .expense-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(48px,90px) minmax(0,auto);align-items:center;gap:10px;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:9px 12px;min-width:0}.expense-row__name{min-width:0;font-weight:600;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expense-row__bar{width:100%;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden}.expense-money{min-width:0;max-width:145px;text-align:left;font-weight:800;color:#0f172a;white-space:normal;overflow-wrap:anywhere;line-height:1.5}.expense-summary-list{display:flex;flex-direction:column;gap:7px;min-width:0}.expense-summary-row{min-width:0;min-height:42px;border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.expense-summary-value{min-width:0;max-width:100%;font-size:clamp(11px,1.05vw,15px);font-weight:800;line-height:1.4;white-space:nowrap;text-align:left;direction:rtl;font-variant-numeric:tabular-nums}
 .cac-campaign-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:11px;color:#334155}.cac-campaign-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.cac-campaign-row>small{color:#64748b;white-space:nowrap}.cac-campaign-row>b{color:#1d4ed8;white-space:nowrap;font-size:11px}
@@ -2519,6 +2514,7 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .top-services-more:hover{color:#1d4ed8;text-decoration:underline;text-underline-offset:3px}
 .top-services-more:focus-visible{outline:1px solid #60a5fa;outline-offset:3px;border-radius:3px}
 .top-services-more-arrow{font-size:11px;line-height:1;transition:transform .15s ease}
+.report-card-scroll{max-height:310px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-left:5px}.report-card-scroll-wide{overflow-x:auto}.top-services-scroll,.campaign-performance-scroll{display:flex;flex-direction:column;gap:10px}.report-card-scroll::-webkit-scrollbar{width:6px;height:6px}.report-card-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}
 .top-services-loading-track>div{width:42%;animation:top-services-loading-slide 1.15s ease-in-out infinite}
 @keyframes top-services-loading-slide{0%{transform:translateX(145%)}50%{transform:translateX(0)}100%{transform:translateX(-145%)}}
 ::-webkit-scrollbar{width:6px;height:6px}

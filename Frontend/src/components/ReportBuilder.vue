@@ -77,7 +77,7 @@
           <div class="rb-icon">▤</div>
           <div>
             <div class="rb-title">گزارش‌ساز</div>
-            <div class="rb-sub">قالب‌های ذخیره‌شده — با انتخاب هر قالب، فیلتر گزارشات باز و فیلدهای آن انتخاب می‌شوند</div>
+            <div class="rb-sub">قالب‌های ذخیره‌شده — با انتخاب هر قالب، فیلدهای آن اعمال می‌شوند</div>
           </div>
         </div>
         <div class="rb-btn rb-btn--dashed rb-push" role="button" tabindex="0" @click.stop="newOpen = true" @keydown.enter.stop="newOpen = true">
@@ -520,7 +520,7 @@ export default {
     const initialReportDate = defaultReportDate();
     return {
       JM, FIELDS,
-      filtersOpen: true,
+      filtersOpen: false,
       show: { name: true, family: true }, vals, multi: {}, range: { amount: { from: '', to: '' } },
       appointmentStatuses: ['وقت داده شد','آمد','کنسل شد','پاسخ نداد','پیگیری','انتقال داده شده'], comparators: { debt: 'eq', deposit: 'eq' },
       reportAreas: OPT.areas.slice(),
@@ -650,7 +650,7 @@ export default {
     applyPreset(p) {
       const s = {};
       p.fields.forEach(id => { s[id] = true; });
-      this.show = s; this.activePreset = p.id; this.page = 1; this.filtersOpen = true;
+      this.show = s; this.activePreset = p.id; this.page = 1;
     },
     savePreset() {
       const fields = this.cols.map(c => c.key);

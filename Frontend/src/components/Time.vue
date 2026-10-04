@@ -821,6 +821,14 @@
                       خدمات {{ row.lastname || 'بیمار' }}
                     </div>
 
+                    <button
+                      type="button"
+                      class="service-popup-close-btn"
+                      title="بستن ثبت خدمات"
+                      aria-label="بستن ثبت خدمات"
+                      @click.stop="closeServicePopup"
+                    >×</button>
+
                   </div>
 
                   <div class="referral-section patient-services-referral-actions">
@@ -8862,6 +8870,11 @@ smsColor(val) {
 
     },
 
+    closeServicePopup() {
+      this.activeServicePopup = null;
+      this.activeServiceTagPicker = null;
+    },
+
     applyReferralScore(row) {
       this.calculateReferralRewardForRow(row);
     },
@@ -11206,6 +11219,28 @@ td.row-action-col {
 .service-popup-title{
   font-weight:700;
   font-size:14px;
+}
+
+.service-popup-close-btn{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  flex:0 0 28px;
+  padding:0;
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  background:#f8fafc;
+  color:#64748b;
+  font:700 19px/1 inherit;
+  cursor:pointer;
+  transition:.15s ease;
+}
+
+.service-popup-close-btn:hover{
+  border-color:#fecaca;
+  background:#fff1f2;
+  color:#dc2626;
 }
 
 .service-item {

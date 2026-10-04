@@ -71,6 +71,7 @@
           v-model="form.birth_date"
           format="jYYYY-jMM-jDD"
           display-format="jYYYY-jMM-jDD"
+          view="year"
           input-class="birthdate-picker"
           :placeholder="`تاریخ تولد${patientRequiredFields.birth_date ? ' *' : ''}`"
           auto-submit
@@ -329,6 +330,18 @@
               </button>
             </div>
             <div class="profile-quick-actions">
+              <button
+                type="button"
+                class="profile-edit-action"
+                title="ویرایش اطلاعات پرونده"
+                aria-label="ویرایش اطلاعات پرونده"
+                @click="openEditModal(activePatientProfile)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+                  <path d="m13.5 6.5 4 4" />
+                </svg>
+              </button>
               <button
                 v-if="canUseGallery"
                 type="button"
@@ -733,6 +746,7 @@
             v-model="editPatient.birth_date"
             format="jYYYY-jMM-jDD"
             display-format="jYYYY-jMM-jDD"
+            view="year"
             input-class="birthdate-picker"
             placeholder="تاریخ تولد"
             auto-submit
@@ -1883,9 +1897,9 @@ export default {
       ]
 
       return definitions
-        .filter(field => Boolean(this.activeProfileFields?.[field.key]) || String(patient[field.key] || '').trim() !== '')
+        .filter(field => Boolean(this.activeProfileFields?.[field.key]) || this.optionalPatientValue(patient[field.key]) !== '')
         .map(field => {
-          const rawValue = String(patient[field.key] || '').trim()
+          const rawValue = this.optionalPatientValue(patient[field.key])
           const value = field.phone
             ? this.displayPatientPhone(rawValue)
             : (field.format && rawValue ? field.format(rawValue) : rawValue)
@@ -4136,7 +4150,16 @@ export default {
       this.editPatient = {
         ...patient,
         city: patient.city || 'تهران',
-        birth_date: this.patientDateForPicker(patient.birth_date)
+        birth_date: this.patientDateForPicker(patient.birth_date),
+        national_id: this.optionalPatientValue(patient.national_id),
+        foreign_national_code: this.optionalPatientValue(patient.foreign_national_code),
+        second_phone: this.optionalPatientValue(patient.second_phone),
+        father_name: this.optionalPatientValue(patient.father_name),
+        marriage_date: this.optionalPatientValue(patient.marriage_date),
+        education: this.optionalPatientValue(patient.education),
+        address: this.optionalPatientValue(patient.address),
+        patient_history: this.optionalPatientValue(patient.patient_history),
+        medical_history: this.optionalPatientValue(patient.medical_history)
       }
       this.selectedEditCity = this.cityOptions.find(item => item.name === this.editPatient.city) || null
       this.showEditModal = true
@@ -4150,6 +4173,12 @@ export default {
         return gregorian.format('jYYYY-jMM-jDD')
       }
       return normalized
+    },
+
+    optionalPatientValue(value) {
+      if (value === null || value === undefined) return ''
+      const normalized = String(value).trim()
+      return ['null', 'undefined'].includes(normalized.toLowerCase()) ? '' : normalized
     },
 
     sanitizePatientSearchRow(row = {}) {
@@ -5198,6 +5227,7 @@ select:focus {
   margin: 12px 0 8px;
 }
 
+.profile-edit-action,
 .profile-beauty-action,
 .profile-followup-action,
 .profile-gallery-action {
@@ -5215,6 +5245,7 @@ select:focus {
   cursor: pointer;
   transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
 }
+.profile-edit-action svg,
 .profile-beauty-action svg,
 .profile-followup-action svg,
 .profile-gallery-action svg {
@@ -5226,6 +5257,7 @@ select:focus {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.profile-edit-action:hover,
 .profile-beauty-action:hover,
 .profile-followup-action:hover,
 .profile-gallery-action:hover {
@@ -5233,6 +5265,7 @@ select:focus {
   background: #dbeafe;
   transform: translateY(-1px);
 }
+.profile-edit-action:focus-visible,
 .profile-beauty-action:focus-visible,
 .profile-followup-action:focus-visible,
 .profile-gallery-action:focus-visible {

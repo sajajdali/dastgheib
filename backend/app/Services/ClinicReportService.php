@@ -20,6 +20,7 @@ use App\Reporting\DynamicReports\JalaliMonthWindow;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class ClinicReportService
 {
@@ -32,12 +33,13 @@ class ClinicReportService
         $appointments = $this->appointments($filters)->lazyById(500);
         if ($progress) $progress(5, 'خواندن نوبت‌های بازه انتخابی');
         $completed = $appointments->filter(fn ($row) => $this->isCompleted($row));
+        $paidCompleted = $completed->filter(fn ($row) => $this->isPaidCompleted($row));
         $statuses = $this->statusCounts($appointments);
-        $revenue = $completed->sum(fn ($row) => $this->appointmentValue($row));
-        $cash = $completed->sum(fn ($row) => max(0, $this->appointmentValue($row) - $this->number($row->debt)));
-        $discountTotal = $completed->sum(fn ($row) => $this->number($row->discount));
+        $revenue = $paidCompleted->sum(fn ($row) => $this->appointmentValue($row));
+        $cash = $revenue;
+        $discountTotal = $paidCompleted->sum(fn ($row) => $this->number($row->discount));
         $visitorCount = $completed->count();
-        $materialsTotal = $completed->sum(function ($row) {
+        $materialsTotal = $paidCompleted->sum(function ($row) {
             return collect($row->services ?: [])->sum(fn ($service) => $this->number($service['material_cost'] ?? 0));
         });
         if ($progress) $progress(22, 'محاسبه درآمد، تخفیف و مراجعین');
@@ -49,12 +51,12 @@ class ClinicReportService
             ->whereIn(DB::raw('LOWER(TRIM(category))'), ['advertising','تبلیغات'])
             ->whereNotNull('campaign_id')->selectRaw('campaign_id, SUM(amount) AS amount')->groupBy('campaign_id')->get();
         if ($progress) $progress(34, 'جمع‌بندی هزینه‌ها و تبلیغات');
-        $resourceCosts = $this->resourceCosts($filters);
+        $resourceCosts = $this->resourceCosts($filters, true);
         if ($progress) $progress(46, 'محاسبه هزینه پزشکان و پرسنل');
         $forecast = $this->forecast($filters, $appointments);
         if ($progress) $progress(55, 'محاسبه تخمین درآمد آینده');
 
-        $salesTimeline = $this->salesTimeline($completed);
+        $salesTimeline = $this->salesTimeline($paidCompleted);
         $campaigns = $this->campaigns($filters, $campaignExpenses);
         $channels = $this->channels($completed, $campaignExpenses);
         if ($progress) $progress(68, 'تحلیل فروش، کمپین‌ها و کانال‌ها');
@@ -66,7 +68,7 @@ class ClinicReportService
         if ($progress) $progress(80, 'تحلیل تبلیغات و مشتریان');
         $satisfaction = $this->satisfaction($filters);
         $photoQuality = $this->photoQuality($filters);
-        $services = $this->services($completed);
+        $services = $this->services($paidCompleted);
         $birthdays = $this->birthdays($filters);
         $capacity = $this->capacity($revenue);
         $monthlyTrends = $this->latestFourMonthRevenue();
@@ -238,7 +240,7 @@ class ClinicReportService
                 }
             }
 
-            if ($this->isCompleted($appointment)) {
+            if ($this->isPaidCompleted($appointment)) {
                 $shares = $this->appointmentDoctorRevenueShares($appointment, $inventoryPrices);
                 foreach ($shares as $doctorName => $amount) {
                     $doctor = $doctorByName->get($this->reportNameKey($doctorName));
@@ -308,7 +310,7 @@ class ClinicReportService
             } catch (\Throwable) { return null; }
         };
         foreach ($this->appointments($filters)->lazyById(500) as $appointment) {
-            if (!$this->isCompleted($appointment)) continue;
+            if (!$this->isPaidCompleted($appointment)) continue;
             $patient = $byFile->get(trim((string) $appointment->file_number)) ?: $byPhone->get(trim((string) $appointment->phone));
             $age = $patient ? $ageOf($patient->birth_date) : null;
             if ($age === null || $age < 0) continue;
@@ -338,7 +340,7 @@ class ClinicReportService
         $byFile = $patients->filter(fn($p)=>trim((string)$p->file_number)!=='')->keyBy(fn($p)=>trim((string)$p->file_number));
         $byPhone = $patients->filter(fn($p)=>trim((string)$p->phone)!=='')->keyBy(fn($p)=>trim((string)$p->phone));
         foreach ($this->appointments($filters)->lazyById(500) as $appointment) {
-            if (!$this->isCompleted($appointment)) continue;
+            if (!$this->isPaidCompleted($appointment)) continue;
             $patient = $byFile->get(trim((string)$appointment->file_number)) ?: $byPhone->get(trim((string)$appointment->phone));
             $city = trim((string)($patient?->city ?? ''));
             if ($city === '') continue;
@@ -412,11 +414,11 @@ class ClinicReportService
 
         $revenues = array_fill_keys($months, 0.0);
         Appointment::query()
-            ->select(['id','month','done','amount','services'])
+            ->select(['id','month','done','amount','wallet_applied','debt','services','payment_details'])
             ->whereIn('month', $months)
             ->lazyById(500)
             ->each(function ($appointment) use (&$revenues): void {
-                if (! $this->isCompleted($appointment)) return;
+                if (! $this->isPaidCompleted($appointment)) return;
                 $revenues[$appointment->month] += $this->appointmentValue($appointment);
             });
 
@@ -572,7 +574,7 @@ class ClinicReportService
         $settings = AppSetting::getByKey('satisfaction_form_settings', []);
         if (is_string($settings)) $settings = json_decode($settings, true) ?: [];
         $configured = collect($settings['questions'] ?? [])
-            ->filter(fn ($question) => ($question['type'] ?? null) === 'rating' && count($question['options'] ?? []) === 5)
+            ->filter(fn ($question) => ($question['type'] ?? null) === 'rating')
             ->keyBy('id');
 
         $answers = SatisfactionAnswer::query()
@@ -580,23 +582,43 @@ class ClinicReportService
             ->where('question_type', 'rating')
             ->whereNotNull('score')
             ->get()
-            ->filter(function ($answer) use ($filters, $configured) {
-                if ($configured->isNotEmpty() && ! $configured->has($answer->question_key)) return false;
-                $date = $answer->response?->created_at;
+            ->filter(function ($answer) use ($filters) {
+                $date = $answer->response?->answered_on ?: $answer->response?->created_at;
                 if (! $date) return false;
-                $jalali = $this->gregorianToJalaliDate($date);
+                $jalali = $this->gregorianToJalaliDate(Carbon::parse($date));
                 return $jalali >= $filters['from'] && $jalali <= $filters['to'];
             });
 
-        $defaults = [5=>'عالی', 4=>'خوب', 3=>'متوسط', 2=>'بد', 1=>'ضعیف'];
-        $questions = $answers->groupBy('question_key')->map(function ($rows, $key) use ($configured, $defaults) {
+        $questions = $answers->groupBy('question_key')->map(function ($rows, $key) use ($configured) {
             $question = $configured->get($key, []);
-            $configuredOptions = collect($question['options'] ?? [])->keyBy(fn ($option) => (int) ($option['score'] ?? 0));
-            $options = collect([5,4,3,2,1])->map(function ($score) use ($rows, $configuredOptions, $defaults) {
-                $count = $rows->where('score', $score)->count();
-                $label = $configuredOptions->get($score)['label'] ?? $rows->firstWhere('score', $score)?->answer_value ?? $defaults[$score];
-                return ['score'=>$score, 'label'=>$label, 'count'=>$count, 'percentage'=>$rows->count() ? round($count / $rows->count() * 100, 1) : 0];
-            })->values();
+            $configuredOptions = collect($question['options'] ?? []);
+            $observedOptions = $rows->map(fn ($answer) => [
+                'value'=>(string) ($answer->option_key ?: $answer->answer_value),
+                'label'=>$answer->answer_value ?: (string) $answer->option_key,
+                'score'=>(int) $answer->score,
+                'active'=>true,
+            ])->unique('value');
+            $options = $configuredOptions
+                ->concat($observedOptions)
+                ->unique(fn ($option) => (string) ($option['value'] ?? $option['label'] ?? ''))
+                ->map(function ($option) use ($rows) {
+                    $value = (string) ($option['value'] ?? '');
+                    $score = (int) ($option['score'] ?? 0);
+                    $matching = $rows->filter(fn ($answer) => $value !== ''
+                        ? (string) $answer->option_key === $value
+                        : (int) $answer->score === $score);
+                    $count = $matching->count();
+                    return [
+                        'value'=>$value,
+                        'score'=>$score,
+                        'label'=>$option['label'] ?? $matching->first()?->answer_value ?? $value,
+                        'count'=>$count,
+                        'percentage'=>$rows->count() ? round($count / $rows->count() * 100, 1) : 0,
+                        'active'=>(bool) ($option['active'] ?? true),
+                    ];
+                })
+                ->filter(fn ($option) => $option['active'] || $option['count'] > 0)
+                ->values();
             return [
                 'key'=>$key,
                 'question'=>$question['title'] ?? $rows->first()->question_label,
@@ -606,12 +628,16 @@ class ClinicReportService
             ];
         })->values();
 
+        $responseAverages = $answers->groupBy('satisfaction_response_id')
+            ->map(fn ($rows) => (float) $rows->avg('score'));
+        $average = $responseAverages->isEmpty() ? 0 : round((float) $responseAverages->avg(), 1);
+
         return [
             'questions'=>$questions,
             'answers_count'=>$answers->count(),
-            'responses_count'=>$answers->pluck('satisfaction_response_id')->unique()->count(),
-            'average'=>$answers->isEmpty() ? 0 : round((float) $answers->avg('score'), 1),
-            'percentage'=>$answers->isEmpty() ? 0 : round((float) $answers->avg('score') / 5 * 100, 1),
+            'responses_count'=>$responseAverages->count(),
+            'average'=>$average,
+            'percentage'=>$responseAverages->isEmpty() ? 0 : round($average / 5 * 100, 1),
         ];
     }
 
@@ -639,7 +665,7 @@ class ClinicReportService
             $periodFilters = [...$filters, 'from'=>$from, 'to'=>$to];
             $visits = [];
             foreach ($this->appointments($periodFilters)->lazyById(500) as $appointment) {
-                if (! $this->isCompleted($appointment)) continue;
+                if (! $this->isPaidCompleted($appointment)) continue;
                 $key = $appointment->file_number ? 'f:'.$appointment->file_number : ($appointment->phone ? 'p:'.$appointment->phone : null);
                 if ($key) $visits[$key] = ($visits[$key] ?? 0) + 1;
             }
@@ -657,7 +683,7 @@ class ClinicReportService
     public function drilldown(string $metric, array $filters): array
     {
         if (in_array($metric, ['recognized_revenue', 'cash_collected', 'forecast_revenue'], true)) {
-            $rows = $this->appointments($filters)->get()->filter(fn ($row) => $metric === 'forecast_revenue' ? str_contains((string) $row->status, 'وقت') : $this->isCompleted($row));
+            $rows = $this->appointments($filters)->get()->filter(fn ($row) => $metric === 'forecast_revenue' ? str_contains((string) $row->status, 'وقت') : $this->isPaidCompleted($row));
             return ['metric'=>$metric, 'rows'=>$rows->map(fn ($row) => ['id'=>$row->id,'date'=>$this->dateOf($row),'patient'=>trim(($row->firstname ?? '').' '.($row->lastname ?? '')),'status'=>$row->status,'done'=>$row->done,'amount'=>round($this->appointmentValue($row))])->values(), 'total'=>round($rows->sum(fn ($row) => $this->appointmentValue($row)))];
         }
         if ($metric === 'expenses') {
@@ -675,7 +701,8 @@ class ClinicReportService
     {
         $appointments = $this->appointments($filters)
             ->where('done', 'انجام شد')
-            ->get();
+            ->get()
+            ->filter(fn ($appointment) => $this->isPaidCompleted($appointment));
 
         if ($appointments->isEmpty()) {
             return ['rows' => [], 'totals' => ['revenue' => 0, 'material_cost' => 0, 'commission' => 0, 'profit' => 0]];
@@ -796,7 +823,7 @@ class ClinicReportService
     {
         return Appointment::query()->select([
             'id', 'month', 'day_num', 'lastname', 'phone', 'file_number',
-            'status', 'done', 'amount', 'wallet_applied', 'debt', 'discount', 'services', 'source', 'campaign_id',
+            'status', 'done', 'amount', 'wallet_applied', 'debt', 'discount', 'services', 'payment_details', 'source', 'campaign_id',
             'new_customer', 'doctor', 'consultant', 'completed_at',
         ])->where(function(Builder $q) use($filters) {
             [$fm,$fd]=[substr($filters['from'],0,7),(int)substr($filters['from'],8,2)]; [$tm,$td]=[substr($filters['to'],0,7),(int)substr($filters['to'],8,2)];
@@ -824,10 +851,19 @@ class ClinicReportService
         return ['scheduled_value'=>round($gross),'previous_month_cancellation_rate'=>round($rate*100,1),'value'=>round($gross*(1-$rate))];
     }
 
-    private function resourceCosts(array $filters): array
+    private function resourceCosts(array $filters, bool $paidAppointmentsOnly = false): array
     {
         $months = $this->monthsBetween($filters['from'], $filters['to']);
-        $lines = ResourceEarningLine::query()->whereIn('month', $months)->where('status', 'active')->get()
+        $paidAppointmentIds = $paidAppointmentsOnly
+            ? $this->appointments($filters)->get()->filter(fn ($appointment) => $this->isPaidCompleted($appointment))->pluck('id')
+            : collect();
+        $lines = ResourceEarningLine::query()
+            ->whereIn('month', $months)
+            ->where('status', 'active')
+            ->when($paidAppointmentsOnly, fn (Builder $query) => $query->where(
+                fn (Builder $nested) => $nested->whereNull('appointment_id')->orWhereIn('appointment_id', $paidAppointmentIds)
+            ))
+            ->get()
             ->groupBy(fn ($row) => $row->resource_type.'-'.$row->resource_id);
         $adjustments = ResourceAdjustment::query()->whereIn('month', $months)->get()
             ->groupBy(fn ($row) => $row->resource_type.'-'.$row->resource_id);
@@ -1073,7 +1109,7 @@ class ClinicReportService
                 : ($appointment->phone ? 'p:'.(string) $appointment->phone : null);
             if (! $key) continue;
             $customers[$key] ??= 0;
-            if ($this->isCompleted($appointment)) $customers[$key] += $this->appointmentValue($appointment);
+            if ($this->isPaidCompleted($appointment)) $customers[$key] += $this->appointmentValue($appointment);
             if ($progress && $processedAppointments % 500 === 0) {
                 $percent = $appointmentTotal ? 5 + (int) floor(($processedAppointments / $appointmentTotal) * 30) : 35;
                 $progress(min(35, $percent), "بررسی {$processedAppointments} از {$appointmentTotal} نوبت");
@@ -1120,22 +1156,26 @@ class ClinicReportService
     private function loyalty($appointments): array
     {
         $currentKeys = $appointments
-            ->filter(fn ($row) => $this->isCompleted($row))
+            ->filter(fn ($row) => $this->isPaidCompleted($row))
             ->map(fn ($row) => $row->file_number ?: $row->phone)
             ->filter()->unique()->values();
         $customerKey = "COALESCE(NULLIF(file_number, ''), phone)";
-        $loyal = $currentKeys->isEmpty() ? 0 : Appointment::query()
+        $paidHistory = $currentKeys->isEmpty() ? collect() : Appointment::query()
             ->where('done', 'انجام شد')
             ->whereIn(DB::raw($customerKey), $currentKeys->all())
-            ->selectRaw("{$customerKey} AS customer_key, COUNT(*) AS visits")
-            ->groupBy('customer_key')
-            ->having('visits', '>=', 2)
-            ->get()->count();
-        $allCompletedCustomers = (int) Appointment::query()
+            ->get(['id','file_number','phone','done','amount','wallet_applied','debt','services','payment_details'])
+            ->filter(fn ($appointment) => $this->isPaidCompleted($appointment));
+        $loyal = $paidHistory
+            ->groupBy(fn ($appointment) => $appointment->file_number ?: $appointment->phone)
+            ->filter(fn ($visits) => $visits->count() >= 2)
+            ->count();
+        $allCompletedCustomers = Appointment::query()
             ->where('done', 'انجام شد')
             ->whereNotNull(DB::raw($customerKey))
-            ->distinct()
-            ->count(DB::raw($customerKey));
+            ->get(['id','file_number','phone','done','amount','wallet_applied','debt','services','payment_details'])
+            ->filter(fn ($appointment) => $this->isPaidCompleted($appointment))
+            ->map(fn ($appointment) => $appointment->file_number ?: $appointment->phone)
+            ->filter()->unique()->count();
 
         return [
             'completed_customers' => $currentKeys->count(),
@@ -1213,5 +1253,8 @@ class ClinicReportService
     private function salesTimeline($completed): Collection { $out=[]; foreach($completed as $row){$date=$this->dateOf($row);$out[$date]??=['date'=>$date,'revenue'=>0,'count'=>0];$out[$date]['revenue']+=$this->appointmentValue($row);$out[$date]['count']++;} ksort($out); return collect(array_values($out))->map(fn($row)=>[...$row,'revenue'=>round($row['revenue'])]); }
     private function birthdays(array $filters): Collection { $month=(int)substr($filters['to'],5,2); return Patient::query()->whereNotNull('birth_date')->get()->filter(fn($p)=>preg_match('/(?:-|\/)(\d{1,2})(?:-|\/|$)/',(string)$p->birth_date,$m)&&(int)$m[1]===$month)->map(fn($p)=>['id'=>$p->id,'name'=>trim($p->first_name.' '.$p->last_name),'birth_date'=>$p->birth_date])->values(); }
     private function capacity(float $revenue): array { $limit=max(0,(float)AppSetting::getByKey('report_monthly_capacity',0)); return ['limit'=>round($limit),'revenue'=>round($revenue),'percent'=>$limit?round(min(100,$revenue/$limit*100),1):0]; }
-    private function isCompleted($row):bool{return trim((string)$row->done)==='انجام شد';} private function isCancelled($row):bool{$s=(string)$row->status;return str_contains($s,'کنسل')||str_contains($s,'لغو');} private function dateOf($row):string{return ($row->month?:'').'-'.str_pad((string)($row->day_num?:1),2,'0',STR_PAD_LEFT);} private function appointmentValue($row):float{$services=collect($row->services?:[]);$sum=$services->sum(fn($s)=>$this->number($s['price']??$s['amount']??0)*max(1,$this->number($s['quantity']??1)));return $sum?:$this->number($row->amount);} private function number($value):float{return (float)str_replace([',','٬',' '],'',(string)$value);} private function normalizeDate($value):?string{$v=strtr(trim((string)$value),['۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9','/'=>'-']);return preg_match('/^1[34]\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/',$v)?$v:null;} private function monthsBetween($from,$to):array{$out=[];[$y,$m]=array_map('intval',explode('-',substr($from,0,7)));$end=substr($to,0,7);while(sprintf('%04d-%02d',$y,$m)<=$end){$out[]=sprintf('%04d-%02d',$y,$m);if(++$m===13){$m=1;$y++;}}return $out;} private function salaryRatio(array $filters):float { $months=$this->monthsBetween($filters['from'],$filters['to']); if(count($months)===1)return max(0,((int)substr($filters['to'],8,2)-(int)substr($filters['from'],8,2)+1)/30); return max(0, count($months)-2 + (31-(int)substr($filters['from'],8,2)+1)/30 + (int)substr($filters['to'],8,2)/30); }
+    private function isCompleted($row):bool{return trim((string)$row->done)==='انجام شد';}
+    private function recordedPaymentAmount($row):float{$details=is_array($row->payment_details??null)?$row->payment_details:[];if(array_key_exists('ledger_total',$details))return max(0,$this->number($details['ledger_total']));return max(0,$this->number($details['cash']??0)+$this->number($details['card']??0)+$this->number(data_get($details,'check.amount',0)));}
+    private function isPaidCompleted($row):bool{if(!$this->isCompleted($row)||$this->number($row->debt??0)>0)return false;$payable=max(0,$this->number($row->amount??0));$wallet=max(0,$this->number($row->wallet_applied??0));$paid=$this->recordedPaymentAmount($row);return $payable>0?$paid>=$payable:($paid+$wallet)>0;}
+    private function isCancelled($row):bool{$s=(string)$row->status;return str_contains($s,'کنسل')||str_contains($s,'لغو');} private function dateOf($row):string{return ($row->month?:'').'-'.str_pad((string)($row->day_num?:1),2,'0',STR_PAD_LEFT);} private function appointmentValue($row):float{$services=collect($row->services?:[]);$sum=$services->sum(fn($s)=>$this->number($s['price']??$s['amount']??0)*max(1,$this->number($s['quantity']??1)));return $sum?:$this->number($row->amount);} private function number($value):float{return (float)str_replace([',','٬',' '],'',(string)$value);} private function normalizeDate($value):?string{$v=strtr(trim((string)$value),['۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9','/'=>'-']);return preg_match('/^1[34]\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/',$v)?$v:null;} private function monthsBetween($from,$to):array{$out=[];[$y,$m]=array_map('intval',explode('-',substr($from,0,7)));$end=substr($to,0,7);while(sprintf('%04d-%02d',$y,$m)<=$end){$out[]=sprintf('%04d-%02d',$y,$m);if(++$m===13){$m=1;$y++;}}return $out;} private function salaryRatio(array $filters):float { $months=$this->monthsBetween($filters['from'],$filters['to']); if(count($months)===1)return max(0,((int)substr($filters['to'],8,2)-(int)substr($filters['from'],8,2)+1)/30); return max(0, count($months)-2 + (31-(int)substr($filters['from'],8,2)+1)/30 + (int)substr($filters['to'],8,2)/30); }
 }
