@@ -997,7 +997,7 @@ class AppointmentController extends Controller
                 $patient = Patient::find($transaction->patient_id);
                 $message = str_replace(
                     ['%param1%', '%param2%', '%param3%', '%param4%'],
-                    [number_format((float) $transaction->amount), number_format((float) ($patient?->wallet_balance ?? 0)), $expiry->format('Y/m/d'), (string) AppSetting::getByKey('company_name', 'کلینیک')],
+                    [number_format((float) $transaction->amount), number_format((float) ($patient?->wallet_balance ?? 0)), $this->gregorianToJalali($expiry), (string) AppSetting::getByKey('company_name', 'کلینیک')],
                     $template
                 );
                 app(ShsmsService::class)->send($phone, $message);
@@ -1012,6 +1012,19 @@ class AppointmentController extends Controller
                 $transaction?->update(['metadata' => $meta]);
             }
         });
+    }
+
+    private function gregorianToJalali($date): string
+    {
+        $year=(int)$date->format('Y'); $month=(int)$date->format('n'); $day=(int)$date->format('j');
+        $offsets=[0,31,59,90,120,151,181,212,243,273,304,334];
+        $leap=$month>2?$year+1:$year;
+        $days=355666+365*$year+intdiv($leap+3,4)-intdiv($leap+99,100)+intdiv($leap+399,400)+$day+$offsets[$month-1];
+        $jy=-1595+33*intdiv($days,12053); $days%=12053; $jy+=4*intdiv($days,1461); $days%=1461;
+        if($days>365){$jy+=intdiv($days-1,365);$days=($days-1)%365;}
+        $jm=$days<186?1+intdiv($days,31):7+intdiv($days-186,30);
+        $jd=1+($days<186?$days%31:($days-186)%30);
+        return sprintf('%04d/%02d/%02d',$jy,$jm,$jd);
     }
 
     /** Explicit deletion; a missing row in a browser payload can never delete data. */

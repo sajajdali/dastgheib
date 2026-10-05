@@ -834,6 +834,7 @@
             <strong class="balance-amount">{{ formatMoneyValue(walletBalance) }}</strong>
           </div>
           <div v-if="walletRewardExpiresAt" class="wallet-expiry-banner">مهلت استفاده از پاداش معرفی: <strong>{{ formatMediaDate(walletRewardExpiresAt) }}</strong></div>
+          <div class="wallet-reward-total"><span>مجموع پاداش پرداخت‌شده به معرف</span><strong>{{ formatMoneyValue(walletRewardTotal) }}</strong></div>
 
           <div class="wallet-input-group">
             <label>مبلغ تراکنش (تومان):</label>
@@ -850,6 +851,24 @@
           <button class="withdraw-btn" @click="handleWithdraw">برداشت از کیف پول</button>
           <button class="deposit-btn" @click="handleDeposit">واریز به کیف پول</button>
         </div>
+        <section class="wallet-reward-report">
+          <header><strong>گزارش تفکیکی پاداش معرف</strong><small>هر خدمت و مصرف اعتبار به‌صورت مستقل ثبت شده است.</small></header>
+          <div class="wallet-reward-table-wrap">
+            <table class="wallet-reward-table">
+              <thead><tr><th>نام معرف</th><th>مشتری معرفی‌شده</th><th>تاریخ انجام خدمت</th><th>خدمت</th><th>مبلغ دریافتی</th><th>نرخ پاداش</th><th>پاداش معرف</th><th>تاریخ استفاده</th></tr></thead>
+              <tbody>
+                <tr v-for="reward in walletReferralRewards" :key="reward.id">
+                  <td>{{ reward.referrer_name || '-' }}</td><td>{{ reward.referred_name || '-' }}</td>
+                  <td>{{ reward.service_date ? reward.service_date.replaceAll('-', '/') : '-' }}</td><td>{{ reward.service_name || '-' }}</td>
+                  <td>{{ formatMoneyValue(reward.received_amount) }}</td>
+                  <td>{{ reward.reward_type === 'percent' ? `${reward.reward_value}٪` : `${formatMoneyValue(reward.reward_value)} ثابت` }}</td>
+                  <td>{{ formatMoneyValue(reward.reward_amount) }}</td><td>{{ reward.used_at ? formatMediaDate(reward.used_at) : 'استفاده نشده' }}</td>
+                </tr>
+                <tr v-if="!walletTransactionsLoading && !walletReferralRewards.length"><td colspan="8">هنوز پاداش معرفی ثبت نشده است.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
         <section class="wallet-report wallet-report-in-modal">
           <div class="wallet-report-head"><strong>ریز گردش کیف پول</strong><button type="button" :disabled="walletTransactionsLoading" @click="loadWalletTransactions">به‌روزرسانی</button></div>
           <div class="wallet-report-list">
@@ -858,7 +877,7 @@
               <div><b>{{ transaction.type === 'deposit' ? 'واریز' : 'برداشت' }}</b><strong>{{ formatMoneyValue(transaction.amount) }}</strong></div>
               <span>{{ transaction.description || '-' }}</span><small>{{ walletSourceLabel(transaction.source_type) }} · {{ formatMediaDate(transaction.created_at) }}</small>
               <details v-if="transaction.reward_lines?.length"><summary>جزئیات پاداش معرف</summary><div v-if="transaction.metadata?.referred_name"><b>مشتری معرفی‌شده:</b> {{ transaction.metadata.referred_name }}</div><div v-for="line in transaction.reward_lines" :key="line.id"><b>{{ line.service_name }}</b> — دریافتی {{ formatMoneyValue(line.received_amount) }} — {{ line.reward_type === 'percent' ? `${line.reward_value}٪` : `${formatMoneyValue(line.reward_value)} ثابت` }} — پاداش {{ formatMoneyValue(line.reward_amount) }}</div></details>
-              <button v-if="canDeleteReferralReward(transaction)" type="button" class="wallet-reward-delete" @click="deleteReferralReward(transaction)">حذف پاداش</button>
+              <button v-if="transaction.can_reverse" type="button" class="wallet-reward-delete" @click="reverseWalletDeposit(transaction)">برگشت مانده واریزی</button>
             </article>
           </div>
         </section>
@@ -1819,6 +1838,8 @@ export default {
       walletTransactions: [],
       walletTransactionsLoading: false,
       walletRewardExpiresAt: null,
+      walletRewardTotal: 0,
+      walletReferralRewards: [],
 
       showMediaModal: false,
       activeMediaPatient: {},
@@ -2405,6 +2426,8 @@ export default {
       this.walletBalance = patient.wallet_balance || 0; 
       this.walletAmount = null; 
       this.walletRewardExpiresAt = null;
+      this.walletRewardTotal = 0;
+      this.walletReferralRewards = [];
       this.showWalletModal = true;
       this.loadWalletTransactions();
     },
@@ -2423,6 +2446,8 @@ export default {
         this.walletTransactions = data.transactions || []
         this.walletBalance = Number(data.wallet_balance || 0)
         this.walletRewardExpiresAt = data.reward_expires_at || null
+        this.walletRewardTotal = Number(data.reward_total || 0)
+        this.walletReferralRewards = data.referral_rewards || []
       } catch (error) {
         console.error(error)
       } finally {
@@ -2445,6 +2470,19 @@ export default {
     canDeleteReferralReward(transaction) {
       if (transaction.source_type !== 'referral_reward' || transaction.reversed_at) return false
       return !transaction.expires_at || new Date(transaction.expires_at).getTime() > Date.now()
+    },
+
+    async reverseWalletDeposit(transaction) {
+      const remaining = Number(transaction.remaining_amount || 0)
+      const result = await Swal.fire({ icon: 'warning', title: 'برگشت مانده واریزی؟', text: `${this.formatMoneyValue(remaining)} از موجودی کیف پول کسر و سند برگشتی ثبت می‌شود.`, showCancelButton: true, confirmButtonText: 'ثبت برگشت', cancelButtonText: 'انصراف', confirmButtonColor: '#dc2626' })
+      if (!result.isConfirmed) return
+      try {
+        const res = await fetch(`/api/patients/${this.activeWalletPatient.id}/wallet/transactions/${transaction.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' } })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'برگشت واریزی انجام نشد')
+        await this.loadWalletTransactions()
+        await Swal.fire({ icon: 'success', title: 'مانده واریزی برگشت داده شد', timer: 1400, showConfirmButton: false })
+      } catch (error) { await Swal.fire({ icon: 'error', title: 'برگشت انجام نشد', text: error.message }) }
     },
 
     customerLevelLabel(value) {
@@ -8888,6 +8926,8 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   gap: 12px;
   justify-content: flex-end;
 }
+
+.wallet-reward-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e40af}.wallet-reward-total strong{font-size:16px}.wallet-reward-report{margin:18px 0;padding-top:14px;border-top:1px solid #e2e8f0}.wallet-reward-report>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.wallet-reward-report>header small{color:#64748b;font-size:10px}.wallet-reward-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}.wallet-reward-table{width:100%;min-width:1050px;border-collapse:collapse;font-size:10px}.wallet-reward-table th,.wallet-reward-table td{padding:10px;border-bottom:1px solid #eef2f7;text-align:right;white-space:nowrap}.wallet-reward-table th{position:sticky;top:0;background:#f8fafc;color:#475569}.wallet-reward-table td:last-child{color:#2563eb;font-weight:800}.wallet-reward-table tbody tr:last-child td{border-bottom:0}
 
 .wallet-report{margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px}.wallet-report-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.wallet-report-head button{padding:6px 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-weight:800;cursor:pointer}.wallet-report-list{max-height:310px;display:grid;gap:8px;margin-top:10px;overflow:auto}.wallet-report-list>p{padding:16px;color:#64748b;text-align:center}.wallet-report-list article{display:grid;gap:5px;padding:10px;border:1px solid #e2e8f0;border-right:4px solid #ef4444;border-radius:10px;background:#fff}.wallet-report-list article.deposit{border-right-color:#22c55e}.wallet-report-list article>div{display:flex;align-items:center;justify-content:space-between}.wallet-report-list article.deposit>div strong{color:#15803d}.wallet-report-list article.withdraw>div strong{color:#b91c1c}.wallet-report-list article span{color:#334155;font-size:12px}.wallet-report-list article small{color:#94a3b8;font-size:11px}.wallet-report-list details{padding-top:5px;border-top:1px dashed #cbd5e1;color:#475569;font-size:11px}.wallet-report-list summary{cursor:pointer;font-weight:900}.wallet-report-list details div{padding:4px 0}
 .deposit-btn {

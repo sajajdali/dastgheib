@@ -58,13 +58,13 @@ class Patient extends Model
     // یک ویژگی مجازی (Accessor) برای محاسبه آنی موجودی کیف پول بیمار
     public function getWalletBalanceAttribute()
     {
-        return $this->walletLedger()['balance'];
+        return $this->walletLedgerSnapshot()['balance'];
     }
 
     /** Remaining spendable part of a specific wallet credit. */
     public function walletCreditRemaining(int $transactionId): float
     {
-        return $this->walletLedger()['credits'][$transactionId]['remaining'] ?? 0;
+        return $this->walletLedgerSnapshot()['credits'][$transactionId]['remaining'] ?? 0;
     }
 
     /**
@@ -73,12 +73,13 @@ class Patient extends Model
      * reversal removes the remaining part of its own source credit, never an
      * unrelated manual balance.
      */
-    private function walletLedger(): array
+    public function walletLedgerSnapshot(): array
     {
         $transactions = $this->walletTransactions()
             ->orderBy('created_at')->orderBy('id')
             ->get(['id', 'type', 'amount', 'source_type', 'reversed_transaction_id', 'expires_at', 'created_at']);
         $credits = [];
+        $allocations = [];
 
         $expire = static function (array &$lots, $at): void {
             foreach ($lots as &$lot) {
@@ -129,6 +130,14 @@ class Patient extends Model
                 $used = min($amount, $credits[$creditId]['remaining']);
                 $credits[$creditId]['remaining'] -= $used;
                 $amount -= $used;
+                if ($used > 0) {
+                    $allocations[] = [
+                        'credit_transaction_id' => $creditId,
+                        'debit_transaction_id' => (int) $transaction->id,
+                        'amount' => $used,
+                        'used_at' => $at,
+                    ];
+                }
             }
         }
 
@@ -137,6 +146,7 @@ class Patient extends Model
         return [
             'balance' => array_sum(array_column($credits, 'remaining')),
             'credits' => $credits,
+            'allocations' => $allocations,
         ];
     }
 

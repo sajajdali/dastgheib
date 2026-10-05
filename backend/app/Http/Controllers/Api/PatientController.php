@@ -13,6 +13,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Database\QueryException;
 use App\Services\CustomerLevelService;
 use App\Models\AppSetting;
+use App\Services\WalletAllocationService;
 use App\Support\PatientPhoneVisibility;
 use Carbon\Carbon;
 
@@ -584,18 +585,44 @@ class PatientController extends Controller
         ]);
     }
 
-    public function walletTransactions(Patient $patient)
+    public function walletTransactions(Patient $patient, WalletAllocationService $allocations)
     {
+        $allocations->sync($patient);
         $rewardExpiry = $patient->walletTransactions()->where('type', 'deposit')->where('source_type', 'referral_reward')
             ->whereNull('reversed_at')->where('expires_at', '>', now())->max('expires_at');
+        $transactions = $patient->walletTransactions()
+            ->with(['createdBy:id,name', 'referralRewardLines.appointment:id,month,day_num,completed_at',
+                'referralRewardLines.referrer:id,first_name,last_name', 'referralRewardLines.referred:id,first_name,last_name',
+                'creditAllocations'])
+            ->latest('id')->limit(250)->get();
+        $rewards = $transactions->where('type', 'deposit')->where('source_type', 'referral_reward');
         return response()->json([
             'wallet_balance' => $patient->wallet_balance,
             'reward_expires_at' => $rewardExpiry,
-            'transactions' => $patient->walletTransactions()
-                ->with(['createdBy:id,name', 'referralRewardLines'])
-                ->latest('id')
-                ->limit(250)
-                ->get()
+            'reward_total' => (float) $rewards->whereNull('reversed_at')->sum('amount'),
+            'referral_rewards' => $rewards->flatMap(function ($transaction) use ($patient) {
+                $usedAmount = (float) $transaction->creditAllocations->sum('amount');
+                $usedAt = $transaction->creditAllocations->max('used_at');
+                return $transaction->referralRewardLines->map(function ($line) use ($transaction, $patient, $usedAmount, $usedAt) {
+                    $appointment = $line->appointment;
+                    return [
+                        'id' => $line->id,
+                        'transaction_id' => $transaction->id,
+                        'referrer_name' => trim(($line->referrer?->first_name ?? $patient->first_name).' '.($line->referrer?->last_name ?? $patient->last_name)),
+                        'referred_name' => trim(($line->referred?->first_name ?? '').' '.($line->referred?->last_name ?? '')) ?: data_get($transaction->metadata, 'referred_name', '-'),
+                        'service_date' => $appointment ? sprintf('%s-%02d', $appointment->month, $appointment->day_num) : null,
+                        'service_name' => $line->service_name,
+                        'received_amount' => (float) $line->received_amount,
+                        'reward_type' => $line->reward_type,
+                        'reward_value' => (float) $line->reward_value,
+                        'reward_amount' => (float) $line->reward_amount,
+                        'used_amount' => $usedAmount,
+                        'used_at' => $usedAt,
+                        'earned_at' => $line->earned_at,
+                    ];
+                });
+            })->values(),
+            'transactions' => $transactions
                 ->map(fn ($transaction) => [
                     'id' => $transaction->id,
                     'type' => $transaction->type,
@@ -609,6 +636,10 @@ class PatientController extends Controller
                     'expires_at' => $transaction->expires_at,
                     'metadata' => $transaction->metadata,
                     'reward_lines' => $transaction->referralRewardLines,
+                    'remaining_amount' => $transaction->type === 'deposit' ? (float) $patient->walletCreditRemaining($transaction->id) : 0,
+                    'used_amount' => $transaction->type === 'deposit' ? (float) $transaction->creditAllocations->sum('amount') : 0,
+                    'used_at' => $transaction->type === 'deposit' ? $transaction->creditAllocations->max('used_at') : null,
+                    'can_reverse' => $transaction->type === 'deposit' && ! $transaction->reversed_at && (float) $patient->walletCreditRemaining($transaction->id) > 0,
                     'created_by_name' => $transaction->createdBy?->name,
                     'created_at' => $transaction->created_at,
                 ]),
@@ -617,59 +648,39 @@ class PatientController extends Controller
 
     public function deleteReferralReward(Request $request, Patient $patient, WalletTransaction $transaction)
     {
-        if ((int) $transaction->patient_id !== (int) $patient->id || $transaction->type !== 'deposit' || $transaction->source_type !== 'referral_reward' || $transaction->reversed_at) abort(404);
-
-        try {
-            $balance = DB::transaction(function () use ($request, $patient, $transaction) {
-                $original = WalletTransaction::query()->lockForUpdate()->findOrFail($transaction->id);
-                $lockedPatient = Patient::query()->lockForUpdate()->findOrFail($patient->id);
-                if ($original->reversed_at) throw new \RuntimeException('این پاداش قبلاً برگشت داده شده است.');
-                if ($original->expires_at && $original->expires_at->isPast()) throw new \RuntimeException('این پاداش منقضی شده و دیگر اثری بر موجودی کیف پول ندارد.');
-                if ((float) $lockedPatient->walletCreditRemaining($original->id) < (float) $original->amount) throw new \RuntimeException('این پاداش مصرف شده و امکان حذف کامل آن وجود ندارد.');
-                $reverse = $lockedPatient->walletTransactions()->create([
-                    'type' => 'withdraw', 'amount' => $original->amount,
-                    'description' => 'حذف پاداش معرف: '.$original->description,
-                    'source_type' => 'reversal', 'source_key' => 'referral-reward-delete-'.$original->id.'-'.now()->format('YmdHisv'),
-                    'appointment_id' => $original->appointment_id, 'reversed_transaction_id' => $original->id,
-                    'created_by' => $request->user()?->id,
-                    'metadata' => ['reason' => 'حذف پاداش معرف توسط مدیر', 'original' => $original->metadata],
-                ]);
-                $original->update(['reversed_at' => now(), 'reversed_transaction_id' => $reverse->id]);
-                return $lockedPatient->fresh()->wallet_balance;
-            });
-        } catch (\RuntimeException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 422);
-        }
-        return response()->json(['success' => true, 'wallet_balance' => $balance]);
+        if ($transaction->source_type !== 'referral_reward') abort(404);
+        return $this->deleteWalletDeposit($request, $patient, $transaction);
     }
 
     public function deleteBookingDeposit(Request $request, Patient $patient, WalletTransaction $transaction)
     {
-        if ((int) $transaction->patient_id !== (int) $patient->id || $transaction->type !== 'deposit' || $transaction->source_type !== 'booking_deposit' || $transaction->reversed_at) {
-            abort(404);
-        }
+        if ($transaction->source_type !== 'booking_deposit') abort(404);
+        return $this->deleteWalletDeposit($request, $patient, $transaction);
+    }
+
+    public function deleteWalletDeposit(Request $request, Patient $patient, WalletTransaction $transaction)
+    {
+        if ((int) $transaction->patient_id !== (int) $patient->id || $transaction->type !== 'deposit' || $transaction->source_type === 'reversal' || $transaction->reversed_at) abort(404);
 
         try {
             $balance = DB::transaction(function () use ($request, $patient, $transaction) {
                 $original = WalletTransaction::query()->lockForUpdate()->findOrFail($transaction->id);
                 $lockedPatient = Patient::query()->lockForUpdate()->findOrFail($patient->id);
 
-                if ($original->reversed_at) {
-                    throw new \RuntimeException('این بیعانه پیش‌تر حذف شده است.');
-                }
-                if ((float) $lockedPatient->wallet_balance < (float) $original->amount) {
-                    throw new \RuntimeException('این بیعانه قبلاً مصرف شده و امکان حذف آن وجود ندارد.');
-                }
+                if ($original->reversed_at) throw new \RuntimeException('این واریزی پیش‌تر برگشت داده شده است.');
+                $remaining = (float) $lockedPatient->walletCreditRemaining($original->id);
+                if ($remaining <= 0) throw new \RuntimeException('این واریزی مصرف یا منقضی شده و مانده‌ای برای برگشت ندارد.');
 
                 $reverse = $lockedPatient->walletTransactions()->create([
                     'type' => 'withdraw',
-                    'amount' => $original->amount,
-                    'description' => 'حذف بیعانه: '.$original->description,
+                    'amount' => $remaining,
+                    'description' => 'برگشت واریزی: '.$original->description,
                     'source_type' => 'reversal',
-                    'source_key' => 'booking-deposit-delete-'.$original->id.'-'.now()->format('YmdHisv'),
+                    'source_key' => 'wallet-deposit-delete-'.$original->id.'-'.now()->format('YmdHisv'),
+                    'appointment_id' => $original->appointment_id,
                     'reversed_transaction_id' => $original->id,
                     'created_by' => $request->user()?->id,
-                    'metadata' => ['reason' => 'حذف بیعانه خدمات', 'original' => $original->metadata],
+                    'metadata' => ['reason' => 'برگشت واریزی توسط مدیر', 'original_amount' => (float) $original->amount, 'reversed_amount' => $remaining, 'original' => $original->metadata],
                 ]);
                 $original->update(['reversed_at' => now(), 'reversed_transaction_id' => $reverse->id]);
 

@@ -595,7 +595,7 @@
                 <div style="flex:1;min-width:110px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">وقت داده شد</span><span style="font-size:15px;font-weight:800;color:#0f172a">{{ v.cacAppointments }}</span></div>
                 <div style="flex:1;min-width:90px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">نرخ جذب</span><span style="font-size:15px;font-weight:800;color:#15803d">{{ v.cacRate }}</span></div>
               </div>
-              <div v-if="v.cacCampaignRows.length" style="display:flex;flex-direction:column;gap:7px">
+              <div v-if="v.cacCampaignRows.length" class="report-card-scroll cac-campaign-scroll">
                 <div v-for="row in v.cacCampaignRows" :key="row.id" class="cac-campaign-row">
                   <span>{{ row.name }}</span><small>{{ row.cost }} ÷ {{ row.appointments }} · جذب {{ row.rate }}</small><b>{{ row.per }}</b>
                 </div>
@@ -2510,6 +2510,7 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .report-widget-empty{min-height:82px;display:grid;place-items:center;padding:14px;border:1px dashed #bfdbfe;border-radius:12px;background:#f8fbff;color:#64748b;font-size:11px;font-weight:800;text-align:center;line-height:1.8}
 .expense-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(48px,90px) minmax(0,auto);align-items:center;gap:10px;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:9px 12px;min-width:0}.expense-row__name{min-width:0;font-weight:600;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expense-row__bar{width:100%;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden}.expense-money{min-width:0;max-width:145px;text-align:left;font-weight:800;color:#0f172a;white-space:normal;overflow-wrap:anywhere;line-height:1.5}.expense-summary-list{display:flex;flex-direction:column;gap:7px;min-width:0}.expense-summary-row{min-width:0;min-height:42px;border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.expense-summary-value{min-width:0;max-width:100%;font-size:clamp(11px,1.05vw,15px);font-weight:800;line-height:1.4;white-space:nowrap;text-align:left;direction:rtl;font-variant-numeric:tabular-nums}
 .cac-campaign-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:11px;color:#334155}.cac-campaign-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.cac-campaign-row>small{color:#64748b;white-space:nowrap}.cac-campaign-row>b{color:#1d4ed8;white-space:nowrap;font-size:11px}
+.cac-campaign-scroll{display:flex;flex-direction:column;gap:7px}
 .top-services-more{align-self:center;display:inline-flex;align-items:center;gap:4px;margin-top:3px;padding:2px 4px;border:0;background:transparent;color:#2563eb;font:inherit;font-size:10px;font-weight:800;line-height:1.5;cursor:pointer}
 .top-services-more:hover{color:#1d4ed8;text-decoration:underline;text-underline-offset:3px}
 .top-services-more:focus-visible{outline:1px solid #60a5fa;outline-offset:3px;border-radius:3px}

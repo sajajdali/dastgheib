@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Services\WalletAllocationService;
 use Illuminate\Database\Eloquent\Model;
 
 class WalletTransaction extends Model
@@ -36,5 +37,19 @@ class WalletTransaction extends Model
     public function referralRewardLines()
     {
         return $this->hasMany(ReferralRewardLine::class);
+    }
+
+    public function creditAllocations()
+    {
+        return $this->hasMany(WalletTransactionAllocation::class, 'credit_transaction_id');
+    }
+
+    protected static function booted(): void
+    {
+        $sync = static function (WalletTransaction $transaction): void {
+            if ($transaction->patient_id) app(WalletAllocationService::class)->sync(Patient::findOrFail($transaction->patient_id));
+        };
+        static::saved($sync);
+        static::deleted($sync);
     }
 }
