@@ -233,14 +233,6 @@
 
           <button
             v-if="searchResults.length === 1"
-            class="wallet-btn"
-            @click="openWalletModal(searchResults[0])"
-          >
-            💼 کیف پول
-          </button>
-
-          <button
-            v-if="searchResults.length === 1"
             class="edit-btn"
             @click="openEditModal(searchResults[0])"
           >
@@ -330,6 +322,9 @@
               </button>
             </div>
             <div class="profile-quick-actions">
+              <button type="button" class="profile-wallet-action" title="کیف پول مشتری" aria-label="کیف پول مشتری" @click="openWalletModal(activePatientProfile)">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5h-5a2 2 0 0 0 0 4h3a2 2 0 0 1 0 4h-5M12 6v12"/></svg>
+              </button>
               <button
                 type="button"
                 class="profile-edit-action"
@@ -834,9 +829,10 @@
           <p class="patient-name">بیمار: <strong>{{ activeWalletPatient.first_name }} {{ activeWalletPatient.last_name }}</strong></p>
           
           <div class="balance-box">
-            <span>موجوزی کیف پول:</span>
+            <span>موجودی کیف پول:</span>
             <strong class="balance-amount">{{ formatMoneyValue(walletBalance) }}</strong>
           </div>
+          <div v-if="walletRewardExpiresAt" class="wallet-expiry-banner">مهلت استفاده از پاداش معرفی: <strong>{{ formatMediaDate(walletRewardExpiresAt) }}</strong></div>
 
           <div class="wallet-input-group">
             <label>مبلغ تراکنش (تومان):</label>
@@ -853,6 +849,18 @@
           <button class="withdraw-btn" @click="handleWithdraw">برداشت از کیف پول</button>
           <button class="deposit-btn" @click="handleDeposit">واریز به کیف پول</button>
         </div>
+        <section class="wallet-report wallet-report-in-modal">
+          <div class="wallet-report-head"><strong>ریز گردش کیف پول</strong><button type="button" :disabled="walletTransactionsLoading" @click="loadWalletTransactions">به‌روزرسانی</button></div>
+          <div class="wallet-report-list">
+            <p v-if="walletTransactionsLoading">در حال دریافت...</p><p v-else-if="!walletTransactions.length">هنوز تراکنشی ثبت نشده است.</p>
+            <article v-for="transaction in walletTransactions" :key="transaction.id" :class="transaction.type">
+              <div><b>{{ transaction.type === 'deposit' ? 'واریز' : 'برداشت' }}</b><strong>{{ formatMoneyValue(transaction.amount) }}</strong></div>
+              <span>{{ transaction.description || '-' }}</span><small>{{ walletSourceLabel(transaction.source_type) }} · {{ formatMediaDate(transaction.created_at) }}</small>
+              <details v-if="transaction.reward_lines?.length"><summary>جزئیات پاداش معرف</summary><div v-if="transaction.metadata?.referred_name"><b>مشتری معرفی‌شده:</b> {{ transaction.metadata.referred_name }}</div><div v-for="line in transaction.reward_lines" :key="line.id"><b>{{ line.service_name }}</b> — دریافتی {{ formatMoneyValue(line.received_amount) }} — {{ line.reward_type === 'percent' ? `${line.reward_value}٪` : `${formatMoneyValue(line.reward_value)} ثابت` }} — پاداش {{ formatMoneyValue(line.reward_amount) }}</div></details>
+              <button v-if="transaction.source_type === 'referral_reward' && !transaction.reversed_at" type="button" class="wallet-reward-delete" @click="deleteReferralReward(transaction)">حذف پاداش</button>
+            </article>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -1474,6 +1482,19 @@
             </div>
           </section>
         </div>
+        <section class="wallet-report wallet-report-in-modal">
+          <div class="wallet-report-head"><strong>ریز گردش کیف پول</strong><button type="button" :disabled="walletTransactionsLoading" @click="loadWalletTransactions">به‌روزرسانی</button></div>
+          <div class="wallet-report-list">
+            <p v-if="walletTransactionsLoading">در حال دریافت...</p><p v-else-if="!walletTransactions.length">هنوز تراکنشی ثبت نشده است.</p>
+            <article v-for="transaction in walletTransactions" :key="transaction.id" :class="transaction.type">
+              <div><b>{{ transaction.type === 'deposit' ? 'واریز' : 'برداشت' }}</b><strong>{{ formatMoneyValue(transaction.amount) }}</strong></div>
+              <span>{{ transaction.description || '-' }}</span>
+              <small>{{ walletSourceLabel(transaction.source_type) }} · {{ formatMediaDate(transaction.created_at) }}</small>
+              <details v-if="transaction.reward_lines?.length"><summary>جزئیات پاداش معرف</summary><div v-for="line in transaction.reward_lines" :key="line.id"><b>{{ line.service_name }}</b> — دریافتی {{ formatMoneyValue(line.received_amount) }} — {{ line.reward_type === 'percent' ? `${line.reward_value}٪` : `${formatMoneyValue(line.reward_value)} ثابت` }} — پاداش {{ formatMoneyValue(line.reward_amount) }}</div></details>
+              <button v-if="transaction.source_type === 'referral_reward' && !transaction.reversed_at" type="button" class="wallet-reward-delete" @click="deleteReferralReward(transaction)">حذف پاداش</button>
+            </article>
+          </div>
+        </section>
       </div>
     </div>
 
@@ -1795,6 +1816,7 @@ export default {
       walletAmount: null,
       walletTransactions: [],
       walletTransactionsLoading: false,
+      walletRewardExpiresAt: null,
 
       showMediaModal: false,
       activeMediaPatient: {},
@@ -2380,6 +2402,7 @@ export default {
       this.activeWalletPatient = patient;
       this.walletBalance = patient.wallet_balance || 0; 
       this.walletAmount = null; 
+      this.walletRewardExpiresAt = null;
       this.showWalletModal = true;
       this.loadWalletTransactions();
     },
@@ -2397,11 +2420,24 @@ export default {
         if (!res.ok) throw new Error(data.message || 'دریافت تراکنش‌ها انجام نشد')
         this.walletTransactions = data.transactions || []
         this.walletBalance = Number(data.wallet_balance || 0)
+        this.walletRewardExpiresAt = data.reward_expires_at || null
       } catch (error) {
         console.error(error)
       } finally {
         this.walletTransactionsLoading = false
       }
+    },
+
+    async deleteReferralReward(transaction) {
+      const result = await Swal.fire({ icon: 'warning', title: 'حذف پاداش معرف؟', text: 'یک سند برگشتی ثبت و مبلغ از موجودی کیف پول کسر می‌شود.', showCancelButton: true, confirmButtonText: 'حذف پاداش', cancelButtonText: 'انصراف', confirmButtonColor: '#dc2626' })
+      if (!result.isConfirmed) return
+      try {
+        const res = await fetch(`/api/patients/${this.activeWalletPatient.id}/wallet/referral-rewards/${transaction.id}`, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' } })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'حذف پاداش انجام نشد')
+        await this.loadWalletTransactions()
+        await Swal.fire({ icon: 'success', title: 'پاداش برگشت داده شد', timer: 1400, showConfirmButton: false })
+      } catch (error) { await Swal.fire({ icon: 'error', title: 'حذف انجام نشد', text: error.message }) }
     },
 
     customerLevelLabel(value) {
@@ -5228,6 +5264,7 @@ select:focus {
 }
 
 .profile-edit-action,
+.profile-wallet-action,
 .profile-beauty-action,
 .profile-followup-action,
 .profile-gallery-action {
@@ -5246,6 +5283,7 @@ select:focus {
   transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
 }
 .profile-edit-action svg,
+.profile-wallet-action svg,
 .profile-beauty-action svg,
 .profile-followup-action svg,
 .profile-gallery-action svg {
@@ -5258,6 +5296,7 @@ select:focus {
   stroke-linejoin: round;
 }
 .profile-edit-action:hover,
+.profile-wallet-action:hover,
 .profile-beauty-action:hover,
 .profile-followup-action:hover,
 .profile-gallery-action:hover {
@@ -5266,6 +5305,7 @@ select:focus {
   transform: translateY(-1px);
 }
 .profile-edit-action:focus-visible,
+.profile-wallet-action:focus-visible,
 .profile-beauty-action:focus-visible,
 .profile-followup-action:focus-visible,
 .profile-gallery-action:focus-visible {
@@ -8859,4 +8899,5 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   font-weight: bold;
 }
 .withdraw-btn:hover { background-color: #b91c1c; }
+.profile-wallet-action{border-color:#bbf7d0!important;background:#f0fdf4!important;color:#15803d!important}.profile-wallet-action svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.wallet-modal{max-height:min(88vh,820px);overflow:auto}.wallet-expiry-banner{margin-top:10px;padding:10px 12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:11px}.wallet-report-in-modal{margin:0 18px 18px}.wallet-reward-delete{justify-self:start;border:1px solid #fecaca;border-radius:7px;padding:5px 8px;background:#fff1f2;color:#be123c;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}
 </style>

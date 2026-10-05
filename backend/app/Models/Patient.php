@@ -58,10 +58,19 @@ class Patient extends Model
     // یک ویژگی مجازی (Accessor) برای محاسبه آنی موجودی کیف پول بیمار
     public function getWalletBalanceAttribute()
     {
-        $deposits = $this->walletTransactions()->where('type', 'deposit')->sum('amount');
-        $withdraws = $this->walletTransactions()->where('type', 'withdraw')->sum('amount');
+        $transactions = $this->walletTransactions()->get(['type', 'amount', 'source_type', 'expires_at']);
+        $withdrawals = (float) $transactions->where('type', 'withdraw')->sum('amount');
+        $permanent = (float) $transactions->where('type', 'deposit')->where('source_type', '!=', 'referral_reward')->sum('amount');
+        $rewards = $transactions->where('type', 'deposit')->where('source_type', 'referral_reward');
+        $expiredRewards = (float) $rewards->filter(fn ($transaction) => $transaction->expires_at && $transaction->expires_at->isPast())->sum('amount');
+        $activeRewards = (float) $rewards->reject(fn ($transaction) => $transaction->expires_at && $transaction->expires_at->isPast())->sum('amount');
 
-        return $deposits - $withdraws;
+        // مصرف اعتبار از پاداش‌هایی که زودتر منقضی می‌شوند آغاز می‌شود؛ در نتیجه
+        // انقضا هرگز شارژ دستی یا بیعانهٔ باقی‌مانده را از بین نمی‌برد.
+        $activeRewardRemaining = max(0, $activeRewards - max(0, $withdrawals - $expiredRewards));
+        $permanentRemaining = max(0, $permanent - max(0, $withdrawals - $expiredRewards - $activeRewards));
+
+        return $activeRewardRemaining + $permanentRemaining;
     }
 
     public function getOutstandingDebtAttribute(): int

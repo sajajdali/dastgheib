@@ -844,9 +844,9 @@
                     <div class="money-input-wrap">
 
                       <input
-                        :value="formatDisplayMoney(row.referralScore || 0)"
+                        :value="moneyToNumber(row.walletBalance) ? formatDisplayMoney(row.walletBalance) : ''"
                         type="text"
-                        placeholder="مبلغ امتیاز"
+                        placeholder="موجودی کیف پول"
                         class="service-select money-input score-disabled"
                         disabled
                       />
@@ -857,8 +857,9 @@
 
                       <button
                         class="pay-score-btn"
-                        title="کسر از مبلغ"
-                        @click.stop="applyReferralScore(row)"
+                        :disabled="!moneyToNumber(row.walletBalance)"
+                        title="پرداخت از کیف پول بیمار"
+                        @click.stop="applyWalletBalance(row)"
                       >
                         💳
                       </button>
@@ -872,12 +873,6 @@
                     >
                       + افزودن خدمت
                     </button>
-
-                    <div class="wallet-payment-box">
-                      <button type="button" :disabled="!moneyToNumber(row.walletBalance)" @click.stop="applyWalletBalance(row)">
-                        {{ moneyToNumber(row.walletApplied) ? `اعمال شد: ${formatDisplayMoney(row.walletApplied)} تومان` : 'پرداخت از کیف پول' }}
-                      </button>
-                    </div>
 
                   </div>
 
@@ -2640,12 +2635,12 @@ export default {
       dailyReportModalOpen: false,
       activeDailyReport: null,
       completionSmsOptions: [
-        { key: 'referral_credit', icon: '💳', title: 'واریز مبلغ برای معرف', description: 'اعلام مبلغ واریزی و موجودی جدید کیف پول معرف' },
         { key: 'treatment_care', icon: '🩺', title: 'توصیه‌های بعد از درمان', description: 'ارسال لینک راهنمای مراقبت و توصیه‌های درمان' },
         { key: 'payment_link', icon: '🔗', title: 'لینک پرداخت', description: 'ارسال لینک و مبلغ پرداخت برای مراجعه‌کننده' },
         { key: 'welcome', icon: '⭐', title: 'نظرسنجی', description: 'ارسال لینک اختصاصی نظرسنجی برای این نوبت' }
       ],
       inventoryItems: [],
+      walletSettings: { enabled: false, default_type: 'percent', default_value: 0, expiry_days: 30, service_overrides: [] },
       bookingRootSectionFilter: "",
       bookingServiceFilter: "",
       bookingResourceFilter: "",
@@ -5527,9 +5522,10 @@ export default {
           ...settingsRes.data.appointment_columns
         };
       }
+      if (settingsRes.data.wallet_settings) this.walletSettings = { ...this.walletSettings, ...settingsRes.data.wallet_settings };
       const templates = settingsRes.data.sms_settings?.templates || [];
       this.enabledCompletionSmsTypes = templates
-        .filter(template => ['referral_credit', 'treatment_care', 'payment_link', 'welcome'].includes(template.category)
+        .filter(template => ['treatment_care', 'payment_link', 'welcome'].includes(template.category)
           && template.active && String(template.content || '').trim())
         .map(template => template.category);
 
@@ -8893,8 +8889,9 @@ smsColor(val) {
         const item = this.getServiceData(service);
         if (!item) return;
         const quantity = Math.max(Number(service.cc || 1), 1);
-        const type = item.default_commission_type === 'fixed' ? 'fixed' : 'percent';
-        const value = Number(item.default_commission_value || 0);
+        const override = (this.walletSettings.service_overrides || []).find(rule => Number(rule.service_id) === Number(item.id));
+        const type = (override?.type || this.walletSettings.default_type) === 'fixed' ? 'fixed' : 'percent';
+        const value = Number(override?.value ?? this.walletSettings.default_value ?? 0);
         const base = Number(item.amount || 0) * quantity;
         total += type === 'fixed' ? value * quantity : base * value / 100;
         rules.push({ type, value });

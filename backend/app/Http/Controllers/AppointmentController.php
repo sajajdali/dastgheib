@@ -20,9 +20,13 @@ use App\Models\InventoryCommission;
 use App\Models\ResourceEarningLine;
 use App\Models\Staff;
 use App\Models\WalletTransaction;
+use App\Models\ReferralRewardLine;
+use App\Models\AppSetting;
 use Illuminate\Support\Facades\DB;
 use App\Services\CustomerLevelService;
+use App\Services\ShsmsService;
 use App\Support\PatientPhoneVisibility;
+use Illuminate\Support\Facades\Log;
 
 class AppointmentController extends Controller
 {
@@ -571,6 +575,12 @@ class AppointmentController extends Controller
                     $this->syncAppointmentInventoryStock([['previous' => null, 'current' => $appointment]], collect());
                 }
                 $this->fillMissingPatientPhoneFromAppointment($appointment, $request);
+                $reward = $this->calculateReferralReward($appointment->fresh()->toArray());
+                $appointment->update([
+                    'referral_score' => $reward['amount'],
+                    'referral_commission_type' => $reward['type'],
+                    'referral_commission_value' => $reward['value'],
+                ]);
                 $this->syncResourceEarningLines($appointment);
                 $this->syncAppointmentWalletEffects($request, $appointment, $reward, $before ?? null);
                 if ($followupConfirmed) $this->syncServiceFollowups($appointment);
@@ -908,7 +918,7 @@ class AppointmentController extends Controller
     }
 
     /** Wallet source keys are based on the immutable appointment id, not mutable fields such as time/phone. */
-    private function syncAppointmentWalletEffects(Request $request, Appointment $appointment, array $reward, ?Appointment $legacyAppointment = null): void
+    private function syncAppointmentWalletEffects(Request $request, Appointment $appointment, array $reward, ?Appointment $legacyAppointment = null, bool $syncPayment = true): void
     {
         $referralKey = "appointment-referral|{$appointment->id}";
         $walletKey = "appointment-wallet|{$appointment->id}";
@@ -922,9 +932,33 @@ class AppointmentController extends Controller
         }
         $this->reverseAppointmentWalletSourceUnless($request, $referralKey, $reward['patient'] && $reward['amount'] > 0);
         if ($reward['patient'] && $reward['amount'] > 0) {
-            $this->syncWalletTransaction($request, $reward['patient'], $appointment, $referralKey, 'referral_reward', $reward['amount'], "پاداش معرفی برای {$appointment->lastname}", ['month' => $appointment->month, 'signature' => $reward['signature']]);
+            $expiry = now()->addDays($reward['expiry_days'])->endOfDay();
+            WalletTransaction::query()->where('patient_id', $reward['patient']->id)
+                ->where('source_type', 'referral_reward')->whereNull('reversed_at')
+                ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                ->update(['expires_at' => $expiry]);
+            $transaction = $this->syncWalletTransaction($request, $reward['patient'], $appointment, $referralKey, 'referral_reward', $reward['amount'], "پاداش معرفی برای {$appointment->lastname}", [
+                'month' => $appointment->month, 'signature' => $reward['signature'],
+                'referred_patient_id' => $reward['referred_patient']?->id,
+                'referred_name' => $appointment->lastname, 'services' => $reward['breakdown'],
+                'received_amount' => $reward['received_amount'],
+            ], 'deposit', $expiry);
+            ReferralRewardLine::query()->where('wallet_transaction_id', $transaction->id)->delete();
+            foreach ($reward['breakdown'] as $line) {
+                ReferralRewardLine::create([
+                    'wallet_transaction_id' => $transaction->id, 'appointment_id' => $appointment->id,
+                    'referrer_patient_id' => $reward['patient']->id,
+                    'referred_patient_id' => $reward['referred_patient']?->id,
+                    'service_key' => $line['service_key'], 'service_name' => $line['service'],
+                    'received_amount' => $line['received_amount'], 'reward_type' => $line['commission_type'],
+                    'reward_value' => $line['commission_value'], 'reward_amount' => $line['reward_amount'],
+                    'calculation_snapshot' => $line, 'earned_at' => now(),
+                ]);
+            }
+            $this->queueReferralRewardSms($transaction, $reward['patient'], $expiry);
         }
 
+        if (! $syncPayment) return;
         $requested = max(0, $this->signedMoneyToInteger($appointment->wallet_applied));
         $patient = $this->appointmentPatient($appointment);
         $existing = WalletTransaction::query()->where('source_key', $walletKey)->whereNull('reversed_at')->first();
@@ -942,6 +976,42 @@ class AppointmentController extends Controller
         if ($keep) return;
         WalletTransaction::query()->where('source_key', $sourceKey)->whereNull('reversed_at')->lockForUpdate()->get()
             ->each(fn (WalletTransaction $transaction) => $this->reverseWalletTransaction($request, $transaction, 'اصلاح یا حذف نوبت'));
+    }
+
+    private function queueReferralRewardSms(WalletTransaction $transaction, Patient $referrer, $expiry): void
+    {
+        $metadata = is_array($transaction->metadata) ? $transaction->metadata : [];
+        if (! empty($metadata['sms_sent_at']) || ! empty($metadata['sms_queued_at'])) return;
+        $metadata['sms_queued_at'] = now()->toISOString();
+        $transaction->update(['metadata' => $metadata]);
+        $transactionId = $transaction->id;
+        $phone = (string) $referrer->phone;
+        DB::afterCommit(function () use ($transactionId, $phone, $expiry) {
+            $transaction = WalletTransaction::find($transactionId);
+            if (! $transaction || $phone === '') return;
+            try {
+                $raw = AppSetting::getByKey('referral_wallet_settings', '{}');
+                $settings = is_string($raw) ? json_decode($raw, true) : $raw;
+                $template = trim((string) ($settings['sms_template'] ?? ''));
+                if ($template === '') return;
+                $patient = Patient::find($transaction->patient_id);
+                $message = str_replace(
+                    ['%param1%', '%param2%', '%param3%', '%param4%'],
+                    [number_format((float) $transaction->amount), number_format((float) ($patient?->wallet_balance ?? 0)), $expiry->format('Y/m/d'), (string) AppSetting::getByKey('company_name', 'کلینیک')],
+                    $template
+                );
+                app(ShsmsService::class)->send($phone, $message);
+                $meta = $transaction->metadata ?: [];
+                $meta['sms_sent_at'] = now()->toISOString();
+                unset($meta['sms_error']);
+                $transaction->update(['metadata' => $meta]);
+            } catch (\Throwable $exception) {
+                Log::warning('Referral wallet SMS failed without affecting reward.', ['transaction_id' => $transactionId, 'message' => $exception->getMessage()]);
+                $meta = $transaction?->metadata ?: [];
+                $meta['sms_error'] = $exception->getMessage();
+                $transaction?->update(['metadata' => $meta]);
+            }
+        });
     }
 
     /** Explicit deletion; a missing row in a browser payload can never delete data. */
@@ -1325,6 +1395,13 @@ class AppointmentController extends Controller
                 'payment_details' => $details, 'lock_version' => max(1, (int) $appointment->lock_version) + 1,
             ]);
             $this->recordBalanceAudit($request, $appointment, $before);
+            $appointment = $appointment->fresh();
+            $reward = $this->calculateReferralReward($appointment->toArray());
+            $appointment->update([
+                'referral_score' => $reward['amount'], 'referral_commission_type' => $reward['type'],
+                'referral_commission_value' => $reward['value'],
+            ]);
+            $this->syncAppointmentWalletEffects($request, $appointment, $reward, null, false);
             return ['appointment' => $appointment->fresh(), 'wallet_balance' => (int) ($patient?->fresh()->wallet_balance ?? 0), 'outstanding_debt' => (int) ($patient?->fresh()->outstanding_debt ?? 0)];
         });
         $this->broadcastAppointmentChange($result['appointment']);
@@ -1414,6 +1491,7 @@ class AppointmentController extends Controller
                 'lock_version' => max(1, (int) $appointment->lock_version) + 1,
             ]);
             $this->recordBalanceAudit($request, $appointment, $before);
+            $this->syncReferralAfterSettlement($request, $appointment);
 
             return [
                 'appointment' => $appointment->fresh(), 'deleted_amount' => $deletedAmount,
@@ -1451,7 +1529,7 @@ class AppointmentController extends Controller
                 'lock_version' => max(1, (int) $locked->lock_version) + 1,
             ]);
             $settlement = AppointmentFinancialTransaction::create([
-                'appointment_id' => $appointment->id, 'patient_id' => $patient->id, 'created_by' => $request->user()?->id,
+                'appointment_id' => $locked->id, 'patient_id' => $patient->id, 'created_by' => $request->user()?->id,
                 'type' => 'debt_settlement', 'amount' => $amount, 'payment_method' => $data['payment_method'],
                 'payment_account' => $data['payment_account'] ?? null, 'reason' => 'تسویه بدهی نوبت #'.$locked->id,
                 'metadata' => ['debt_appointment_id' => $locked->id, 'previous_debt' => $amount, 'ip' => $request->ip()], 'occurred_at' => now(),
@@ -1465,6 +1543,7 @@ class AppointmentController extends Controller
                     'settlement_transaction_id' => $settlement->id,
                 ]);
             $this->recordBalanceAudit($request, $locked, $before);
+            $this->syncReferralAfterSettlement($request, $locked);
             return ['appointment' => $locked->fresh(), 'settlement' => $settlement->fresh()];
         });
         $this->broadcastAppointmentChange($result['appointment']);
@@ -1519,6 +1598,7 @@ class AppointmentController extends Controller
             }
             $locked->update(['debt' => $debt - $amount, 'lock_version' => max(1, (int) $locked->lock_version) + 1]);
             $this->recordBalanceAudit($request, $locked, $before);
+            $this->syncReferralAfterSettlement($request, $locked);
             return ['appointment' => $locked->fresh(), 'wallet_balance' => (int) $patient->fresh()->wallet_balance, 'outstanding_debt' => (int) $patient->fresh()->outstanding_debt];
         });
         $this->broadcastAppointmentChange($result['appointment']);
@@ -1593,6 +1673,7 @@ class AppointmentController extends Controller
                         ->update(['settled_at' => $settlement->occurred_at, 'settled_by' => $request->user()?->id, 'settlement_transaction_id' => $settlement->id]);
                 }
                 $this->recordBalanceAudit($request, $appointment, $before);
+                $this->syncReferralAfterSettlement($request, $appointment);
                 $updated[] = [
                     'id' => $appointment->id,
                     'debt' => $debt - $paid,
@@ -1612,6 +1693,18 @@ class AppointmentController extends Controller
             'appointments' => $result,
             'outstanding_debt' => $patient->fresh()->outstanding_debt,
         ]);
+    }
+
+    private function syncReferralAfterSettlement(Request $request, Appointment $appointment): void
+    {
+        $appointment = $appointment->fresh();
+        $reward = $this->calculateReferralReward($appointment->toArray());
+        $appointment->update([
+            'referral_score' => $reward['amount'],
+            'referral_commission_type' => $reward['type'],
+            'referral_commission_value' => $reward['value'],
+        ]);
+        $this->syncAppointmentWalletEffects($request, $appointment, $reward, null, false);
     }
 
     private function recordBalanceAudit(Request $request, Appointment $appointment, ?Appointment $previousAppointment): void
@@ -2160,8 +2253,16 @@ class AppointmentController extends Controller
 
     private function calculateReferralReward(array $appointment): array
     {
+        $settingsRaw = AppSetting::getByKey('referral_wallet_settings', '{}');
+        $settings = is_string($settingsRaw) ? json_decode($settingsRaw, true) : $settingsRaw;
+        $settings = is_array($settings) ? $settings : [];
         $phone = trim((string) ($appointment['referrer_phone'] ?? ''));
         $referrer = $phone !== '' ? Patient::query()->where('phone', $phone)->first() : null;
+        $referred = $this->appointmentPatient((new Appointment())->forceFill($appointment));
+        if ($referrer && $referred && (int) $referrer->id === (int) $referred->id) $referrer = null;
+        $isCompleted = trim((string) ($appointment['done'] ?? '')) === 'انجام شد';
+        $isSettled = false;
+        $enabled = (bool) ($settings['enabled'] ?? false);
         $services = collect($appointment['services'] ?? []);
         $names = $services->flatMap(fn ($service) => collect([$service['name'] ?? null])
             ->merge(collect($service['addons'] ?? [])->pluck('name')))->filter()->unique()->values();
@@ -2171,27 +2272,58 @@ class AppointmentController extends Controller
         $types = [];
         $values = [];
 
-        $calculate = function (string $name, float $quantity = 1) use ($inventory, &$breakdown, &$total, &$types, &$values) {
+        $received = 0;
+        $settledTotal = 0;
+        if (! empty($appointment['id'])) {
+            $financialQuery = AppointmentFinancialTransaction::query()->where('appointment_id', $appointment['id'])
+                ->whereIn('type', ['payment', 'debt_settlement'])->whereNull('voided_at')
+                ->whereNull('settled_at');
+            $settledTotal = (int) (clone $financialQuery)->sum('amount');
+            $received = (int) (clone $financialQuery)->whereNotIn('payment_method', ['بیعانه / کیف پول', 'کیف پول'])->sum('amount');
+        }
+        if ($received <= 0) {
+            $details = is_array($appointment['payment_details'] ?? null) ? $appointment['payment_details'] : [];
+            $received = (int) (($details['cash'] ?? 0) + ($details['card'] ?? 0) + data_get($details, 'check.amount', 0));
+            $settledTotal = $received + max(0, $this->signedMoneyToInteger($appointment['wallet_applied'] ?? 0));
+        }
+        $payable = max(0, $this->signedMoneyToInteger($appointment['amount'] ?? 0));
+        $isSettled = $this->signedMoneyToInteger($appointment['debt'] ?? 0) === 0 && $payable > 0 && $settledTotal >= $payable;
+        $lineNet = function (array $line) use ($inventory): float {
+            $gross = (float) ($inventory->get($line['name'] ?? '')?->amount ?? 0) * max((float) ($line['cc'] ?? 1), 1);
+            $adjustment = max(0, $this->signedMoneyToInteger($line['discount'] ?? 0));
+            return max(0, ($line['adjustment_mode'] ?? '') === 'surcharge' ? $gross + $adjustment : $gross - min($gross, $adjustment));
+        };
+        $grossTotal = max(1, $services->sum(function ($service) use ($lineNet) {
+            $lines = collect([$service])->merge($service['addons'] ?? []);
+            return $lines->sum(fn ($line) => $lineNet((array) $line));
+        }));
+        $overrides = collect($settings['service_overrides'] ?? [])->keyBy(fn ($rule) => (string) ($rule['service_id'] ?? ''));
+        $calculate = function (array $serviceLine, string $serviceKey = '') use ($inventory, $settings, $overrides, $received, $grossTotal, $lineNet, &$breakdown, &$total, &$types, &$values) {
+            $name = (string) ($serviceLine['name'] ?? '');
+            $quantity = max((float) ($serviceLine['cc'] ?? 1), 1);
             $item = $inventory->get($name);
             if (! $item) return;
-            $type = $item->default_commission_type === 'fixed' ? 'fixed' : 'percent';
-            $value = (float) $item->default_commission_value;
-            $base = (float) ($item->amount ?? 0) * max($quantity, 1);
-            $reward = $type === 'fixed' ? $value * max($quantity, 1) : ($base * $value / 100);
+            $rule = $overrides->get((string) $item->id, []);
+            $type = ($rule['type'] ?? $settings['default_type'] ?? 'percent') === 'fixed' ? 'fixed' : 'percent';
+            $value = (float) ($rule['value'] ?? $settings['default_value'] ?? 0);
+            $base = $lineNet($serviceLine);
+            $lineReceived = (int) round($received * $base / $grossTotal);
+            $reward = $type === 'fixed' ? $value * max($quantity, 1) : ($lineReceived * $value / 100);
             $reward = (int) round(max(0, $reward));
             $total += $reward;
             $types[] = $type;
             $values[] = $value;
             $breakdown[] = [
-                'service' => $name, 'quantity' => max($quantity, 1), 'service_amount' => $base,
+                'service_key' => $serviceKey ?: sha1($name.'|'.count($breakdown)), 'service' => $name, 'quantity' => max($quantity, 1), 'service_amount' => $base,
+                'received_amount' => $lineReceived,
                 'commission_type' => $type, 'commission_value' => $value, 'reward_amount' => $reward,
             ];
         };
 
-        foreach ($services as $service) {
-            $calculate((string) ($service['name'] ?? ''), (float) ($service['cc'] ?? 1));
-            foreach (($service['addons'] ?? []) as $addon) {
-                $calculate((string) ($addon['name'] ?? ''), (float) ($addon['cc'] ?? 1));
+        foreach ($services as $serviceIndex => $service) {
+            $calculate((array) $service, 'service-'.$serviceIndex);
+            foreach (($service['addons'] ?? []) as $addonIndex => $addon) {
+                $calculate((array) $addon, 'service-'.$serviceIndex.'-addon-'.$addonIndex);
             }
         }
 
@@ -2199,7 +2331,10 @@ class AppointmentController extends Controller
         $uniqueValues = array_values(array_unique($values));
         return [
             'patient' => $referrer,
-            'amount' => $referrer ? $total : 0,
+            'referred_patient' => $referred,
+            'amount' => ($enabled && $isCompleted && $isSettled && $received > 0 && $referrer) ? $total : 0,
+            'received_amount' => $received,
+            'expiry_days' => max(1, (int) ($settings['expiry_days'] ?? 30)),
             'type' => count($uniqueTypes) === 1 ? $uniqueTypes[0] : (count($uniqueTypes) ? 'mixed' : null),
             'value' => count($uniqueValues) === 1 ? $uniqueValues[0] : 0,
             'breakdown' => $breakdown,
@@ -2217,20 +2352,22 @@ class AppointmentController extends Controller
         })->first();
     }
 
-    private function syncWalletTransaction(Request $request, Patient $patient, Appointment $appointment, string $sourceKey, string $sourceType, int $amount, string $description, array $metadata, string $type = 'deposit'): void
+    private function syncWalletTransaction(Request $request, Patient $patient, Appointment $appointment, string $sourceKey, string $sourceType, int $amount, string $description, array $metadata, string $type = 'deposit', $expiresAt = null): WalletTransaction
     {
         $existing = WalletTransaction::query()->where('source_key', $sourceKey)->whereNull('reversed_at')->lockForUpdate()->first();
         if ($existing && (int) $existing->patient_id === (int) $patient->id && (int) $existing->amount === $amount
             && data_get($existing->metadata, 'signature') === ($metadata['signature'] ?? null)) {
             $existing->update(['appointment_id' => $appointment->id]);
-            return;
+            if ($expiresAt) $existing->update(['expires_at' => $expiresAt]);
+            return $existing;
         }
         if ($existing) $this->reverseWalletTransaction($request, $existing, 'اصلاح نوبت یا خدمات');
 
-        WalletTransaction::create([
+        return WalletTransaction::create([
             'patient_id' => $patient->id, 'type' => $type, 'amount' => $amount,
             'description' => $description, 'source_type' => $sourceType, 'source_key' => $sourceKey,
             'appointment_id' => $appointment->id, 'created_by' => $request->user()?->id, 'metadata' => $metadata,
+            'expires_at' => $expiresAt,
         ]);
     }
 

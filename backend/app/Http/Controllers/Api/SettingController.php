@@ -85,6 +85,20 @@ class SettingController extends Controller
         ];
     }
 
+    private function walletSettings(): array
+    {
+        $raw = AppSetting::getByKey('referral_wallet_settings', '{}');
+        $stored = is_string($raw) ? json_decode($raw, true) : $raw;
+        return array_replace([
+            'enabled' => false,
+            'default_type' => 'percent',
+            'default_value' => 0,
+            'expiry_days' => 30,
+            'sms_template' => 'مبلغ %param1% تومان واریز شد. موجودی فعلی %param2% تومان. تاریخ استفاده تا %param3%. با تشکر کلینیک %param4%',
+            'service_overrides' => [],
+        ], is_array($stored) ? $stored : []);
+    }
+
     private function projectOwnerId(): ?int
     {
         $ownerId = (int) AppSetting::getByKey('project_owner_user_id', 0);
@@ -179,6 +193,8 @@ class SettingController extends Controller
             'satisfaction_form' => SatisfactionController::form(),
             'customer_levels' => CustomerLevelService::settings(),
             'clinic_schedule' => $this->clinicScheduleSettings(),
+            'wallet_settings' => $this->walletSettings(),
+            'wallet_services' => \App\Models\Inventory::query()->orderBy('name')->get(['id', 'name']),
             'appointment_columns' => [
                 'payment_method' => AppSetting::getByKey('appointment_column_payment_method', '1') !== '0',
                 'payment_account' => AppSetting::getByKey('appointment_column_payment_account', '1') !== '0',
@@ -367,6 +383,36 @@ class SettingController extends Controller
                 ['key' => 'clinic_schedule_settings'],
                 ['value' => json_encode($payload, JSON_UNESCAPED_UNICODE)]
             );
+        }
+
+        if ($request->has('wallet_settings')) {
+            $wallet = $request->validate([
+                'wallet_settings.enabled' => ['required', 'boolean'],
+                'wallet_settings.default_type' => ['required', 'in:percent,fixed'],
+                'wallet_settings.default_value' => ['required', 'numeric', 'min:0'],
+                'wallet_settings.expiry_days' => ['required', 'integer', 'min:1', 'max:3650'],
+                'wallet_settings.sms_template' => ['nullable', 'string', 'max:2000'],
+                'wallet_settings.service_overrides' => ['array', 'max:500'],
+                'wallet_settings.service_overrides.*.service_id' => ['required', 'integer', 'exists:inventories,id'],
+                'wallet_settings.service_overrides.*.service_name' => ['required', 'string', 'max:255'],
+                'wallet_settings.service_overrides.*.type' => ['required', 'in:percent,fixed'],
+                'wallet_settings.service_overrides.*.value' => ['required', 'numeric', 'min:0'],
+            ])['wallet_settings'];
+            if ($wallet['default_type'] === 'percent' && (float) $wallet['default_value'] > 100) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['wallet_settings.default_value' => ['درصد پیش‌فرض نمی‌تواند بیشتر از ۱۰۰ باشد.']]);
+            }
+            if ($wallet['enabled'] && trim((string) ($wallet['sms_template'] ?? '')) === '') {
+                throw \Illuminate\Validation\ValidationException::withMessages(['wallet_settings.sms_template' => ['متن پیامک واریز پاداش الزامی است.']]);
+            }
+            foreach ($wallet['service_overrides'] ?? [] as $index => $rule) {
+                if ($rule['type'] === 'percent' && (float) $rule['value'] > 100) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(["wallet_settings.service_overrides.{$index}.value" => ['درصد خدمت نمی‌تواند بیشتر از ۱۰۰ باشد.']]);
+                }
+            }
+            $wallet['service_overrides'] = collect($wallet['service_overrides'] ?? [])->unique('service_id')->values()->all();
+            AppSetting::updateOrCreate(['key' => 'referral_wallet_settings'], [
+                'value' => json_encode($wallet, JSON_UNESCAPED_UNICODE),
+            ]);
         }
 
         if ($request->has('report_staff_target')) {

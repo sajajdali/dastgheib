@@ -7,6 +7,9 @@ use App\Models\InventorySection;
 use App\Models\Patient;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Models\AppSetting;
+use App\Models\Appointment;
+use App\Models\AppointmentFinancialTransaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
@@ -25,14 +28,30 @@ class AppointmentReferralWalletTest extends TestCase
             'section_id'=>$section->id, 'name'=>'خدمت تست', 'amount'=>1000000, 'active'=>true,
             'default_commission_type'=>'percent', 'default_commission_value'=>10,
         ]);
+        AppSetting::updateOrCreate(['key' => 'referral_wallet_settings'], ['value' => json_encode([
+            'enabled' => true, 'default_type' => 'percent', 'default_value' => 10,
+            'expiry_days' => 30, 'sms_template' => '', 'service_overrides' => [],
+        ], JSON_UNESCAPED_UNICODE)]);
 
         $payload = ['month'=>'1405-04','appointments'=>[array_merge($this->appointmentPayload(), [
             'referrer_phone'=>$referrer->phone,
+            'done' => 'انجام شد', 'debt' => 0,
             'services'=>[['name'=>'خدمت تست','cc'=>2,'addons'=>[]]],
         ])]];
 
         $this->postJson('/api/appointments', $payload)->assertOk();
+        $this->assertSame(0, (int) $referrer->fresh()->wallet_balance, 'انجام خدمت بدون دریافت وجه نباید پاداش بسازد.');
+        $appointment = Appointment::firstOrFail();
+        AppointmentFinancialTransaction::create([
+            'appointment_id' => $appointment->id, 'patient_id' => Patient::where('phone', '09120000002')->value('id'),
+            'type' => 'payment', 'amount' => 2000000, 'payment_method' => 'کارتخوان', 'occurred_at' => now(),
+        ]);
+        $payload['appointments'][0]['id'] = $appointment->id;
+        $payload['appointments'][0]['lock_version'] = $appointment->lock_version;
+        $payload['appointments'][0]['description'] = 'تسویه شد';
+        $this->postJson('/api/appointments', $payload)->assertOk();
         $this->assertSame(200000, (int) $referrer->fresh()->wallet_balance);
+        $payload['appointments'][0]['lock_version'] = Appointment::firstOrFail()->lock_version;
         $this->postJson('/api/appointments', $payload)->assertOk();
         $this->assertSame(200000, (int) $referrer->fresh()->wallet_balance);
         $this->assertSame(1, WalletTransaction::where('source_type','referral_reward')->count());

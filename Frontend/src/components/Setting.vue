@@ -167,6 +167,40 @@
         </div>
       </div>
 
+      <div v-if="featureEnabled('patients')" class="accordion wallet-settings-card">
+        <div class="accordion-header" @click="toggleAccordion('customerWallet')">کیف پول مشتری و پاداش معرف</div>
+        <div v-if="openAccordion === 'customerWallet'" class="accordion-body wallet-settings-body">
+          <label class="wallet-enable-row">
+            <input v-model="walletSettings.enabled" type="checkbox">
+            <span><strong>فعال‌سازی پاداش معرفی</strong><small>پاداش پس از انجام خدمت و تسویه کامل فرد معرفی‌شده به کیف پول معرف واریز می‌شود.</small></span>
+          </label>
+          <div class="wallet-default-rule">
+            <label>نوع پاداش پیش‌فرض
+              <select v-model="walletSettings.default_type" class="green-input"><option value="percent">درصد از مبلغ دریافتی</option><option value="fixed">مبلغ ثابت</option></select>
+            </label>
+            <label>{{ walletSettings.default_type === 'percent' ? 'درصد پاداش' : 'مبلغ ثابت (تومان)' }}
+              <input v-model.number="walletSettings.default_value" class="green-input" type="number" min="0" :max="walletSettings.default_type === 'percent' ? 100 : undefined">
+            </label>
+            <label>مهلت استفاده
+              <span class="wallet-days-input"><input v-model.number="walletSettings.expiry_days" class="green-input" type="number" min="1" max="3650"><em>روز</em></span>
+            </label>
+          </div>
+          <section class="wallet-service-rules">
+            <header><div><strong>قانون اختصاصی خدمات</strong><small>اگر خدمتی اینجا نباشد، قانون پیش‌فرض بالا اعمال می‌شود.</small></div><button type="button" @click="addWalletServiceRule">+ افزودن خدمت</button></header>
+            <div v-for="(rule,index) in walletSettings.service_overrides" :key="`${rule.service_id}-${index}`" class="wallet-service-rule">
+              <select v-model.number="rule.service_id" class="green-input" @change="syncWalletServiceName(rule)"><option :value="0" disabled>انتخاب خدمت</option><option v-for="service in walletServices" :key="service.id" :value="service.id">{{ service.name }}</option></select>
+              <select v-model="rule.type" class="green-input"><option value="percent">درصدی</option><option value="fixed">مبلغ ثابت</option></select>
+              <input v-model.number="rule.value" class="green-input" type="number" min="0" placeholder="مقدار">
+              <button type="button" class="wallet-rule-remove" title="حذف قانون" @click="walletSettings.service_overrides.splice(index,1)">×</button>
+            </div>
+          </section>
+          <label class="wallet-sms-template">متن پیامک واریز پاداش
+            <textarea v-model="walletSettings.sms_template" class="green-input" rows="5"></textarea>
+            <small>پارامترها: %param1% مبلغ واریزی، %param2% موجودی فعلی، %param3% تاریخ انقضا، %param4% نام کلینیک</small>
+          </label>
+        </div>
+      </div>
+
       <div class="accordion">
         <div class="accordion-header" @click="toggleAccordion('reportTarget')">تنظیمات گزارش</div>
         <div v-if="openAccordion === 'reportTarget'" class="accordion-body">
@@ -1003,6 +1037,10 @@ const customerLevels = ref({
   gold_visit_period_months: 3
 });
 const appointmentColumns = ref({ payment_method: true, payment_account: true, payment_link: false, best_staff: false });
+const walletServices = ref([]);
+const walletSettings = ref({ enabled: false, default_type: "percent", default_value: 0, expiry_days: 30, sms_template: "مبلغ %param1% تومان واریز شد.\nموجودی فعلی %param2% تومان\nتاریخ استفاده تا %param3%\nبا تشکر کلینیک %param4%", service_overrides: [] });
+const addWalletServiceRule = () => walletSettings.value.service_overrides.push({ service_id: 0, service_name: "", type: "percent", value: 0 });
+const syncWalletServiceName = rule => { rule.service_name = walletServices.value.find(item => Number(item.id) === Number(rule.service_id))?.name || ""; };
 const clinicWeekDays = [
   { key: "saturday", label: "شنبه" },
   { key: "sunday", label: "یکشنبه" },
@@ -1482,6 +1520,8 @@ const fetchSettings = async () => {
     if (data.report_monthly_capacity !== undefined) reportMonthlyCapacity.value = Number(data.report_monthly_capacity) || 0;
     customerLevels.value = customerLevelPayload();
     if (data.appointment_columns) appointmentColumns.value = { ...appointmentColumns.value, ...data.appointment_columns };
+    if (data.wallet_settings) walletSettings.value = { ...walletSettings.value, ...data.wallet_settings, service_overrides: Array.isArray(data.wallet_settings.service_overrides) ? data.wallet_settings.service_overrides : [] };
+    walletServices.value = Array.isArray(data.wallet_services) ? data.wallet_services : [];
     if (data.clinic_schedule) {
       clinicSchedule.value = {
         ...clinicSchedule.value,
@@ -1551,6 +1591,7 @@ const saveInternalSettings = async (showMessage = true) => {
       patient_required_fields: patientRequiredFields.value,
       customer_levels: customerLevelPayload(),
       appointment_columns: appointmentColumns.value,
+      wallet_settings: { ...walletSettings.value, service_overrides: walletSettings.value.service_overrides.filter(rule => rule.service_id && rule.service_name) },
       clinic_schedule: clinicSchedule.value,
       report_staff_target: Math.max(0, Number(reportStaffTarget.value) || 0),
       report_monthly_capacity: Math.max(0, Number(reportMonthlyCapacity.value) || 0),
@@ -2380,4 +2421,5 @@ textarea{ min-height:120px; resize:none; }
   height: var(--ui-action-height);
   border-radius: var(--ui-action-radius);
 }
+.wallet-settings-body{display:grid;gap:16px}.wallet-enable-row{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #bbf7d0;border-radius:14px;background:#f0fdf4}.wallet-enable-row span{display:grid;gap:4px}.wallet-enable-row small,.wallet-service-rules small,.wallet-sms-template small{color:#64748b;font-size:10px}.wallet-default-rule{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.wallet-default-rule label,.wallet-sms-template{display:grid;gap:7px;font-size:11px;font-weight:800}.wallet-days-input{display:flex;align-items:center;gap:7px}.wallet-days-input input{flex:1}.wallet-days-input em{font-style:normal}.wallet-service-rules{display:grid;gap:10px;padding:14px;border:1px solid #e2e8f0;border-radius:14px}.wallet-service-rules header{display:flex;align-items:center;justify-content:space-between;gap:12px}.wallet-service-rules header div{display:grid;gap:3px}.wallet-service-rules header button{border:0;border-radius:9px;padding:8px 12px;background:#e0f2fe;color:#0369a1;font-family:inherit;font-weight:900;cursor:pointer}.wallet-service-rule{display:grid;grid-template-columns:minmax(180px,2fr) 1fr 1fr 34px;gap:8px}.wallet-rule-remove{border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-size:20px;cursor:pointer}.wallet-sms-template textarea{resize:vertical;line-height:2}@media(max-width:760px){.wallet-default-rule,.wallet-service-rule{grid-template-columns:1fr}.wallet-rule-remove{height:34px}}
 </style>

@@ -105,6 +105,7 @@ Route::post('/patients/{id}/wallet/withdraw', [PatientController::class, 'withdr
 Route::get('/patients/{patient}/wallet/transactions', [PatientController::class, 'walletTransactions']);
 Route::post('/appointments/{appointment}/settle-debt-with-wallet', [AppointmentController::class, 'settleDebtWithWallet']);
 Route::delete('/patients/{patient}/wallet/deposits/{transaction}', [PatientController::class, 'deleteBookingDeposit']);
+Route::delete('/patients/{patient}/wallet/referral-rewards/{transaction}', [PatientController::class, 'deleteReferralReward']);
 
 // بیماران
 Route::get('/patients/next-file-number', [PatientController::class, 'nextFileNumber'])->middleware('permission:patients.create');

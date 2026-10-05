@@ -71,7 +71,7 @@ class CompletionSmsController extends Controller
                     ? (float) ($data['payment_amount'] ?? 0)
                     : (float) ($data['referral_amount'] ?? 0);
                 if ($type === 'referral_credit' && $amount <= 0) throw new \RuntimeException('مبلغ واریز معرف مشخص نشده است.');
-                $balance = $referrer ? $referrer->wallet_balance + $amount : 0;
+                $balance = $referrer ? $referrer->wallet_balance : 0;
                 $template = $this->activeTemplate($type);
                 $link = $type === 'payment_link'
                     ? (string) ($data['payment_link'] ?? '')
@@ -92,13 +92,6 @@ class CompletionSmsController extends Controller
                     'patient_name' => $data['patient_name'] ?? '',
                     'reference' => $data['reference'] ?? null,
                 ]);
-                if ($referrer) {
-                    DB::transaction(function() use($referrer,$amount,$data) {
-                        $description = 'referral-reward:'.$data['reference'];
-                        if (!$referrer->walletTransactions()->where('description',$description)->exists()) $referrer->walletTransactions()->create(['type'=>'deposit','amount'=>$amount,'description'=>$description]);
-                    });
-                    $balance = $referrer->fresh()->wallet_balance;
-                }
                 $results[$type] = ['success'=>true,'balance'=>$balance,'sent_at'=>now()->format('Y-m-d H:i:s')];
             } catch (\Throwable $e) {
                 ActivityLogger::manual('sms_failed', 'پیامک', null, [], [
