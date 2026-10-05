@@ -818,7 +818,8 @@
       </div>
     </div>
 
-    <div v-if="showWalletModal" class="modal-overlay" @click.self="showWalletModal = false">
+    <Teleport to="body">
+    <div v-if="showWalletModal" class="modal-overlay wallet-modal-overlay" @click.self="showWalletModal = false">
       <div class="wallet-modal" @click.stop>
         <div class="wallet-modal-header">
           <h3>کیف پول بیمار</h3>
@@ -863,6 +864,7 @@
         </section>
       </div>
     </div>
+    </Teleport>
 
     <Teleport to="body">
       <div v-if="profileCrop.open" class="profile-crop-overlay" @click.self="cancelProfileCrop">
@@ -8824,10 +8826,14 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 .wallet-modal {
   background: #fff;
   padding: 24px;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 450px;
-  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+  border-radius: 18px;
+  width: min(760px, calc(100vw - 32px));
+  box-shadow: 0 28px 80px rgba(15, 23, 42, .3);
+}
+.wallet-modal-overlay {
+  z-index: 2147483646;
+  padding: 16px;
+  backdrop-filter: blur(5px);
 }
 .wallet-modal-header {
   display: flex;
@@ -8904,5 +8910,5 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   font-weight: bold;
 }
 .withdraw-btn:hover { background-color: #b91c1c; }
-.profile-wallet-action{border-color:#bbf7d0!important;background:#f0fdf4!important;color:#15803d!important}.profile-wallet-action svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.wallet-modal{max-height:min(88vh,820px);overflow:auto}.wallet-expiry-banner{margin-top:10px;padding:10px 12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:11px}.wallet-report-in-modal{margin:0 18px 18px}.wallet-reward-delete{justify-self:start;border:1px solid #fecaca;border-radius:7px;padding:5px 8px;background:#fff1f2;color:#be123c;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}
+.profile-wallet-action{border-color:#bbf7d0!important;background:#f0fdf4!important;color:#15803d!important}.profile-wallet-action svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.wallet-modal{max-height:min(92vh,900px);overflow:auto}.wallet-expiry-banner{margin-top:10px;padding:10px 12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:11px}.wallet-report-in-modal{margin:0 18px 18px}.wallet-reward-delete{justify-self:start;border:1px solid #fecaca;border-radius:7px;padding:5px 8px;background:#fff1f2;color:#be123c;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}
 </style>
