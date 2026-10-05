@@ -624,7 +624,8 @@ class PatientController extends Controller
                 $original = WalletTransaction::query()->lockForUpdate()->findOrFail($transaction->id);
                 $lockedPatient = Patient::query()->lockForUpdate()->findOrFail($patient->id);
                 if ($original->reversed_at) throw new \RuntimeException('این پاداش قبلاً برگشت داده شده است.');
-                if ((float) $lockedPatient->wallet_balance < (float) $original->amount) throw new \RuntimeException('این پاداش مصرف شده و امکان حذف کامل آن وجود ندارد.');
+                if ($original->expires_at && $original->expires_at->isPast()) throw new \RuntimeException('این پاداش منقضی شده و دیگر اثری بر موجودی کیف پول ندارد.');
+                if ((float) $lockedPatient->walletCreditRemaining($original->id) < (float) $original->amount) throw new \RuntimeException('این پاداش مصرف شده و امکان حذف کامل آن وجود ندارد.');
                 $reverse = $lockedPatient->walletTransactions()->create([
                     'type' => 'withdraw', 'amount' => $original->amount,
                     'description' => 'حذف پاداش معرف: '.$original->description,

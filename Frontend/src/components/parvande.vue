@@ -857,7 +857,7 @@
               <div><b>{{ transaction.type === 'deposit' ? 'واریز' : 'برداشت' }}</b><strong>{{ formatMoneyValue(transaction.amount) }}</strong></div>
               <span>{{ transaction.description || '-' }}</span><small>{{ walletSourceLabel(transaction.source_type) }} · {{ formatMediaDate(transaction.created_at) }}</small>
               <details v-if="transaction.reward_lines?.length"><summary>جزئیات پاداش معرف</summary><div v-if="transaction.metadata?.referred_name"><b>مشتری معرفی‌شده:</b> {{ transaction.metadata.referred_name }}</div><div v-for="line in transaction.reward_lines" :key="line.id"><b>{{ line.service_name }}</b> — دریافتی {{ formatMoneyValue(line.received_amount) }} — {{ line.reward_type === 'percent' ? `${line.reward_value}٪` : `${formatMoneyValue(line.reward_value)} ثابت` }} — پاداش {{ formatMoneyValue(line.reward_amount) }}</div></details>
-              <button v-if="transaction.source_type === 'referral_reward' && !transaction.reversed_at" type="button" class="wallet-reward-delete" @click="deleteReferralReward(transaction)">حذف پاداش</button>
+              <button v-if="canDeleteReferralReward(transaction)" type="button" class="wallet-reward-delete" @click="deleteReferralReward(transaction)">حذف پاداش</button>
             </article>
           </div>
         </section>
@@ -1491,7 +1491,7 @@
               <span>{{ transaction.description || '-' }}</span>
               <small>{{ walletSourceLabel(transaction.source_type) }} · {{ formatMediaDate(transaction.created_at) }}</small>
               <details v-if="transaction.reward_lines?.length"><summary>جزئیات پاداش معرف</summary><div v-for="line in transaction.reward_lines" :key="line.id"><b>{{ line.service_name }}</b> — دریافتی {{ formatMoneyValue(line.received_amount) }} — {{ line.reward_type === 'percent' ? `${line.reward_value}٪` : `${formatMoneyValue(line.reward_value)} ثابت` }} — پاداش {{ formatMoneyValue(line.reward_amount) }}</div></details>
-              <button v-if="transaction.source_type === 'referral_reward' && !transaction.reversed_at" type="button" class="wallet-reward-delete" @click="deleteReferralReward(transaction)">حذف پاداش</button>
+              <button v-if="canDeleteReferralReward(transaction)" type="button" class="wallet-reward-delete" @click="deleteReferralReward(transaction)">حذف پاداش</button>
             </article>
           </div>
         </section>
@@ -2438,6 +2438,11 @@ export default {
         await this.loadWalletTransactions()
         await Swal.fire({ icon: 'success', title: 'پاداش برگشت داده شد', timer: 1400, showConfirmButton: false })
       } catch (error) { await Swal.fire({ icon: 'error', title: 'حذف انجام نشد', text: error.message }) }
+    },
+
+    canDeleteReferralReward(transaction) {
+      if (transaction.source_type !== 'referral_reward' || transaction.reversed_at) return false
+      return !transaction.expires_at || new Date(transaction.expires_at).getTime() > Date.now()
     },
 
     customerLevelLabel(value) {
