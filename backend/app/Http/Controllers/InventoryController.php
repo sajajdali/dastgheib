@@ -15,6 +15,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class InventoryController extends Controller
 {
@@ -83,6 +84,8 @@ class InventoryController extends Controller
         ]);
         $items = $request->input('items', []);
         $sections = $request->input('sections', []);
+
+        $this->ensureItemsBelongToSubsections($items, $sections);
 
         DB::transaction(function () use ($items, $sections) {
             // ذخیرهٔ فعلی انبار شناسه‌ها را بازسازی می‌کند؛ تنظیمات وقت‌دهی
@@ -241,6 +244,12 @@ class InventoryController extends Controller
 
     public function duplicate(Request $request, Inventory $inventory)
     {
+        if (! $inventory->section?->parent_id) {
+            throw ValidationException::withMessages([
+                'section_id' => 'خدمت را نمی‌توان در بخش اصلی تعریف کرد؛ ابتدا آن را به یک زیر‌بخش منتقل کنید.',
+            ]);
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('inventories', 'name')],
         ], [
@@ -334,6 +343,36 @@ class InventoryController extends Controller
             $snapshots['name:'.trim((string)$item->name)] = $payload;
         });
         return $snapshots;
+    }
+
+    private function ensureItemsBelongToSubsections(array $items, array $sections): void
+    {
+        $sectionParents = [];
+        foreach ($sections as $section) {
+            $parentKey = (string) ($section['parent_id'] ?? $section['parentId'] ?? '');
+            foreach (['id', 'client_id'] as $key) {
+                if (! empty($section[$key])) {
+                    $sectionParents[(string) $section[$key]] = $parentKey;
+                }
+            }
+        }
+
+        foreach ($items as $index => $item) {
+            if (empty($item['name']) && empty($item['amount']) && empty($item['price']) && empty($item['stock'])) {
+                continue;
+            }
+
+            $sectionKey = (string) ($item['section_id'] ?? $item['sectionId'] ?? '');
+            $hasParent = array_key_exists($sectionKey, $sectionParents)
+                ? $sectionParents[$sectionKey] !== ''
+                : (bool) InventorySection::query()->whereKey($sectionKey)->value('parent_id');
+
+            if (! $hasParent) {
+                throw ValidationException::withMessages([
+                    "items.$index.section_id" => 'خدمت را نمی‌توان در بخش اصلی تعریف کرد؛ باید یک زیر‌بخش انتخاب کنید.',
+                ]);
+            }
+        }
     }
 
     private function restoreBookingSnapshot(int $inventoryId, array $snapshot): void

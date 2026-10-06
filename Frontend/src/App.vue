@@ -16,6 +16,17 @@
 
   <div v-else id="app" :class="{ dark: isDark, 'booking-page-active': currentPage === 'Vaghtdahi' }">
 
+    <div
+      class="connection-indicator"
+      :class="`is-${connectionStatus}`"
+      role="status"
+      aria-live="polite"
+      :title="connectionStatusText"
+    >
+      <i aria-hidden="true"></i>
+      <span v-if="connectionStatus !== 'online'">{{ connectionStatusText }}</span>
+    </div>
+
     <button
       class="utility-menu-toggle"
       type="button"
@@ -478,6 +489,9 @@ export default {
       ,isCentralApp: centralDomains.includes(window.location.hostname.toLowerCase())
       ,backGuardActive: false
       ,allowBrowserBack: false
+      ,connectionStatus: navigator.onLine ? "checking" : "offline"
+      ,connectionTimer: null
+      ,connectionAbortController: null
       ,surveyToken: window.location.pathname.match(/^\/r\/([A-Za-z0-9]+)\/?$/)?.[1] || ""
 
     };
@@ -498,6 +512,7 @@ export default {
       return;
     }
     this.installBrowserBackGuard();
+    this.startConnectionMonitor();
     this.checkAuth();
 
     const saved = localStorage.getItem("darkMode");
@@ -519,6 +534,10 @@ export default {
     window.removeEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
     window.removeEventListener("popstate", this.handleBrowserBack);
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
+    window.removeEventListener("online", this.handleBrowserOnline);
+    window.removeEventListener("offline", this.handleBrowserOffline);
+    clearInterval(this.connectionTimer);
+    this.connectionAbortController?.abort();
   },
 
   watch: {
@@ -551,6 +570,15 @@ export default {
   },
 
   computed: {
+    connectionStatusText() {
+      return {
+        online: "اتصال برقرار است",
+        offline: "اینترنت قطع است؛ اطلاعات ثبت نمی‌شود",
+        server: "ارتباط با سرور برقرار نیست",
+        checking: "در حال بررسی اتصال"
+      }[this.connectionStatus] || "وضعیت اتصال نامشخص است";
+    },
+
     showLocalClinicShortcut() {
       return ["localhost", "127.0.0.1"].includes(window.location.hostname.toLowerCase());
     },
@@ -676,6 +704,51 @@ export default {
   },
 
   methods: {
+    startConnectionMonitor() {
+      window.addEventListener("online", this.handleBrowserOnline);
+      window.addEventListener("offline", this.handleBrowserOffline);
+      this.checkConnection();
+      this.connectionTimer = window.setInterval(this.checkConnection, 15000);
+    },
+
+    handleBrowserOnline() {
+      this.connectionStatus = "checking";
+      this.checkConnection();
+    },
+
+    handleBrowserOffline() {
+      this.connectionAbortController?.abort();
+      this.connectionStatus = "offline";
+    },
+
+    async checkConnection() {
+      if (!navigator.onLine) {
+        this.connectionStatus = "offline";
+        return;
+      }
+
+      this.connectionAbortController?.abort();
+      const controller = new AbortController();
+      this.connectionAbortController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const response = await fetch(`/api/connectivity?_=${Date.now()}`, {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+          signal: controller.signal
+        });
+        this.connectionStatus = response.ok ? "online" : "server";
+      } catch {
+        this.connectionStatus = navigator.onLine ? "server" : "offline";
+      } finally {
+        window.clearTimeout(timeout);
+        if (this.connectionAbortController === controller) this.connectionAbortController = null;
+      }
+    },
+
     installBrowserBackGuard() {
       if (this.backGuardActive) return;
       this.backGuardActive = true;
@@ -1621,6 +1694,48 @@ body.central-host #app {
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
+.connection-indicator {
+  position: fixed;
+  top: 29px;
+  right: 20px;
+  z-index: 2147483002;
+  min-width: 12px;
+  min-height: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  border-radius: 999px;
+  direction: rtl;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  pointer-events: none;
+}
+.connection-indicator i {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .12), 0 0 10px rgba(22, 163, 74, .55);
+}
+.connection-indicator span {
+  padding: 5px 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 7px 20px rgba(15, 23, 42, .12);
+}
+.connection-indicator.is-offline { color: #dc2626; }
+.connection-indicator.is-offline i { background: #dc2626; box-shadow: 0 0 0 1px rgba(15, 23, 42, .12), 0 0 11px rgba(220, 38, 38, .65); animation: connectionPulse 1.35s ease-in-out infinite; }
+.connection-indicator.is-server { color: #d97706; }
+.connection-indicator.is-server i,
+.connection-indicator.is-checking i { background: #f59e0b; box-shadow: 0 0 0 1px rgba(15, 23, 42, .12), 0 0 10px rgba(245, 158, 11, .55); }
+.dark .connection-indicator span { background: rgba(30, 41, 59, .97); }
+@keyframes connectionPulse { 50% { opacity: .45; transform: scale(.82); } }
+
 /* در نوبت‌دهی دکمه همبرگری نیز همراه منوی اصلی از صفحه خارج شود. */
 .booking-page-active .utility-menu-toggle {
   position: absolute;
@@ -2007,6 +2122,7 @@ body.central-host #app {
 
 @media (max-width: 600px) {
   .utility-menu-toggle { top: 30px; left: 14px; width: 42px; height: 42px; }
+  .connection-indicator { top: 18px; right: 12px; }
   .utility-menu-panel { top: 60px; left: 12px; width: min(230px, calc(100vw - 24px)); }
   .service-page-grid { grid-template-columns: 1fr; }
   .service-purchase-list { grid-template-columns: 1fr; }

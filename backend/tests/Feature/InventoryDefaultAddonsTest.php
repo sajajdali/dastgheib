@@ -78,12 +78,45 @@ class InventoryDefaultAddonsTest extends TestCase
         Schema::create('doctors', function (Blueprint $table) { $table->id(); $table->string('name'); });
         Schema::create('staff', function (Blueprint $table) { $table->id(); $table->string('name'); });
         Schema::create('users', function (Blueprint $table) { $table->id(); $table->string('name'); $table->string('mobile')->nullable(); });
+        Schema::create('inventory_booking_settings', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('inventory_id')->unique();
+            $table->timestamps();
+        });
+        Schema::create('inventory_booking_resources', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('inventory_id');
+            $table->foreignId('doctor_id')->nullable();
+            $table->foreignId('staff_id')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('inventory_booking_availabilities', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('booking_resource_id');
+            $table->timestamps();
+        });
+        Schema::create('inventory_booking_breaks', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('availability_id');
+            $table->timestamps();
+        });
+        Schema::create('inventory_booking_exceptions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('inventory_id');
+            $table->timestamps();
+        });
+        Schema::create('inventory_booking_rules', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('inventory_id');
+            $table->timestamps();
+        });
         Schema::create('app_settings', function (Blueprint $table) { $table->id(); $table->string('key')->unique(); $table->text('value')->nullable(); $table->timestamps(); });
     }
 
     public function test_inventory_save_returns_its_selected_default_addons(): void
     {
-        $section = InventorySection::create(['name' => 'خدمات', 'sort_order' => 1]);
+        $root = InventorySection::create(['name' => 'خدمات', 'sort_order' => 1]);
+        $section = InventorySection::create(['parent_id' => $root->id, 'level' => 2, 'name' => 'پوست', 'sort_order' => 1]);
         $main = Inventory::create(['section_id' => $section->id, 'name' => 'خدمت اصلی', 'amount' => 100000, 'active' => true]);
         $addon = Inventory::create(['section_id' => $section->id, 'name' => 'کالای جانبی', 'amount' => 25000, 'active' => true]);
 
@@ -99,6 +132,25 @@ class InventoryDefaultAddonsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('0.name', 'خدمت اصلی')
             ->assertJsonPath('0.default_addons.0.name', 'کالای جانبی');
+    }
+
+    public function test_inventory_cannot_be_saved_directly_in_a_root_section(): void
+    {
+        $root = InventorySection::create(['name' => 'خدمات', 'sort_order' => 1]);
+
+        $this->postJson('/api/inventory', [
+            'sections' => [],
+            'items' => [[
+                'section_id' => $root->id,
+                'name' => 'خدمت نامعتبر',
+                'amount' => 100000,
+                'active' => true,
+            ]],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.section_id']);
+
+        $this->assertDatabaseMissing('inventories', ['name' => 'خدمت نامعتبر']);
     }
 
     public function test_addon_definitions_are_saved_with_inventory_fields_and_exposed_to_context(): void

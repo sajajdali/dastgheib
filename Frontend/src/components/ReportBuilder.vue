@@ -99,8 +99,8 @@
       <div class="rb-report-range-copy">
         <div class="rb-icon">▦</div>
         <div>
-          <div class="rb-title">بازه گزارش <span class="rb-required">اجباری</span></div>
-          <div class="rb-sub">فقط اطلاعات و نوبت‌های داخل این بازه در گزارش محاسبه می‌شوند.</div>
+          <div class="rb-title">بازه گزارش <span v-if="!isPatientFileReport" class="rb-required">اجباری</span></div>
+          <div class="rb-sub">{{ isPatientFileReport ? 'در قالب لیست پرونده‌ها، همه پرونده‌ها مستقل از تاریخ نوبت نمایش داده می‌شوند.' : 'فقط اطلاعات و نوبت‌های داخل این بازه در گزارش محاسبه می‌شوند.' }}</div>
         </div>
       </div>
       <div class="rb-picker rb-report-range-picker" role="button" tabindex="0" @click="openReportDate" @keydown.enter.prevent="openReportDate">
@@ -470,6 +470,7 @@ const FIELDS = [
 ];
 
 const PRESETS = [
+  { id: 'files', label: 'لیست پرونده‌ها', fields: ['fileNo','name','family','phone','gender','birth','city','custseg'] },
   { id: 'fin', label: 'مالی', fields: ['amount','income','discount','finstatus','debt','deposit','payment','account'] },
   { id: 'pay', label: 'حقوق', fields: ['doctor','consultant','salary','overtime','work','amount'] },
   { id: 'cli', label: 'مراجعین', fields: ['name','family','gender','phone','city','birth','custseg'] },
@@ -565,6 +566,7 @@ export default {
       return years;
     },
     cols() { return FIELDS.filter(f => this.show[f.id]).map(f => ({ key: f.id, label: f.label })); },
+    isPatientFileReport() { return this.activePreset === 'files'; },
     pageCount() { return Math.max(1, Math.ceil(this.totalRows / this.pageSize)); },
     rows() {
       const offset = (this.page - 1) * this.pageSize;
@@ -897,7 +899,7 @@ export default {
     payload() {
       return {
         columns: this.cols.map(c => c.key),
-        filters: { values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, reportDate: this.reportDate, comparators: this.comparators },
+        filters: { scope: this.activePreset === 'files' ? 'patients' : 'appointments', values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, reportDate: this.reportDate, comparators: this.comparators },
         pagination: { page: this.page, pageSize: this.pageSize }
       };
     }

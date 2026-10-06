@@ -869,7 +869,7 @@
             </div>
 
             <div class="table-scroll" @scroll="closeAllFilters">
-              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1340px' }">
+              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1410px' }">
                 <thead>
                   <tr>
                     <!-- نام -->
@@ -951,6 +951,7 @@
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'consultant')" @dblclick.stop="autoFitFollowupColumn('consultant')"></div>
                     </th>
                     <th
+                      v-if="isGeneralFollowupCampaign(activeCampaign)"
                       class="filterable resizable"
                       :class="{ 'filtered-cell': isFiltered('source') }"
                       :style="{ width: colWidths.source + 'px' }"
@@ -1035,6 +1036,7 @@
 
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'interest')" @dblclick.stop="autoFitFollowupColumn('interest')"></div>
                     </th>
+                    <th class="center followup-delete-head">حذف</th>
                   </tr>
                 </thead>
 
@@ -1133,12 +1135,8 @@
                       </div>
                     </td>
 
-                    <td :class="{ 'filtered-cell': isFiltered('source') }">
-                      <input v-if="isGeneralFollowupCampaign(activeCampaign)" v-model="row.source" placeholder="منبع" />
-                      <select v-else v-model="row.source">
-                        <option value=""></option>
-                        <option v-for="channel in channelOptions" :key="channel.id" :value="channel.name">{{ channel.name }}</option>
-                      </select>
+                    <td v-if="isGeneralFollowupCampaign(activeCampaign)" :class="{ 'filtered-cell': isFiltered('source') }">
+                      <input v-model="row.source" placeholder="منبع" />
                     </td>
 
                     <td
@@ -1216,10 +1214,21 @@
                         <option value="3">زیاد</option><option value="ok">وقت داده شد (در نوبت‌دهی)</option>
                       </select>
                     </td>
+                    <td class="followup-delete-cell">
+                      <button
+                        type="button"
+                        class="followup-row-delete-btn"
+                        :title="`حذف پیگیری ${row.fullName || 'این ردیف'}`"
+                        aria-label="حذف این ردیف پیگیری"
+                        @click.stop="deleteFollowupRow(row)"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg>
+                      </button>
+                    </td>
                   </tr>
 
                   <tr v-if="!activeFilteredRows.length">
-                    <td :colspan="canOpenAppointments ? 13 : 12" class="empty-state">
+                    <td :colspan="(canOpenAppointments ? 14 : 13) - (isGeneralFollowupCampaign(activeCampaign) ? 0 : 1)" class="empty-state">
                       موردی یافت نشد.
                     </td>
                   </tr>
@@ -2787,6 +2796,32 @@ export default {
       this.activeCampaign.rows.splice(-count);
     },
 
+    async deleteFollowupRow(row) {
+      const campaign = this.activeCampaign;
+      if (!campaign || !row) return;
+
+      const person = String(row.fullName || '').trim() || 'این مخاطب';
+      const confirmed = window.confirm(`پیگیری «${person}» حذف شود؟\nاین عملیات بعد از تأیید از اطلاعات کمپین نیز پاک می‌شود.`);
+      if (!confirmed) return;
+
+      const index = campaign.rows.findIndex(item => item._localId === row._localId);
+      if (index < 0) return;
+
+      const [removedRow] = campaign.rows.splice(index, 1);
+      this.saveCampaignsToLocal();
+
+      if (!campaign._serverPersisted) return;
+
+      try {
+        await axios.put(`/api/campaigns/${campaign.id}`, this.campaignApiPayload(campaign));
+        this.markCampaignPersisted(campaign);
+      } catch (error) {
+        campaign.rows.splice(index, 0, removedRow);
+        this.saveCampaignsToLocal();
+        window.alert(error.response?.data?.message || 'حذف پیگیری روی سرور انجام نشد؛ ردیف به جدول برگردانده شد.');
+      }
+    },
+
     getUniqueValues(key) {
       if (!this.activeCampaign) return [];
       const vals = this.activeCampaign.rows
@@ -4010,6 +4045,24 @@ export default {
   -moz-appearance: none;
   appearance: none;
 }
+
+.followup-delete-head { width: 64px; }
+.followup-delete-cell { width: 64px; text-align: center; }
+.followup-row-delete-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff7f7;
+  color: #dc2626;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.followup-row-delete-btn:hover { background: #dc2626; color: #fff; transform: translateY(-1px); }
+.followup-row-delete-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
 .field textarea {
   width: 100%;

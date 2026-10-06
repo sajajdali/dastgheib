@@ -19,6 +19,7 @@ class StoreDynamicReportRequest extends FormRequest
             'columns' => ['required', 'array', 'min:1', 'max:'.count(config('dynamic_reports.fields', []))],
             'columns.*' => ['required', 'string', 'distinct', Rule::in(array_keys(config('dynamic_reports.fields', [])))],
             'filters' => ['sometimes', 'array'],
+            'filters.scope' => ['sometimes', Rule::in(['appointments', 'patients'])],
             'filters.reportDate' => ['required', 'array'],
             'filters.reportDate.from' => ['required', 'array', 'size:3'],
             'filters.reportDate.from.*' => ['required', 'integer'],
@@ -92,6 +93,7 @@ class StoreDynamicReportRequest extends FormRequest
         }
 
         return [
+            'scope' => data_get($data, 'filters.scope', 'appointments'),
             'values' => [
                 'name' => $this->text($data, 'name'),
                 'family' => $this->text($data, 'family'),

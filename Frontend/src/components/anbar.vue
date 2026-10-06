@@ -207,13 +207,13 @@
         </div>
 
         <div v-if="isRootSelection && !searchQuery" class="inventory-branch-message">
-          <strong>گروه کلی انتخاب شده است</strong>
-          <span>برای همه آیتم‌های زیرگروه‌های «{{ activeSectionName }}» پورسانت کلی ثبت کنید.</span>
+          <strong>تعریف خدمت در بخش اصلی مجاز نیست</strong>
+          <span>برای تعریف خدمت باید یک زیر‌بخش از «{{ activeSectionName }}» را انتخاب کنید؛ اگر زیر‌بخشی وجود ندارد، با دکمه «+» آن را بسازید.</span>
         </div>
 
         <div v-else-if="needsCompletedHierarchy && !searchQuery" class="inventory-branch-message">
-          <strong>لطفا زیرشاخه را انتخاب کنید</strong>
-          <span>برای نمایش یا ثبت خدمت‌ها، یک زیرشاخه از خدمات را انتخاب کنید.</span>
+          <strong>تعریف خدمت در بخش اصلی مجاز نیست</strong>
+          <span>برای تعریف خدمت باید ابتدا با دکمه «+» یک زیر‌بخش ایجاد کرده و همان زیر‌بخش را انتخاب کنید.</span>
         </div>
 
         <div v-else class="table-wrap">
@@ -687,7 +687,7 @@ export default {
     },
 
     needsCompletedHierarchy() {
-      return !this.searchQuery && !this.activeSectionKey
+      return !this.searchQuery && !this.isSubsection(this.activeSection)
     },
 
     inventoryTableTitle() {
@@ -696,13 +696,13 @@ export default {
 
     inventoryTableSubtitle() {
       return this.needsCompletedHierarchy
-        ? "برای نمایش و ثبت خدمت، یک زیرشاخه از خدمات را انتخاب کنید."
+        ? "ثبت خدمت در بخش اصلی امکان‌پذیر نیست؛ باید یک زیر‌بخش انتخاب یا ایجاد کنید."
         : "خدمات این بخش را همراه موجودی و پورسانت معرف مدیریت کنید."
     },
 
     inventoryEmptyMessage() {
       if (this.searchQuery) return "نتیجه‌ای برای این جست‌وجو در خدمات پیدا نشد."
-      if (this.needsCompletedHierarchy) return "لطفا شاخه‌بندی را کامل کنید."
+      if (this.needsCompletedHierarchy) return "برای تعریف خدمت باید یک زیر‌بخش انتخاب کنید."
       return "برای این بخش هنوز آیتمی ثبت نشده است."
     },
 
@@ -1375,6 +1375,18 @@ export default {
 
     async saveData(showFeedback = false) {
       if (this.isSaving || this.isFetching) return
+      const invalidRows = this.rows.filter(row => {
+        const section = this.sections.find(item => this.sectionKey(item) === this.rowSectionKey(row))
+        return !this.isSubsection(section)
+      })
+      if (invalidRows.length) {
+        await Swal.fire({
+          icon: "warning",
+          title: "انتخاب زیر‌بخش الزامی است",
+          text: "خدمت را نمی‌توان در بخش اصلی تعریف کرد؛ برای هر خدمت باید یک زیر‌بخش انتخاب یا ایجاد کنید."
+        })
+        return
+      }
       clearTimeout(this.saveTimer)
       this.isSaving = true
       this.saveState = "saving"
@@ -1488,16 +1500,20 @@ export default {
     },
 
     selectTreeNode(section) {
-      if (this.childSections(this.sectionKey(section)).length) {
+      if (!this.isSubsection(section) || this.childSections(this.sectionKey(section)).length) {
         this.selectRoot(section)
         return
       }
       this.selectSub(section)
     },
 
+    isSubsection(section) {
+      return Boolean(section && String(section.parent_id || section.parentId || '').trim())
+    },
+
     selectFirstLeaf() {
       const leaf = this.sections
-        .filter(section => !this.childSections(this.sectionKey(section)).length)
+        .filter(section => this.isSubsection(section) && !this.childSections(this.sectionKey(section)).length)
         .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))[0]
       if (leaf) {
         this.selectHierarchyForLeaf(leaf)
@@ -1508,6 +1524,10 @@ export default {
     },
 
     selectHierarchyForLeaf(leaf) {
+      if (!this.isSubsection(leaf)) {
+        this.selectRoot(leaf)
+        return
+      }
       const lineage = this.sectionLineage(leaf)
       const root = lineage[0]
       this.activeRootKey = root ? this.sectionKey(root) : ""
@@ -1531,7 +1551,7 @@ export default {
       while (current && !visited.has(this.sectionKey(current))) {
         visited.add(this.sectionKey(current))
         const child = this.childSections(this.sectionKey(current))[0]
-        if (!child) return current
+        if (!child) return this.isSubsection(current) ? current : null
         current = child
       }
       return section
@@ -1626,8 +1646,8 @@ export default {
     },
 
     addRow() {
-      if (!this.activeSectionKey) {
-        alert("ابتدا یک زیرشاخه از خدمات انتخاب کنید.")
+      if (!this.isSubsection(this.activeSection)) {
+        alert("ثبت خدمت در بخش اصلی امکان‌پذیر نیست؛ ابتدا یک زیر‌بخش انتخاب یا ایجاد کنید.")
         return
       }
       const row = {

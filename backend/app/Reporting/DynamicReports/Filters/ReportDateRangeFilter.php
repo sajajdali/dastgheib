@@ -8,6 +8,10 @@ final class ReportDateRangeFilter implements DynamicReportQueryFilter
 {
     public function apply(Builder $query, array $filters): void
     {
+        // A patient/file list is independent from appointments. Applying the
+        // appointment range here used to silently hide files with no booking.
+        if (data_get($filters, 'scope') === 'patients') return;
+
         $query->whereExists(function ($appointments) use ($filters) {
             $alias = 'report_range_appointments';
             $appointments->selectRaw('1')->from('appointments as '.$alias);

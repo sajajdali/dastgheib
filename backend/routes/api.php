@@ -54,6 +54,7 @@ use App\Http\Controllers\Api\SatisfactionController;
 //تنظیمات
 Route::get('/public/satisfaction/{token}', [SatisfactionController::class, 'show'])->middleware('throttle:60,1');
 Route::post('/public/satisfaction/{token}', [SatisfactionController::class, 'submit'])->middleware('throttle:10,1');
+Route::get('/connectivity', fn () => response()->json(['online' => true]))->middleware('throttle:120,1');
 Route::middleware('auth')->group(function () {
 Route::get('/auth/user', [AuthController::class, 'user']);
 Route::put('/auth/user', [AuthController::class, 'updateUser']);

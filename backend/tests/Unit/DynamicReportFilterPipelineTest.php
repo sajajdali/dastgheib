@@ -50,6 +50,18 @@ class DynamicReportFilterPipelineTest extends TestCase
         $this->assertGreaterThanOrEqual(2, collect($query->getBindings())->filter(fn ($value) => $value === '1405-06-25')->count());
     }
 
+    public function test_patient_file_scope_does_not_require_an_appointment_in_the_report_range(): void
+    {
+        $query = app(DynamicReportFilterPipeline::class)->query([
+            'scope' => 'patients',
+            'reportDate' => ['from' => '1405-05-26', 'to' => '1405-06-25'],
+        ]);
+
+        $this->assertStringNotContainsString('report_range_appointments', $query->toSql());
+        $this->assertNotContains('1405-05-26', $query->getBindings());
+        $this->assertNotContains('1405-06-25', $query->getBindings());
+    }
+
     public function test_no_return_filter_counts_only_one_arrival_in_the_requested_window(): void
     {
         $query = app(DynamicReportFilterPipeline::class)->query([

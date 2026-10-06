@@ -34,7 +34,11 @@ class DynamicReportController extends Controller
             'stage' => 'در صف پردازش',
         ]);
 
-        GenerateDynamicReport::dispatch($report->id);
+        // Report generation must also work on installations where a dedicated
+        // queue worker is not running (including the local clinic runtime).
+        GenerateDynamicReport::dispatchSync($report->id);
+
+        $report->refresh();
 
         return response()->json(['report' => $this->statusData($report)], 202);
     }

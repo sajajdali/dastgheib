@@ -252,20 +252,6 @@
               </div>
             </th>
 
-            <th class="sticky-header service-type-col resizable-th" :class="{ 'filtered-header': selectedServiceSections.length > 0 }" :style="{ width: columnWidths.serviceType + 'px', minWidth: columnWidths.serviceType + 'px', maxWidth: columnWidths.serviceType + 'px' }">
-              <div class="header-with-filter service-section-header-filter">
-                <span>بخش</span>
-                <button type="button" class="filter-btn service-section-filter-dot" :class="{ active: selectedServiceSections.length }" title="فیلتر بر اساس بخش خدمات" aria-label="فیلتر بر اساس بخش خدمات" @click.stop="toggleServiceSectionFilter"><span v-if="selectedServiceSections.length">{{ selectedServiceSections.length }}</span></button>
-                <div v-if="showServiceSectionFilter" class="section-filter-menu service-section-header-menu" @click.stop>
-                  <div class="section-filter-title">فیلتر بر اساس بخش خدمات</div>
-                  <label v-for="section in sortedServiceSections" :key="section.id"><input v-model="selectedServiceSections" type="checkbox" :value="section.id" @change="applyServiceSectionFilter"><span>{{ section.name }}</span></label>
-                  <div v-if="!serviceSections.length" class="section-filter-empty">بخشی تعریف نشده است.</div>
-                  <button v-if="selectedServiceSections.length" type="button" class="section-filter-clear" @click.stop="clearServiceSectionFilter">پاک کردن فیلتر</button>
-                </div>
-              </div>
-              <div class="resize-handle" @mousedown="startResize($event, 'serviceType')" @dblclick.stop="autoFitColumn($event, 'serviceType')"></div>
-            </th>
-
             <th
               class="sticky-header resizable-th"
               :style="{ width: columnWidths.source + 'px' }"
@@ -489,7 +475,11 @@
 
           <tr
             class="day-separator-row"
-            :class="{ 'holiday-day': day.isHoliday, 'today-day': isToday(day) }"
+            :class="{
+              'holiday-day': day.isHoliday,
+              'today-day': isToday(day),
+              'day-has-search-results': appointmentSearchResultCountForDay(day) > 0
+            }"
           >
             <td :colspan="appointmentTableColspan">
 
@@ -570,6 +560,9 @@
                 <span class="day-label">
                   {{ day.dateLabel }}
                   <small v-if="isToday(day)" class="today-badge">امروز</small>
+                  <small v-if="appointmentSearchResultCountForDay(day)" class="day-search-result-badge">
+                    {{ appointmentSearchResultCountForDay(day).toLocaleString('fa-IR') }} نتیجه
+                  </small>
                 </span>
 
                 <div
@@ -680,12 +673,16 @@
 
               <td
                 class="time-col"
-                :style="{ width: columnWidths.time + 'px' }"
+                :style="{
+                  width: columnWidths.time + 'px',
+                  '--row-service-time-gradient': rowServiceTimeGradient(row)
+                }"
               >
 
                 <date-picker
                   v-model="row.time"
                   type="time"
+                  :color="rowServiceTimeColors(row)[0]"
                   format="HH:mm"
                   display-format="HH:mm"
                   :auto-submit="true"
@@ -716,21 +713,6 @@
                   <option value="پیگیری">پیگیری</option>
                   <option value="انتقال داده شده">انتقال وقت</option>
                 </select>
-              </td>
-
-              <td class="service-type-col" :style="{ width: columnWidths.serviceType + 'px', minWidth: columnWidths.serviceType + 'px', maxWidth: columnWidths.serviceType + 'px' }" @click.stop>
-                <details class="service-type-picker" @toggle="onServiceTypePickerToggle($event)">
-                  <summary :title="serviceTypeSummary(row)">
-                    {{ serviceTypeSummary(row) }}
-                  </summary>
-                  <div class="service-type-options">
-                    <label v-for="section in sortedServiceSections" :key="section.id">
-                      <input v-model="row.serviceTypes" type="checkbox" :value="String(section.id)" @change="onRowServiceTypesChanged(row)">
-                      <span>{{ section.name }}</span>
-                    </label>
-                    <small v-if="!serviceSections.length">ابتدا بخش خدمات را در انبار تعریف کنید.</small>
-                  </div>
-                </details>
               </td>
 
               <td
@@ -868,7 +850,6 @@
 
                     <button
                       class="add-service-line-btn"
-                      :disabled="!row.serviceTypes?.length"
                       @click.stop="addService(row)"
                     >
                       + افزودن خدمت
@@ -890,6 +871,25 @@
                           <span class="service-row-caption">مسیر خدمت</span>
 
                     <Multiselect
+                      v-model="service.rootSectionId"
+                      :options="serviceRootSectionOptions(row)"
+                      :custom-label="serviceSectionLabel"
+                      :multiple="false"
+                      :searchable="true"
+                      :close-on-select="true"
+                      :clear-on-select="false"
+                      :allow-empty="true"
+                      placeholder="انتخاب بخش"
+                      select-label=""
+                      selected-label="انتخاب شد"
+                      deselect-label="حذف"
+                      class="service-multiselect service-section-multiselect service-root-multiselect"
+                      @open="activeServiceTagPicker = null"
+                      @select="setServiceRootSection(service, row, $event)"
+                      @remove="setServiceRootSection(service, row, '')"
+                    />
+
+                    <Multiselect
                       v-model="service.sectionId"
                       :options="serviceSubsectionOptions(service, row)"
                       :custom-label="serviceSectionLabel"
@@ -898,8 +898,8 @@
                       :close-on-select="true"
                       :clear-on-select="false"
                       :allow-empty="true"
-                      :disabled="!row.serviceTypes?.length"
-                      :placeholder="row.serviceTypes?.length ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
+                      :disabled="!service.rootSectionId"
+                      :placeholder="service.rootSectionId ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
                       select-label=""
                       selected-label="انتخاب شد"
                       deselect-label="حذف"
@@ -939,8 +939,8 @@
                       :close-on-select="true"
                       :clear-on-select="false"
                       :allow-empty="true"
-                      :disabled="!row.serviceTypes?.length"
-                      :placeholder="row.serviceTypes?.length ? 'جستجو و انتخاب خدمت' : 'ابتدا بخش را انتخاب کنید'"
+                      :disabled="!service.sectionId"
+                      :placeholder="service.sectionId ? 'جستجو و انتخاب خدمت' : 'ابتدا زیربخش را انتخاب کنید'"
                       select-label=""
                       selected-label="انتخاب شده"
                       deselect-label="حذف"
@@ -957,7 +957,7 @@
                       <select
                         v-model="service.doctor"
                         class="service-select"
-                        :disabled="!row.serviceTypes?.length || !service.sectionId"
+                        :disabled="!service.sectionId"
                         @change="calculateRowAmount(row)"
                       >
 
@@ -1207,9 +1207,10 @@
       <section class="service-filter-modal" role="dialog" aria-modal="true" aria-labelledby="service-filter-title" @click.stop>
         <header><div><small>فیلتر ستون خدمات</small><h3 id="service-filter-title">چه مواردی نمایش داده شوند؟</h3></div><button type="button" @click="serviceFilterModalOpen = false">×</button></header>
         <div class="service-filter-groups">
+          <fieldset><legend>بخش‌های دارای نوبت</legend><label v-for="section in serviceFilterRootSectionOptions" :key="section.id"><input v-model="draftServiceSections" type="checkbox" :value="String(section.id)" @change="onDraftServiceSectionsChanged"><span>{{ section.name }}</span></label><p v-if="!serviceFilterRootSectionOptions.length">بخشی در نوبت‌ها استفاده نشده است.</p></fieldset>
+          <fieldset><legend>زیربخش‌های دارای نوبت</legend><label v-for="subsection in serviceFilterSubsectionOptions" :key="subsection.id"><input v-model="draftServiceSubsections" type="checkbox" :value="String(subsection.id)"><span>{{ subsection.name }}</span></label><p v-if="!serviceFilterSubsectionOptions.length">{{ draftServiceSections.length ? 'در بخش انتخاب‌شده زیربخشی استفاده نشده است.' : 'زیربخشی در نوبت‌ها استفاده نشده است.' }}</p></fieldset>
           <fieldset><legend>پزشک</legend><label v-for="doctor in serviceFilterDoctorOptions" :key="doctor"><input v-model="draftServiceDoctors" type="checkbox" :value="doctor"><span>{{ doctor }}</span></label><p v-if="!serviceFilterDoctorOptions.length">پزشکی ثبت نشده است.</p></fieldset>
           <fieldset><legend>مشاور</legend><label v-for="consultant in serviceFilterConsultantOptions" :key="consultant"><input v-model="draftServiceConsultants" type="checkbox" :value="consultant"><span>{{ consultant }}</span></label><p v-if="!serviceFilterConsultantOptions.length">مشاوری ثبت نشده است.</p></fieldset>
-          <fieldset><legend>زیر‌بخش‌های دارای نوبت</legend><label v-for="subsection in serviceFilterSubsectionOptions" :key="subsection.id"><input v-model="draftServiceSubsections" type="checkbox" :value="String(subsection.id)"><span>{{ subsection.name }}</span></label><p v-if="!serviceFilterSubsectionOptions.length">زیر‌بخشی در نوبت‌ها استفاده نشده است.</p></fieldset>
         </div>
         <footer><button type="button" class="service-filter-clear-action" :disabled="!serviceFilterCount" @click="clearServiceFilters">پاک کردن فیلترها</button><button type="button" class="service-filter-apply" @click="applyServiceFilters">اعمال فیلتر</button></footer>
       </section>
@@ -1338,7 +1339,6 @@
               class="timeline-card"
               :class="[
                 timelineCardClass(row),
-                activeBookingTimelineColor() ? 'has-service-color' : '',
                 pendingTimelineFollowup && isEmptyAppointmentRow(row) ? 'is-followup-target' : '',
                 isAppointmentSearchResult(row) ? 'is-search-result' : '',
                 highlightedRowId === row._rowId ? 'is-highlighted' : ''
@@ -1392,7 +1392,6 @@
 
           <article
             class="timeline-card timeline-add-card is-empty"
-            :class="{ 'has-service-color': activeBookingTimelineColor() }"
             :style="timelineBookingCardStyle()"
             role="button"
             tabindex="0"
@@ -2383,15 +2382,16 @@
 
       <div class="months-scroll-area">
 
-        <div
+        <button
           v-for="item in visibleScheduleMonths"
           :key="item.month"
+          type="button"
           class="month-pill"
           :class="{ active: currentMonth === item.index }"
           @click.stop="currentMonth = item.index"
         >
           {{ scheduleMonthLabel(item.month) }}
-        </div>
+        </button>
 
       </div>
 
@@ -2669,6 +2669,7 @@ export default {
       selectedServiceDoctors: [],
       selectedServiceConsultants: [],
       selectedServiceSubsections: [],
+      draftServiceSections: [],
       draftServiceDoctors: [],
       draftServiceConsultants: [],
       draftServiceSubsections: [],
@@ -2804,7 +2805,7 @@ export default {
     },
 
     serviceFilterCount() {
-      return this.selectedServiceDoctors.length + this.selectedServiceConsultants.length + this.selectedServiceSubsections.length;
+      return this.selectedServiceSections.length + this.selectedServiceDoctors.length + this.selectedServiceConsultants.length + this.selectedServiceSubsections.length;
     },
 
     serviceFilterDoctorOptions() {
@@ -2818,15 +2819,33 @@ export default {
       return [...new Set([...this.consultantOptions, ...used].map(value => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
     },
 
+    serviceFilterRootSectionOptions() {
+      const usedIds = new Set(
+        this.days.flatMap(day => day.rows || []).flatMap(row =>
+          [
+            ...this.normalizeServiceSectionIds(row.serviceTypes),
+            ...(row.services || []).map(service => service.sectionId || service.section_id || this.sectionIdForService(service.name, row))
+          ]
+        ).map(String).filter(Boolean)
+      );
+
+      const usedRootIds = new Set([...usedIds].map(id => String(this.rootSectionIdFor(id) || id)));
+      return this.sortedServiceSections
+        .filter(section => usedRootIds.has(String(section.id)))
+        .map(section => ({ id: section.id, name: section.name }));
+    },
+
     serviceFilterSubsectionOptions() {
       const usedIds = new Set(
         this.days.flatMap(day => day.rows || []).flatMap(row =>
           (row.services || []).map(service => service.sectionId || service.section_id || this.sectionIdForService(service.name, row))
         ).map(String).filter(Boolean)
       );
+      const selectedRoots = new Set(this.draftServiceSections.map(String));
 
       return (this.serviceSections || [])
         .filter(section => usedIds.has(String(section.id)) && Boolean(section.parent_id || section.parentId))
+        .filter(section => !selectedRoots.size || selectedRoots.has(String(this.rootSectionIdFor(section.id) || section.id)))
         .map(section => ({ id: section.id, name: section.name }))
         .sort((a, b) => a.name.localeCompare(b.name, 'fa'));
     },
@@ -2978,7 +2997,7 @@ export default {
       );
     },
     appointmentTableColspan() {
-      return 16 +
+      return 14 +
         (this.appointmentColumns.payment_link ? 1 : 0);
     },
 
@@ -3876,42 +3895,14 @@ export default {
 
       const status = String(row?.status || "").trim();
       if (status.includes("کنسل")) return "is-canceled";
+      if (this.isCreditor(row)) return "is-creditor";
+      if (this.isDebtor(row)) return "is-debtor";
       if (status.includes("آمد")) return "is-arrived";
       if (status.includes("پاسخ نداد")) return "is-no-answer";
       if (status.includes("پیگیری")) return "is-follow";
       if (status.includes("وقت") || status.includes("داده")) return "is-booked";
 
-      if (this.isCreditor(row)) return "is-creditor";
-      if (this.isDebtor(row)) return "is-debtor";
       return "is-booked";
-    },
-
-    activeBookingTimelineColor() {
-      let sectionId = String(this.bookingServiceFilter || this.bookingRootSectionFilter || '');
-      const visited = new Set();
-
-      // A leaf such as «آقایان» may inherit the chosen color from its nearest
-      // colored parent such as «کندلا».
-      while (sectionId && !visited.has(sectionId)) {
-        visited.add(sectionId);
-        const section = (this.serviceSections || []).find(item => String(item.id) === sectionId);
-        if (!section) break;
-        const color = String(section.color || '').trim();
-        if (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(color)) return color;
-        sectionId = String(section.parent_id || section.parentId || '');
-      }
-
-      return '';
-    },
-
-    colorWithAlpha(color, alpha) {
-      let hex = String(color || '').replace('#', '');
-      if (hex.length === 3) hex = hex.split('').map(value => value + value).join('');
-      if (!/^[0-9a-f]{6}$/i.test(hex)) return color;
-      const red = parseInt(hex.slice(0, 2), 16);
-      const green = parseInt(hex.slice(2, 4), 16);
-      const blue = parseInt(hex.slice(4, 6), 16);
-      return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
     },
 
     timelineSlotSpan(row) {
@@ -3922,7 +3913,6 @@ export default {
     },
 
     timelineBookingCardStyle(row = null) {
-      const color = this.activeBookingTimelineColor();
       const style = {};
       const span = this.timelineSlotSpan(row);
       if (span > 1) {
@@ -3930,22 +3920,7 @@ export default {
         const slotGap = 8;
         style['--timeline-card-width'] = `${(slotWidth * span) + (slotGap * (span - 1))}px`;
       }
-      if (!color) return style;
-      const hex = color.length === 4
-        ? color.slice(1).split('').map(value => value + value).join('')
-        : color.slice(1);
-      const red = parseInt(hex.slice(0, 2), 16);
-      const green = parseInt(hex.slice(2, 4), 16);
-      const blue = parseInt(hex.slice(4, 6), 16);
-      const useLightText = ((red * 299 + green * 587 + blue * 114) / 1000) < 145;
-      return {
-        ...style,
-        '--booking-service-color': color,
-        '--booking-service-soft': this.colorWithAlpha(color, .15),
-        '--booking-service-border': this.colorWithAlpha(color, .62),
-        '--booking-service-shadow': this.colorWithAlpha(color, .2),
-        '--booking-service-contrast': useLightText ? '#ffffff' : '#172554'
-      };
+      return style;
     },
 
     focusTimelineRow(day, row) {
@@ -6264,7 +6239,7 @@ this.calculateFinalAmount(row)
                   completion_sms_statuses:
                     row.completionSmsStatuses || {},
 
-                  service_types: row.serviceTypes || [],
+                  service_types: this.serviceRootSectionIdsForRow(row),
 
                   services:
                     row.services.map(s => ({
@@ -7473,12 +7448,10 @@ this.calculateFinalAmount(row)
     },
 
     addService(row) {
-      const allowedSections = this.serviceSectionScopeIds(row?.serviceTypes);
-      if (!allowedSections.length) return;
       row.services.push({
         name: "",
-        sectionId: this.defaultServiceSectionId(row),
-        rootSectionId: this.rootSectionIdFor(this.defaultServiceSectionId(row)),
+        sectionId: "",
+        rootSectionId: "",
         tags: [],
         cc: "",
         doctor: "",
@@ -7537,6 +7510,8 @@ this.calculateFinalAmount(row)
         });
 
       }
+
+      this.syncRowServiceTypesFromServices(row, false);
 
     },
 
@@ -7734,6 +7709,12 @@ this.calculateFinalAmount(row)
         && this.searchResults.some(result => result.row._rowId === row?._rowId);
     },
 
+    appointmentSearchResultCountForDay(day) {
+      if (!this.searchQuery.trim()) return 0;
+      return this.searchResults.reduce((count, result) =>
+        count + (Number(result.day?.dayNum) === Number(day?.dayNum) ? 1 : 0), 0);
+    },
+
     showSearchResult(index) {
       if (!this.searchResults.length) {
         this.searchResultIndex = -1;
@@ -7745,11 +7726,14 @@ this.calculateFinalAmount(row)
       const result = this.searchResults[this.searchResultIndex];
       clearTimeout(this.highlightedRowTimer);
       result.day.collapsed = false;
+      this.syncAllDaysCollapsedState();
       this.highlightedRowId = result.row._rowId;
 
       this.$nextTick(() => {
-        const el = document.getElementById(`row-${result.row._rowId}`);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        window.requestAnimationFrame(() => {
+          const el = document.getElementById(`row-${result.row._rowId}`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        });
       });
     },
 
@@ -7982,6 +7966,7 @@ this.calculateFinalAmount(row)
 
     openServiceFilterModal() {
       this.closeAllPopupsAndFilters();
+      this.draftServiceSections = this.selectedServiceSections.map(String);
       this.draftServiceDoctors = [...this.selectedServiceDoctors];
       this.draftServiceConsultants = [...this.selectedServiceConsultants];
       this.draftServiceSubsections = [...this.selectedServiceSubsections];
@@ -7989,9 +7974,11 @@ this.calculateFinalAmount(row)
     },
 
     clearServiceFilters() {
+      this.selectedServiceSections = [];
       this.selectedServiceDoctors = [];
       this.selectedServiceConsultants = [];
       this.selectedServiceSubsections = [];
+      this.draftServiceSections = [];
       this.draftServiceDoctors = [];
       this.draftServiceConsultants = [];
       this.draftServiceSubsections = [];
@@ -7999,10 +7986,16 @@ this.calculateFinalAmount(row)
     },
 
     applyServiceFilters() {
+      this.selectedServiceSections = [...this.draftServiceSections];
       this.selectedServiceDoctors = [...this.draftServiceDoctors];
       this.selectedServiceConsultants = [...this.draftServiceConsultants];
       this.selectedServiceSubsections = [...this.draftServiceSubsections];
       this.serviceFilterModalOpen = false;
+    },
+
+    onDraftServiceSectionsChanged() {
+      const allowedSubsections = new Set(this.serviceFilterSubsectionOptions.map(section => String(section.id)));
+      this.draftServiceSubsections = this.draftServiceSubsections.filter(id => allowedSubsections.has(String(id)));
     },
 
     clearAmountFilter() {
@@ -8145,7 +8138,8 @@ this.calculateFinalAmount(row)
         const byId = this.inventoryItems.find(item => Number(item.id) === Number(service.inventory_id))
         if (byId && service?.name && byId.name === service.name) return byId
       }
-      const allowedSectionIds = new Set(this.serviceSectionScopeIds(row?.serviceTypes).map(String))
+      const rootSectionId = service?.rootSectionId || this.rootSectionIdFor(service?.sectionId)
+      const allowedSectionIds = new Set(this.serviceSectionScopeIds(rootSectionId ? [rootSectionId] : row?.serviceTypes).map(String))
       return this.inventoryItems.find(item => item.name === service?.name && (!allowedSectionIds.size || allowedSectionIds.has(String(item.section_id)))) || null
     },
 
@@ -8199,6 +8193,53 @@ this.calculateFinalAmount(row)
       )?.section_id || "";
     },
 
+    serviceSectionTimeColor(sectionId) {
+      const defaultColor = '#417df4';
+      if (!sectionId) return defaultColor;
+      sectionId = String(sectionId);
+      const visited = new Set();
+
+      while (sectionId && !visited.has(sectionId)) {
+        visited.add(sectionId);
+        const section = this.serviceSections.find(item => String(item.id) === sectionId);
+        if (!section) break;
+        const color = String(section.color || '').trim();
+        if (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(color)) return color;
+        sectionId = String(section.parent_id || section.parentId || '');
+      }
+
+      return defaultColor;
+    },
+
+    rowServiceTimeColors(row) {
+      let sectionIds = this.normalizeServiceSectionIds(row?.serviceTypes);
+
+      // داده‌های قدیمی ممکن است بخش اصلی را نداشته باشند اما بخش خدمت
+      // داخل خود ردیف خدمت ذخیره شده باشد.
+      if (!sectionIds.length) {
+        sectionIds = (row?.services || [])
+          .filter(service => String(service?.name || '').trim())
+          .map(service => service.sectionId || service.section_id || this.sectionIdForService(service.name, row))
+          .filter(Boolean);
+      }
+
+      return sectionIds.length
+        ? sectionIds.map(sectionId => this.serviceSectionTimeColor(sectionId))
+        : ['#417df4'];
+    },
+
+    rowServiceTimeGradient(row) {
+      const colors = this.rowServiceTimeColors(row);
+      if (colors.length === 1) return `linear-gradient(to left, ${colors[0]}, ${colors[0]})`;
+
+      const stops = colors.flatMap((color, index) => {
+        const start = (index * 100) / colors.length;
+        const end = ((index + 1) * 100) / colors.length;
+        return [`${color} ${start}%`, `${color} ${end}%`];
+      });
+      return `linear-gradient(to left, ${stops.join(', ')})`;
+    },
+
     serviceSectionLabel(sectionId) {
       return this.serviceSections.find(section => String(section.id) === String(sectionId))?.name || "";
     },
@@ -8238,16 +8279,19 @@ this.calculateFinalAmount(row)
       return subsectionNames.filter(Boolean).join(' - ') || 'زیر‌بخش بدون نام';
     },
 
-    serviceRootSectionOptions(row) {
-      return this.normalizeServiceSectionIds(row?.serviceTypes)
-        .map(id => this.serviceSections.find(section => String(section.id) === String(id))?.id)
-        .filter(value => value !== undefined);
+    serviceRootSectionOptions() {
+      return this.sortedServiceSections.map(section => section.id);
     },
 
     serviceSubsectionOptions(service, row) {
-      const roots = new Set(this.normalizeServiceSectionIds(row?.serviceTypes));
-      return this.serviceSectionScopeIds(row?.serviceTypes)
-        .filter(id => !roots.has(String(id)));
+      const rootSectionId = String(service?.rootSectionId || this.rootSectionIdFor(service?.sectionId) || '');
+      if (!rootSectionId) {
+        const legacyRoots = new Set(this.normalizeServiceSectionIds(row?.serviceTypes));
+        return this.serviceSectionScopeIds(row?.serviceTypes)
+          .filter(id => !legacyRoots.has(String(id)));
+      }
+      return this.serviceSectionScopeIds([rootSectionId])
+        .filter(id => String(id) !== rootSectionId);
     },
 
     serviceBranchIds(sectionId) {
@@ -8360,8 +8404,25 @@ this.calculateFinalAmount(row)
       this.calculateRowAmount(row);
     },
 
+    syncRowServiceTypesFromServices(row, preserveWhenEmpty = true) {
+      const roots = [...new Set((row?.services || []).map(service =>
+        String(service?.rootSectionId || this.rootSectionIdFor(service?.sectionId) || '')
+      ).filter(Boolean))];
+      if (roots.length || !preserveWhenEmpty) row.serviceTypes = roots;
+      return roots;
+    },
+
+    serviceRootSectionIdsForRow(row) {
+      const serviceRoots = [...new Set((row?.services || []).map(service =>
+        String(service?.rootSectionId || this.rootSectionIdFor(service?.sectionId) || '')
+      ).filter(Boolean))];
+      if (serviceRoots.length) return serviceRoots;
+      return this.normalizeServiceSectionIds(row?.serviceTypes);
+    },
+
     serviceOptionsFor(service, row = null) {
-      const allowedSections = new Set(this.serviceSectionScopeIds(row?.serviceTypes));
+      const rootSectionId = service?.rootSectionId || this.rootSectionIdFor(service?.sectionId);
+      const allowedSections = new Set(this.serviceSectionScopeIds(rootSectionId ? [rootSectionId] : row?.serviceTypes));
       const serviceSections = service?.sectionId
         ? new Set(this.serviceBranchIds(service.sectionId))
         : null;
@@ -8399,6 +8460,7 @@ this.calculateFinalAmount(row)
     onServiceSectionChanged(service, row) {
       this.$nextTick(() => {
         service.rootSectionId = this.rootSectionIdFor(service.sectionId);
+        this.syncRowServiceTypesFromServices(row);
         if (service.doctor && !this.doctorsForService(row, service).some(doctor => doctor.name === service.doctor)) {
           service.doctor = '';
         }
@@ -8413,20 +8475,22 @@ this.calculateFinalAmount(row)
       });
     },
 
-    onServiceRootSectionChanged(service, row) {
-      this.$nextTick(() => {
+    setServiceRootSection(service, row, sectionId) {
+      const matchingSection = this.sortedServiceSections.find(section => String(section.id) === String(sectionId));
+      const nextRootId = matchingSection?.id || '';
+      const currentSubsectionRoot = String(this.rootSectionIdFor(service.sectionId) || '');
+      service.rootSectionId = nextRootId;
+      if (!nextRootId || (currentSubsectionRoot && currentSubsectionRoot !== String(nextRootId))) {
+        service.sectionId = '';
+        service.name = '';
         service.tags = [];
-        const validSections = new Set(this.serviceSubsectionOptions(service, row).map(String));
-        if (!validSections.has(String(service.sectionId || ''))) {
-          service.sectionId = '';
-          service.name = '';
-          service.tags = [];
-          service.doctor = '';
-          service.cc = '';
-          service.addons = [];
-        }
-        this.calculateRowAmount(row);
-      });
+        service.doctor = '';
+        service.cc = '';
+        service.addons = [];
+        service.inventory_id = null;
+      }
+      this.syncRowServiceTypesFromServices(row, false);
+      this.calculateRowAmount(row);
     },
 
     onServiceNameChanged(service, row) {
@@ -8439,6 +8503,7 @@ this.calculateFinalAmount(row)
           service.rootSectionId = this.rootSectionIdFor(sectionId);
           service.addons = [];
         }
+        this.syncRowServiceTypesFromServices(row);
         if (serviceChanged) service.addons = []
         service.inventory_id = inventory?.id || null
         const allowedTags = new Set(this.serviceTagsForSelection(service, row))
@@ -8725,6 +8790,18 @@ this.calculateFinalAmount(row)
     },
 
     getFilteredRows(day) {
+      const appointmentSearch = this.normalizeAppointmentSearchText(this.searchQuery);
+      if (appointmentSearch) {
+        return (day.rows || [])
+          .filter(row => this.appointmentSearchText(row).includes(appointmentSearch))
+          .map((row, index) => ({ row, index }))
+          .sort(this.compareAppointmentRowsByTime)
+          .map((item, index) => {
+            item.row._visibleIndex = index;
+            return item.row;
+          });
+      }
+
       let rows = day.rows.filter(row => {
         const statusOk =
           !this.selectedStatuses.length ||
@@ -8742,12 +8819,16 @@ this.calculateFinalAmount(row)
         const appointmentSmsOk = !this.selectedAppointmentSms.length || this.selectedAppointmentSms.includes(row.appointmentSms || '');
         const infoSmsOk = !this.selectedInfoSms.length || this.selectedInfoSms.includes(row.infoSms || '');
 
-        const sectionOk = !this.selectedServiceSections.length || (row.services || []).some(service => {
-          const sectionId = service.sectionId || this.sectionIdForService(service.name, row);
-          return this.selectedServiceSections.some(selected =>
-            this.serviceSectionScopeIds([selected]).includes(String(sectionId))
-          );
-        });
+        const sectionOk = !this.selectedServiceSections.length ||
+          this.normalizeServiceSectionIds(row.serviceTypes).some(sectionId =>
+            this.selectedServiceSections.map(String).includes(String(sectionId))
+          ) ||
+          (row.services || []).some(service => {
+            const sectionId = service.sectionId || this.sectionIdForService(service.name, row);
+            return this.selectedServiceSections.some(selected =>
+              this.serviceSectionScopeIds([selected]).includes(String(sectionId))
+            );
+          });
 
         const services = row.services || [];
         const doctorOk = !this.selectedServiceDoctors.length ||
@@ -10904,6 +10985,10 @@ smsColor(val) {
   letter-spacing: .3px;
 }
 
+.main-schedule-table td.time-col .vpd-icon-btn {
+  background-image: var(--row-service-time-gradient) !important;
+}
+
 .debt-col {
   max-width: 90px;
   min-width: 90px;
@@ -11359,7 +11444,7 @@ td.st-transferred {
   padding: 7px 10px;
   border-radius: 50px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-  z-index: 1000;
+  z-index: 2147482900;
   max-width: 90%;
   width: auto;
 }
@@ -11403,23 +11488,44 @@ td.st-transferred {
 .months-scroll-area {
   display: flex;
   gap: 8px;
-      width: 100%;
-    overflow: auto;
+  min-width: 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  touch-action: pan-x;
 }
 
 .month-pill {
+  min-width: 72px;
+  min-height: 38px;
+  flex: 0 0 auto;
   padding: 6px 12px;
+  border: 0;
   background: #f0f0f0;
   border-radius: 20px;
+  color: #334155;
   cursor: pointer;
+  font-family: inherit;
+  font-weight: 900;
   font-size: 13px;
   transition: 0.3s;
   white-space: nowrap;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .month-pill.active {
   background: #0077ff;
   color: white;
+}
+
+.month-action-btn,
+.schedule-year-picker,
+.schedule-year-picker select {
+  touch-action: manipulation;
 }
 
 .holiday-title {
@@ -12275,7 +12381,19 @@ td.st-arrived select {
 .service-type-options label:has(input:checked){border-color:#93c5fd;background:#eff6ff;color:#1d4ed8;font-weight:900}
 .service-type-options label span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right!important}
 .service-type-options input{width:16px!important;height:16px!important;margin:0!important}
-@media(max-width:600px){.section-filter-menu{position:fixed;top:70px;right:12px;left:12px;width:auto;max-height:calc(100vh - 90px)}.service-type-options{right:auto;left:0;width:min(280px,calc(100vw - 18px))}}
+@media(max-width:900px){
+  .service-type-picker summary{min-height:42px!important;padding:9px 11px 9px 32px!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .service-type-options{position:fixed!important;top:auto!important;right:12px!important;bottom:82px!important;left:12px!important;z-index:2147483550!important;width:auto!important;max-height:min(58vh,430px)!important;padding:10px!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch}
+  .service-type-options label{min-height:48px!important;padding:10px 12px!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .service-type-options input{width:20px!important;height:20px!important;pointer-events:auto!important}
+}
+@media(max-width:600px){
+  .section-filter-menu{position:fixed;top:70px;right:12px;left:12px;width:auto;max-height:calc(100vh - 90px)}
+  .fixed-bottom-bar{right:8px;bottom:8px;left:8px;transform:none;display:grid;grid-template-columns:auto 38px minmax(0,1fr) 38px;gap:6px;width:auto;max-width:none;padding:7px;border-radius:18px}
+  .schedule-year-picker{padding:0 6px}.schedule-year-picker svg{display:none}.schedule-year-picker select{width:52px;font-size:10px}
+  .month-action-btn{width:38px!important;min-width:38px!important;height:38px!important;padding:0!important}
+  .months-scroll-area{gap:6px;width:100%}.month-pill{min-width:68px;min-height:40px;padding:7px 10px;font-size:12px}
+}
 /* Service-section filter lives in the column header */
 .service-section-header-filter{position:relative;overflow:visible!important}
 .service-section-filter-dot{width:12px!important;height:12px!important;min-width:12px!important;flex:0 0 12px!important;display:grid!important;place-items:center!important;padding:0!important;border:0!important;border-radius:50%!important;background:#111827!important;color:#fff!important;box-shadow:none!important;font-size:0!important;cursor:pointer;transition:.16s ease}
@@ -12309,6 +12427,22 @@ td.st-arrived select {
   position:relative;
   background:#fde047!important;
   color:#111827!important;
+}
+.main-schedule-table .day-separator-row.day-has-search-results > td {
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+.day-search-result-badge {
+  display:inline-flex;
+  align-items:center;
+  min-height:22px;
+  margin-inline-start:8px;
+  padding:2px 8px;
+  border-radius:999px;
+  background:#fef3c7;
+  color:#92400e;
+  font-size:9px;
+  font-weight:1000;
+  white-space:nowrap;
 }
 .main-schedule-table tr.search-result-row > td::after {
   display:none!important;
@@ -12470,23 +12604,28 @@ td.st-arrived select {
 .financial-previous-debts-panel{margin:14px 28px 0;padding:15px;border:1px solid #fecaca;border-radius:15px;background:#fff7f7}.financial-previous-debts-panel article>span{display:grid;gap:4px}.financial-previous-debts-panel article>span>b{color:#7f1d1d}.financial-previous-debts-panel article>span>small{white-space:normal;line-height:1.8}.financial-previous-debts-panel article>em{padding:6px 9px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:9px;font-style:normal;font-weight:900}.financial-previous-debts-panel .previous-debt-settled{padding-top:5px;border-top:1px dashed #86efac;color:#15803d}@media(max-width:760px){.financial-previous-debts-panel{margin-left:14px;margin-right:14px}.financial-previous-debts-panel article{grid-template-columns:1fr!important}.financial-previous-debts-panel article>button,.financial-previous-debts-panel article>em{width:100%;box-sizing:border-box;text-align:center}}
 .financial-debt-line{column-gap:22px!important;row-gap:14px!important}.financial-debt-line-reason{margin-right:6px!important}.financial-payment-allocation{padding:3px 6px;border-radius:6px;background:#f1f5f9;color:#334155!important;font-weight:800}
 
-/* رنگ انتخاب‌شدهٔ ساختار خدمات روی همه خانه‌های نمای فیلترشدهٔ تایم‌لاین */
-.appointment-timeline .timeline-card.has-service-color {
-  border-color: var(--booking-service-border) !important;
-  background: var(--booking-service-soft) !important;
-  box-shadow: inset -4px 0 0 var(--booking-service-color), 0 5px 14px var(--booking-service-shadow) !important;
+.appointment-timeline .timeline-card.is-debtor,
+.appointment-timeline .timeline-card.is-creditor {
+  border-color: #fca5a5 !important;
+  background: #fff1f2 !important;
+  box-shadow: inset -4px 0 0 #dc2626, 0 5px 14px rgba(220, 38, 38, .14) !important;
 }
-.appointment-timeline .timeline-card.has-service-color .timeline-time-chip {
-  border-color: var(--booking-service-color) !important;
-  background: var(--booking-service-color) !important;
-  color: var(--booking-service-contrast) !important;
+.appointment-timeline .timeline-card.is-debtor .timeline-time-chip,
+.appointment-timeline .timeline-card.is-creditor .timeline-time-chip {
+  border-color: #fca5a5 !important;
+  background: #dc2626 !important;
+  color: #fff !important;
 }
-.appointment-timeline .timeline-card.has-service-color .timeline-card-empty span {
-  border-color: var(--booking-service-border) !important;
-  background: var(--booking-service-color) !important;
-  color: var(--booking-service-contrast) !important;
+/* Three-step service path inside the table popup: section → subsection → service. */
+.service-choice-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.55fr)!important}
+.service-choice-row .service-root-multiselect{grid-column:1!important;grid-row:1!important}
+.service-choice-row .service-subsection-multiselect{grid-column:2!important;grid-row:1!important}
+.service-choice-row .service-name-multiselect{grid-column:3!important;grid-row:1!important}
+.service-filter-groups{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+@media(max-width:900px){
+  .service-choice-row{grid-template-columns:1fr 1fr!important}
+  .service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect{grid-column:auto!important;grid-row:auto!important}
+  .service-choice-row .service-name-multiselect{grid-column:1/-1!important;grid-row:auto!important}
 }
-.appointment-timeline .timeline-card.has-service-color .timeline-card-empty strong {
-  color: #334155 !important;
-}
+@media(max-width:700px){.service-filter-groups{grid-template-columns:1fr!important}}
 </style>
