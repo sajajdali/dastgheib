@@ -871,7 +871,7 @@
                           <span class="service-row-caption">مسیر خدمت</span>
 
                     <Multiselect
-                      v-model="service.rootSectionId"
+                      :model-value="service.rootSectionId"
                       :options="serviceRootSectionOptions(row)"
                       :custom-label="serviceSectionLabel"
                       :multiple="false"
@@ -885,12 +885,11 @@
                       deselect-label="حذف"
                       class="service-multiselect service-section-multiselect service-root-multiselect"
                       @open="activeServiceTagPicker = null"
-                      @select="setServiceRootSection(service, row, $event)"
-                      @remove="setServiceRootSection(service, row, '')"
+                      @update:model-value="setServiceRootSection(service, row, $event)"
                     />
 
                     <Multiselect
-                      v-model="service.sectionId"
+                      :model-value="service.sectionId"
                       :options="serviceSubsectionOptions(service, row)"
                       :custom-label="serviceSectionLabel"
                       :multiple="false"
@@ -905,8 +904,7 @@
                       deselect-label="حذف"
                       class="service-multiselect service-section-multiselect service-subsection-multiselect"
                       @open="activeServiceTagPicker = null"
-                      @select="onServiceSectionChanged(service, row)"
-                      @remove="onServiceSectionChanged(service, row)"
+                      @update:model-value="onServiceSectionChanged(service, row, $event)"
                     />
 
                     <div v-if="service.name" class="service-tag-picker" @click.stop>
@@ -8457,30 +8455,37 @@ this.calculateFinalAmount(row)
       this.calculateRowAmount(row);
     },
 
-    onServiceSectionChanged(service, row) {
-      this.$nextTick(() => {
-        service.rootSectionId = this.rootSectionIdFor(service.sectionId);
-        this.syncRowServiceTypesFromServices(row);
-        if (service.doctor && !this.doctorsForService(row, service).some(doctor => doctor.name === service.doctor)) {
-          service.doctor = '';
-        }
+    onServiceSectionChanged(service, row, selectedSectionId = service.sectionId) {
+      const matchingSection = this.serviceSections.find(section => String(section.id) === String(selectedSectionId || ''));
+      const nextSectionId = matchingSection?.id || '';
+      const previousSectionId = String(service.sectionId || '');
+      const subsectionChanged = previousSectionId !== String(nextSectionId);
+
+      service.sectionId = nextSectionId;
+      // پاک‌کردن زیربخش نباید بخش والد را هم پاک کند. در انتخاب یک
+      // زیربخش معتبر، والد را از خود ساختار درخت دوباره قطعی می‌کنیم.
+      if (nextSectionId) service.rootSectionId = this.rootSectionIdFor(nextSectionId);
+
+      if (subsectionChanged) {
+        service.name = '';
         service.tags = [];
-        if (service.name && !this.serviceOptionsFor(service, row).includes(service.name)) {
-          service.name = "";
-          service.tags = [];
-          service.cc = "";
-          service.addons = [];
-        }
-        this.calculateRowAmount(row);
-      });
+        service.doctor = '';
+        service.cc = '';
+        service.addons = [];
+        service.inventory_id = null;
+      }
+
+      this.syncRowServiceTypesFromServices(row);
+      this.calculateRowAmount(row);
     },
 
     setServiceRootSection(service, row, sectionId) {
       const matchingSection = this.sortedServiceSections.find(section => String(section.id) === String(sectionId));
       const nextRootId = matchingSection?.id || '';
+      const previousRootId = String(service.rootSectionId || this.rootSectionIdFor(service.sectionId) || '');
       const currentSubsectionRoot = String(this.rootSectionIdFor(service.sectionId) || '');
       service.rootSectionId = nextRootId;
-      if (!nextRootId || (currentSubsectionRoot && currentSubsectionRoot !== String(nextRootId))) {
+      if (!nextRootId || previousRootId !== String(nextRootId) || (currentSubsectionRoot && currentSubsectionRoot !== String(nextRootId))) {
         service.sectionId = '';
         service.name = '';
         service.tags = [];
