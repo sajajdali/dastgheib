@@ -870,84 +870,86 @@
                         <div class="service-choice-row">
                           <span class="service-row-caption">مسیر خدمت</span>
 
-                    <Multiselect
-                      :model-value="service.rootSectionId"
-                      :options="serviceRootSectionOptions(row)"
-                      :custom-label="serviceSectionLabel"
-                      :multiple="false"
-                      :searchable="true"
-                      :close-on-select="true"
-                      :clear-on-select="false"
-                      :allow-empty="true"
-                      placeholder="انتخاب بخش"
-                      select-label=""
-                      selected-label="انتخاب شد"
-                      deselect-label="حذف"
-                      class="service-multiselect service-section-multiselect service-root-multiselect"
-                      @open="activeServiceTagPicker = null"
-                      @update:model-value="setServiceRootSection(service, row, $event)"
-                    />
+                          <div class="service-path-selectors">
+                            <Multiselect
+                              :model-value="service.rootSectionId"
+                              :options="serviceRootSectionOptions(row)"
+                              :custom-label="serviceSectionLabel"
+                              :multiple="false"
+                              :searchable="true"
+                              :close-on-select="true"
+                              :clear-on-select="false"
+                              :allow-empty="true"
+                              placeholder="انتخاب بخش"
+                              select-label=""
+                              selected-label="انتخاب شد"
+                              deselect-label="حذف"
+                              class="service-multiselect service-section-multiselect service-root-multiselect"
+                              @open="activeServiceTagPicker = null"
+                              @update:model-value="setServiceRootSection(service, row, $event)"
+                            />
 
-                    <Multiselect
-                      :model-value="service.sectionId"
-                      :options="serviceSubsectionOptions(service, row)"
-                      :custom-label="serviceSectionLabel"
-                      :multiple="false"
-                      :searchable="true"
-                      :close-on-select="true"
-                      :clear-on-select="false"
-                      :allow-empty="true"
-                      :disabled="!service.rootSectionId"
-                      :placeholder="service.rootSectionId ? 'انتخاب زیربخش' : 'ابتدا بخش را انتخاب کنید'"
-                      select-label=""
-                      selected-label="انتخاب شد"
-                      deselect-label="حذف"
-                      class="service-multiselect service-section-multiselect service-subsection-multiselect"
-                      @open="activeServiceTagPicker = null"
-                      @update:model-value="onServiceSectionChanged(service, row, $event)"
-                    />
+                            <Multiselect
+                              v-for="level in serviceSectionLevels(service)"
+                              :key="`${level.parentId}-${level.depth}`"
+                              :model-value="level.value"
+                              :options="level.options"
+                              :custom-label="serviceSectionLabel"
+                              :multiple="false"
+                              :searchable="true"
+                              :close-on-select="true"
+                              :clear-on-select="false"
+                              :allow-empty="true"
+                              :placeholder="serviceSectionLevelPlaceholder(level)"
+                              select-label=""
+                              selected-label="انتخاب شد"
+                              deselect-label="حذف"
+                              class="service-multiselect service-section-multiselect service-subsection-multiselect"
+                              @open="activeServiceTagPicker = null"
+                              @update:model-value="setServiceSectionLevel(service, row, level, $event)"
+                            />
 
-                    <div v-if="service.name" class="service-tag-picker" @click.stop>
-                      <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
-                        <span>تگ‌ها</span>
-                        <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
-                        <em v-else>انتخاب تگ</em>
-                        <i>⌄</i>
-                      </button>
-                      <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
-                        <label v-for="tag in serviceTagsForSelection(service, row)" :key="tag">
-                          <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, row)">
-                          <span>{{ tag }}</span>
-                        </label>
-                        <span v-if="!serviceTagsForSelection(service, row).length" class="service-tag-menu-empty">
-                          تگی برای این خدمت در انبار ثبت نشده است.
-                        </span>
-                      </div>
-                      <div v-if="service.tags?.length" class="service-tag-chips">
-                        <button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, row)">{{ tag }} <b>×</b></button>
-                      </div>
-                    </div>
+                            <Multiselect
+                              v-model="service.name"
+                              :options="serviceOptionsFor(service, row)"
+                              :multiple="false"
+                              :searchable="true"
+                              :internal-search="true"
+                              :close-on-select="true"
+                              :clear-on-select="false"
+                              :allow-empty="true"
+                              :disabled="!serviceCanChooseItem(service)"
+                              :placeholder="serviceCanChooseItem(service) ? 'جستجو و انتخاب خدمت' : 'مسیر زیر‌بخش را کامل کنید'"
+                              select-label=""
+                              selected-label="انتخاب شده"
+                              deselect-label="حذف"
+                              class="service-multiselect service-name-multiselect"
+                              @open="activeServiceTagPicker = null"
+                              @select="onServiceNameChanged(service, row)"
+                              @remove="onServiceNameChanged(service, row)"
+                            />
+                          </div>
 
-                    <Multiselect
-                      v-model="service.name"
-                      :options="serviceOptionsFor(service, row)"
-                      :multiple="false"
-                      :searchable="true"
-                      :internal-search="true"
-                      :close-on-select="true"
-                      :clear-on-select="false"
-                      :allow-empty="true"
-                      :disabled="!service.sectionId"
-                      :placeholder="service.sectionId ? 'جستجو و انتخاب خدمت' : 'ابتدا زیربخش را انتخاب کنید'"
-                      select-label=""
-                      selected-label="انتخاب شده"
-                      deselect-label="حذف"
-                      class="service-multiselect service-name-multiselect"
-                      @open="activeServiceTagPicker = null"
-                      @select="onServiceNameChanged(service, row)"
-                      @remove="onServiceNameChanged(service, row)"
-                    />
-
+                          <div v-if="service.name" class="service-tag-picker" @click.stop>
+                            <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
+                              <span>تگ‌ها</span>
+                              <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
+                              <em v-else>انتخاب تگ</em>
+                              <i>⌄</i>
+                            </button>
+                            <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
+                              <label v-for="tag in serviceTagsForSelection(service, row)" :key="tag">
+                                <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, row)">
+                                <span>{{ tag }}</span>
+                              </label>
+                              <span v-if="!serviceTagsForSelection(service, row).length" class="service-tag-menu-empty">
+                                تگی برای این خدمت در انبار ثبت نشده است.
+                              </span>
+                            </div>
+                            <div v-if="service.tags?.length" class="service-tag-chips">
+                              <button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, row)">{{ tag }} <b>×</b></button>
+                            </div>
+                          </div>
                         </div>
                         <div class="service-details-row">
                           <span class="service-row-caption">جزئیات همین خدمت</span>
@@ -8138,7 +8140,12 @@ this.calculateFinalAmount(row)
       }
       const rootSectionId = service?.rootSectionId || this.rootSectionIdFor(service?.sectionId)
       const allowedSectionIds = new Set(this.serviceSectionScopeIds(rootSectionId ? [rootSectionId] : row?.serviceTypes).map(String))
-      return this.inventoryItems.find(item => item.name === service?.name && (!allowedSectionIds.size || allowedSectionIds.has(String(item.section_id)))) || null
+      const selectedSectionId = String(service?.sectionId || '')
+      return this.inventoryItems.find(item =>
+        item.name === service?.name &&
+        (!selectedSectionId || String(item.section_id) === selectedSectionId) &&
+        (!allowedSectionIds.size || allowedSectionIds.has(String(item.section_id)))
+      ) || null
     },
 
     newAddonFromInventory(item, service) {
@@ -8279,6 +8286,60 @@ this.calculateFinalAmount(row)
 
     serviceRootSectionOptions() {
       return this.sortedServiceSections.map(section => section.id);
+    },
+
+    directServiceChildSectionIds(parentId) {
+      const parentKey = String(parentId || '');
+      if (!parentKey) return [];
+      return (this.serviceSections || [])
+        .filter(section => String(section.parent_id || section.parentId || '') === parentKey)
+        .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.name || '').localeCompare(String(b.name || ''), 'fa'))
+        .map(section => section.id);
+    },
+
+    serviceSelectedSectionPath(service) {
+      const rootId = String(service?.rootSectionId || this.rootSectionIdFor(service?.sectionId) || '');
+      if (!rootId || !service?.sectionId) return [];
+
+      const path = [];
+      let current = this.serviceSections.find(section => String(section.id) === String(service.sectionId));
+      const visited = new Set();
+      while (current && String(current.id) !== rootId && !visited.has(String(current.id))) {
+        visited.add(String(current.id));
+        path.unshift(current.id);
+        current = this.serviceSections.find(section => String(section.id) === String(current.parent_id || current.parentId || ''));
+      }
+      return current && String(current.id) === rootId ? path : [];
+    },
+
+    serviceSectionLevels(service) {
+      const rootId = service?.rootSectionId || this.rootSectionIdFor(service?.sectionId);
+      if (!rootId) return [];
+
+      const selectedPath = this.serviceSelectedSectionPath(service);
+      const levels = [];
+      let parentId = rootId;
+      for (let depth = 0; depth < 12; depth += 1) {
+        const options = this.directServiceChildSectionIds(parentId);
+        if (!options.length) break;
+        const selectedId = selectedPath[depth];
+        const value = options.find(id => String(id) === String(selectedId || '')) || '';
+        levels.push({ parentId, depth, options, value });
+        if (!value) break;
+        parentId = value;
+      }
+      return levels;
+    },
+
+    serviceSectionLevelPlaceholder(level) {
+      if (Number(level?.depth || 0) === 0) return 'انتخاب زیر‌بخش';
+      return `انتخاب زیر‌بخش سطح ${(Number(level.depth) + 2).toLocaleString('fa-IR')}`;
+    },
+
+    serviceCanChooseItem(service) {
+      const selectedSectionId = service?.sectionId || service?.rootSectionId;
+      if (!selectedSectionId) return false;
+      return !this.directServiceChildSectionIds(selectedSectionId).length;
     },
 
     serviceSubsectionOptions(service, row) {
@@ -8422,7 +8483,7 @@ this.calculateFinalAmount(row)
       const rootSectionId = service?.rootSectionId || this.rootSectionIdFor(service?.sectionId);
       const allowedSections = new Set(this.serviceSectionScopeIds(rootSectionId ? [rootSectionId] : row?.serviceTypes));
       const serviceSections = service?.sectionId
-        ? new Set(this.serviceBranchIds(service.sectionId))
+        ? new Set([String(service.sectionId)])
         : null;
       return this.inventoryItems
         .filter(item => item.active !== false)
@@ -8477,6 +8538,11 @@ this.calculateFinalAmount(row)
 
       this.syncRowServiceTypesFromServices(row);
       this.calculateRowAmount(row);
+    },
+
+    setServiceSectionLevel(service, row, level, selectedSectionId) {
+      const fallbackSectionId = Number(level?.depth || 0) > 0 ? level.parentId : '';
+      this.onServiceSectionChanged(service, row, selectedSectionId || fallbackSectionId);
     },
 
     setServiceRootSection(service, row, sectionId) {
@@ -12621,16 +12687,17 @@ td.st-arrived select {
   background: #dc2626 !important;
   color: #fff !important;
 }
-/* Three-step service path inside the table popup: section → subsection → service. */
-.service-choice-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.55fr)!important}
-.service-choice-row .service-root-multiselect{grid-column:1!important;grid-row:1!important}
-.service-choice-row .service-subsection-multiselect{grid-column:2!important;grid-row:1!important}
-.service-choice-row .service-name-multiselect{grid-column:3!important;grid-row:1!important}
+/* Dynamic service path: section → every nested subsection → service → tags. */
+.service-choice-row{grid-template-columns:minmax(0,1fr)!important}
+.service-path-selectors{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));align-items:start;gap:10px;min-width:0}
+.service-choice-row .service-path-selectors .service-root-multiselect,
+.service-choice-row .service-path-selectors .service-subsection-multiselect,
+.service-choice-row .service-path-selectors .service-name-multiselect{grid-column:auto!important;grid-row:auto!important;min-width:0!important}
+.service-choice-row .service-tag-picker{grid-column:1/-1!important;grid-row:auto!important}
 .service-filter-groups{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 @media(max-width:900px){
-  .service-choice-row{grid-template-columns:1fr 1fr!important}
-  .service-choice-row .service-root-multiselect,.service-choice-row .service-subsection-multiselect{grid-column:auto!important;grid-row:auto!important}
-  .service-choice-row .service-name-multiselect{grid-column:1/-1!important;grid-row:auto!important}
+  .service-path-selectors{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .service-choice-row .service-path-selectors .service-name-multiselect{grid-column:1/-1!important}
 }
-@media(max-width:700px){.service-filter-groups{grid-template-columns:1fr!important}}
+@media(max-width:700px){.service-path-selectors,.service-filter-groups{grid-template-columns:1fr!important}.service-choice-row .service-path-selectors .service-name-multiselect{grid-column:auto!important}}
 </style>
