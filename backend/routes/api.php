@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\AppointmentScheduleMonthController;
 use App\Http\Controllers\Api\SatisfactionController;
+use App\Http\Controllers\Api\SatisfactionDocumentationController;
 
 
 
@@ -54,6 +55,8 @@ use App\Http\Controllers\Api\SatisfactionController;
 //تنظیمات
 Route::get('/public/satisfaction/{token}', [SatisfactionController::class, 'show'])->middleware('throttle:60,1');
 Route::post('/public/satisfaction/{token}', [SatisfactionController::class, 'submit'])->middleware('throttle:10,1');
+Route::get('/public/satisfaction/integration/swagger', [SatisfactionDocumentationController::class, 'index'])->middleware('throttle:60,1');
+Route::get('/public/satisfaction/integration/openapi.json', [SatisfactionDocumentationController::class, 'spec'])->middleware('throttle:60,1');
 Route::get('/connectivity', fn () => response()->json(['online' => true]))->middleware('throttle:120,1');
 Route::middleware('auth')->group(function () {
 Route::get('/auth/user', [AuthController::class, 'user']);
@@ -66,6 +69,7 @@ Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIn
 Route::post('/service-tickets', [CentralServiceTicketController::class, 'tenantStore'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/settings', [SettingController::class, 'index']);
 Route::put('/settings/satisfaction', [SatisfactionController::class, 'updateSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::put('/settings/satisfaction/integration', [SatisfactionController::class, 'updateIntegration'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/patients/{patient}/satisfaction', [SatisfactionController::class, 'patientResponses'])->middleware('permission:patients.view');
 Route::get('/calendar/events', [CalendarController::class, 'index']);
 Route::put('/calendar/overrides/{date}', [CalendarController::class, 'saveOverride'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
@@ -117,6 +121,7 @@ Route::get('/patients/find-by-phone/{phone}', [PatientController::class, 'findBy
 Route::get('/patients/upcoming-birthdays', [PatientController::class, 'upcomingBirthdays'])->middleware('permission:patients.view');
 Route::get('/patients/search', [PatientController::class, 'search'])->middleware('permission:patients.view');
 Route::put('/patients/{id}', [PatientController::class, 'update'])->middleware('permission:patients.update');
+Route::delete('/patients/{patient}', [PatientController::class, 'destroy'])->middleware('permission:patients.delete');
 Route::patch('/patients/{patient}/customer-level', [PatientController::class, 'updateCustomerLevel']);
 Route::post('/patients/{patient}/profile-photo', [PatientController::class, 'uploadProfilePhoto']);
 Route::get('/patients/{patient}/media', [PatientMediaController::class, 'index']);

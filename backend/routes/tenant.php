@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Api\SatisfactionIntegrationController;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
 
@@ -49,4 +50,13 @@ Route::middleware([
     Route::middleware(['web', 'api'])
         ->prefix('api')
         ->group(base_path('routes/api.php'));
+
+    // Separate from the application's credentialed /api CORS policy.
+    Route::prefix('external-api/satisfaction/v1/invitations')
+        ->middleware('api')
+        ->group(function () {
+            Route::options('/{token}', [SatisfactionIntegrationController::class, 'options'])->middleware('throttle:60,1');
+            Route::get('/{token}', [SatisfactionIntegrationController::class, 'show'])->middleware('throttle:60,1');
+            Route::post('/{token}', [SatisfactionIntegrationController::class, 'submit'])->middleware('throttle:10,1');
+        });
 });

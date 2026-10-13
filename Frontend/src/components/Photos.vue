@@ -9,8 +9,8 @@
       <div class="photos-filter-row photos-filter-primary">
         <div class="search-main"><span>⌕</span><input v-model.trim="filters.q" @keyup.enter="load" placeholder="نام، پرونده یا موبایل"></div>
         <div class="tag-search-filter">
-          <select v-model="filters.tag" aria-label="فیلتر تگ" @change="load">
-            <option value="">همه تگ‌ها</option>
+          <select v-model="filters.tag" aria-label="فیلتر ناحیه" @change="load">
+            <option value="">همه نواحی</option>
             <option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</option>
           </select>
         </div>
@@ -117,10 +117,10 @@
 import DatePicker from 'vue3-persian-datetime-picker'
 
 const ANGLES = [
-  { key: 'left_profile', label: 'نیم‌رخ چپ' }, { key: 'left_three_quarter_60', label: 'سه‌رخ اول چپ' },
-  { key: 'left_three_quarter_30', label: 'سه‌رخ دوم چپ' }, { key: 'front', label: 'تمام‌رخ' },
-  { key: 'right_three_quarter_30', label: 'سه‌رخ اول راست' }, { key: 'right_three_quarter_60', label: 'سه‌رخ دوم راست' },
-  { key: 'right_profile', label: 'نیم‌رخ راست' }
+  { key: 'right_profile', label: 'نیم‌رخ راست' }, { key: 'right_three_quarter_60', label: 'سه‌رخ اول راست' },
+  { key: 'right_three_quarter_30', label: 'سه‌رخ دوم راست' }, { key: 'front', label: 'تمام‌رخ' },
+  { key: 'left_three_quarter_30', label: 'سه‌رخ اول چپ' }, { key: 'left_three_quarter_60', label: 'سه‌رخ دوم چپ' },
+  { key: 'left_profile', label: 'نیم‌رخ چپ' }
 ]
 
 export default {

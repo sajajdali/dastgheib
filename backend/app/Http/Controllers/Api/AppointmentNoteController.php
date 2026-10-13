@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\AppointmentNoteChanged;
 use App\Http\Controllers\Controller;
 use App\Models\AppointmentNoteMessage;
 use Illuminate\Http\Request;
@@ -12,9 +13,10 @@ class AppointmentNoteController extends Controller
     public function index(Request $request)
     {
         $data = $request->validate(['appointment_key' => ['required', 'string', 'max:190']]);
-        $isSecretary = $this->isSecretary($request);
-        if ($isSecretary) {
-            AppointmentNoteMessage::query()
+        $canAcknowledge = $request->user() && ! $this->isDoctor($request);
+        $markedSeen = 0;
+        if ($canAcknowledge) {
+            $markedSeen = AppointmentNoteMessage::query()
                 ->where('appointment_key', $data['appointment_key'])
                 ->where('requires_secretary_attention', true)
                 ->whereNull('secretary_seen_at')
@@ -24,6 +26,7 @@ class AppointmentNoteController extends Controller
             ->where('appointment_key', $data['appointment_key'])
             ->oldest('id')
             ->get();
+        if ($markedSeen) $this->broadcastStatus($data['appointment_key']);
         return response()->json([
             'messages' => $messages->map(fn ($message) => $this->resource($message)),
             'has_unread_doctor_note' => $messages->contains(fn ($message) => $message->requires_secretary_attention && ! $message->secretary_seen_at),
@@ -59,6 +62,8 @@ class AppointmentNoteController extends Controller
             'requires_secretary_attention' => $this->isDoctor($request),
         ]);
 
+        $this->broadcastStatus($message->appointment_key);
+
         return response()->json($this->resource($message->load('user')), 201);
     }
 
@@ -73,7 +78,9 @@ class AppointmentNoteController extends Controller
             Storage::disk('public')->delete($message->image_path);
         }
 
+        $appointmentKey = $message->appointment_key;
         $message->delete();
+        $this->broadcastStatus($appointmentKey);
 
         return response()->noContent();
     }
@@ -106,10 +113,17 @@ class AppointmentNoteController extends Controller
         })->exists() ?? false;
     }
 
-    private function isSecretary(Request $request): bool
+    private function broadcastStatus(string $appointmentKey): void
     {
-        return $request->user()?->roles()->where(function ($query) {
-            $query->where('name', 'like', '%منشی%')->orWhere('name', 'like', '%secretary%');
-        })->exists() ?? false;
+        $messages = AppointmentNoteMessage::query()
+            ->where('appointment_key', $appointmentKey)
+            ->get(['requires_secretary_attention', 'secretary_seen_at']);
+
+        broadcast(new AppointmentNoteChanged(
+            (string) tenant('id'),
+            $appointmentKey,
+            $messages->count(),
+            $messages->contains(fn ($message) => $message->requires_secretary_attention && ! $message->secretary_seen_at),
+        ))->toOthers();
     }
 }

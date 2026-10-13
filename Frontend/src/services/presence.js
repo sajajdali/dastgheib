@@ -18,6 +18,7 @@ let activeUserId = null;
 let activeTenantId = null;
 let appointmentChannel = null;
 const appointmentListeners = new Set();
+const appointmentNoteListeners = new Set();
 const reportChannels = new Map();
 const reportWidgetChannels = new Map();
 
@@ -27,12 +28,21 @@ const joinAppointmentChannel = () => {
   appointmentChannel.listen(".appointment.changed", (event) => {
     appointmentListeners.forEach((listener) => listener(event));
   });
+  appointmentChannel.listen(".appointment.note.changed", (event) => {
+    appointmentNoteListeners.forEach((listener) => listener(event));
+  });
 };
 
 export function subscribeAppointmentChanges(listener) {
   appointmentListeners.add(listener);
   joinAppointmentChannel();
   return () => appointmentListeners.delete(listener);
+}
+
+export function subscribeAppointmentNoteChanges(listener) {
+  appointmentNoteListeners.add(listener);
+  joinAppointmentChannel();
+  return () => appointmentNoteListeners.delete(listener);
 }
 
 export function subscribeReportProgress(reportId, listener) {

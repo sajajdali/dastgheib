@@ -8,6 +8,7 @@ use App\Models\SatisfactionInvitation;
 use App\Services\ShsmsService;
 use Illuminate\Support\Str;
 use App\Support\ActivityLogger;
+use App\Support\SatisfactionIntegration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -214,7 +215,7 @@ class CompletionSmsController extends Controller
         foreach (array_values(array_unique($data['tags'])) as $tag) {
             try {
                 $template = $definitions->get($tag, '');
-                if ($template === '') throw new \RuntimeException("برای تگ «{$tag}» نام الگوی پیامک تعریف نشده است.");
+                if ($template === '') throw new \RuntimeException("برای ناحیه «{$tag}» نام الگوی پیامک تعریف نشده است.");
 
                 $this->sendTemplateSms($data['patient_phone'], $template, [
                     $data['patient_name'] ?? '',
@@ -259,22 +260,25 @@ class CompletionSmsController extends Controller
             ->first();
         $invite = SatisfactionInvitation::firstOrNew(['appointment_id'=>$appointment->id]);
         if (! $invite->exists) {
-            do { $token = Str::upper(Str::random(8)); } while (SatisfactionInvitation::where('token', $token)->exists());
+            do { $token = Str::upper(Str::random(12)); } while (SatisfactionInvitation::where('token', $token)->exists());
+            $integration = SatisfactionIntegration::settings();
             $form = SatisfactionController::form();
             $form['patient_name'] = trim((string) ($patient ? $patient->first_name.' '.$patient->last_name : $appointment->lastname));
             $form['clinic_name'] = (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', ''));
             $form['logo_url'] = (string) AppSetting::getByKey('company_logo', '');
-            $invite->fill(['token'=>$token,'patient_id'=>$patient?->id,'form_snapshot'=>$form,'expires_at'=>now()->addDays(30)]);
-        } elseif (! $invite->answered_at) {
-            $form = SatisfactionController::form();
-            $form['patient_name'] = trim((string) ($patient ? $patient->first_name.' '.$patient->last_name : $appointment->lastname));
-            $form['clinic_name'] = (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', ''));
-            $form['logo_url'] = (string) AppSetting::getByKey('company_logo', '');
-            $invite->form_snapshot = $form;
+            $invite->fill([
+                'token'=>$token, 'patient_id'=>$patient?->id, 'form_snapshot'=>$form,
+                'expires_at'=>now()->addDays(30),
+                'delivery_mode'=>$integration['enabled'] ? 'external' : 'internal',
+                'delivery_url'=>$integration['enabled'] ? $integration['page_url'] : null,
+            ]);
         }
         $invite->sent_at = now(); $invite->save();
-        $base = $this->tenantFrontendUrl($request);
-        return $base.'/r/'.$invite->token;
+        if ($invite->delivery_mode === 'external') {
+            return $invite->delivery_url.'?satisfaction_token='.rawurlencode($invite->token);
+        }
+
+        return $this->tenantFrontendUrl($request).'/r/'.$invite->token;
     }
 
     private function tenantFrontendUrl(Request $request): string

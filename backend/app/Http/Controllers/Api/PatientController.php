@@ -54,11 +54,11 @@ class PatientController extends Controller
 
         return response()->json([
             'file_number_exists' => $fileNumber
-                ? Patient::whereRaw($this->normalizedDigitColumn('file_number').' = ?', [$fileNumber])->exists()
+                ? Patient::withTrashed()->whereRaw($this->normalizedDigitColumn('file_number').' = ?', [$fileNumber])->exists()
                 : false,
 
             'phone_exists' => $phone
-                ? Patient::whereRaw($this->normalizedDigitColumn('phone').' = ?', [$phone])->exists()
+                ? Patient::withTrashed()->whereRaw($this->normalizedDigitColumn('phone').' = ?', [$phone])->exists()
                 : false,
         ]);
     }
@@ -282,6 +282,7 @@ class PatientController extends Controller
             'first_name' => [$presence('first_name'), 'string', 'max:255'],
             'last_name' => [$presence('last_name'), 'string', 'max:255'],
             'phone' => [$presence('phone'), 'string', 'max:30', Rule::unique('patients', 'phone')->ignore($patient->id)],
+            'file_number' => ['nullable', 'string', 'max:50', Rule::unique('patients', 'file_number')->ignore($patient->id)],
             'gender' => [$presence('gender'), 'string', 'max:20'],
             'birth_date' => [$presence('birth_date'), 'date_format:Y-m-d'],
             'area' => [$presence('area'), 'string', 'max:255'],
@@ -300,18 +301,75 @@ class PatientController extends Controller
             'address' => [$presence('address'), 'string'],
         ], [
             'phone.unique' => 'شماره موبایل تکراری است',
+            'file_number.unique' => 'این شماره پرونده قبلاً ثبت شده است.',
+            'education.in' => 'تحصیلات را از گزینه‌های تعریف‌شده در تنظیمات انتخاب کنید.',
         ]);
+
+        $oldFileNumber = (string) ($patient->file_number ?? '');
+        $newFileNumber = $request->exists('file_number')
+            ? $this->normalizeDigits($updates['file_number'] ?? '')
+            : $this->normalizeDigits($oldFileNumber);
+        $fileNumberChanged = $newFileNumber !== $this->normalizeDigits($oldFileNumber);
+        if ($fileNumberChanged) {
+            if (AppSetting::getByKey('appointment_file_number_locked', '1') !== '0') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'file_number' => 'ویرایش شماره پرونده در تنظیمات غیرفعال است.',
+                ]);
+            }
+            if ($newFileNumber === '') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'file_number' => 'شماره پرونده جدید را وارد کنید.',
+                ]);
+            }
+            if (Patient::query()->whereKeyNot($patient->id)
+                ->whereRaw($this->normalizedDigitColumn('file_number').' = ?', [$newFileNumber])->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'file_number' => 'این شماره پرونده قبلاً ثبت شده است.',
+                ]);
+            }
+            $updates['file_number'] = $newFileNumber;
+        } else {
+            unset($updates['file_number']);
+        }
 
         if (! PatientPhoneVisibility::canView($request) || PatientPhoneVisibility::looksMasked($updates['phone'] ?? '')) {
             $updates['phone'] = $patient->phone;
             $updates['second_phone'] = $patient->second_phone;
         }
 
-        $patient->update($updates);
+        try {
+            DB::transaction(function () use ($patient, $updates, $oldFileNumber, $fileNumberChanged, $newFileNumber) {
+                $current = Patient::query()->whereKey($patient->id)->lockForUpdate()->firstOrFail();
+                if ($fileNumberChanged && (string) ($current->file_number ?? '') !== $oldFileNumber) {
+                    abort(409, 'شماره پرونده در این فاصله تغییر کرده است؛ صفحه را به‌روز کنید.');
+                }
+
+                $current->update($updates);
+                if ($fileNumberChanged && $oldFileNumber !== '') {
+                    DB::table('appointments')->where('file_number', $oldFileNumber)->update(['file_number' => $newFileNumber]);
+                    DB::table('services')->where('file_number', $oldFileNumber)->update(['file_number' => $newFileNumber]);
+                }
+            });
+        } catch (QueryException $exception) {
+            if ($fileNumberChanged && in_array((string) $exception->getCode(), ['23000', '23505', '19'], true)
+                && str_contains(strtolower($exception->getMessage()), 'file_number')) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'file_number' => 'این شماره پرونده قبلاً ثبت شده است.',
+                ]);
+            }
+            throw $exception;
+        }
 
         return response()->json([
             'success' => true
         ]);
+    }
+
+    public function destroy(Patient $patient)
+    {
+        $patient->delete();
+
+        return response()->json(['message' => 'پرونده حذف شد. اطلاعات آن برای بازیابی در دیتابیس نگهداری می‌شود.']);
     }
 
     private function normalizePatientRequestDigits(Request $request): void
@@ -399,7 +457,7 @@ class PatientController extends Controller
 
     private function nextFileNumberValue(): string
     {
-        $lastFileNumber = Patient::query()
+        $lastFileNumber = Patient::withTrashed()
             ->whereNotNull('file_number')
             ->where('file_number', '!=', '')
             ->selectRaw('MAX(CAST(file_number AS UNSIGNED)) AS last_number')
@@ -409,7 +467,7 @@ class PatientController extends Controller
 
         // بعضی داده‌های قدیمی ممکن است شماره‌های نامنظم داشته باشند؛
         // تا اولین شمارهٔ آزاد جلو می‌رویم تا خطای unique رخ ندهد.
-        while (Patient::query()->where('file_number', (string) $candidate)->exists()) {
+        while (Patient::withTrashed()->where('file_number', (string) $candidate)->exists()) {
             $candidate++;
         }
 

@@ -445,8 +445,8 @@
                   <div style="height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + (r.c) + ';border-radius:999px'"></div></div>
                 </div>
               </template>
-              <div v-if="!v.phRows.length" class="report-widget-empty">برای نمایش کیفیت عکس‌ها براساس تگ و برترین‌ها، گزارش را محاسبه کنید.</div>
-              <div v-if="v.photoCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آنالیز عکس‌ها</strong><small>عکس‌ها، تگ‌ها و کیفیت تصاویر بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
+              <div v-if="!v.phRows.length" class="report-widget-empty">برای نمایش کیفیت عکس‌ها براساس ناحیه و برترین‌ها، گزارش را محاسبه کنید.</div>
+              <div v-if="v.photoCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آنالیز عکس‌ها</strong><small>عکس‌ها، نواحی و کیفیت تصاویر بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.city" @dragover="v.dv.city" @drop="v.dp.city" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.city) + ';order:' + (v.o.city)" data-screen-label="آمار شهرها">
@@ -1047,7 +1047,7 @@ export default {
       {id:'adsrc', label:'منبع تبلیغات', items:['اینستاگرام','یوتیوب','گوگل','تلگرام','معرفی دوستان','بیلبورد','سایت','دیوار','مشتری بازگشتی','همکاری بلاگر']},
       {id:'cons', label:'نام مشاور', items:['سارا احمدی','مریم رضایی','نگار موسوی','الهام کریمی','رویا شریفی','آیدا محسنی','شیوا رستمی','پریسا نادری']},
       {id:'face', label:'مشکلات چهره', items:['افتادگی پلک','خط خنده','چین پیشانی','غبغب','گودی زیر چشم','لک صورت','منافذ باز','جای جوش','افتادگی گونه','خط اخم','چروک دور چشم','عدم تقارن لب']},
-      {id:'tags', label:'تگ‌های خدمات', items:['تزریقات','جوانسازی','لیزر','پوست','مو','لاغری','زیبایی لب','ضدپیری','درمانی','مراقبتی','دستگاهی','ترکیبی']},
+      {id:'tags', label:'نواحی', items:['تزریقات','جوانسازی','لیزر','پوست','مو','لاغری','زیبایی لب','ضدپیری','درمانی','مراقبتی','دستگاهی','ترکیبی']},
       {id:'channel', label:'کانال تبلیغاتی', items:['اینستاگرام','یوتیوب','تلگرام','گوگل','واتساپ','تیک‌تاک','آپارات','بیلبورد','رادیو','پیامک']}
     ];
     const dgroups = DD.map(g => {
@@ -1326,16 +1326,16 @@ export default {
     // photos
     const photoReady = this.photoSnapshot?.status === 'completed';
     const PH = photoReady ? (this.photoSnapshot?.result?.photo_quality || []) : [
-      {tag:'تگ خدمات نمونه ۱',total:10,qualified:3,percent:30},
-      {tag:'تگ خدمات نمونه ۲',total:8,qualified:4,percent:50},
-      {tag:'تگ خدمات نمونه ۳',total:12,qualified:2,percent:16.7}
+      {tag:'ناحیه نمونه ۱',total:10,qualified:3,percent:30},
+      {tag:'ناحیه نمونه ۲',total:8,qualified:4,percent:50},
+      {tag:'ناحیه نمونه ۳',total:12,qualified:2,percent:16.7}
     ];
     const phRows = PH.map(row => {
       const ratio = Number(row.percent || 0) / 100;
       return {n:row.tag,txt:'از '+fa(row.total || 0)+' عکس، '+fa(row.qualified || 0)+' برترین —',p:pc(row.percent || 0),
         w:Math.max(0,Math.min(100,Number(row.percent || 0)))+'%',c:ratio>=0.3?'#16a34a':ratio>=0.15?'#f59e0b':'#dc2626'};
     });
-    const phTotal = photoReady ? 'مجموع: '+fa(PH.reduce((sum,row)=>sum+Number(row.total || 0),0))+' ثبت تگ عکس' : 'نمایش نمونه قبل از محاسبه';
+    const phTotal = photoReady ? 'مجموع: '+fa(PH.reduce((sum,row)=>sum+Number(row.total || 0),0))+' ثبت ناحیه عکس' : 'نمایش نمونه قبل از محاسبه';
 
     // cities
     const CT = [

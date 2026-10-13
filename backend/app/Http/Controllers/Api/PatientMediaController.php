@@ -16,13 +16,13 @@ use Illuminate\Support\Str;
 class PatientMediaController extends Controller
 {
     private const PHOTO_ANGLES = [
-        'left_profile' => ['label' => 'نیم‌رخ چپ', 'degrees' => 90],
-        'left_three_quarter_60' => ['label' => 'سه‌رخ اول چپ', 'degrees' => 60],
-        'left_three_quarter_30' => ['label' => 'سه‌رخ دوم چپ', 'degrees' => 30],
-        'front' => ['label' => 'تمام‌رخ', 'degrees' => 0],
-        'right_three_quarter_30' => ['label' => 'سه‌رخ اول راست', 'degrees' => 30],
-        'right_three_quarter_60' => ['label' => 'سه‌رخ دوم راست', 'degrees' => 60],
         'right_profile' => ['label' => 'نیم‌رخ راست', 'degrees' => 90],
+        'right_three_quarter_60' => ['label' => 'سه‌رخ اول راست', 'degrees' => 60],
+        'right_three_quarter_30' => ['label' => 'سه‌رخ دوم راست', 'degrees' => 30],
+        'front' => ['label' => 'تمام‌رخ', 'degrees' => 0],
+        'left_three_quarter_30' => ['label' => 'سه‌رخ اول چپ', 'degrees' => 30],
+        'left_three_quarter_60' => ['label' => 'سه‌رخ دوم چپ', 'degrees' => 60],
+        'left_profile' => ['label' => 'نیم‌رخ چپ', 'degrees' => 90],
         'other' => ['label' => 'سایر', 'degrees' => 0],
         'body_shape' => ['label' => 'شیپ بدن', 'degrees' => 0],
     ];
@@ -560,7 +560,7 @@ class PatientMediaController extends Controller
         }
         if (! is_array($rawServices) || count($this->normalizeServiceTags($rawServices)) === 0) {
             abort(response()->json([
-                'message' => 'انتخاب حداقل یک تگ خدمات برای عکس‌های قبل و بعد الزامی است.',
+                'message' => 'انتخاب حداقل یک ناحیه برای عکس‌های قبل و بعد الزامی است.',
                 'errors' => ['services' => ['حداقل یک خدمت را انتخاب کنید.']],
             ], 422));
         }

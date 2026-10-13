@@ -144,7 +144,7 @@
           </button>
           <button class="service-tags-page-btn" type="button" @click="openServiceTagsPage">
             <span>🏷</span>
-            تگ‌های خدمات
+            نواحی
           </button>
           <button class="inventory-addons-page-btn" type="button" @click="openAddonManager">
             <span>✦</span>
@@ -235,7 +235,7 @@
             <thead>
               <tr>
                 <th>نام کالا / خدمت</th>
-                <th>تگ‌های خدمات</th>
+                <th>نواحی</th>
                 <th title="جانبی‌های پیش‌فرض">جانبی‌ها</th>
                 <th>قیمت کالا</th>
                 <th>هزینه مواد</th>
@@ -265,13 +265,13 @@
                   <div class="service-tags-editor" @click.stop>
                     <span v-for="(tag, tagIndex) in row.serviceTags" :key="`${row.localId}-tag-${tagIndex}`">
                       {{ tag }}
-                      <button type="button" title="حذف تگ" @click.stop="removeServiceTag(row, tagIndex)">×</button>
+                      <button type="button" title="حذف ناحیه" @click.stop="removeServiceTag(row, tagIndex)">×</button>
                     </span>
                     <div class="service-tag-picker">
                       <input
                         v-model.trim="row.tagDraft"
                         type="search"
-                        placeholder="جست‌وجو و انتخاب تگ"
+                        placeholder="جست‌وجو و انتخاب ناحیه"
                         @focus="openServiceTagPicker(row, $event)"
                         @input="openServiceTagPicker(row, $event)"
                       >
@@ -571,7 +571,7 @@
           {{ tag }}
         </button>
         <small v-if="!filteredServiceTagOptions(tagPicker.row).length">
-          تگی پیدا نشد. تگ‌ها را از صفحه «تگ‌های خدمات» ثبت کنید.
+          ناحیه‌ای پیدا نشد. نواحی را از صفحه «نواحی» ثبت کنید.
         </small>
       </div>
     </div>
@@ -820,7 +820,7 @@ export default {
     bulkCommissionTargetLabel() {
       const count = this.bulkCommissionRows.length
       if (this.bulkCommission.target === "tag") {
-        return this.bulkCommission.tag ? `${count} آیتم در ${this.bulkCommission.tag}` : "یک تگ را انتخاب کنید"
+        return this.bulkCommission.tag ? `${count} آیتم در ${this.bulkCommission.tag}` : "یک ناحیه را انتخاب کنید"
       }
       return `${count} آیتم در ${this.activeSectionName}`
     },

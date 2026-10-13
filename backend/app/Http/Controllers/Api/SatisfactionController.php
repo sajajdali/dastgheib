@@ -12,6 +12,7 @@ use App\Models\Appointment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\SatisfactionIntegration;
 
 class SatisfactionController extends Controller
 {
@@ -61,6 +62,31 @@ class SatisfactionController extends Controller
         return response()->json(['message'=>'فرم رضایت‌مندی ذخیره شد.','satisfaction_form'=>$data]);
     }
 
+    public function updateIntegration(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'page_url' => ['nullable', 'required_if:enabled,true', 'url', 'max:2048'],
+        ]);
+        $url = rtrim(trim((string) ($data['page_url'] ?? '')), '/');
+        if ($url !== '') {
+            $parts = parse_url($url);
+            $host = strtolower((string) ($parts['host'] ?? ''));
+            $local = app()->environment('local') && in_array($host, ['localhost', '127.0.0.1'], true);
+            if (! is_array($parts) || (($parts['scheme'] ?? '') !== 'https' && ! ($local && ($parts['scheme'] ?? '') === 'http'))
+                || $host === '' || isset($parts['user']) || isset($parts['pass'])
+                || isset($parts['query']) || isset($parts['fragment'])) {
+                return response()->json(['message' => 'آدرس صفحه باید HTTPS و بدون پارامتر یا بخش اضافی باشد.'], 422);
+            }
+        }
+        $settings = ['enabled' => (bool) $data['enabled'], 'page_url' => $url];
+        AppSetting::updateOrCreate(['key' => 'satisfaction_external_integration'], [
+            'value' => json_encode($settings, JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return response()->json(['message' => 'تنظیمات اتصال رضایت‌مندی ذخیره شد.', 'integration' => $settings]);
+    }
+
     public function show(Request $request, string $token): JsonResponse
     {
         $invite = SatisfactionInvitation::where('token', $token)->first();
@@ -80,8 +106,15 @@ class SatisfactionController extends Controller
         $invite = SatisfactionInvitation::where('token', $token)->firstOrFail();
         abort_if($invite->expires_at?->isPast(), 410, 'مهلت پاسخ‌گویی به این فرم تمام شده است.');
         abort_if($invite->answered_at, 409, 'پاسخ این فرم قبلاً ثبت شده است.');
-        $answers = $request->validate(['answers'=>['required','array'],'answers.*.id'=>['required','string'],'answers.*.value'=>['nullable','string','max:2000']])['answers'];
+        $answers = $request->validate([
+            'answers'=>['required','array','min:1','max:50'],
+            'answers.*.id'=>['required','string','distinct'],
+            'answers.*.value'=>['nullable','string','max:2000'],
+        ])['answers'];
         $questions = collect($invite->form_snapshot['questions'] ?? [])->keyBy('id');
+        foreach ($answers as $answer) {
+            abort_unless($questions->has($answer['id']), 422, 'شناسهٔ یکی از سؤال‌ها معتبر نیست.');
+        }
         foreach ($questions as $question) {
             $answer = collect($answers)->firstWhere('id', $question['id']);
             if (($question['required'] ?? false) && (! is_array($answer) || blank($answer['value'] ?? null))) {
@@ -93,7 +126,10 @@ class SatisfactionController extends Controller
             }
         }
         DB::transaction(function () use ($invite, $answers, $questions) {
-            $response = SatisfactionResponse::create(['patient_id'=>$invite->patient_id,'appointment_id'=>$invite->appointment_id,'answered_on'=>now()->format('Y-m-d')]);
+            $lockedInvite = SatisfactionInvitation::whereKey($invite->id)->lockForUpdate()->firstOrFail();
+            abort_if($lockedInvite->answered_at, 409, 'پاسخ این فرم قبلاً ثبت شده است.');
+            abort_if($lockedInvite->expires_at?->isPast(), 410, 'مهلت پاسخ‌گویی به این فرم تمام شده است.');
+            $response = SatisfactionResponse::create(['patient_id'=>$lockedInvite->patient_id,'appointment_id'=>$lockedInvite->appointment_id,'answered_on'=>now()->format('Y-m-d')]);
             foreach ($answers as $answer) {
                 $question = $questions->get($answer['id']); if (! $question) continue;
                 $option = collect($question['options'] ?? [])->firstWhere('value', $answer['value']);
@@ -104,7 +140,7 @@ class SatisfactionController extends Controller
                     'score'=>$option['score'] ?? null,
                 ]);
             }
-            $invite->update(['answered_at'=>now()]);
+            $lockedInvite->update(['answered_at'=>now()]);
         });
         return response()->json(['message'=>$invite->form_snapshot['completion_text'] ?? 'پاسخ شما ثبت شد.']);
     }

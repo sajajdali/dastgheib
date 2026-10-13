@@ -21,7 +21,7 @@
         </label>
         <div class="management-menus">
           <HeaderPicker
-            title="مدیریت نواحی‌ها"
+            title="مدیریت نواحی"
             :open="headerOpen === 'zone'"
             :options="zoneOptions"
             v-model:new-value="newZone"

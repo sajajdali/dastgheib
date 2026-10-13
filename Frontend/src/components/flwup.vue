@@ -277,6 +277,10 @@
                 مشاهده جزئیات و جدول
               </button>
 
+              <button type="button" class="campaign-edit-btn" @click.stop="openEditCampaignModal(campaign)">
+                ویرایش
+              </button>
+
               <button class="archive-btn" @click.stop="toggleCampaignArchive(campaign)">
                 {{ campaign.campaignStatus === 'archived' ? 'خروج از آرشیو' : 'آرشیو' }}
               </button>
@@ -300,11 +304,11 @@
     <!-- Create Campaign Modal -->
     <div
       v-if="showCampaignModal"
-      class="modal-overlay"
-      @click.self="showCampaignModal = false"
+      class="modal-overlay campaign-form-overlay"
+      @click.self="closeCampaignForm"
     >
       <div class="campaign-modal">
-        <div class="modal-title">اطلاعات کمپین</div>
+        <div class="modal-title">{{ editingCampaignId !== null ? 'ویرایش کمپین' : 'اطلاعات کمپین' }}</div>
         <div class="modal-subtitle">
       
         </div>
@@ -324,6 +328,7 @@
               <option value="">
                 {{ channelsLoading ? 'در حال بارگذاری منابع...' : 'انتخاب منبع' }}
               </option>
+              <option v-if="newCampaign.source && !channelOptions.some(channel => channel.name === newCampaign.source)" :value="newCampaign.source">{{ newCampaign.source }}</option>
               <option
                 v-for="channel in channelOptions"
                 :key="channel.id"
@@ -350,6 +355,12 @@
             <label>بنرهای کمپین</label>
             <input type="file" accept="image/*" multiple @change="handleCampaignAttachment" />
             <small v-if="newCampaign.banners.length" class="field-hint">{{ newCampaign.banners.length.toLocaleString('fa-IR') }} بنر انتخاب شده</small>
+            <div v-if="newCampaign.banners.length" class="campaign-form-banners">
+              <div v-for="(banner, index) in newCampaign.banners" :key="banner.id || index">
+                <span :title="banner.name">{{ banner.name || `بنر ${index + 1}` }}</span>
+                <button type="button" :aria-label="`حذف بنر ${banner.name || index + 1}`" @click="removeCampaignFormBanner(index)">×</button>
+              </div>
+            </div>
           </div>
 
           <div class="field" :class="{ 'field-invalid': campaignDateError }">
@@ -397,11 +408,11 @@
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="secondary-btn" @click="showCampaignModal = false">
+          <button type="button" class="secondary-btn" :disabled="campaignFormSaving" @click="closeCampaignForm">
             انصراف
           </button>
-          <button type="button" class="primary-btn" @click.stop="createCampaign">
-            ایجاد کمپین
+          <button type="button" class="primary-btn" :disabled="campaignFormSaving || bannerUploadLoading" @click.stop="saveCampaignForm">
+            {{ campaignFormSaving ? 'در حال ذخیره...' : editingCampaignId !== null ? 'ذخیره تغییرات' : 'ایجاد کمپین' }}
           </button>
         </div>
       </div>
@@ -833,6 +844,9 @@
           </div>
 
           <div class="campaign-header-actions">
+            <button v-if="!isGeneralFollowupCampaign(activeCampaign)" type="button" class="campaign-icon-action" title="ویرایش اطلاعات کمپین" aria-label="ویرایش اطلاعات کمپین" @click.stop="openEditCampaignModal(activeCampaign)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"/><path d="m14 7 3 3"/></svg>
+            </button>
             <button
               type="button"
               class="campaign-icon-action banner-gallery-trigger"
@@ -1174,8 +1188,8 @@
                           :style="landingMenuStyle"
                           @click.stop
                         >
-                          <div class="landing-multi-title">تگ‌های تعریف‌شده خدمات</div>
-                          <div v-if="landingSmsLoading" class="landing-multi-empty">در حال دریافت تگ‌ها...</div>
+                          <div class="landing-multi-title">نواحی تعریف‌شده خدمات</div>
+                          <div v-if="landingSmsLoading" class="landing-multi-empty">در حال دریافت نواحی...</div>
                           <div v-else-if="landingSmsLoadError" class="landing-multi-empty">{{ landingSmsLoadError }}</div>
                           <template v-else>
                             <label v-for="item in landingSmsOptions" :key="item" :class="{ selected: landingSmsValues(row).includes(item) }">
@@ -1184,7 +1198,7 @@
                               <i v-if="landingSmsValues(row).includes(item)">✓</i>
                             </label>
                           </template>
-                          <div v-if="!landingSmsLoading && !landingSmsLoadError && !landingSmsOptions.length" class="landing-multi-empty">هنوز تگی در بخش منابع تعریف نشده است.</div>
+                          <div v-if="!landingSmsLoading && !landingSmsLoadError && !landingSmsOptions.length" class="landing-multi-empty">هنوز ناحیه‌ای در بخش خدمات تعریف نشده است.</div>
                           <button v-if="landingSmsValues(row).length" type="button" class="landing-clear-btn" @click="row.landingSms = []">پاک کردن انتخاب‌ها</button>
                         </div>
                       </teleport>
@@ -1266,7 +1280,7 @@
             <span><b>{{ landingTagName(tag) }}</b><small>{{ tag.sms_template ? `الگو: ${tag.sms_template}` : 'الگوی پیامک تعریف نشده' }}</small></span>
             <i v-if="landingSmsWasSent(activeLandingSmsRow, landingTagName(tag))">✓</i>
           </label>
-          <p v-if="!landingSmsOptions.length" class="landing-sms-empty">تگی برای ارسال وجود ندارد.</p>
+          <p v-if="!landingSmsOptions.length" class="landing-sms-empty">ناحیه‌ای برای ارسال وجود ندارد.</p>
         </div>
         <p v-if="landingSmsSendError" class="landing-sms-error">{{ landingSmsSendError }}</p>
         <footer><button type="button" class="landing-sms-cancel" @click="closeLandingSmsModal">بستن</button><button type="button" class="landing-sms-send" :disabled="landingSmsSending || !landingSmsDraft.length" @click="sendLandingSms">{{ landingSmsSending ? 'در حال ارسال...' : 'ارسال انتخاب‌شده' }}</button></footer>
@@ -1469,6 +1483,8 @@ export default {
       campaignsLoadingFromServer: false,
       duplicatePhoneWarningsEnabled: false,
       showCampaignModal: false,
+      editingCampaignId: null,
+      campaignFormSaving: false,
       activeCampaignId: null,
       appointmentTimelineDate: "",
       appointmentModalOpen: false,
@@ -2256,9 +2272,57 @@ export default {
     },
 
     async openCreateCampaignModal() {
+      this.editingCampaignId = null;
+      this.newCampaign = this.emptyCampaignForm();
       this.campaignFormError = "";
+      this.campaignDateError = "";
       this.showCampaignModal = true;
       await this.loadChannels();
+    },
+
+    async openEditCampaignModal(campaign) {
+      if (!campaign || this.isGeneralFollowupCampaign(campaign)) return;
+      this.editingCampaignId = campaign.id;
+      const banners = Array.isArray(campaign.banners) && campaign.banners.length
+        ? campaign.banners
+        : campaign.attachmentData
+          ? [{ id: `legacy-${campaign.id}`, name: campaign.attachmentName || 'بنر کمپین', data: campaign.attachmentData }]
+          : [];
+      this.newCampaign = {
+        title: campaign.title || '',
+        source: campaign.source || '',
+        sourceName: campaign.sourceName || '',
+        date: campaign.date || '',
+        cost: campaign.cost ?? '',
+        description: campaign.description || '',
+        attachmentName: campaign.attachmentName || '',
+        attachmentData: campaign.attachmentData || '',
+        banners: banners.map(banner => ({ ...banner })),
+      };
+      this.campaignFormError = '';
+      this.campaignDateError = '';
+      this.showCampaignModal = true;
+      await this.loadChannels();
+    },
+
+    emptyCampaignForm() {
+      return { title: '', source: '', sourceName: '', date: '', cost: '', description: '', attachmentName: '', attachmentData: '', banners: [] };
+    },
+
+    closeCampaignForm() {
+      if (this.campaignFormSaving) return;
+      this.showCampaignModal = false;
+      this.editingCampaignId = null;
+      this.newCampaign = this.emptyCampaignForm();
+      this.campaignFormError = '';
+      this.campaignDateError = '';
+    },
+
+    removeCampaignFormBanner(index) {
+      this.newCampaign.banners.splice(index, 1);
+      const first = this.newCampaign.banners[0] || null;
+      this.newCampaign.attachmentName = first?.name || '';
+      this.newCampaign.attachmentData = first?.data || '';
     },
 
     async fillPatientByPhone(row) {
@@ -2450,7 +2514,8 @@ export default {
       document.body.style.cursor = "col-resize";
     },
 
-    async createCampaign() {
+    async saveCampaignForm() {
+      if (this.campaignFormSaving || this.bannerUploadLoading) return;
       this.campaignFormError = "";
       this.campaignDateError = "";
 
@@ -2462,56 +2527,72 @@ export default {
 
       if (!this.newCampaign.date) {
         this.campaignDateError = "تاریخ کمپین الزامی است؛ لطفاً تاریخ را انتخاب کنید.";
-        this.campaignFormError = "برای ایجاد کمپین، تاریخ را انتخاب کنید.";
+        this.campaignFormError = "برای ذخیره کمپین، تاریخ را انتخاب کنید.";
         return;
       }
 
       const campaignDate = this.normalizeDateValue(this.newCampaign.date);
-
-      const campaign = {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+      const existing = this.editingCampaignId !== null
+        ? this.campaigns.find(item => String(item.id) === String(this.editingCampaignId))
+        : null;
+      if (this.editingCampaignId !== null && !existing) {
+        this.campaignFormError = 'کمپین موردنظر پیدا نشد؛ صفحه را تازه‌سازی کنید.';
+        return;
+      }
+      const banners = this.newCampaign.banners.map(banner => ({ ...banner }));
+      const formChanges = {
         title,
         source: this.newCampaign.source,
         sourceName: this.newCampaign.sourceName,
         date: campaignDate,
         cost: this.moneyToNumber(this.newCampaign.cost) || "",
         description: String(this.newCampaign.description || '').trim(),
-        attachmentName: this.newCampaign.attachmentName,
-        attachmentData: this.newCampaign.attachmentData,
-        banners: [...this.newCampaign.banners],
-        campaignStatus: "active",
-        pinned: false,
-        rows: [],
+        attachmentName: banners[0]?.name || '',
+        attachmentData: banners[0]?.data || '',
+        banners,
       };
+      const campaign = {
+        ...(existing || {}),
+        ...formChanges,
+        id: existing?.id ?? Date.now() + Math.floor(Math.random() * 1000),
+        campaignStatus: existing?.campaignStatus || 'active',
+        pinned: existing?.pinned || false,
+        rows: existing?.rows || [],
+      };
+      const requestFingerprint = this.campaignFingerprint(campaign);
 
+      this.campaignFormSaving = true;
       try {
-        const { data } = await axios.post('/api/campaigns', this.campaignApiPayload(campaign));
-        campaign.id = data.id;
-        campaign._serverPersisted = true;
-        this.campaigns.unshift(campaign);
-        this.markCampaignPersisted(campaign);
+        if (existing) {
+          if (existing._serverPersisted) {
+            await axios.put(`/api/campaigns/${existing.id}`, this.campaignApiPayload(campaign));
+            Object.assign(existing, formChanges);
+            this.campaignPersistedFingerprints[this.campaignStorageKey(existing)] = requestFingerprint;
+          } else {
+            const previousKey = this.campaignStorageKey(existing);
+            const { data } = await axios.post('/api/campaigns', this.campaignApiPayload(campaign));
+            campaign.id = data.id;
+            delete this.campaignPersistedFingerprints[previousKey];
+            if (String(this.activeCampaignId) === String(existing.id)) this.activeCampaignId = data.id;
+            Object.assign(existing, formChanges, { id: data.id, _serverPersisted: true });
+            this.markCampaignPersisted(existing);
+          }
+        } else {
+          const { data } = await axios.post('/api/campaigns', this.campaignApiPayload(campaign));
+          campaign.id = data.id;
+          campaign._serverPersisted = true;
+          this.campaigns.unshift(campaign);
+          this.markCampaignPersisted(campaign);
+        }
         this.saveCampaignsToLocal();
       } catch (error) {
-        console.error('Campaign create error', error);
+        console.error('Campaign save error', error);
         this.campaignFormError = error.response?.data?.message || 'ذخیره کمپین روی سرور انجام نشد؛ دوباره تلاش کنید.';
         return;
+      } finally {
+        this.campaignFormSaving = false;
       }
-
-      this.newCampaign = {
-        title: "",
-        source: "",
-        sourceName: "",
-        date: "",
-        cost: "",
-        description: "",
-        attachmentName: "",
-        attachmentData: "",
-        banners: [],
-      };
-
-      this.campaignFormError = "";
-      this.campaignDateError = "";
-      this.showCampaignModal = false;
+      this.closeCampaignForm();
     },
 
     async removeCampaign(id) {
@@ -3461,7 +3542,7 @@ export default {
         this.landingSmsOptions = definitions.filter(tag => this.landingTagName(tag));
       } catch (error) {
         this.landingSmsOptions = [];
-        this.landingSmsLoadError = "دریافت تگ‌ها انجام نشد.";
+        this.landingSmsLoadError = "دریافت نواحی انجام نشد.";
         console.error("Service tags load error", error);
       } finally {
         this.landingSmsLoading = false;
@@ -3979,6 +4060,19 @@ export default {
   cursor: pointer;
 }
 
+.campaign-edit-btn {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-family: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.campaign-edit-btn:hover { background: #dbeafe; }
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -3996,9 +4090,13 @@ export default {
   align-items: stretch;
 }
 
+.campaign-form-overlay { z-index: 2147483510; }
+
 .campaign-modal {
   width: 100%;
   max-width: 620px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   background: #fff;
   border-radius: 28px;
   padding: 28px;
@@ -4132,6 +4230,11 @@ export default {
   color: #64748b;
   font-size: 11px;
 }
+
+.campaign-form-banners { display: grid; gap: 6px; }
+.campaign-form-banners > div { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 9px; border: 1px solid #dbeafe; border-radius: 9px; background: #f8fafc; }
+.campaign-form-banners span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #334155; font-size: 11px; font-weight: 800; }
+.campaign-form-banners button { width: 23px; height: 23px; border: 0; border-radius: 6px; background: #fee2e2; color: #b91c1c; font-size: 17px; cursor: pointer; }
 
 .field-error {
   color: #b91c1c;

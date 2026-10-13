@@ -1,0 +1,58 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Satisfaction integration API",
+    "version": "1.0.0",
+    "description": "فرم و گزینه‌ها فقط در پنل کلینیک تعریف می‌شوند. لینک پیامک به آدرس صفحه خارجی با پارامتر satisfaction_token می‌رود. سایت خارجی با همان توکن نسخه ثابت فرمِ آن دعوت‌نامه را می‌گیرد و پاسخ را ثبت می‌کند. توکن برای یک نوبت است و هر دعوت‌نامه فقط یک بار پاسخ می‌پذیرد. کلید مدیریتی یا اطلاعات بیمار را در کد عمومی قرار ندهید."
+  },
+  "paths": {
+    "/external-api/satisfaction/v1/invitations/{token}": {
+      "parameters": [
+        {"name": "token", "in": "path", "required": true, "description": "مقدار satisfaction_token از لینک پیامک", "schema": {"type": "string"}}
+      ],
+      "get": {
+        "summary": "دریافت فرم اختصاصی نوبت",
+        "description": "سؤال‌ها و گزینه‌ها همان نسخه ثبت‌شده هنگام ساخت دعوت‌نامه هستند. answered=true یعنی پاسخ قبلاً ثبت شده و فرم نباید دوباره ارسال شود.",
+        "responses": {
+          "200": {"description": "فرم", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/FormResponse"}}}},
+          "404": {"description": "دعوت‌نامه یافت نشد یا داخلی است"},
+          "410": {"description": "دعوت‌نامه منقضی شده است"},
+          "429": {"description": "محدودیت تعداد درخواست"}
+        }
+      },
+      "post": {
+        "summary": "ثبت پاسخ",
+        "description": "شناسه سؤال و value گزینه را عیناً از پاسخ GET بفرستید. برای سؤال متنی، value متن کاربر است. پاسخ تکراری با 409 رد می‌شود.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AnswersRequest"}, "example": {"answers": [{"id": "staff", "value": "excellent"}, {"id": "description", "value": "خدمات خوب بود"}]}}}},
+        "responses": {
+          "200": {
+            "description": "پاسخ ثبت شد",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"message": {"type": "string"}}
+                }
+              }
+            }
+          },
+          "404": {"description": "دعوت‌نامه یافت نشد یا داخلی است"},
+          "409": {"description": "پاسخ قبلاً ثبت شده است"},
+          "410": {"description": "دعوت‌نامه منقضی شده است"},
+          "422": {"description": "پاسخ ناقص یا نامعتبر"},
+          "429": {"description": "محدودیت تعداد درخواست"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Option": {"type": "object", "required": ["value", "label", "active"], "properties": {"value": {"type": "string"}, "label": {"type": "string"}, "active": {"type": "boolean"}, "score": {"type": "integer", "nullable": true}}},
+      "Question": {"type": "object", "required": ["id", "title", "type", "required", "options"], "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "type": {"type": "string", "enum": ["rating", "text", "textarea"]}, "required": {"type": "boolean"}, "options": {"type": "array", "items": {"$ref": "#/components/schemas/Option"}}}},
+      "Form": {"type": "object", "properties": {"title": {"type": "string"}, "intro_text": {"type": "string"}, "completion_text": {"type": "string"}, "clinic_name": {"type": "string"}, "patient_name": {"type": "string"}, "logo_url": {"type": "string"}, "questions": {"type": "array", "items": {"$ref": "#/components/schemas/Question"}}}},
+      "FormResponse": {"type": "object", "required": ["form", "answered"], "properties": {"form": {"$ref": "#/components/schemas/Form"}, "answered": {"type": "boolean"}}},
+      "Answer": {"type": "object", "required": ["id", "value"], "properties": {"id": {"type": "string"}, "value": {"type": "string", "nullable": true, "maxLength": 2000}}},
+      "AnswersRequest": {"type": "object", "required": ["answers"], "properties": {"answers": {"type": "array", "items": {"$ref": "#/components/schemas/Answer"}}}}
+    }
+  }
+}

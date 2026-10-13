@@ -1,0 +1,23 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::table('satisfaction_invitations', function (Blueprint $table) {
+            $table->string('delivery_mode', 20)->default('internal');
+            $table->string('delivery_url', 2048)->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('satisfaction_invitations', function (Blueprint $table) {
+            $table->dropColumn('delivery_mode');
+            $table->dropColumn('delivery_url');
+        });
+    }
+};

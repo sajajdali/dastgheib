@@ -18,6 +18,7 @@ use Spatie\Permission\Models\Role;
 use App\Services\CustomerLevelService;
 use App\Support\ActivityLogger;
 use App\Http\Controllers\Api\SatisfactionController;
+use App\Support\SatisfactionIntegration;
 
 class SettingController extends Controller
 {
@@ -217,6 +218,7 @@ class SettingController extends Controller
                 'longitude' => AppSetting::getByKey('clinic_longitude', ''),
             ],
             'satisfaction_form' => SatisfactionController::form(),
+            'satisfaction_integration' => SatisfactionIntegration::settings(),
             'customer_levels' => CustomerLevelService::settings(),
             'clinic_schedule' => $this->clinicScheduleSettings(),
             'wallet_settings' => $this->walletSettings(),

@@ -3,8 +3,8 @@
     <header class="service-tags-page-head">
       <div>
         <span>تنظیمات انبار</span>
-        <h2>تگ‌های خدمات</h2>
-        <p>تگ‌ها را برای اتصال کالاها و خدمات به پیگیری‌ها و پیامک لندینگ تعریف کنید.</p>
+        <h2>نواحی</h2>
+        <p>نواحی را برای اتصال کالاها و خدمات به پیگیری‌ها و پیامک لندینگ تعریف کنید.</p>
       </div>
       <button type="button" class="service-tags-back-btn" @click="$emit('back')">بازگشت به انبار</button>
     </header>
@@ -12,25 +12,25 @@
     <section class="service-tags-manager">
       <form class="service-tag-add" @submit.prevent="addTag">
         <label>
-          <span>نام تگ</span>
+          <span>نام ناحیه</span>
           <input v-model.trim="tagDraft" type="text" placeholder="مثلاً بوتاکس پیشانی">
         </label>
         <label>
           <span>نام الگوی پیامک <small>اختیاری</small></span>
           <input v-model.trim="templateDraft" type="text" placeholder="نام الگوی SHSMS">
         </label>
-        <button type="submit">+ افزودن تگ</button>
+        <button type="submit">+ افزودن ناحیه</button>
       </form>
 
       <div class="service-tag-toolbar">
         <label>
           <span>جست‌وجو</span>
-          <input v-model.trim="search" type="search" placeholder="نام تگ را جست‌وجو کنید">
+          <input v-model.trim="search" type="search" placeholder="نام ناحیه را جست‌وجو کنید">
         </label>
-        <strong>{{ filteredTags.length.toLocaleString('fa-IR') }} تگ</strong>
+        <strong>{{ filteredTags.length.toLocaleString('fa-IR') }} ناحیه</strong>
       </div>
 
-      <div v-if="loading" class="service-tags-empty">در حال دریافت تگ‌ها...</div>
+      <div v-if="loading" class="service-tags-empty">در حال دریافت نواحی...</div>
       <div v-else class="service-tag-list">
         <article v-for="tag in filteredTags" :key="tag.name" class="service-tag-card">
           <div>
@@ -38,16 +38,16 @@
             <small>{{ tag.sms_template ? `الگوی پیامک: ${tag.sms_template}` : 'بدون الگوی پیامک' }}</small>
           </div>
           <div class="service-tag-actions">
-            <button type="button" title="ویرایش" aria-label="ویرایش تگ" @click="openEditor(tag)">✎</button>
-            <button type="button" title="حذف" aria-label="حذف تگ" @click="removeTag(tag.name)">×</button>
+            <button type="button" title="ویرایش" aria-label="ویرایش ناحیه" @click="openEditor(tag)">✎</button>
+            <button type="button" title="حذف" aria-label="حذف ناحیه" @click="removeTag(tag.name)">×</button>
           </div>
         </article>
-        <p v-if="!filteredTags.length" class="service-tags-empty">تگی مطابق جست‌وجوی شما پیدا نشد.</p>
+        <p v-if="!filteredTags.length" class="service-tags-empty">ناحیه‌ای مطابق جست‌وجوی شما پیدا نشد.</p>
       </div>
 
       <footer class="service-tags-footer">
         <span :class="{ dirty, error: messageError, success: message && !messageError }">
-          {{ message || (dirty ? 'تغییرات تگ‌ها هنوز ذخیره نشده است.' : 'تگ‌های خدمات به‌روز هستند.') }}
+          {{ message || (dirty ? 'تغییرات نواحی هنوز ذخیره نشده است.' : 'نواحی به‌روز هستند.') }}
         </span>
         <button type="button" :disabled="saving || !dirty" @click="saveTags">
           {{ saving ? 'در حال ذخیره...' : 'ذخیره تغییرات' }}
@@ -59,12 +59,12 @@
       <section class="service-tag-edit-modal" role="dialog" aria-modal="true" aria-labelledby="service-tag-edit-title">
         <header>
           <div>
-            <span>ویرایش تگ خدمات</span>
+            <span>ویرایش ناحیه</span>
             <h3 id="service-tag-edit-title">{{ editingTag.originalName }}</h3>
           </div>
           <button type="button" aria-label="بستن" @click="closeEditor">×</button>
         </header>
-        <label>نام تگ<input v-model.trim="editingTag.name" type="text"></label>
+        <label>نام ناحیه<input v-model.trim="editingTag.name" type="text"></label>
         <label>نام الگوی پیامک <small>اختیاری</small><input v-model.trim="editingTag.sms_template" type="text"></label>
         <p v-if="editError" class="service-tag-edit-error">{{ editError }}</p>
         <footer><button type="button" @click="closeEditor">انصراف</button><button type="button" @click="saveEdit">ثبت تغییر</button></footer>
@@ -118,12 +118,12 @@ export default {
       this.loading = true
       try {
         const response = await fetch('/api/service-tags', { headers: { Accept: 'application/json' } })
-        if (!response.ok) throw new Error('دریافت تگ‌های خدمات انجام نشد.')
+        if (!response.ok) throw new Error('دریافت نواحی انجام نشد.')
         this.tags = this.normalizeTags(await response.json())
         this.dirty = false
       } catch (error) {
         this.messageError = true
-        this.message = error.message || 'دریافت تگ‌های خدمات انجام نشد.'
+        this.message = error.message || 'دریافت نواحی انجام نشد.'
       } finally {
         this.loading = false
       }
@@ -138,7 +138,7 @@ export default {
       if (!name) return
       if (this.tags.some(tag => this.normalize(tag.name) === name)) {
         this.messageError = true
-        this.message = 'تگی با این نام قبلاً ثبت شده است.'
+        this.message = 'ناحیه‌ای با این نام قبلاً ثبت شده است.'
         return
       }
       this.tags.push({ name, sms_template: String(this.templateDraft || '').trim() })
@@ -164,12 +164,12 @@ export default {
       const draft = this.editingTag
       const name = this.normalize(draft?.name)
       if (!name) {
-        this.editError = 'نام تگ را وارد کنید.'
+        this.editError = 'نام ناحیه را وارد کنید.'
         return
       }
       const original = this.normalize(draft.originalName)
       if (this.tags.some(tag => this.normalize(tag.name) === name && this.normalize(tag.name) !== original)) {
-        this.editError = 'تگی با این نام قبلاً ثبت شده است.'
+        this.editError = 'ناحیه‌ای با این نام قبلاً ثبت شده است.'
         return
       }
       const target = this.tags.find(tag => this.normalize(tag.name) === original)
@@ -192,14 +192,14 @@ export default {
           body: JSON.stringify({ tags: this.tags })
         })
         const payload = await response.json()
-        if (!response.ok) throw new Error(payload.message || 'ذخیره تگ‌ها انجام نشد.')
+        if (!response.ok) throw new Error(payload.message || 'ذخیره نواحی انجام نشد.')
         this.tags = this.normalizeTags(payload)
         this.dirty = false
-        this.message = 'تگ‌های خدمات ذخیره شد.'
+        this.message = 'نواحی ذخیره شدند.'
         this.$emit('saved', this.tags)
       } catch (error) {
         this.messageError = true
-        this.message = error.message || 'ذخیره تگ‌ها انجام نشد.'
+        this.message = error.message || 'ذخیره نواحی انجام نشد.'
       } finally {
         this.saving = false
       }

@@ -35,6 +35,11 @@ export default defineConfig(({ mode }) => {
         changeOrigin: false,
         headers: { host: devTenantHost },
       },
+      '/external-api': {
+        target: devApiTarget,
+        changeOrigin: false,
+        headers: { host: devTenantHost },
+      },
       '/central-api': {
         target: devApiTarget,
         // Central routes are registered only on the central domain. Preserve

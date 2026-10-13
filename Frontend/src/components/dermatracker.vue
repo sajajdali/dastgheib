@@ -421,13 +421,13 @@ export default {
     },
     photoNavigationPhotos() {
       const angleOrder = {
-        front: 0,
-        right_three_quarter_30: 1,
-        right_three_quarter_60: 2,
-        right_profile: 3,
-        left_profile: 4,
+        right_profile: 0,
+        right_three_quarter_60: 1,
+        right_three_quarter_30: 2,
+        front: 3,
+        left_three_quarter_30: 4,
         left_three_quarter_60: 5,
-        left_three_quarter_30: 6,
+        left_profile: 6,
         other: 7,
         body_shape: 8,
       }

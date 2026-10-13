@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Concerns\Auditable;
 
 class Patient extends Model
 {
-    use HasFactory, Auditable;
+    use HasFactory, Auditable, SoftDeletes;
 
     public function activitySection(): string { return 'پرونده‌ها'; }
     public function activityLabel(): string { return trim(($this->first_name ?? '').' '.($this->last_name ?? '')) ?: ($this->file_number ? 'پرونده '.$this->file_number : 'پرونده #'.$this->getKey()); }

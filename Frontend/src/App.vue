@@ -200,6 +200,7 @@
         v-if="appointmentPageOpened"
         v-show="currentPage === 'Vaghtdahi'"
         :permissions="user.permissions || []"
+        :roles="user.roles || []"
         :open-view-request="pendingAppointmentViewRequest"
         @open-patient-profile="openPatientProfileFromAppointment"
         @followup-appointment-created="handleFollowupAppointmentCreated"

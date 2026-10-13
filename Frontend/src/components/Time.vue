@@ -752,12 +752,14 @@
                   <button
                     type="button"
                     class="doctor-note-trigger"
-                    :class="{ 'has-note': hasDoctorNote(row), 'unread-note': row.doctorNoteUnread, 'seen-note': hasDoctorNote(row) && !row.doctorNoteUnread }"
-                    :title="hasDoctorNote(row) ? 'مشاهده گفت‌وگوی نوبت' : 'شروع گفت‌وگوی نوبت'"
+                    :class="{ 'has-note': hasDoctorNote(row), 'unread-note': canSeeDoctorNoteAlert && row.doctorNoteUnread, 'seen-note': hasDoctorNote(row) && (!canSeeDoctorNoteAlert || !row.doctorNoteUnread) }"
+                    :title="canSeeDoctorNoteAlert && row.doctorNoteUnread ? 'پیام جدید پزشک؛ برای مشاهده باز کنید' : (hasDoctorNote(row) ? 'مشاهده گفت‌وگوی نوبت' : 'شروع گفت‌وگوی نوبت')"
+                    :aria-label="canSeeDoctorNoteAlert && row.doctorNoteUnread ? 'پیام جدید پزشک؛ گفت‌وگو را باز کنید' : 'گفت‌وگوی نوبت'"
                     @click.stop="openDoctorNote(row)"
                   >
                     <span class="doctor-note-icon">💬</span>
-                    <span v-if="hasDoctorNote(row)" class="doctor-note-check">✓</span>
+                    <span v-if="canSeeDoctorNoteAlert && row.doctorNoteUnread" class="doctor-note-alert" aria-hidden="true"></span>
+                    <span v-else-if="hasDoctorNote(row)" class="doctor-note-check">✓</span>
                   </button>
                 </div>
               </td>
@@ -932,9 +934,9 @@
 
                           <div v-if="service.name" class="service-tag-picker" @click.stop>
                             <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
-                              <span>تگ‌ها</span>
+                              <span>نواحی</span>
                               <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
-                              <em v-else>انتخاب تگ</em>
+                              <em v-else>انتخاب ناحیه</em>
                               <i>⌄</i>
                             </button>
                             <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
@@ -943,7 +945,7 @@
                                 <span>{{ tag }}</span>
                               </label>
                               <span v-if="!serviceTagsForSelection(service, row).length" class="service-tag-menu-empty">
-                                تگی برای این خدمت در انبار ثبت نشده است.
+                                ناحیه‌ای برای این خدمت در انبار ثبت نشده است.
                               </span>
                             </div>
                             <div v-if="service.tags?.length" class="service-tag-chips">
@@ -1669,14 +1671,14 @@
                   </label>
                 </div>
                 <div v-if="service.name" class="timeline-service-tags">
-                  <span>تگ‌ها</span>
+                  <span>نواحی</span>
                   <div v-if="serviceTagsForSelection(service, activeTimelineDraft).length" class="timeline-tag-options">
                     <label v-for="tag in serviceTagsForSelection(service, activeTimelineDraft)" :key="tag" :class="{ active: (service.tags || []).includes(tag) }">
                       <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, activeTimelineDraft)">
                       <span>{{ tag }}</span>
                     </label>
                   </div>
-                  <small v-else>برای این خدمت تگی تعریف نشده است.</small>
+                  <small v-else>برای این خدمت ناحیه‌ای تعریف نشده است.</small>
                 </div>
                 <button v-if="service.name" type="button" class="timeline-service-details-toggle" :class="{ active: service._timelineDetailsOpen }" @click.stop="service._timelineDetailsOpen = !service._timelineDetailsOpen">
                   <span>جزئیات همین خدمت</span><b>{{ service._timelineDetailsOpen ? '⌃' : '⌄' }}</b>
@@ -1768,16 +1770,16 @@
             <small>نوبت ثبت‌شده</small>
             <strong>{{ trackingReport.scheduledTime }}</strong>
           </article>
-          <article v-if="trackingReport.hasArrived">
+          <article v-if="isArrivedAppointmentStatus(activeTrackingRow?.row?.status)">
             <small>زمان آمدن</small>
             <button type="button" class="tracking-time-value" @click="openTrackingTimeEditor('arrivedAt')">
-              {{ trackingReport.arrivedTime }}
+              {{ trackingReport.hasArrived ? trackingReport.arrivedTime : 'ثبت ساعت ورود' }}
             </button>
           </article>
-          <article v-if="trackingReport.hasCompleted">
+          <article v-if="isCompletedAppointmentDone(activeTrackingRow?.row?.done)">
             <small>زمان انجام کار</small>
             <button type="button" class="tracking-time-value" @click="openTrackingTimeEditor('completedAt')">
-              {{ trackingReport.completedTime }}
+              {{ trackingReport.hasCompleted ? trackingReport.completedTime : 'ثبت ساعت خروج' }}
             </button>
           </article>
           <article v-if="trackingReport.hasVisitDuration">
@@ -2429,7 +2431,7 @@ import moment from "moment-jalaali";
 import Multiselect from "vue-multiselect";
 import "vue-multiselect/dist/vue-multiselect.css";
 import PatientAvatar from './PatientAvatar.vue';
-import { subscribeAppointmentChanges } from '../services/presence';
+import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 
 const directAppointmentSaves = new WeakMap();
 const tableFileNumberLookupTimers = new WeakMap();
@@ -2438,6 +2440,7 @@ const patientFileLookupRequests = new WeakMap();
 export default {
   props: {
     permissions: { type: Array, default: () => [] },
+    roles: { type: Array, default: () => [] },
     openViewRequest: { type: Object, default: null }
   },
 
@@ -2742,6 +2745,9 @@ export default {
   },
 
   computed: {
+    canSeeDoctorNoteAlert() {
+      return !this.roles.some(role => /پزشک|doctor/i.test(String(role)));
+    },
     availableScheduleYears() {
       return [...new Set((this.months || []).map(month => String(month).slice(0, 4)).filter(year => /^1[34]\d{2}$/.test(year)))]
         .sort((a, b) => Number(b) - Number(a));
@@ -2762,6 +2768,28 @@ export default {
     },
     amountFilterActive() {
       return this.moneyToNumber(this.amountFilterMin) > 0 || this.moneyToNumber(this.amountFilterMax) > 0 || this.amountFilterCardOnly || this.amountFilterDebtorsOnly;
+    },
+    tableFilterSignature() {
+      return JSON.stringify([
+        this.selectedStatuses, this.selectedSources, this.selectedDone,
+        this.selectedGenders, this.selectedAppointmentSms, this.selectedInfoSms,
+        this.selectedServiceSections, this.selectedServiceDoctors,
+        this.selectedServiceConsultants, this.selectedServiceSubsections,
+        this.amountFilterMin, this.amountFilterMax,
+        this.amountFilterCardOnly, this.amountFilterDebtorsOnly,
+        this.emptyTimeFilterFrom, this.emptyTimeFilterTo,
+        this.bookingRootSectionFilter, this.bookingServiceFilter,
+        this.bookingResourceFilter, this.timelineSlotFilter,
+      ]);
+    },
+    hasActiveTableFilters() {
+      return Boolean(
+        this.searchQuery.trim() || this.selectedStatuses.length || this.selectedSources.length ||
+        this.selectedDone.length || this.selectedGenders.length ||
+        this.selectedAppointmentSms.length || this.selectedInfoSms.length ||
+        this.serviceFilterCount || this.amountFilterActive || this.emptyTimeFilterActive ||
+        this.bookingTimelineFilterActive || this.timelineSlotFilter !== 'all'
+      );
     },
     enabledBookingServices() {
       return (this.inventoryItems || []).filter(item => item?.active !== false && Boolean(item?.booking_setting?.booking_enabled || item?.bookingSetting?.booking_enabled));
@@ -3035,6 +3063,7 @@ export default {
     document.addEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges = subscribeAppointmentChanges(this.handleRealtimeAppointmentChange);
+    this.unsubscribeAppointmentNoteChanges = subscribeAppointmentNoteChanges(this.handleRealtimeAppointmentNoteChange);
 
     const savedMonths =
       localStorage.getItem("schedule_months");
@@ -3081,6 +3110,7 @@ export default {
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges?.();
+    this.unsubscribeAppointmentNoteChanges?.();
     clearTimeout(this.realtimeRefreshTimer);
     clearTimeout(this.highlightedRowTimer);
     clearTimeout(this.timelinePatientSearchTimer);
@@ -3124,6 +3154,7 @@ export default {
         const dayNumber = Number(day.dayNum);
         if (collapsedByDay.has(dayNumber)) day.collapsed = collapsedByDay.get(dayNumber);
       });
+      this.expandMatchingFilteredDays();
       this.syncAllDaysCollapsedState();
     },
 
@@ -3307,6 +3338,30 @@ export default {
       this.applyRealtimeAppointmentChange(event);
     },
 
+    handleRealtimeAppointmentNoteChange(event) {
+      const key = String(event?.appointment_key || '');
+      if (!key) return;
+      const unread = Boolean(event.doctor_note_unread);
+      const wasUnread = this.doctorNoteUnreadSnapshot.has(key);
+      if (unread) this.doctorNoteUnreadSnapshot.add(key);
+      else this.doctorNoteUnreadSnapshot.delete(key);
+
+      const month = key.split('|')[0];
+      delete this.monthDaysCache[month];
+      delete this.monthAppointmentsCache[month];
+      if (month !== this.months[this.currentMonth]) return;
+
+      this.days.forEach(day => day.rows.forEach(row => {
+        if (this.appointmentNoteKey(row) !== key) return;
+        row.noteMessageCount = Number(event.note_message_count || 0);
+        row.doctorNoteUnread = unread;
+      }));
+      if (unread && !wasUnread && this.doctorNoteUnreadInitialized && this.canSeeDoctorNoteAlert) this.playDoctorNoteBell();
+      if (this.doctorNoteModalOpen && this.appointmentNoteKey() === key) {
+        this.loadDoctorNoteMessages();
+      }
+    },
+
     applyRealtimeAppointmentChange(event) {
       const appointmentId = Number(event.appointment_id || event.appointment?.id || 0);
       const payload = event.appointment || {};
@@ -3364,6 +3419,7 @@ export default {
         day.rows[serverIndex]._persistedStateFingerprint =
           this.appointmentRowStateFingerprint(day, day.rows[serverIndex], serverIndex);
       }
+      this.expandMatchingFilteredDays();
       delete this.monthAppointmentsCache[event.month];
       delete this.monthDaysCache[event.month];
     },
@@ -3402,7 +3458,7 @@ export default {
         patientId: item.patient_id || null, lastname: item.lastname || '', gender: item.gender || '',
         phone: item.phone || '', fileNumber: item.file_number || '', time: item.time || '',
         status: this.emptyScheduleCellValue(item.status), arrivedAt: item.arrived_at || '',
-        waitMinutes: Number(item.wait_minutes || 0), doctor: item.doctor || '',
+        waitMinutes: item.wait_minutes == null ? null : Number(item.wait_minutes), doctor: item.doctor || '',
         consultant: item.consultant || '', source: item.source || '', description: item.description || '',
         doctorNote: item.doctor_note || '', done: this.emptyScheduleCellValue(item.done),
         completedAt: item.completed_at || '', amount: item.amount ? this.formatDisplayMoney(item.amount) : '',
@@ -3444,6 +3500,7 @@ export default {
           day.collapsed = collapsedByDay.get(dayNumber);
         }
       });
+      this.expandMatchingFilteredDays();
       this.syncAllDaysCollapsedState();
     },
 
@@ -4614,10 +4671,7 @@ export default {
         if (followupChoice === 'cancelled') { event.target.value = row.status || ''; return; }
       }
       row.status = status;
-      this.onStatusChanged(row);
-      if (['کنسل شد', 'پاسخ نداد', 'پیگیری'].includes(status)) {
-        await this.persistDirectAppointment(row);
-      }
+      await this.onStatusChanged(row);
     },
 
     activeFollowupDateOptions() {
@@ -4740,7 +4794,7 @@ export default {
       }
     },
 
-    onStatusChanged(row) {
+    async onStatusChanged(row) {
       const status = String(row.status || "").trim();
       if (this.isArrivedAppointmentStatus(status) && !row.arrivedAt) {
         row.arrivedAt = this.currentDatabaseDateTime();
@@ -4748,7 +4802,7 @@ export default {
       if (!this.isArrivedAppointmentStatus(status)) {
         row.arrivedAt = "";
       }
-      this.saveData(0);
+      await this.persistDirectAppointment(row);
     },
 
     clockAppointmentArrival(day, row) {
@@ -4759,7 +4813,7 @@ export default {
       if (!this.isArrivedAppointmentStatus(row.status)) {
         row.status = "آمد";
         row.arrivedAt = row.arrivedAt || this.currentDatabaseDateTime();
-        this.saveData(0);
+        this.persistDirectAppointment(row);
         return;
       }
 
@@ -4775,14 +4829,15 @@ export default {
       if (!this.isCompletedAppointmentDone(done)) {
         row.completedAt = "";
         row.followupConfirmed = false;
-        this.saveData(0);
+        await this.persistDirectAppointment(row);
         return;
       }
       if (!row.completedAt) {
         row.completedAt = this.currentDatabaseDateTime();
       }
+      if (!await this.persistDirectAppointment(row)) return;
       await this.confirmServiceFollowup(row);
-      this.saveData(0);
+      await this.persistDirectAppointment(row);
       const appointmentDay = this.days.find(day => (day.rows || []).includes(row));
       if (appointmentDay) this.ensurePaymentLink(appointmentDay, row);
       this.activeCompletionSmsRow = row;
@@ -4981,12 +5036,11 @@ export default {
       if (!labels[field]) return;
 
       const parsed = this.parseTrackingMoment(row[field]);
-      if (!parsed) return;
 
       this.trackingTimeDraft = {
         field,
         label: labels[field],
-        value: parsed.format("HH:mm")
+        value: parsed ? parsed.format("HH:mm") : moment().format("HH:mm")
       };
       this.trackingTimeEditorOpen = true;
     },
@@ -5006,7 +5060,8 @@ export default {
       const parsed = this.parseTrackingMoment(value);
       if (parsed) return parsed.format("YYYY-MM-DD");
 
-      return moment().format("YYYY-MM-DD");
+      const scheduled = this.appointmentMomentForRow(this.activeTrackingRow?.day, this.activeTrackingRow?.row);
+      return scheduled ? scheduled.format("YYYY-MM-DD") : moment().format("YYYY-MM-DD");
     },
 
     trackingDateTimeFromTime(time, previousValue) {
@@ -5047,10 +5102,15 @@ export default {
       }
 
       this.trackingTimeSaving = true;
+      const previousValue = row[field];
       row[field] = nextValue;
 
       try {
-        this.saveData(0);
+        const saved = await this.persistDirectAppointment(row);
+        if (!saved) {
+          row[field] = previousValue;
+          return;
+        }
         this.trackingTimeSaving = false;
         this.closeTrackingTimeEditor();
         await Swal.fire({
@@ -5536,6 +5596,7 @@ export default {
         this.isFetching = true;
         this.days = this.monthDaysCache[targetMonth];
         this.restorePendingDraft();
+        this.expandMatchingFilteredDays();
         this.isFetching = false;
         return;
       }
@@ -5642,7 +5703,7 @@ export default {
             time: item.time || "",
             status: this.emptyScheduleCellValue(item.status),
             arrivedAt: item.arrived_at || "",
-            waitMinutes: Number(item.wait_minutes || 0),
+            waitMinutes: item.wait_minutes == null ? null : Number(item.wait_minutes),
             doctor: item.doctor || "",
             consultant: item.consultant || "",
             source: item.source || "",
@@ -5698,7 +5759,7 @@ export default {
           });
         });
         const hasNewUnreadDoctorNote = [...nextUnreadKeys].some(key => !previousUnreadKeys.has(key));
-        if (this.doctorNoteUnreadInitialized && hasNewUnreadDoctorNote) this.playDoctorNoteBell();
+        if (this.doctorNoteUnreadInitialized && hasNewUnreadDoctorNote && this.canSeeDoctorNoteAlert) this.playDoctorNoteBell();
         this.doctorNoteUnreadSnapshot = nextUnreadKeys;
         this.doctorNoteUnreadInitialized = true;
         this.monthDaysCache[targetMonth] = this.days;
@@ -5729,6 +5790,7 @@ export default {
       // تنها منبع حقیقت پس از بارگذاری، پاسخ API است.
       this.clearPendingDraft(targetMonth);
       this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
+      this.expandMatchingFilteredDays();
       this.isFetching = false;
     },
 
@@ -6156,7 +6218,7 @@ this.calculateFinalAmount(row)
                   arrived_at:
                     row.arrivedAt || null,
 
-                  wait_minutes: Number(row.waitMinutes || 0),
+                  wait_minutes: row.waitMinutes == null ? null : Number(row.waitMinutes),
 
                   doctor:
                     row.doctor,
@@ -6298,7 +6360,18 @@ this.calculateFinalAmount(row)
               row.registeredAt = appointment.registered_at || row.registeredAt || appointment.created_at || '';
               row.lastEditedBy = appointment.last_edited_by || row.lastEditedBy || '';
               row.lastEditedAt = appointment.last_edited_at || row.lastEditedAt || '';
-              row._persistedStateFingerprint = payloadFingerprints[index];
+              const rowDay = scheduledDays.find(day => (day.rows || []).includes(row));
+              const rowIndex = rowDay?.rows.indexOf(row) ?? -1;
+              const unchangedSinceRequest = rowDay && rowIndex >= 0
+                && this.appointmentRowStateFingerprint(rowDay, row, rowIndex) === payloadFingerprints[index];
+              if (unchangedSinceRequest) {
+                row.arrivedAt = appointment.arrived_at || '';
+                row.completedAt = appointment.completed_at || '';
+                row.waitMinutes = appointment.wait_minutes == null ? null : Number(appointment.wait_minutes);
+                row._persistedStateFingerprint = this.appointmentRowStateFingerprint(rowDay, row, rowIndex);
+              } else {
+                row._persistedStateFingerprint = payloadFingerprints[index];
+              }
             });
             if (firstError) throw firstError;
             saveSucceeded = true;
@@ -6373,6 +6446,7 @@ this.calculateFinalAmount(row)
         time: "",
         status: "",
         arrivedAt: "",
+        waitMinutes: null,
         doctor: "",
         consultant: "",
         source: "",
@@ -7192,6 +7266,9 @@ this.calculateFinalAmount(row)
         this.doctorNoteMessages = data.messages || [];
         this.activeDoctorNoteRow.noteMessageCount = this.doctorNoteMessages.length;
         this.activeDoctorNoteRow.doctorNoteUnread = Boolean(data.has_unread_doctor_note);
+        const key = this.appointmentNoteKey();
+        if (this.activeDoctorNoteRow.doctorNoteUnread) this.doctorNoteUnreadSnapshot.add(key);
+        else this.doctorNoteUnreadSnapshot.delete(key);
         this.scrollDoctorNoteChat();
       } catch (error) {
         console.error(error);
@@ -7602,6 +7679,18 @@ this.calculateFinalAmount(row)
       this.syncAllDaysCollapsedState();
     },
 
+    expandMatchingFilteredDays() {
+      if (this.appointmentView !== 'table' || !this.hasActiveTableFilters) return;
+      let opened = false;
+      this.days.forEach(day => {
+        if (day.collapsed && this.getFilteredRows(day).length) {
+          day.collapsed = false;
+          opened = true;
+        }
+      });
+      if (opened) this.syncAllDaysCollapsedState();
+    },
+
     toggleAllDays() {
 
       this.allCollapsed =
@@ -7763,6 +7852,7 @@ this.calculateFinalAmount(row)
           .filter(row => this.appointmentSearchText(row).includes(search))
           .map(row => ({ day, row }))
       );
+      this.expandMatchingFilteredDays();
       this.showSearchResult(0);
     },
 
@@ -7954,6 +8044,7 @@ this.calculateFinalAmount(row)
       this.emptyTimeFilterFrom = this.emptyTimeFilterDraftFrom;
       this.emptyTimeFilterTo = this.emptyTimeFilterDraftTo;
       this.emptyTimeFilterModalOpen = false;
+      this.expandMatchingFilteredDays();
     },
 
     clearEmptyTimeFilter() {
@@ -7991,6 +8082,7 @@ this.calculateFinalAmount(row)
       this.selectedServiceConsultants = [...this.draftServiceConsultants];
       this.selectedServiceSubsections = [...this.draftServiceSubsections];
       this.serviceFilterModalOpen = false;
+      this.expandMatchingFilteredDays();
     },
 
     onDraftServiceSectionsChanged() {
@@ -8024,6 +8116,7 @@ this.calculateFinalAmount(row)
       this.amountFilterCardOnly = this.amountFilterDraftCardOnly;
       this.amountFilterDebtorsOnly = this.amountFilterDraftDebtorsOnly;
       this.amountFilterModalOpen = false;
+      this.expandMatchingFilteredDays();
     },
 
     formatAmountFilterInput(field, event) {
@@ -9269,6 +9362,10 @@ smsColor(val) {
 
   watch: {
 
+    tableFilterSignature() {
+      this.$nextTick(() => this.expandMatchingFilteredDays());
+    },
+
     openViewRequest: {
       immediate: true,
       deep: true,
@@ -10346,6 +10443,44 @@ smsColor(val) {
   z-index: 1001 !important;
 }
 
+/* پیام خوانده‌نشده باید بالای پس‌زمینهٔ سلول‌ها و ردیف‌های کناری دیده شود. */
+.main-schedule-table tbody tr.data-row:has(.doctor-note-trigger.unread-note) {
+  position: relative;
+  z-index: 2;
+}
+
+.main-schedule-table tbody tr.data-row > td.desc-col:has(.doctor-note-trigger.unread-note) {
+  z-index: 60;
+  overflow: visible !important;
+}
+
+.description-with-doctor-note:has(.doctor-note-trigger.unread-note) {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+}
+
+.doctor-note-trigger.unread-note {
+  z-index: 2;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.doctor-note-trigger.unread-note::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border: 2px solid rgba(220, 38, 38, .75);
+  border-radius: 13px;
+  pointer-events: none;
+  animation: doctorNoteRingPulse 1s ease-out infinite;
+}
+
+@keyframes doctorNoteRingPulse {
+  0% { transform: scale(.9); opacity: .9; }
+  80%, 100% { transform: scale(1.2); opacity: 0; }
+}
+
 .time-page .appointment-patient-name .patient-avatar:hover {
   transform: none !important;
   filter: none;
@@ -10897,6 +11032,7 @@ smsColor(val) {
 }
 .description-with-doctor-note{display:flex;align-items:center;gap:5px;width:100%}.description-with-doctor-note input{min-width:0;flex:1}.doctor-note-trigger{position:relative;width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;padding:0;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#64748b;cursor:pointer;transition:.18s ease}.doctor-note-trigger:hover{transform:translateY(-1px);border-color:#60a5fa;color:#2563eb;background:#eff6ff}.doctor-note-trigger.has-note{border-color:#22c55e;background:#dcfce7;color:#15803d;box-shadow:0 0 0 2px rgba(34,197,94,.12)}.doctor-note-icon{font-size:17px;font-weight:900}.doctor-note-check{position:absolute;left:-4px;top:-5px;width:14px;height:14px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#16a34a;color:#fff;font-size:8px;font-weight:900}
 .doctor-note-trigger.unread-note{border-color:#dc2626!important;background:#fee2e2!important;color:#b91c1c!important;box-shadow:0 0 0 3px rgba(220,38,38,.18),0 0 18px rgba(220,38,38,.3)!important;animation:doctorNoteUnreadPulse 1s ease-in-out infinite}.doctor-note-trigger.unread-note .doctor-note-check{background:#dc2626}.doctor-note-trigger.seen-note{border-color:#86efac;background:#dcfce7;color:#15803d}@keyframes doctorNoteUnreadPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 2px rgba(220,38,38,.14),0 0 8px rgba(220,38,38,.18)}50%{transform:scale(1.12);box-shadow:0 0 0 6px rgba(220,38,38,.08),0 0 22px rgba(220,38,38,.48)}}
+.doctor-note-alert{position:absolute;top:-6px;left:-6px;width:13px;height:13px;border:2px solid #fff;border-radius:50%;background:#dc2626;box-shadow:0 0 0 2px rgba(220,38,38,.25);animation:doctorNoteAlertBlink 1s ease-in-out infinite}@keyframes doctorNoteAlertBlink{50%{opacity:.25;transform:scale(.7)}}@media(prefers-reduced-motion:reduce){.doctor-note-trigger.unread-note,.doctor-note-alert,.doctor-note-trigger.unread-note::after{animation:none}}
 .doctor-note-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:24px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.doctor-note-modal{width:min(900px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.7);border-radius:24px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.35);direction:rtl}.doctor-note-modal-header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px 17px;background:linear-gradient(135deg,#eff6ff,#f0fdf4);border-bottom:1px solid #e2e8f0}.doctor-note-modal-header h3{margin:3px 0 5px;color:#0f172a;font-size:22px}.doctor-note-modal-header p{margin:0;color:#64748b;font-size:13px}.doctor-note-eyebrow{color:#2563eb;font-size:11px;font-weight:900}.doctor-note-close{width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,255,255,.8);color:#475569;font-size:25px;cursor:pointer}.doctor-note-toolbar{display:flex;gap:7px;flex-wrap:wrap;padding:12px 22px;border-bottom:1px solid #e2e8f0;background:#fff}.doctor-note-toolbar button{padding:7px 11px;border:1px solid #dbeafe;border-radius:8px;background:#f8fbff;color:#334155;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}.doctor-note-toolbar button:hover{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.doctor-note-editor{width:auto;min-height:360px;margin:18px 22px;padding:18px;border:1px solid #cbd5e1;border-radius:15px;background:#fbfdff;color:#0f172a;font-family:inherit;font-size:15px;line-height:2.1;resize:vertical;outline:none}.doctor-note-editor:focus{border-color:#3b82f6;box-shadow:0 0 0 4px rgba(59,130,246,.12);background:#fff}.doctor-note-footer{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:15px 22px;border-top:1px solid #e2e8f0;background:#f8fafc}.doctor-note-meta{display:flex;flex-direction:column;color:#475569;font-size:12px}.doctor-note-meta small{color:#94a3b8}.doctor-note-actions{display:flex;gap:8px}.doctor-note-actions button{padding:10px 15px;border:0;border-radius:9px;font-family:inherit;font-weight:900;cursor:pointer}.doctor-note-save{background:#2563eb;color:#fff}.doctor-note-cancel{background:#e2e8f0;color:#334155}.doctor-note-clear{background:#fee2e2;color:#b91c1c}@media(max-width:700px){.doctor-note-overlay{padding:8px}.doctor-note-modal{max-height:97vh;border-radius:16px}.doctor-note-editor{min-height:280px;margin:12px}.doctor-note-footer{align-items:stretch;flex-direction:column}.doctor-note-actions{justify-content:stretch}.doctor-note-actions button{flex:1}}
 .doctor-note-patient-head{display:flex;align-items:center;gap:13px}.doctor-note-chat{min-height:270px;max-height:48vh;display:flex;flex-direction:column;gap:13px;padding:18px 22px;overflow:auto;background:linear-gradient(rgba(248,250,252,.94),rgba(241,245,249,.94)),radial-gradient(circle at 20% 20%,#dbeafe 0,transparent 35%)}.doctor-note-chat-empty{min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#94a3b8}.doctor-note-chat-empty b{color:#475569}.doctor-note-message{display:flex;align-items:flex-end;gap:9px;max-width:78%;align-self:flex-start;direction:rtl}.doctor-note-author-avatar{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;overflow:hidden;border:2px solid #fff;border-radius:50%;background:#dbeafe;color:#1d4ed8;box-shadow:0 3px 10px rgba(15,23,42,.14)}.doctor-note-author-avatar img{width:100%;height:100%;object-fit:cover}.doctor-note-bubble{min-width:170px;padding:10px 13px;border:1px solid #dbeafe;border-radius:16px 16px 5px 16px;background:#fff;box-shadow:0 5px 15px rgba(15,23,42,.07)}.doctor-note-bubble header{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:5px}.doctor-note-bubble header strong{color:#1d4ed8;font-size:11px}.doctor-note-bubble time{color:#94a3b8;font-size:9px}.doctor-note-bubble p{margin:0;color:#1e293b;font-size:13px;line-height:1.9;white-space:pre-wrap}.doctor-note-bubble audio{width:min(320px,55vw);height:38px}.doctor-note-image-link{display:grid;gap:7px;color:#1d4ed8;text-decoration:none}.doctor-note-image-link img{width:min(260px,58vw);max-height:260px;display:block;border-radius:12px;object-fit:cover;background:#e2e8f0}.doctor-note-image-link span{color:#334155;font-size:12px;font-weight:800;line-height:1.8}.doctor-note-composer{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:end;gap:9px;padding:13px 18px;border-top:1px solid #e2e8f0;background:#fff}.doctor-note-composer textarea{min-height:54px;max-height:130px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:13px;font-family:inherit;resize:vertical;outline:none}.doctor-note-composer textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.12)}.doctor-note-composer button,.doctor-note-image-upload{height:42px;display:inline-grid;place-items:center;padding:0 14px;border:0;border-radius:11px;font-family:inherit;font-weight:900;cursor:pointer}.doctor-note-image-upload{width:44px;padding:0;background:#eff6ff;color:#1d4ed8}.doctor-note-image-upload input{display:none}.doctor-note-image-upload svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.doctor-note-image-upload.disabled{opacity:.5;cursor:not-allowed}.doctor-note-record{background:#f1f5f9;color:#475569}.doctor-note-record.recording{background:#fee2e2;color:#dc2626;animation:doctorVoicePulse 1.2s infinite}.doctor-note-send{background:#2563eb;color:#fff}.doctor-note-composer button:disabled{opacity:.5;cursor:not-allowed}@keyframes doctorVoicePulse{50%{box-shadow:0 0 0 6px rgba(239,68,68,.12)}}@media(max-width:700px){.doctor-note-message{max-width:92%}.doctor-note-composer{grid-template-columns:1fr auto auto}.doctor-note-composer textarea{grid-column:1/-1}.doctor-note-patient-head .patient-avatar{--avatar-size:48px!important}}
 .doctor-note-message.own{align-self:flex-end}.doctor-note-message.own .doctor-note-bubble{border-color:#bfdbfe;background:#eff6ff;border-radius:16px 16px 16px 5px}.doctor-note-message-meta{display:flex;align-items:center;gap:7px}.doctor-note-delete{width:25px;height:25px;display:grid;place-items:center;padding:0!important;border:0;border-radius:7px;background:transparent;color:#94a3b8;font-size:12px;cursor:pointer}.doctor-note-delete:hover{background:#fee2e2;color:#dc2626}.doctor-note-delete:disabled{opacity:.45;cursor:wait}

@@ -12,6 +12,7 @@ use App\Models\ActivityLog;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Inventory;
+use App\Models\InventorySection;
 use App\Models\InventoryAddonDefinition;
 use App\Models\ServiceFollowup;
 use App\Models\HiddenAppointmentDay;
@@ -554,7 +555,7 @@ class AppointmentController extends Controller
                     $incoming['wallet_applied'] = min(max(0, $this->signedMoneyToInteger($incoming['wallet_applied'] ?? 0)), max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount']));
                     $incoming['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount'] - $incoming['wallet_applied']);
                 }
-                $incoming = $this->normalizeAppointmentTracking($incoming);
+                $incoming = $this->normalizeAppointmentTracking($incoming, $previous);
                 $reward = $this->calculateReferralReward($incoming);
                 $incoming['referral_score'] = $reward['amount'];
                 $incoming['referral_commission_type'] = $reward['type'];
@@ -834,22 +835,29 @@ class AppointmentController extends Controller
         return false;
     }
 
-    /** Keep arrival, completion and the resulting patient waiting time authoritative on the server. */
-    private function normalizeAppointmentTracking(array $appointment): array
+    /** Stamp status transitions on the server and calculate minutes from arrival to completion. */
+    private function normalizeAppointmentTracking(array $appointment, ?Appointment $previous = null): array
     {
         $arrived = trim((string) ($appointment['status'] ?? '')) === 'آمد';
         $completed = trim((string) ($appointment['done'] ?? '')) === 'انجام شد';
+        $recordedAt = now()->toDateTimeString();
 
-        if ($arrived && empty($appointment['arrived_at'])) {
-            $appointment['arrived_at'] = now()->toDateTimeString();
-        }
-        if (! $arrived) {
+        if ($arrived) {
+            if (! $previous || trim((string) $previous->status) !== 'آمد') {
+                $appointment['arrived_at'] = $recordedAt;
+            } else {
+                $appointment['arrived_at'] = ($appointment['arrived_at'] ?? null) ?: $previous->arrived_at;
+            }
+        } else {
             $appointment['arrived_at'] = null;
         }
-        if ($completed && empty($appointment['completed_at'])) {
-            $appointment['completed_at'] = now()->toDateTimeString();
-        }
-        if (! $completed) {
+        if ($completed) {
+            if (! $previous || trim((string) $previous->done) !== 'انجام شد') {
+                $appointment['completed_at'] = $recordedAt;
+            } else {
+                $appointment['completed_at'] = ($appointment['completed_at'] ?? null) ?: $previous->completed_at;
+            }
+        } else {
             $appointment['completed_at'] = null;
         }
 
@@ -2428,6 +2436,7 @@ class AppointmentController extends Controller
             'completed_at',
             'source',
             'services',
+            'service_types',
             'amount',
             'debt',
             'payment_method',
@@ -2455,6 +2464,7 @@ class AppointmentController extends Controller
                 ->take($perPage)
                 ->get($columns);
 
+            $items = $this->withPatientHistorySections($items);
             $items = $this->withPatientHistoryRegistrationMeta($items);
 
             return response()->json([
@@ -2470,9 +2480,63 @@ class AppointmentController extends Controller
             ->orderByDesc('created_at')
             ->get($columns);
 
+        $items = $this->withPatientHistorySections($items);
         $items = $this->withPatientHistoryRegistrationMeta($items);
 
         return response()->json($this->hideAppointmentPhones($items, $request));
+    }
+
+    /** Resolve every saved service path, including appointments with multiple sections. */
+    private function withPatientHistorySections($appointments)
+    {
+        $appointments = collect($appointments);
+        if ($appointments->isEmpty()) return $appointments;
+
+        $sections = InventorySection::query()
+            ->get(['id', 'parent_id', 'name'])
+            ->keyBy('id');
+
+        return $appointments->each(function (Appointment $appointment) use ($sections) {
+            $paths = [];
+            $usedRoots = [];
+            foreach ($appointment->services ?: [] as $service) {
+                if (! is_array($service)) continue;
+                $sectionId = $service['section_id'] ?? $service['sectionId'] ?? null;
+                $names = [];
+                $seen = [];
+                while ($sectionId && ! isset($seen[$sectionId]) && ($section = $sections->get($sectionId))) {
+                    $seen[$sectionId] = true;
+                    array_unshift($names, $section->name);
+                    $sectionId = $section->parent_id;
+                }
+                if (! $names) {
+                    $names = array_values(array_filter([
+                        $service['section'] ?? null,
+                        $service['subsection'] ?? null,
+                    ]));
+                }
+                if (! $names) continue;
+                $root = $names[0];
+                $subsection = implode(' / ', array_slice($names, 1));
+                $usedRoots[$root] = true;
+                $paths[$root.'|'.$subsection] = [
+                    'section' => $root,
+                    'subsection' => $subsection,
+                ];
+            }
+
+            foreach ($appointment->service_types ?: [] as $rootId) {
+                $root = $sections->get($rootId);
+                if (! $root || isset($usedRoots[$root->name])) continue;
+                $usedRoots[$root->name] = true;
+                $paths[$root->name.'|'] = [
+                    'section' => $root->name,
+                    'subsection' => '',
+                ];
+            }
+
+            $appointment->setAttribute('history_section_paths', array_values($paths));
+        });
     }
 
     /**

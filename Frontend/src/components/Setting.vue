@@ -117,8 +117,8 @@
                 <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
               </span>
               <span class="file-number-lock-setting-copy">
-                <strong>قفل شماره پرونده در تشکیل پرونده</strong>
-                <small>در حالت فعال، شماره پرونده به‌صورت خودکار تولید می‌شود.</small>
+                <strong>قفل شماره پرونده در تشکیل و ویرایش پرونده</strong>
+                <small>در حالت فعال، شماره خودکار است و در ویرایش قابل تغییر نیست.</small>
               </span>
             </label>
           </div>
@@ -801,6 +801,38 @@
         <button type="button" @click="resetSatisfactionDefaults">بازگشت به پیش‌فرض</button>
         <button type="button" class="primary" @click="saveSatisfactionSettings">ذخیره فرم رضایت‌مندی</button>
       </footer>
+      <section class="satisfaction-integration-card" :class="{ 'is-active': satisfactionIntegration.enabled }">
+        <div class="satisfaction-integration-top">
+          <div class="satisfaction-integration-icon">↗</div>
+          <div class="satisfaction-integration-heading">
+            <span>اتصال به سایت شما</span>
+            <h3>نمایش نظرسنجی در سایت خارجی</h3>
+            <p>سؤال‌ها و گزارش‌ها در همین پنل می‌مانند؛ سایت شما فقط فرم را نمایش می‌دهد.</p>
+          </div>
+          <label class="satisfaction-integration-switch">
+            <input v-model="satisfactionIntegration.enabled" type="checkbox">
+            <i></i>
+            <b>{{ satisfactionIntegration.enabled ? 'فعال' : 'غیرفعال' }}</b>
+          </label>
+        </div>
+        <div v-if="satisfactionIntegration.enabled" class="satisfaction-integration-body">
+          <label class="satisfaction-integration-url">آدرس صفحهٔ نظرسنجی در سایت شما
+            <input v-model.trim="satisfactionIntegration.page_url" type="url" dir="ltr" placeholder="https://example.com/survey">
+          </label>
+          <p class="satisfaction-integration-hint">لینک پیامک نوبت‌های جدید به این صفحه می‌رود و پارامتر <code>satisfaction_token</code> به آن اضافه می‌شود. لینک‌های قبلی تغییر نمی‌کنند.</p>
+          <div class="satisfaction-integration-docs">
+            <div><strong>آدرس مستندات Swagger</strong><small>این لینک را به برنامه‌نویس سایت بدهید.</small></div>
+            <a :href="satisfactionSwaggerUrl" target="_blank" rel="noopener" dir="ltr">{{ satisfactionSwaggerUrl }}</a>
+          </div>
+          <div class="satisfaction-integration-actions">
+            <span v-if="satisfactionIntegrationMessage">{{ satisfactionIntegrationMessage }}</span>
+            <a href="/api/public/satisfaction/integration/openapi.json" target="_blank" rel="noopener">دانلود OpenAPI JSON</a>
+            <button type="button" :disabled="satisfactionIntegrationSaving" @click="saveSatisfactionIntegration">{{ satisfactionIntegrationSaving ? 'در حال ذخیره…' : 'ذخیره و فعال‌سازی' }}</button>
+          </div>
+        </div>
+        <div v-else-if="satisfactionIntegrationMessage" class="satisfaction-integration-feedback">{{ satisfactionIntegrationMessage }}</div>
+        <button v-if="!satisfactionIntegration.enabled && satisfactionIntegrationSaved.enabled" type="button" class="satisfaction-integration-disable-save" :disabled="satisfactionIntegrationSaving" @click="saveSatisfactionIntegration">{{ satisfactionIntegrationSaving ? 'در حال ذخیره…' : 'ذخیره غیرفعال‌سازی' }}</button>
+      </section>
     </div>
 
     <div v-if="false && canViewSettings && activeSection === 'access'" class="content-wrapper">
@@ -1191,6 +1223,11 @@ const satisfactionTitle = ref("نظرسنجی کلینیک");
 const satisfactionIntroText = ref("از اینکه ما را برای مراقبت از سلامتتان انتخاب کردید، صمیمانه سپاسگزاریم. با پاسخ به چند سؤال کوتاه به ما کمک می‌کنید بهتر شویم.");
 const satisfactionCompletionText = ref("پاسخ‌های شما با موفقیت ثبت شد. از همراهی شما سپاسگزاریم.");
 const satisfactionSaveMessage = ref("");
+const satisfactionIntegration = ref({ enabled: false, page_url: "" });
+const satisfactionIntegrationSaved = ref({ enabled: false, page_url: "" });
+const satisfactionIntegrationMessage = ref("");
+const satisfactionIntegrationSaving = ref(false);
+const satisfactionSwaggerUrl = `${window.location.origin}/api/public/satisfaction/integration/swagger`;
 const draggedSatisfactionIndex = ref(null);
 
 const satisfactionPayload = () => {
@@ -1247,6 +1284,20 @@ const saveSatisfactionSettings = async () => {
     satisfactionSaveMessage.value = data.message || "فرم رضایت‌مندی ذخیره شد.";
   } catch (error) {
     satisfactionSaveMessage.value = error.response?.data?.message || "ذخیره فرم انجام نشد.";
+  }
+};
+const saveSatisfactionIntegration = async () => {
+  satisfactionIntegrationSaving.value = true;
+  satisfactionIntegrationMessage.value = "";
+  try {
+    const { data } = await axios.put('/api/settings/satisfaction/integration', satisfactionIntegration.value);
+    satisfactionIntegration.value = data.integration;
+    satisfactionIntegrationSaved.value = { ...data.integration };
+    satisfactionIntegrationMessage.value = data.message;
+  } catch (error) {
+    satisfactionIntegrationMessage.value = error.response?.data?.message || "ذخیره تنظیمات اتصال انجام نشد.";
+  } finally {
+    satisfactionIntegrationSaving.value = false;
   }
 };
 
@@ -1588,6 +1639,10 @@ const fetchSettings = async () => {
         type: ["rating", "textarea", "text"].includes(question.type) ? question.type : "rating",
         options: makeSatisfactionOptions(question.options)
       }));
+    }
+    if (data.satisfaction_integration) {
+      satisfactionIntegration.value = { ...data.satisfaction_integration };
+      satisfactionIntegrationSaved.value = { ...data.satisfaction_integration };
     }
     if (data.roles) roles.value = data.roles;
     if (data.access_sections && data.access_sections.length) {
@@ -2346,6 +2401,40 @@ textarea{ min-height:120px; resize:none; }
 @media(max-width:900px){.payment-settings-grid{grid-template-columns:1fr}}
 
 .satisfaction-settings-wrapper{width:100%;box-sizing:border-box;display:grid;gap:18px;padding:24px;border:1px solid #dbeafe;border-radius:26px;background:#f8fbff;box-shadow:0 14px 38px rgba(37,99,235,.08);text-align:center}.satisfaction-settings-head{display:flex;align-items:center;justify-content:space-between;gap:18px;text-align:right}.satisfaction-settings-head span{color:#2563eb;font-size:11px;font-weight:900}.satisfaction-settings-head h2{margin:5px 0;color:#172033}.satisfaction-settings-head p{margin:0;color:#64748b;font-size:12px;line-height:1.9}.satisfaction-settings-head button,.satisfaction-actions button{height:42px;padding:0 16px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}.satisfaction-builder{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.9fr);gap:16px;align-items:start}.satisfaction-question-list{display:grid;gap:10px}.satisfaction-question-editor{display:grid;grid-template-columns:1.2fr .7fr auto;align-items:end;gap:10px;padding:14px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;text-align:right}.question-editor-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between}.question-editor-head strong{color:#1e293b}.question-editor-head button{width:32px;height:32px;border:0;border-radius:9px;background:#fee2e2;color:#dc2626;font-size:19px;cursor:pointer}.question-editor-head button:disabled{opacity:.35;cursor:not-allowed}.satisfaction-question-editor label{display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}.satisfaction-question-editor input,.satisfaction-question-editor select,.satisfaction-preview input,.satisfaction-preview textarea{box-sizing:border-box;width:100%;min-height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;text-align:center}.satisfaction-switch{align-self:center;justify-self:center}.satisfaction-preview{display:grid;gap:15px;padding:20px;border:1px solid #e2e8f0;border-radius:22px;background:#fff;text-align:center}.satisfaction-preview h3{margin:0;color:#0f172a;font-size:22px}.satisfaction-preview-question{display:grid;gap:10px;justify-items:center;padding:15px;border:1px solid #eef2f7;border-radius:16px;background:#fbfdff}.satisfaction-preview-question strong{color:#1e293b;font-size:14px}.satisfaction-options{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}.satisfaction-option{min-width:72px;height:36px;padding:0 12px;border:2px solid transparent;border-radius:999px;background:#f8fafc;font-family:inherit;font-size:11px;font-weight:1000;cursor:pointer;transition:.18s}.satisfaction-option.excellent{color:#166534;background:#dcfce7}.satisfaction-option.good{color:#15803d;background:#f0fdf4}.satisfaction-option.average{color:#475569;background:#f1f5f9}.satisfaction-option.bad{color:#b91c1c;background:#fee2e2}.satisfaction-option.weak{color:#fff;background:#dc2626}.satisfaction-option.selected{transform:translateY(-2px);box-shadow:0 8px 18px rgba(15,23,42,.16)}.satisfaction-option.excellent.selected{border-color:#166534;background:#15803d;color:#fff}.satisfaction-option.good.selected{border-color:#22c55e;background:#bbf7d0;color:#14532d}.satisfaction-option.average.selected{border-color:#64748b;background:#cbd5e1;color:#1e293b}.satisfaction-option.bad.selected{border-color:#f87171;background:#fecaca;color:#7f1d1d}.satisfaction-option.weak.selected{border-color:#7f1d1d;background:#991b1b;color:#fff}.satisfaction-preview textarea{min-height:92px;padding:12px;resize:vertical}.satisfaction-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}.satisfaction-actions span{margin-left:auto;color:#15803d;font-size:12px;font-weight:900}.satisfaction-actions button{background:#64748b}.satisfaction-actions button.primary{background:#16a34a}
+.satisfaction-integration-card{position:relative;display:grid;gap:0;margin-top:18px;padding:20px 22px;border:1px solid #dbe4ef;border-radius:22px;background:linear-gradient(135deg,#fff 0%,#f7faff 100%);box-shadow:0 12px 28px rgba(30,64,175,.06);text-align:right;overflow:hidden}
+.satisfaction-integration-card.is-active{border-color:#bfdbfe}
+.satisfaction-integration-top{display:flex;align-items:center;gap:15px;min-width:0}
+.satisfaction-integration-icon{flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:#eaf2ff;color:#2563eb;font-size:25px;font-weight:800}
+.satisfaction-integration-heading{min-width:0;flex:1}
+.satisfaction-integration-heading span{color:#2563eb;font-size:10px;font-weight:900}
+.satisfaction-integration-heading h3{margin:3px 0;color:#172033;font-size:16px}
+.satisfaction-integration-heading p{margin:0;color:#64748b;font-size:11px;line-height:1.8}
+.satisfaction-integration-switch{position:relative;display:flex;align-items:center;gap:9px;flex:none;cursor:pointer;color:#64748b;font-size:12px}
+.satisfaction-integration-switch input{position:absolute;opacity:0;pointer-events:none}
+.satisfaction-integration-switch i{position:relative;width:40px;height:23px;border-radius:999px;background:#cbd5e1;transition:background .2s}
+.satisfaction-integration-switch i:after{content:'';position:absolute;top:3px;right:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0f172a33;transition:transform .2s}
+.satisfaction-integration-switch input:checked+i{background:#2563eb}
+.satisfaction-integration-switch input:checked+i:after{transform:translateX(-17px)}
+.satisfaction-integration-switch input:focus-visible+i{outline:3px solid #93c5fd;outline-offset:2px}
+.satisfaction-integration-switch b{min-width:40px}
+.satisfaction-integration-body{display:grid;gap:14px;margin-top:20px;padding-top:19px;border-top:1px solid #e2e8f0}
+.satisfaction-integration-url{display:grid;gap:8px;color:#334155;font-size:12px;font-weight:900}
+.satisfaction-integration-url input{width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#172033;font:inherit;text-align:left;outline:none;direction:ltr}
+.satisfaction-integration-url input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px #dbeafe}
+.satisfaction-integration-hint{margin:0;color:#64748b;font-size:11px;line-height:1.9}
+.satisfaction-integration-hint code{padding:2px 5px;border-radius:5px;background:#eff6ff;color:#1d4ed8}
+.satisfaction-integration-docs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px;border:1px solid #dbeafe;border-radius:14px;background:#eff6ff}
+.satisfaction-integration-docs>div{display:grid;gap:4px}
+.satisfaction-integration-docs strong{color:#1e3a8a;font-size:12px}
+.satisfaction-integration-docs small{color:#64748b;font-size:10px}
+.satisfaction-integration-docs>a{max-width:100%;overflow-wrap:anywhere;color:#1d4ed8;font-size:11px;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.satisfaction-integration-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.satisfaction-integration-actions span,.satisfaction-integration-feedback{color:#15803d;font-size:11px;font-weight:800}
+.satisfaction-integration-actions a{color:#2563eb;font-size:11px;font-weight:800}
+.satisfaction-integration-actions button,.satisfaction-integration-disable-save{margin-right:auto;padding:11px 16px;border:0;border-radius:11px;background:#2563eb;color:#fff;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.satisfaction-integration-disable-save{margin-top:14px;background:#64748b}
+.satisfaction-integration-actions button:disabled,.satisfaction-integration-disable-save:disabled{opacity:.6}
+@media(max-width:640px){.satisfaction-integration-card{padding:16px}.satisfaction-integration-top{align-items:flex-start;flex-wrap:wrap}.satisfaction-integration-icon{width:42px;height:42px}.satisfaction-integration-switch{width:100%;justify-content:flex-start;margin-top:5px}.satisfaction-integration-actions button{width:100%;margin-right:0}}
 .satisfaction-question-editor{cursor:grab}.satisfaction-question-editor.dragging{opacity:.55;border-color:#60a5fa;background:#eff6ff;cursor:grabbing}.drag-handle{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:16px;cursor:grab}.question-actions{display:flex;align-items:center;gap:6px}.question-actions button{background:#f1f5f9!important;color:#475569!important;font-size:14px!important}.question-actions button:last-child{background:#fee2e2!important;color:#dc2626!important;font-size:19px!important}
 .satisfaction-required-toggle{height:40px;align-self:end;justify-self:start;display:inline-flex!important;grid-template-columns:none!important;align-items:center;gap:8px;padding:0 10px!important;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:900;cursor:pointer;transition:border-color .18s ease,background-color .18s ease,color .18s ease,box-shadow .18s ease}.satisfaction-required-toggle input{position:absolute;opacity:0;pointer-events:none}.satisfaction-required-toggle .toggle-track{position:relative;width:30px;height:18px;flex:0 0 30px;border-radius:999px;background:#cbd5e1;transition:background-color .18s ease}.satisfaction-required-toggle .toggle-track i{position:absolute;top:3px;right:3px;width:12px;height:12px;border-radius:999px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.18);transition:transform .18s ease}.satisfaction-required-toggle b{line-height:1;color:inherit}.satisfaction-required-toggle.required{border-color:#bbf7d0;background:#f0fdf4;color:#15803d;box-shadow:0 8px 18px rgba(34,197,94,.08)}.satisfaction-required-toggle.required .toggle-track{background:#22c55e}.satisfaction-required-toggle.required .toggle-track i{transform:translateX(-12px)}.satisfaction-required-toggle:hover{border-color:#bfdbfe;background:#fff}
 .satisfaction-option-editor{grid-column:1/-1;display:grid;gap:10px;padding:13px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.satisfaction-option-editor-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.satisfaction-option-editor-head strong{color:#1e3a8a;font-size:12px}.satisfaction-option-editor-head small{color:#64748b;font-size:10px}.satisfaction-option-editor-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.satisfaction-option-editor-row{display:grid!important;gap:7px!important;padding:9px;border:1px solid #dbeafe;border-radius:12px;background:#fff;transition:.18s}.satisfaction-option-editor-row.disabled{opacity:.58;background:#f1f5f9}.satisfaction-option-editor-row>input{min-width:0!important;height:36px!important;min-height:36px!important;padding:0 8px!important}.satisfaction-option-toggle{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;color:#64748b;font-size:10px;font-weight:900;cursor:pointer}.satisfaction-option-toggle>input{position:absolute!important;width:1px!important;min-height:1px!important;opacity:0;pointer-events:none}.satisfaction-option-toggle i{position:relative;width:28px;height:17px;border-radius:999px;background:#cbd5e1;transition:.18s}.satisfaction-option-toggle i:after{content:'';position:absolute;top:3px;right:3px;width:11px;height:11px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.2);transition:.18s}.satisfaction-option-toggle.active{color:#15803d}.satisfaction-option-toggle.active i{background:#22c55e}.satisfaction-option-toggle.active i:after{transform:translateX(-11px)}.satisfaction-no-options{color:#b91c1c;font-size:11px;font-weight:900}

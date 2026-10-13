@@ -255,7 +255,7 @@
           </thead>
 
           <tbody>
-            <tr v-for="(row, index) in searchResults" :key="index">
+            <tr v-for="row in searchResults" :key="row.id">
               <td v-for="key in patientResultColumns" :key="key">
                 <div v-if="key === 'first_name' || key === 'last_name'" class="patient-name-cell">
                   <PatientAvatar
@@ -283,10 +283,26 @@
                   {{ customerLevelLabel(row.customer_level) }}
                 </span>
               </td>
-              <td>
-                <button type="button" class="open-profile-btn" @click.stop="openPatientProfile(row)">
-                  باز کردن پرونده
-                </button>
+              <td class="patient-result-action-cell">
+                <div class="patient-result-actions">
+                  <button type="button" class="open-profile-btn" @click.stop="openPatientProfile(row)">
+                    باز کردن پرونده
+                  </button>
+                  <button
+                    v-if="permissions.includes('patients.delete')"
+                    type="button"
+                    class="delete-patient-btn"
+                    :disabled="deletingPatientId === row.id"
+                    :aria-label="deletingPatientId === row.id ? 'در حال حذف پرونده' : 'حذف پرونده'"
+                    :title="deletingPatientId === row.id ? 'در حال حذف پرونده' : 'حذف پرونده'"
+                    @click.stop="deletePatient(row)"
+                  >
+                    <span v-if="deletingPatientId === row.id" class="delete-patient-spinner" aria-hidden="true"></span>
+                    <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m5 4v6m4-6v6" />
+                    </svg>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -527,6 +543,18 @@
                   :title="appointmentRegistrationTooltip(item)"
                 >
                   <td>{{ formatServices(item.services) }}</td>
+                  <td>
+                    <div v-if="appointmentSectionPaths(item).length" class="profile-section-list">
+                      <span v-for="(path, pathIndex) in appointmentSectionPaths(item)" :key="`section-${pathIndex}`">{{ path.section }}</span>
+                    </div>
+                    <span v-else>-</span>
+                  </td>
+                  <td>
+                    <div v-if="appointmentSectionPaths(item).length" class="profile-section-list">
+                      <span v-for="(path, pathIndex) in appointmentSectionPaths(item)" :key="`subsection-${pathIndex}`">{{ path.subsection || '-' }}</span>
+                    </div>
+                    <span v-else>-</span>
+                  </td>
                   <td>{{ appointmentDoctors(item) }}</td>
                   <td>{{ appointmentConsultants(item) }}</td>
                   <td>{{ formatMoneyValue(item.amount) }}</td>
@@ -730,7 +758,11 @@
             placeholder="شماره تماس"
             readonly
           />
-          <input v-model="editPatient.file_number" placeholder="شماره پرونده" readonly />
+          <div class="edit-file-number-field">
+            <input v-model="editPatient.file_number" placeholder="شماره پرونده" inputmode="numeric" maxlength="50" :readonly="patientFileNumberLocked" />
+            <small v-if="patientFileNumberLocked">برای ویرایش شماره، «قفل شماره پرونده» را در تنظیمات داخلی غیرفعال کنید.</small>
+            <small v-else>شمارهٔ جدید باید تکراری نباشد؛ سابقهٔ نوبت‌ها و خدمات همراه آن به‌روز می‌شود.</small>
+          </div>
 
           <select v-model="editPatient.gender">
             <option value="">انتخاب جنسیت</option>
@@ -1059,7 +1091,7 @@
             </div>
 
             <div v-else-if="mediaFolderLevel === 'date'" class="folder-create service-folder-create">
-              <strong>انتخاب بخش نهایی و تگ‌های خدمات</strong>
+              <strong>انتخاب بخش نهایی و نواحی</strong>
               <p>آخرین شاخه را انتخاب کنید؛ اگر یک بخش زیرمجموعه نداشته باشد، خود همان بخش قابل انتخاب است.</p>
                 <div class="shared-upload-setup">
                   <div class="media-inventory-head">
@@ -1094,21 +1126,21 @@
                   <div class="shared-upload-head">
                     <div>
                       <strong>۲. تنظیمات مشترک فایل‌ها</strong>
-                      <small>این اطلاعات و تگ‌ها روی همه عکس‌ها و ویدئوهایی که در ادامه آپلود می‌کنید اعمال می‌شود.</small>
+                      <small>این اطلاعات و نواحی روی همه عکس‌ها و ویدئوهایی که در ادامه آپلود می‌کنید اعمال می‌شود.</small>
                     </div>
                   </div>
 
                   <div v-if="selectedMediaFolderService" class="angle-tags-head shared-tags-head">
                     <div>
-                      <strong>تگ‌ها را انتخاب کنید <b>*</b></strong>
-                      <small>می‌توانید چند تگ را هم‌زمان انتخاب کنید.</small>
+                      <strong>نواحی را انتخاب کنید <b>*</b></strong>
+                      <small>می‌توانید چند ناحیه را هم‌زمان انتخاب کنید.</small>
                     </div>
-                    <input v-model.trim="serviceTagSearch" type="search" placeholder="جست‌وجوی تگ...">
+                    <input v-model.trim="serviceTagSearch" type="search" placeholder="جست‌وجوی ناحیه...">
                   </div>
                   <div v-if="selectedMediaFolderService" class="shared-tag-toolbar">
                     <span>
                       <b>{{ mediaUpload.services.length }}</b>
-                      تگ انتخاب شده
+                      ناحیه انتخاب شده
                     </span>
                     <div>
                       <button type="button" :disabled="!filteredMediaServiceTags.length" @click="selectAllVisibleMediaTags">
@@ -1129,8 +1161,8 @@
                       <span>{{ tag.name }}</span>
                     </label>
                     <div v-if="!filteredMediaServiceTags.length" class="angle-tags-empty">
-                      <span>تگی هنوز وارد نشده</span>
-                      <button type="button" @click="openInventoryForTags"><b>+</b> تعریف تگ</button>
+                      <span>ناحیه‌ای هنوز وارد نشده</span>
+                      <button type="button" @click="openInventoryForTags"><b>+</b> تعریف ناحیه</button>
                     </div>
                   </div>
 
@@ -1154,13 +1186,13 @@
                   >
                     ساخت فولدر و ادامه آپلود
                   </button>
-                  <small v-if="selectedMediaFolderService && !mediaUpload.services.length" class="shared-tags-required">حداقل یک تگ انتخاب کنید.</small>
+                  <small v-if="selectedMediaFolderService && !mediaUpload.services.length" class="shared-tags-required">حداقل یک ناحیه انتخاب کنید.</small>
                 </div>
             </div>
 
             <div v-else-if="!isComparisonPhotoFolder" class="folder-create guided-folder-note">
               <strong>ساخت فولدر دستی غیرفعال است</strong>
-              <p>ساخت فولدر فقط از مسیر تاریخ و انتخاب تگ‌ها انجام می‌شود.</p>
+              <p>ساخت فولدر فقط از مسیر تاریخ و انتخاب نواحی انجام می‌شود.</p>
             </div>
 
             <div v-if="canUploadInCurrentFolder && !isComparisonPhotoFolder" class="upload-card">
@@ -1177,8 +1209,8 @@
               </label>
 
               <div class="service-picker">
-                <strong>تگ‌های مشترک عکس‌ها و ویدئوها</strong>
-                <small>تگ‌های انتخابی روی همه فایل‌های این آپلود اعمال می‌شوند.</small>
+                <strong>نواحی مشترک عکس‌ها و ویدئوها</strong>
+                <small>نواحی انتخابی روی همه فایل‌های این آپلود اعمال می‌شوند.</small>
                 <div v-for="group in mediaServiceGroups" :key="group.section" class="service-group">
                   <span>{{ group.section }}</span>
                   <label v-for="service in group.items" :key="service.id">
@@ -1232,7 +1264,7 @@
                   <span class="angle-settings-summary-text">
                     <strong>تنظیمات مشترک عکس‌ها و ویدئوها</strong>
                     <small v-if="mediaUpload.services.length">
-                      {{ mediaUpload.services.length }} تگ انتخاب شده
+                      {{ mediaUpload.services.length }} ناحیه انتخاب شده
                       <template v-if="mediaUpload.no_usage_consent"> · عدم رضایت استفاده از تصاویر</template>
                       <template v-if="mediaUpload.is_featured"> · برترین‌ها</template>
                     </small>
@@ -1246,10 +1278,10 @@
                 <section class="angle-settings-block angle-tags-block">
                 <div class="angle-tags-head">
                   <div>
-                    <strong>تگ خدمات <b>*</b></strong>
+                    <strong>نواحی <b>*</b></strong>
                     <small>برای جست‌وجو و مقایسه دقیق، حداقل یک خدمت را انتخاب کنید.</small>
                   </div>
-                  <input v-model.trim="serviceTagSearch" type="search" placeholder="جست‌وجوی خدمت...">
+                  <input v-model.trim="serviceTagSearch" type="search" placeholder="جست‌وجوی ناحیه...">
                 </div>
                 <div class="angle-tag-options">
                   <label v-for="service in filteredMediaServiceTags" :key="`angle-tag-${service.id}`" :class="{ selected: mediaUpload.services.some(item => item.id === service.id) }">
@@ -1257,8 +1289,8 @@
                     <span>{{ service.name }}</span>
                   </label>
                   <div v-if="!filteredMediaServiceTags.length" class="angle-tags-empty">
-                    <span>تگی هنوز وارد نشده</span>
-                    <button type="button" @click="openInventoryForTags"><b>+</b> تعریف تگ</button>
+                    <span>ناحیه‌ای هنوز وارد نشده</span>
+                    <button type="button" @click="openInventoryForTags"><b>+</b> تعریف ناحیه</button>
                   </div>
                 </div>
                 </section>
@@ -1669,11 +1701,11 @@ dayjs.extend(jalaliday)
 
 const FACE_PHOTO_ANGLES = [
   { key: 'right_profile', label: 'نیم‌رخ راست', degrees: 90, side: 'راست', rotate: -90, face: -72 },
-  { key: 'right_three_quarter_30', label: 'سه‌رخ اول راست', degrees: 30, side: 'راست', rotate: -30, face: -30 },
-  { key: 'right_three_quarter_60', label: 'سه‌رخ دوم راست', degrees: 60, side: 'راست', rotate: -60, face: -60 },
+  { key: 'right_three_quarter_60', label: 'سه‌رخ اول راست', degrees: 60, side: 'راست', rotate: -60, face: -60 },
+  { key: 'right_three_quarter_30', label: 'سه‌رخ دوم راست', degrees: 30, side: 'راست', rotate: -30, face: -30 },
   { key: 'front', label: 'تمام‌رخ', degrees: 0, side: '', rotate: 0, face: 0 },
-  { key: 'left_three_quarter_60', label: 'سه‌رخ اول چپ', degrees: 60, side: 'چپ', rotate: 60, face: 60 },
-  { key: 'left_three_quarter_30', label: 'سه‌رخ دوم چپ', degrees: 30, side: 'چپ', rotate: 30, face: 30 },
+  { key: 'left_three_quarter_30', label: 'سه‌رخ اول چپ', degrees: 30, side: 'چپ', rotate: 30, face: 30 },
+  { key: 'left_three_quarter_60', label: 'سه‌رخ دوم چپ', degrees: 60, side: 'چپ', rotate: 60, face: 60 },
   { key: 'left_profile', label: 'نیم‌رخ چپ', degrees: 90, side: 'چپ', rotate: 90, face: 72 },
   { key: 'other', label: 'سایر', degrees: 0, side: '', rotate: 0, face: 0 },
   { key: 'body_shape', label: 'شیپ بدن', degrees: 0, side: '', rotate: 0, face: 0 }
@@ -1790,6 +1822,8 @@ export default {
       searchSearched: false,
       showEditModal: false,
       editPatient: {},
+      originalEditFileNumber: '',
+      deletingPatientId: null,
       showCustomerLevelModal: false,
       activeCustomerLevelPatient: {},
       selectedCustomerLevel: '',
@@ -1886,7 +1920,7 @@ export default {
       showSpecificMediaDatePicker: false,
       selectedMediaFiles: [],
       selectedMediaFolderService: null,
-      activePhotoAngleKey: 'front',
+      activePhotoAngleKey: 'right_profile',
       angleGuideMode: 'top',
       angleDragging: false,
       angleUploadLoading: false,
@@ -2155,6 +2189,8 @@ export default {
     appointmentFilterColumns() {
       return [
         { key: 'services', label: 'خدمات' },
+        { key: 'sections', label: 'بخش' },
+        { key: 'subsections', label: 'زیربخش' },
         { key: 'doctors', label: 'پزشک' },
         { key: 'consultants', label: 'مشاور' },
         { key: 'amount', label: 'مبلغ' },
@@ -2172,7 +2208,7 @@ export default {
         return this.appointmentFilterColumns.every(column => {
           const selected = this.selectedAppointmentFilters[column.key] || []
           if (!selected.length) return true
-          return selected.includes(this.appointmentFilterText(item, column.key))
+          return this.appointmentFilterTexts(item, column.key).some(value => selected.includes(value))
         })
       })
     },
@@ -2328,6 +2364,7 @@ export default {
     'search.file_number'(value) { this.normalizeObjectDigits(this.search, 'file_number', value) },
     'search.national_id'(value) { this.normalizeObjectDigits(this.search, 'national_id', value) },
     'editPatient.phone'(value) { this.normalizeObjectDigits(this.editPatient, 'phone', value) },
+    'editPatient.file_number'(value) { this.normalizeObjectDigits(this.editPatient, 'file_number', value) },
     'editPatient.second_phone'(value) { this.normalizeObjectDigits(this.editPatient, 'second_phone', value) },
     'editPatient.national_id'(value) { this.normalizeObjectDigits(this.editPatient, 'national_id', value) },
     'editPatient.foreign_national_code'(value) { this.normalizeObjectDigits(this.editPatient, 'foreign_national_code', value) },
@@ -3250,7 +3287,7 @@ export default {
       this.showAngleCommonSettings = false
       this.mediaShowAll = false
       await this.loadPatientMedia(folderId, false)
-      if (this.currentComparisonStage === 'after') this.activePhotoAngleKey = 'front'
+      this.activePhotoAngleKey = this.currentComparisonStage === 'after' ? 'front' : 'right_profile'
     },
 
     async openBeforeAfterCompare() {
@@ -3447,7 +3484,7 @@ export default {
         return
       }
       if (!this.mediaUpload.services.length) {
-        Swal.fire({ icon: 'warning', title: 'تگ انتخاب نشده', text: 'قبل از ادامه، حداقل یک تگ برای عکس‌ها انتخاب کنید.' })
+        Swal.fire({ icon: 'warning', title: 'ناحیه انتخاب نشده', text: 'قبل از ادامه، حداقل یک ناحیه برای عکس‌ها انتخاب کنید.' })
         return
       }
       this.mediaLoading = true
@@ -3750,7 +3787,7 @@ export default {
 
       if (!this.mediaUpload.services.length) {
         this.showAngleCommonSettings = true
-        Swal.fire({ icon: 'warning', title: 'تگ خدمت انتخاب نشده', text: 'قبل از آپلود، حداقل یک تگ خدمات برای این عکس انتخاب کنید.' })
+        Swal.fire({ icon: 'warning', title: 'ناحیه انتخاب نشده', text: 'قبل از آپلود، حداقل یک ناحیه برای این عکس انتخاب کنید.' })
         return false
       }
 
@@ -4091,9 +4128,24 @@ export default {
         .join('، ')
     },
 
+    appointmentSectionPaths(item) {
+      return Array.isArray(item?.history_section_paths) ? item.history_section_paths : []
+    },
+
+    appointmentFilterTexts(item, key) {
+      if (key === 'sections' || key === 'subsections') {
+        const field = key === 'sections' ? 'section' : 'subsection'
+        const values = [...new Set(this.appointmentSectionPaths(item).map(path => path[field] || '-'))]
+        return values.length ? values : ['-']
+      }
+      return [this.appointmentFilterText(item, key)]
+    },
+
     appointmentFilterText(item, key) {
       const map = {
         services: this.formatServices(item.services),
+        sections: this.appointmentFilterTexts(item, 'sections').join('، '),
+        subsections: this.appointmentFilterTexts(item, 'subsections').join('، '),
         doctors: this.appointmentDoctors(item),
         consultants: this.appointmentConsultants(item),
         amount: this.formatMoneyValue(item.amount),
@@ -4108,7 +4160,7 @@ export default {
     },
 
     appointmentFilterValues(key) {
-      return [...new Set((this.appointmentResults || []).map(item => this.appointmentFilterText(item, key)).filter(Boolean))]
+      return [...new Set((this.appointmentResults || []).flatMap(item => this.appointmentFilterTexts(item, key)).filter(Boolean))]
         .sort((a, b) => String(a).localeCompare(String(b), 'fa'))
     },
 
@@ -4225,17 +4277,55 @@ export default {
             body: JSON.stringify(this.editPatient)
           }
         )
-        if (!res.ok) throw new Error()
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.errors?.file_number?.[0] || data.message || 'ویرایش انجام نشد')
 
         Swal.fire({ icon: 'success', title: 'موفق', text: 'اطلاعات پرونده ویرایش شد' })
         this.showEditModal = false
-        this.performSearch()
+        if (this.search.file_number === this.originalEditFileNumber) {
+          this.search.file_number = String(this.editPatient.file_number || '').trim()
+        }
+        await this.performSearch()
       } catch (e) {
-        Swal.fire({ icon: 'error', title: 'خطا', text: 'ویرایش انجام نشد' })
+        Swal.fire({ icon: 'error', title: 'خطا', text: e.message || 'ویرایش انجام نشد' })
+      }
+    },
+
+    async deletePatient(patient) {
+      if (!patient?.id || !this.permissions.includes('patients.delete') || this.deletingPatientId) return
+      const name = this.patientFullName(patient) || 'این مراجعه‌کننده'
+      const number = patient.file_number ? ` با شمارهٔ ${patient.file_number}` : ''
+      const confirmation = await Swal.fire({
+        icon: 'warning',
+        title: 'حذف پرونده؟',
+        text: `آیا از حذف پروندهٔ ${name}${number} اطمینان دارید؟`,
+        showCancelButton: true,
+        confirmButtonText: 'بله، حذف پرونده',
+        cancelButtonText: 'انصراف',
+        confirmButtonColor: '#dc2626',
+        reverseButtons: true
+      })
+      if (!confirmation.isConfirmed) return
+
+      this.deletingPatientId = patient.id
+      try {
+        const response = await fetch(`/api/patients/${patient.id}`, {
+          method: 'DELETE',
+          headers: { Accept: 'application/json' }
+        })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.message || 'حذف پرونده انجام نشد.')
+        this.searchResults = this.searchResults.filter(row => row.id !== patient.id)
+        await Swal.fire({ icon: 'success', title: 'پرونده حذف شد', text: data.message, confirmButtonText: 'تأیید' })
+      } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'حذف انجام نشد', text: error.message || 'دوباره تلاش کنید.' })
+      } finally {
+        this.deletingPatientId = null
       }
     },
 
     openEditModal(patient) {
+      this.originalEditFileNumber = String(patient.file_number || '').trim()
       this.editPatient = {
         ...patient,
         city: patient.city || 'تهران',
@@ -5217,6 +5307,14 @@ select:focus {
   box-shadow: 0 12px 24px rgba(8, 145, 178, .28);
 }
 
+.result-table tbody td.patient-result-action-cell{min-width:190px;max-width:none;overflow:visible}
+.patient-result-actions{display:flex;align-items:center;justify-content:center;gap:7px}
+.delete-patient-btn{display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;height:36px;border:1px solid #fecaca;border-radius:50%;padding:0;background:#fff1f2;color:#b91c1c;cursor:pointer}
+.delete-patient-btn:hover{background:#ffe4e6;border-color:#fca5a5}
+.delete-patient-btn:disabled{opacity:.55;cursor:wait}
+.delete-patient-spinner{width:17px;height:17px;border:2px solid #fca5a5;border-top-color:#b91c1c;border-radius:50%;animation:delete-patient-spin .7s linear infinite}
+@keyframes delete-patient-spin{to{transform:rotate(360deg)}}
+
 .patient-profile-view {
   margin-bottom: 18px;
 }
@@ -5754,7 +5852,7 @@ select:focus {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 1220px;
+  min-width: 1460px;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   overflow: hidden;
@@ -5852,6 +5950,18 @@ select:focus {
   border-left: 1px solid #f1f5f9;
   color: #334155;
   font-size: 13px;
+}
+
+.profile-section-list {
+  display: grid;
+  gap: 5px;
+  min-width: 95px;
+  text-align: right;
+}
+
+.profile-section-list span {
+  display: block;
+  white-space: nowrap;
 }
 
 .profile-check-warning-row td {
@@ -6298,6 +6408,11 @@ select:focus {
   padding-block: 0;
   line-height: normal;
 }
+
+.edit-file-number-field{display:grid;gap:5px;min-width:0}
+.edit-file-number-field small{color:#64748b;font-size:10px;line-height:1.6}
+.edit-file-number-field input:not([readonly]){border-color:#93c5fd;background:#eff6ff}
+.edit-file-number-field input[readonly]{color:#64748b;cursor:not-allowed}
 
 .edit-grid .vpd-input-group {
   width: 100% !important;
