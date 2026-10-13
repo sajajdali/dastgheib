@@ -94,6 +94,18 @@
                 <label><input type="checkbox" v-model="profileFields.address" /> <span>آدرس</span></label>
               </div>
             </div>
+            <section class="education-options-settings">
+              <header>
+                <span><strong>گزینه‌های تحصیلات</strong><small>این موارد در فرم تشکیل و ویرایش پرونده قابل انتخاب هستند.</small></span>
+                <button type="button" @click="addEducationOption">+ افزودن گزینه</button>
+              </header>
+              <div class="education-options-list">
+                <label v-for="(option, index) in educationOptions" :key="index">
+                  <input v-model.trim="educationOptions[index]" class="green-input" type="text" maxlength="100" :placeholder="`گزینه ${index + 1}`" />
+                  <button type="button" title="حذف گزینه" :disabled="educationOptions.length === 1" @click="removeEducationOption(index)">×</button>
+                </label>
+              </div>
+            </section>
             <label class="lead-phone-privacy-setting" :class="{ active: followupConsultantPhoneRestricted }">
               <input type="checkbox" v-model="followupConsultantPhoneRestricted" />
               <span class="lead-phone-privacy-copy"><strong>محدودیت نمایش شماره لید</strong><small>شماره تماس فقط برای مشاور انتخاب‌شده نمایش داده شود.</small></span>
@@ -979,6 +991,11 @@ const smsTemplateGroups = computed(() => {
 const smsVariables = ["{name}", "{date}", "{time}", "{doctor}", "{clinic}", "{code}", "{amount}", "{balance}", "{link}"];
 const savingSms = ref(false);
 const profileFields = ref({ national_id: false, foreign_national_code: false, marriage_date: false, marital_status: false, education: false, father_name: false, second_phone: false, address: false, city: false });
+const educationOptions = ref(["سیکل", "دیپلم", "کاردانی", "لیسانس", "دکتری", "تحصیلات تکمیلی"]);
+const addEducationOption = () => educationOptions.value.push("");
+const removeEducationOption = index => {
+  if (educationOptions.value.length > 1) educationOptions.value.splice(index, 1);
+};
 const followupConsultantPhoneRestricted = ref(false);
 const appointmentFileNumberLocked = ref(true);
 const handleAppointmentFileNumberLockChange = async event => {
@@ -1512,6 +1529,7 @@ const fetchSettings = async () => {
       }));
     }
     if (data.profile_fields) profileFields.value = data.profile_fields;
+    if (Array.isArray(data.education_options) && data.education_options.length) educationOptions.value = [...data.education_options];
     followupConsultantPhoneRestricted.value = Boolean(data.followup_consultant_phone_restricted);
     appointmentFileNumberLocked.value = data.appointment_file_number_locked !== false;
     if (data.patient_required_fields) patientRequiredFields.value = { ...patientRequiredFields.value, ...data.patient_required_fields };
@@ -1586,6 +1604,7 @@ const saveInternalSettings = async (showMessage = true) => {
     // پpayload کاملاً تمیز و ساختاریافته به صورت JSON
     const payload = {
       profile_fields: profileFields.value,
+      education_options: educationOptions.value.map(option => option.trim()).filter(Boolean),
       followup_consultant_phone_restricted: followupConsultantPhoneRestricted.value,
       appointment_file_number_locked: appointmentFileNumberLocked.value,
       patient_required_fields: patientRequiredFields.value,
@@ -2005,6 +2024,7 @@ textarea{ min-height:120px; resize:none; }
 .lead-alert-options-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #dbeafe}.lead-alert-options-head>div{display:grid;gap:3px}.lead-alert-options-head strong{color:#1e3a8a;font-size:12px}.lead-alert-options-head small{color:#64748b;font-size:10px}.select-all-leads{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #93c5fd;border-radius:10px;background:#fff;color:#1d4ed8;font-size:10px;font-weight:900;cursor:pointer}.select-all-leads input{width:17px;height:17px;accent-color:#2563eb}
 .lead-alert-template-card{display:grid;gap:10px;padding:12px;border:1px solid #dbeafe;border-radius:13px;background:#fff}.lead-alert-template-card.active{border-color:#93c5fd;background:#f8fbff}.lead-alert-template-card>label{display:flex;align-items:center;gap:10px;cursor:pointer}.lead-alert-template-card>label input{width:18px;height:18px;accent-color:#2563eb}.lead-alert-template-card>label span{display:grid;gap:3px}.lead-alert-template-card>label b{color:#1e293b;font-size:11px}.lead-alert-template-card>label small{color:#64748b;font-size:9px}.lead-alert-template-card>input{width:100%;height:40px;padding:0 10px;border:1px solid #bfdbfe;border-radius:9px;background:#fff;color:#172033;font:800 11px inherit;outline:0}.lead-alert-template-card>input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1)}.lead-alert-template-card ol{display:grid;gap:5px;margin:0;padding:0;list-style:none}.lead-alert-template-card li{display:flex;align-items:center;gap:7px;color:#475569;font-size:10px;font-weight:800}.lead-alert-template-card li b{min-width:62px;padding:4px 5px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-size:9px;text-align:center}
 .required-fields-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:16px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff}.required-fields-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}.required-fields-head small{color:#64748b}.required-fields-settings label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:800}.required-fields-settings select{height:34px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-family:inherit}@media(max-width:800px){.required-fields-settings{grid-template-columns:1fr}.required-fields-head{align-items:flex-start;flex-direction:column}}
+.education-options-settings{flex:1 1 100%;display:grid;gap:12px;padding:14px;border:1px solid #dbeafe;border-radius:15px;background:#f8fbff}.education-options-settings header{display:flex;align-items:center;justify-content:space-between;gap:12px}.education-options-settings header span{display:grid;gap:4px}.education-options-settings header small{color:#64748b;font-size:10px}.education-options-settings header button{border:0;border-radius:9px;padding:8px 12px;background:#dbeafe;color:#1d4ed8;font-family:inherit;font-weight:900;cursor:pointer}.education-options-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.education-options-list label{display:grid;grid-template-columns:minmax(0,1fr) 36px;gap:6px}.education-options-list input{width:100%;height:40px}.education-options-list label button{border:0;border-radius:9px;background:#fee2e2;color:#b91c1c;font-size:20px;cursor:pointer}.education-options-list label button:disabled{opacity:.4;cursor:not-allowed}@media(max-width:800px){.education-options-settings header{align-items:flex-start;flex-direction:column}.education-options-list{grid-template-columns:1fr}}
 
 .sms-provider-card {
   display: grid;

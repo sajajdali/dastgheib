@@ -19,6 +19,27 @@ use Carbon\Carbon;
 
 class PatientController extends Controller
 {
+    private function educationOptions(): array
+    {
+        $defaults = ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'دکتری', 'تحصیلات تکمیلی'];
+        $raw = AppSetting::getByKey('education_options');
+        $stored = is_string($raw) ? json_decode($raw, true) : $raw;
+
+        if (! is_array($stored) || $stored === []) {
+            return $defaults;
+        }
+
+        $options = collect($stored)
+            ->filter(fn ($option) => is_string($option))
+            ->map(fn (string $option) => trim($option))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $options ?: $defaults;
+    }
+
     public function nextFileNumber()
     {
         return response()->json([
@@ -70,12 +91,13 @@ class PatientController extends Controller
             'father_name' => $presence('father_name').'|string|max:255',
             'marital_status' => $presence('marital_status').'|string|in:مجرد,متاهل',
             'marriage_date' => $presence('marriage_date').'|string|max:20',
-            'education' => $presence('education').'|string|max:255',
+            'education' => [$presence('education'), 'string', 'max:100', Rule::in($this->educationOptions())],
             'second_phone' => $presence('second_phone').'|string|max:30',
             'address' => $presence('address').'|string',
         ], [
             'phone.unique' => 'شماره موبایل تکراری است',
             'file_number.unique' => 'این شماره پرونده قبلاً ثبت شده است.',
+            'education.in' => 'تحصیلات را از گزینه‌های تعریف‌شده در تنظیمات انتخاب کنید.',
         ]);
 
         // شماره پیشنهادی خودکار است، اما کاربر می‌تواند شماره آزاد دیگری
@@ -273,7 +295,7 @@ class PatientController extends Controller
             'father_name' => [$presence('father_name'), 'string', 'max:255'],
             'marital_status' => [$presence('marital_status'), 'string', Rule::in(['مجرد', 'متاهل'])],
             'marriage_date' => [$presence('marriage_date'), 'string', 'max:20'],
-            'education' => [$presence('education'), 'string', 'max:255'],
+            'education' => [$presence('education'), 'string', 'max:100', Rule::in($this->educationOptions())],
             'second_phone' => [$presence('second_phone'), 'string', 'max:30'],
             'address' => [$presence('address'), 'string'],
         ], [

@@ -138,12 +138,13 @@
           color="#0f766e"
         />
 
-        <input 
+        <select
           v-if="activeProfileFields.education" 
           v-model="form.education" 
-          type="text" 
-          :placeholder="`تحصیلات${patientRequiredFields.education ? ' *' : ''}`"
-        />
+        >
+          <option value="" disabled>{{ `تحصیلات${patientRequiredFields.education ? ' *' : ''}` }}</option>
+          <option v-for="option in educationOptions" :key="option" :value="option">{{ option }}</option>
+        </select>
 
         <input 
           v-if="activeProfileFields.second_phone" 
@@ -765,7 +766,10 @@
             <option value="متاهل">متأهل</option>
           </select>
           <input v-if="activeProfileFields.marriage_date" v-model="editPatient.marriage_date" placeholder="تاریخ ازدواج" />
-          <input v-if="activeProfileFields.education" v-model="editPatient.education" placeholder="تحصیلات" />
+          <select v-if="activeProfileFields.education" v-model="editPatient.education">
+            <option value="">انتخاب تحصیلات</option>
+            <option v-for="option in educationOptions" :key="option" :value="option">{{ option }}</option>
+          </select>
           <input v-if="activeProfileFields.second_phone && canViewPatientPhone" v-model="editPatient.second_phone" placeholder="شماره تماس دوم" maxlength="11" />
           <input v-else-if="activeProfileFields.second_phone" :value="displayPatientPhone(editPatient.second_phone)" placeholder="شماره تماس دوم" readonly />
 
@@ -1713,6 +1717,7 @@ export default {
         city: false
       },
       patientRequiredFields: {},
+      educationOptions: ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'دکتری', 'تحصیلات تکمیلی'],
       patientFileNumberLocked: true,
       fileNumberAvailability: 'idle',
       fileNumberCheckTimer: null,
@@ -2387,6 +2392,9 @@ export default {
             this.activeProfileFields = data.profile_fields
           }
           this.patientRequiredFields = data.patient_required_fields || {}
+          if (Array.isArray(data.education_options) && data.education_options.length) {
+            this.educationOptions = data.education_options
+          }
           this.patientFileNumberLocked = data.appointment_file_number_locked !== false
         }
       } catch (e) {
@@ -4237,7 +4245,9 @@ export default {
         second_phone: this.optionalPatientValue(patient.second_phone),
         father_name: this.optionalPatientValue(patient.father_name),
         marriage_date: this.optionalPatientValue(patient.marriage_date),
-        education: this.optionalPatientValue(patient.education),
+        education: this.educationOptions.includes(this.optionalPatientValue(patient.education))
+          ? this.optionalPatientValue(patient.education)
+          : '',
         address: this.optionalPatientValue(patient.address),
         patient_history: this.optionalPatientValue(patient.patient_history),
         medical_history: this.optionalPatientValue(patient.medical_history)

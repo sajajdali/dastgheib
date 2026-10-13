@@ -21,6 +21,31 @@ use App\Http\Controllers\Api\SatisfactionController;
 
 class SettingController extends Controller
 {
+    private function defaultEducationOptions(): array
+    {
+        return ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'دکتری', 'تحصیلات تکمیلی'];
+    }
+
+    private function educationOptions(): array
+    {
+        $raw = AppSetting::getByKey('education_options');
+        $stored = is_string($raw) ? json_decode($raw, true) : $raw;
+
+        if (! is_array($stored) || $stored === []) {
+            return $this->defaultEducationOptions();
+        }
+
+        $options = collect($stored)
+            ->filter(fn ($option) => is_string($option))
+            ->map(fn (string $option) => trim($option))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $options ?: $this->defaultEducationOptions();
+    }
+
     private function fixedSmsTemplates(): array
     {
         return [
@@ -175,6 +200,7 @@ class SettingController extends Controller
             
             // ارسال دیتای کاملا آرایه‌ای و تمیز به فرانت
             'profile_fields' => $profileFieldsData, 
+            'education_options' => $this->educationOptions(),
             'patient_required_fields' => json_decode((string) AppSetting::getByKey('patient_required_fields', '{}'), true) ?: [],
             'followup_consultant_phone_restricted' => AppSetting::getByKey('followup_consultant_phone_restricted', '0') === '1',
             'appointment_file_number_locked' => AppSetting::getByKey('appointment_file_number_locked', '1') !== '0',
@@ -320,6 +346,25 @@ class SettingController extends Controller
             'passwords.*.role_ids' => 'نقش‌های کاربر',
         ]);
 
+        $educationOptions = null;
+        if ($request->has('education_options')) {
+            $validated = $request->validate([
+                'education_options' => ['required', 'array', 'min:1', 'max:50'],
+                'education_options.*' => ['required', 'string', 'max:100', 'distinct'],
+            ]);
+            $educationOptions = collect($validated['education_options'])
+                ->map(fn (string $option) => trim($option))
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($educationOptions->isEmpty()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'education_options' => ['حداقل یک گزینه برای تحصیلات وارد کنید.'],
+                ]);
+            }
+        }
+
         if ($request->has('customer_levels')) {
             $levels = $request->validate([
                 'customer_levels.blue_min_period_amount' => ['required', 'numeric', 'min:0'],
@@ -453,6 +498,11 @@ class SettingController extends Controller
         AppSetting::updateOrCreate(['key' => 'patient_required_fields'], [
             'value' => json_encode($request->input('patient_required_fields', []), JSON_UNESCAPED_UNICODE),
         ]);
+        if ($educationOptions !== null) {
+            AppSetting::updateOrCreate(['key' => 'education_options'], [
+                'value' => $educationOptions->toJson(JSON_UNESCAPED_UNICODE),
+            ]);
+        }
         AppSetting::updateOrCreate(['key' => 'followup_consultant_phone_restricted'], ['value' => $request->boolean('followup_consultant_phone_restricted') ? '1' : '0']);
         AppSetting::updateOrCreate(['key' => 'appointment_file_number_locked'], ['value' => $request->boolean('appointment_file_number_locked', true) ? '1' : '0']);
 
