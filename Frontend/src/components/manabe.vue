@@ -396,6 +396,10 @@ export default {
         this.staffSaveMessage = 'تغییرات ذخیره‌نشده دارید.';
         this.staffRowsRevision += 1;
         clearTimeout(this.saveTimeout);
+        // هنگام ویرایش داخل مودال، پاسخ ذخیرهٔ خودکار نباید مدل زنده را
+        // جایگزین کند؛ چون باعث بسته‌شدن لحظه‌ای بخش پله‌های فروش می‌شود.
+        // بستن مودال خودش آخرین تغییرات را ذخیره می‌کند.
+        if (this.activeStaffIndex !== null) return;
         this.saveTimeout = setTimeout(() => {
           this.autoSaveStaff();
         }, 1000);
@@ -510,6 +514,8 @@ export default {
       }
     },
     openStaffSettings(index) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
       this.activeStaffIndex = index;
     },
 

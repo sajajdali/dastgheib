@@ -527,7 +527,7 @@ class AppointmentController extends Controller
                 unset($incoming['id'], $incoming['appointment_id'], $incoming['lock_version'], $incoming['followup_confirmed'], $incoming['_client_key']);
                 $incoming = collect($incoming)->only([
                     'day_num', 'sort_order', 'lastname', 'gender', 'phone',
-                    'file_number', 'time', 'status', 'arrived_at', 'wait_minutes',
+                    'file_number', 'time', 'duration_minutes', 'status', 'arrived_at', 'wait_minutes',
                     'doctor', 'consultant', 'source', 'campaign_id', 'description',
                     'doctor_note', 'done', 'completed_at', 'amount',
                     'original_amount', 'debt', 'payment_method', 'payment_account',
@@ -693,6 +693,29 @@ class AppointmentController extends Controller
         // guard applies when claiming a new slot or moving to another slot.
         if ($sameSlot) return;
 
+        // A manually extended appointment owns every covered clock slot, even
+        // though only its starting time is stored as a database row.
+        $candidateMinute = $this->appointmentTimeMinutes($time);
+        if ($candidateMinute !== null) {
+            $candidateDuration = max(1, (int) ($incoming['duration_minutes'] ?? $previous?->duration_minutes ?? 1));
+            $candidateEnd = $candidateMinute + $candidateDuration;
+            $coveredByExtendedAppointment = Appointment::query()
+                ->where('month', $month)
+                ->where('day_num', $day)
+                ->when($previous, fn ($query) => $query->whereKeyNot($previous->getKey()))
+                ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
+                ->lockForUpdate()
+                ->get()
+                ->contains(function (Appointment $appointment) use ($candidateMinute, $candidateEnd) {
+                    $start = $this->appointmentTimeMinutes((string) $appointment->time);
+                    return $start !== null
+                        && $candidateMinute < $start + max(1, (int) $appointment->duration_minutes)
+                        && $candidateEnd > $start;
+                });
+            abort_if($coveredByExtendedAppointment, 409,
+                'این ساعت بخشی از یک نوبت ادغام‌شده است و امکان رزرو آن وجود ندارد.');
+        }
+
         $occupied = Appointment::query()
             ->where('month', $month)
             ->where('day_num', $day)
@@ -750,6 +773,83 @@ class AppointmentController extends Controller
         return response()->json(['appointment_id' => $updated->id, 'lock_version' => $updated->lock_version]);
     }
 
+    /** Extend an appointment into the immediately following empty timeline slot. */
+    public function extend(Request $request, Appointment $appointment)
+    {
+        $data = $request->validate([
+            'lock_version' => ['required', 'integer', 'min:1'],
+            'next_time' => ['required', 'date_format:H:i'],
+            'interval_minutes' => ['required', 'integer', 'between:1,240'],
+            'current_duration_minutes' => ['required', 'integer', 'between:1,1440'],
+        ], $this->appointmentValidationMessages(), [
+            ...$this->appointmentValidationAttributes(),
+            'next_time' => 'ساعت بعدی',
+            'interval_minutes' => 'فاصله زمانی',
+            'current_duration_minutes' => 'مدت فعلی نوبت',
+        ]);
+
+        abort_if(blank($appointment->time), 422, 'این نوبت ساعت مشخصی ندارد.');
+        $lockRows = [[
+            'day_num' => $appointment->day_num,
+            'time' => $appointment->time,
+        ], [
+            'day_num' => $appointment->day_num,
+            'time' => $data['next_time'],
+        ]];
+
+        $updated = $this->withAppointmentSlotLocks($lockRows, (string) $appointment->month, function () use ($appointment, $data) {
+            return DB::transaction(function () use ($appointment, $data) {
+                $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
+                abort_if((int) $current->lock_version !== (int) $data['lock_version'], 409,
+                    'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید و دوباره تلاش کنید.');
+
+                $start = $this->appointmentTimeMinutes((string) $current->time);
+                $storedDuration = max(0, (int) $current->duration_minutes);
+                $currentDuration = max($storedDuration, (int) $data['current_duration_minutes']);
+                $next = $this->appointmentTimeMinutes($data['next_time']);
+                abort_if($start === null || $next === null || $next !== $start + $currentDuration, 422,
+                    'ساعت انتخاب‌شده بلافاصله بعد از این نوبت نیست.');
+
+                $extensionEnd = $next + (int) $data['interval_minutes'];
+                $dayAppointments = Appointment::query()
+                    ->where('month', $current->month)
+                    ->where('day_num', $current->day_num)
+                    ->whereKeyNot($current->id)
+                    ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
+                    ->lockForUpdate()
+                    ->get();
+
+                $occupied = $dayAppointments->contains(function (Appointment $other) use ($next, $extensionEnd, $data) {
+                    $otherStart = $this->appointmentTimeMinutes((string) $other->time);
+                    if ($otherStart === null) return false;
+                    $otherEnd = $otherStart + max((int) ($other->duration_minutes ?: $data['interval_minutes']), 1);
+                    return $next < $otherEnd && $extensionEnd > $otherStart;
+                });
+                abort_if($occupied, 409, 'ساعت بعدی قبلاً رزرو شده است و امکان ادغام وجود ندارد.');
+
+                $current->update([
+                    'duration_minutes' => $currentDuration + (int) $data['interval_minutes'],
+                    'lock_version' => (int) $current->lock_version + 1,
+                ]);
+
+                return $current->fresh();
+            });
+        });
+
+        $this->broadcastAppointmentChange($updated);
+
+        return response()->json(['appointment' => $updated]);
+    }
+
+    private function appointmentTimeMinutes(string $time): ?int
+    {
+        if (! preg_match('/^(\d{2}):(\d{2})/', trim($time), $matches)) return null;
+        $hour = (int) $matches[1];
+        $minute = (int) $matches[2];
+        if ($hour > 23 || $minute > 59) return null;
+        return ($hour * 60) + $minute;
+    }
+
     private function appointmentValidationMessages(): array
     {
         return [
@@ -785,6 +885,7 @@ class AppointmentController extends Controller
             'sort_order' => ['required', 'integer', 'min:0'],
             'lastname' => ['nullable', 'string', 'max:255'],
             'time' => ['nullable', 'date_format:H:i'],
+            'duration_minutes' => ['nullable', 'integer', 'between:1,1440'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
         $row = $request->except('appointments');
@@ -881,7 +982,7 @@ class AppointmentController extends Controller
     {
         $fields = [
             'day_num', 'sort_order', 'lastname', 'gender', 'phone', 'file_number',
-            'time', 'status', 'arrived_at', 'wait_minutes', 'doctor', 'consultant',
+            'time', 'duration_minutes', 'status', 'arrived_at', 'wait_minutes', 'doctor', 'consultant',
             'source', 'campaign_id', 'description', 'doctor_note', 'done',
             'completed_at', 'amount', 'original_amount', 'debt', 'payment_method',
             'payment_account', 'payment_details', 'payment_link',

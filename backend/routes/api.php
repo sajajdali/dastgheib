@@ -225,6 +225,7 @@ Route::delete('/appointments/{appointment}/financial-payments/{transaction}', [A
 Route::post('/appointments/{appointment}/settle-previous-debt', [AppointmentController::class, 'settlePreviousDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->middleware('permission:appointments.update');
+Route::post('/appointments/{appointment}/extend', [AppointmentController::class, 'extend'])->middleware('permission:appointments.update');
 Route::post('/appointments/row', [AppointmentController::class, 'saveRow'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments', [AppointmentController::class, 'saveAppointments'])->middleware('permission:appointments.create|appointments.update');
 Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy'])->middleware('permission:appointments.update');

@@ -25,5 +25,6 @@ class Appointment extends Model
         'new_customer' => 'boolean'
         ,'wallet_applied' => 'decimal:2'
         ,'referral_commission_value' => 'decimal:2'
+        ,'duration_minutes' => 'integer'
     ];
 }

@@ -1390,6 +1390,16 @@
                 <strong>خالی</strong>
               </div>
             </article>
+            <button
+              v-if="timelineNextEmptySlot(day, row)"
+              type="button"
+              class="timeline-merge-next-btn"
+              :class="{ 'is-loading': timelineMergePendingId === row.appointmentId }"
+              :disabled="timelineMergePendingId !== null"
+              :title="`ادغام نوبت با ساعت ${timelineNextEmptySlot(day, row).time}`"
+              aria-label="ادغام نوبت با ساعت بعد"
+              @click.stop="confirmTimelineSlotMerge(day, row)"
+            >+</button>
           </template>
 
           <article
@@ -2515,6 +2525,7 @@ export default {
       timelineFileNumberLookupRequest: 0,
       suspendScheduleAutosave: false,
       activeTimelineCreatedInModal: false,
+      timelineMergePendingId: null,
 
       doctorOptions: [],
       doctors: [],
@@ -3457,6 +3468,7 @@ export default {
         lastEditedBy: item.last_edited_by || '', lastEditedAt: item.last_edited_at || '',
         patientId: item.patient_id || null, lastname: item.lastname || '', gender: item.gender || '',
         phone: item.phone || '', fileNumber: item.file_number || '', time: item.time || '',
+        durationMinutes: Number(item.duration_minutes || 0),
         status: this.emptyScheduleCellValue(item.status), arrivedAt: item.arrived_at || '',
         waitMinutes: item.wait_minutes == null ? null : Number(item.wait_minutes), doctor: item.doctor || '',
         consultant: item.consultant || '', source: item.source || '', description: item.description || '',
@@ -3914,7 +3926,7 @@ export default {
       if (!start) return "بدون ساعت";
       const span = this.timelineSlotSpan(row);
       if (span <= 1 || this.isEmptyAppointmentRow(row)) return start;
-      const duration = this.bookingDurationMinutesForRow(row);
+      const duration = this.timelineAppointmentDurationMinutes(row);
       return `${start} تا ${this.timeFromMinutes(this.minutesFromTime(start) + duration)}`;
     },
 
@@ -3963,10 +3975,75 @@ export default {
     },
 
     timelineSlotSpan(row) {
-      if (!row || this.isEmptyAppointmentRow(row) || !this.bookingServiceFilter) return 1;
+      if (!row || this.isEmptyAppointmentRow(row)) return 1;
       const baseInterval = Math.max(1, Number(this.clinicSchedule.interval_minutes || 15));
-      const duration = Math.max(baseInterval, Number(this.bookingDurationMinutesForRow(row) || baseInterval));
+      const duration = Math.max(baseInterval, this.timelineAppointmentDurationMinutes(row));
       return Math.max(1, Math.min(24, Math.ceil(duration / baseInterval)));
+    },
+
+    timelineAppointmentDurationMinutes(row) {
+      const manualDuration = Number(row?.durationMinutes || 0);
+      if (manualDuration > 0) return manualDuration;
+      return Math.max(1, Number(this.bookingDurationMinutesForRow(row) || this.clinicSchedule.interval_minutes || 15));
+    },
+
+    timelineNextEmptySlot(day, row) {
+      if (!row?.appointmentId || this.isEmptyAppointmentRow(row) || !row.time) return null;
+      const duration = this.timelineAppointmentDurationMinutes(row);
+      const expectedTime = this.timeFromMinutes(this.minutesFromTime(row.time) + duration);
+      return (day?.timelineRows || []).find(candidate =>
+        this.isEmptyAppointmentRow(candidate) && String(candidate.time || '').slice(0, 5) === expectedTime
+      ) || null;
+    },
+
+    async confirmTimelineSlotMerge(day, row) {
+      const nextSlot = this.timelineNextEmptySlot(day, row);
+      if (!nextSlot || this.timelineMergePendingId !== null) return;
+
+      const confirmation = await Swal.fire({
+        icon: 'question',
+        title: 'ادغام با ساعت بعد؟',
+        text: `آیا می‌خواهید این نوبت با ساعت ${String(nextSlot.time).slice(0, 5)} ادغام شود؟`,
+        showCancelButton: true,
+        confirmButtonText: 'بله، ادغام شود',
+        cancelButtonText: 'انصراف',
+        confirmButtonColor: '#2563eb'
+      });
+      if (!confirmation.isConfirmed) return;
+
+      const interval = Math.max(1, Number(this.clinicSchedule.interval_minutes || 15));
+      const currentDuration = this.timelineAppointmentDurationMinutes(row);
+      this.timelineMergePendingId = row.appointmentId;
+      try {
+        const { data } = await axios.post(`/api/appointments/${row.appointmentId}/extend`, {
+          lock_version: Number(row.lockVersion || 1),
+          next_time: String(nextSlot.time).slice(0, 5),
+          interval_minutes: interval,
+          current_duration_minutes: currentDuration
+        });
+        const appointment = data?.appointment || {};
+        row.durationMinutes = Number(appointment.duration_minutes || currentDuration + interval);
+        row.lockVersion = Number(appointment.lock_version || row.lockVersion || 1);
+        const rowIndex = (day.rows || []).indexOf(row);
+        if (rowIndex >= 0) row._persistedStateFingerprint = this.appointmentRowStateFingerprint(day, row, rowIndex);
+        delete this.monthAppointmentsCache[this.months[this.currentMonth]];
+        await Swal.fire({
+          icon: 'success',
+          title: 'نوبت با ساعت بعد ادغام شد',
+          text: `زمان نوبت اکنون ${this.timelineTimeLabel(row)} است.`,
+          timer: 1300,
+          showConfirmButton: false
+        });
+      } catch (error) {
+        if (error?.response?.status === 409) await this.fetchData(true);
+        await Swal.fire({
+          icon: 'error',
+          title: 'ادغام انجام نشد',
+          text: error?.response?.data?.message || 'لطفاً دوباره تلاش کنید.'
+        });
+      } finally {
+        this.timelineMergePendingId = null;
+      }
     },
 
     timelineBookingCardStyle(row = null) {
@@ -5701,6 +5778,7 @@ export default {
             profilePhotoUrl: this.patientOriginalPhotoUrl(item),
             hasPatientFile: !!item.has_patient_file,
             time: item.time || "",
+            durationMinutes: Number(item.duration_minutes || 0),
             status: this.emptyScheduleCellValue(item.status),
             arrivedAt: item.arrived_at || "",
             waitMinutes: item.wait_minutes == null ? null : Number(item.wait_minutes),
@@ -6212,6 +6290,8 @@ this.calculateFinalAmount(row)
                   time:
                     row.time,
 
+                  duration_minutes: Number(row.durationMinutes || 0) || null,
+
                   status:
                     row.status,
 
@@ -6444,6 +6524,7 @@ this.calculateFinalAmount(row)
         hasPatientFile: false,
         customerLevel: "silver",
         time: "",
+        durationMinutes: 0,
         status: "",
         arrivedAt: "",
         waitMinutes: null,
@@ -8953,6 +9034,23 @@ this.calculateFinalAmount(row)
       });
     },
 
+    manualDurationSlotIsOccupied(day, row) {
+      if (!this.isEmptyAppointmentRow(row)) return false;
+      const candidateTime = String(row.time || '').slice(0, 5);
+      if (!candidateTime) return false;
+      const candidateMinute = this.minutesFromTime(candidateTime);
+      const baseInterval = Math.max(1, Number(this.clinicSchedule.interval_minutes || 15));
+
+      return (day.rows || []).some(appointment => {
+        const duration = Number(appointment.durationMinutes || 0);
+        if (this.isEmptyAppointmentRow(appointment) || duration <= baseInterval) return false;
+        const start = String(appointment.time || '').slice(0, 5);
+        if (!start) return false;
+        const startMinute = this.minutesFromTime(start);
+        return candidateMinute > startMinute && candidateMinute < startMinute + duration;
+      });
+    },
+
     getFilteredRows(day) {
       const appointmentSearch = this.normalizeAppointmentSearchText(this.searchQuery);
       if (appointmentSearch) {
@@ -9024,7 +9122,7 @@ this.calculateFinalAmount(row)
         const bookingResourceOk = !this.bookingResourceFilter || keepEmptyBookingSlot || this.bookingRowMatchesSelectedResource(row);
         const timelineSlotOk = this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
         const bookingScheduleOk = this.bookingScheduleAllowsRow(day, row);
-        const bookingCapacityOk = !this.bookingSlotIsOccupied(day, row);
+        const bookingCapacityOk = !this.manualDurationSlotIsOccupied(day, row) && !this.bookingSlotIsOccupied(day, row);
         const rowTime = String(row.time || '').slice(0, 5);
         const emptyTimeOk = !this.emptyTimeFilterActive || (
           !String(row.status || '').trim() &&
@@ -12449,6 +12547,42 @@ td.st-arrived select {
 
 .appointment-timeline .timeline-day-label { padding: 14px 12px; }
 .appointment-timeline .timeline-slots { gap: 8px; padding: 20px 10px 18px; }
+
+.appointment-timeline .timeline-merge-next-btn {
+  align-self: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  margin-inline: -4px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #64748b;
+  font-size: 19px;
+  font-weight: 1000;
+  line-height: 1;
+  cursor: pointer;
+  transition: .18s ease;
+}
+
+.appointment-timeline .timeline-merge-next-btn:hover,
+.appointment-timeline .timeline-merge-next-btn:focus-visible {
+  border-color: #60a5fa;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(37, 99, 235, .25);
+  outline: none;
+  transform: scale(1.08);
+}
+
+.appointment-timeline .timeline-merge-next-btn:disabled,
+.appointment-timeline .timeline-merge-next-btn.is-loading {
+  cursor: wait;
+  opacity: .55;
+  transform: none;
+}
 
 .appointment-timeline .timeline-card,
 .appointment-timeline .timeline-add-card {
