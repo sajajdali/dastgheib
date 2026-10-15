@@ -55,7 +55,7 @@ class AutomaticSmsScenarioController extends Controller
         $scenario = DB::transaction(function () use ($data) {
             $scenario = AutomaticSmsScenario::create(collect($data)->except('steps')->all());
             $this->syncSteps($scenario, $data['steps']);
-            return $scenario->load('steps');
+            return $scenario->fresh()->load('steps');
         });
         return response()->json(['scenario' => $scenario], 201);
     }
@@ -64,8 +64,12 @@ class AutomaticSmsScenarioController extends Controller
     {
         $data = $this->validated($request);
         $scenario = DB::transaction(function () use ($data, $automaticSmsScenario) {
-            $automaticSmsScenario->update(collect($data)->except('steps')->all());
+            $automaticSmsScenario = AutomaticSmsScenario::query()->lockForUpdate()->findOrFail($automaticSmsScenario->id);
+            abort_if(empty($data['save_version']) || ! hash_equals($automaticSmsScenario->save_version, $data['save_version']), 409,
+                'این سناریو در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.');
+            $automaticSmsScenario->update(collect($data)->except('steps', 'updated_at', 'save_version')->all());
             $this->syncSteps($automaticSmsScenario, $data['steps']);
+            $automaticSmsScenario->touch();
             return $automaticSmsScenario->fresh()->load('steps');
         });
         return response()->json(['scenario' => $scenario]);
@@ -84,7 +88,10 @@ class AutomaticSmsScenarioController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'inventory_tag' => ['required', 'string', 'max:255'],
             'is_active' => ['required', 'boolean'],
+            'updated_at' => ['nullable', 'string'],
+            'save_version' => ['nullable', 'string'],
             'steps' => ['required', 'array', 'min:1', 'max:20'],
+            'steps.*.id' => ['nullable', 'integer', 'distinct'],
             'steps.*.days_after' => ['required', 'integer', 'min:1', 'max:3650'],
             'steps.*.send_at' => ['required', 'date_format:H:i'],
             // کاربر باید بتواند کارت سناریوی تازه را مانند طرح ابتدا بسازد و نام الگو را بعداً وارد کند.
@@ -111,14 +118,36 @@ class AutomaticSmsScenarioController extends Controller
 
     private function syncSteps(AutomaticSmsScenario $scenario, array $steps): void
     {
-        $scenario->steps()->delete();
+        $existing = $scenario->steps()->lockForUpdate()->get()->keyBy('id');
+        $keptIds = collect($steps)->pluck('id')->filter()->map(fn ($id) => (int) $id)->all();
+        foreach ($keptIds as $id) {
+            abort_unless($existing->has($id), 422, 'یکی از مراحل به این سناریو تعلق ندارد. صفحه را تازه‌سازی کنید.');
+        }
+        foreach ($existing as $step) {
+            if (! in_array($step->id, $keptIds, true)) $step->delete();
+        }
+        foreach (array_values($steps) as $index => $stepData) {
+            if (empty($stepData['id'])) continue;
+            $record = $existing->get((int) $stepData['id']);
+            if ((int) $record->sort_order !== $index + 1) {
+                $record->sort_order = 1000 + $index;
+                $record->save();
+            }
+        }
         foreach (array_values($steps) as $index => $step) {
-            $scenario->steps()->create([
+            $attributes = [
                 'sort_order' => $index + 1,
                 'days_after' => $step['days_after'],
-                'send_at' => $step['send_at'],
-                'sms_template' => trim($step['sms_template']),
-            ]);
+                'send_at' => $step['send_at'].':00',
+                'sms_template' => trim($step['sms_template'] ?? ''),
+            ];
+            $record = ! empty($step['id']) ? $existing->get((int) $step['id']) : null;
+            if ($record) {
+                $record->fill($attributes);
+                if ($record->isDirty()) $record->save();
+            } else {
+                $scenario->steps()->create($attributes);
+            }
         }
     }
 

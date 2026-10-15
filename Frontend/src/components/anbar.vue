@@ -931,10 +931,11 @@ export default {
         row = this.rows.find(item => item.name === rowName)
       }
       if (!row?.id) return
-      this.bookingModal = { open: true, row, step: 1, loading: true, saving: false, settings: {}, resources: [], exceptions: [], rules: [], scheduleJson: "[]" }
+      this.bookingModal = { open: true, row, step: 1, loading: true, saving: false, bookingVersion: 0, settings: {}, resources: [], exceptions: [], rules: [], scheduleJson: "[]" }
       try {
         const { data } = await axios.get(`${API}/inventory/${row.id}/booking-settings`)
         const payload = data.data || data
+        this.bookingModal.bookingVersion = Number(payload.booking_version || 0)
         this.bookingModal.settings = { ...(payload.settings || {}) }
         this.bookingModal.resources = (payload.resources || []).map((item, index) => ({
           ...item,
@@ -1035,8 +1036,9 @@ export default {
       }
       modal.saving = true
       try {
-        const { data } = await axios.put(`${API}/inventory/${modal.row.id}/booking-settings`, { settings: modal.settings, resources, exceptions: modal.exceptions, rules: modal.rules })
+        const { data } = await axios.put(`${API}/inventory/${modal.row.id}/booking-settings`, { booking_version: modal.bookingVersion, settings: modal.settings, resources, exceptions: modal.exceptions, rules: modal.rules })
         const payload = data.data || data
+        modal.bookingVersion = Number(payload.booking_version || 0)
         modal.resources = payload.resources || resources
         modal.open = false
         await this.fetchData({ keepState: true })
@@ -1205,6 +1207,7 @@ export default {
           id: section.id,
           client_id: null,
           updated_at: section.updated_at,
+          save_version: section.save_version,
           parent_id: section.parent_id || section.parentId || null,
           level: Number(section.level || 1),
             name: section.name,
@@ -1315,6 +1318,7 @@ export default {
         localId: `row-${item.id || Date.now()}-${index}`,
         id: item.id || null,
         updated_at: item.updated_at,
+        save_version: item.save_version,
         section_id: this.resolveSectionKey(rawSectionKey) || fallbackSection,
         name: item.name || "",
         serviceTags: Array.isArray(item.service_tags || item.serviceTags) ? [...(item.service_tags || item.serviceTags)] : [],
@@ -1378,6 +1382,7 @@ export default {
       return {
         id: section.id,
         updated_at: section.updated_at,
+        save_version: section.save_version,
         client_id: section.client_id,
         parent_id: section.parent_id,
         level: section.level,
@@ -1391,6 +1396,7 @@ export default {
       return {
         id: row.id,
         updated_at: row.updated_at,
+        save_version: row.save_version,
         client_id: row.localId,
         section_id: row.section_id,
         name: row.name,
@@ -1897,6 +1903,7 @@ export default {
       return {
         id: item.id || null,
         updated_at: item.updated_at,
+        save_version: item.save_version,
         name: String(item.name || '').trim(),
         amount: item.amount,
         price: item.price,

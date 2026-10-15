@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -19,9 +18,8 @@ return new class extends Migration
             }
         });
 
-        DB::table('inventory_commissions')->delete();
-        DB::table('inventories')->delete();
-        DB::table('inventory_sections')->delete();
+        // Existing services and their IDs must survive the hierarchy upgrade.
+        // Legacy sections become root sections until explicitly organized.
     }
 
     public function down(): void

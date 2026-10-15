@@ -125,8 +125,8 @@ class InventoryDefaultAddonsTest extends TestCase
         $this->postJson('/api/inventory', [
             'sections' => [],
             'items' => [
-                ['id' => $main->id, 'section_id' => $section->id, 'name' => $main->name, 'amount' => 100000, 'active' => true, 'default_addon_ids' => [$addon->id]],
-                ['id' => $addon->id, 'section_id' => $section->id, 'name' => $addon->name, 'amount' => 25000, 'active' => true],
+                ['id' => $main->id, 'save_version' => $main->fresh()->save_version, 'section_id' => $section->id, 'name' => $main->name, 'amount' => 100000, 'active' => true, 'default_addon_ids' => [$addon->id]],
+                ['id' => $addon->id, 'save_version' => $addon->fresh()->save_version, 'section_id' => $section->id, 'name' => $addon->name, 'amount' => 25000, 'active' => true],
             ],
         ])->assertOk();
 
@@ -251,7 +251,7 @@ class InventoryDefaultAddonsTest extends TestCase
         DB::table('inventory_booking_settings')->insert(['inventory_id' => $existing->id]);
 
         $this->postJson('/api/inventory', [
-            'items' => [['id' => $existing->id, 'updated_at' => $existing->updated_at->toJSON(), 'name' => 'نام تازه']],
+            'items' => [['id' => $existing->id, 'save_version' => $existing->fresh()->save_version, 'name' => 'نام تازه']],
         ])->assertOk();
 
         $this->assertDatabaseHas('inventories', [
@@ -267,7 +267,7 @@ class InventoryDefaultAddonsTest extends TestCase
         $existing = Inventory::create(['section_id' => $section->id, 'name' => 'خدمت', 'stock' => 10]);
 
         $this->postJson('/api/inventory', [
-            'items' => [['id' => $existing->id, 'updated_at' => '2000-01-01T00:00:00.000000Z', 'name' => 'نام قدیمی']],
+            'items' => [['id' => $existing->id, 'save_version' => 'stale', 'name' => 'نام قدیمی']],
         ])->assertUnprocessable()->assertJsonValidationErrors(['items']);
 
         $this->assertDatabaseHas('inventories', ['id' => $existing->id, 'name' => 'خدمت', 'stock' => 10]);

@@ -51,6 +51,7 @@ class InventoryController extends Controller
         $data = $request->validate([
             'items' => ['required', 'array'],
             'items.*.id' => ['nullable', 'integer', 'distinct'],
+            'items.*.save_version' => ['nullable', 'string'],
             'items.*.name' => ['required', 'string', 'max:255'],
             'items.*.amount' => ['nullable'],
             'items.*.price' => ['nullable'],
@@ -69,7 +70,7 @@ class InventoryController extends Controller
                 if (! $record && ! empty($item['id'])) {
                     throw ValidationException::withMessages(['items' => 'یکی از جانبی‌ها دیگر وجود ندارد. صفحه را تازه‌سازی کنید.']);
                 }
-                if ($record && ! empty($item['updated_at']) && $record->updated_at?->toJSON() !== $item['updated_at']) {
+                if ($record && (empty($item['save_version']) || ! hash_equals($record->save_version, $item['save_version']))) {
                     throw ValidationException::withMessages(['items' => 'این جانبی در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
                 }
                 if (! $record) $record = new InventoryAddonDefinition();
@@ -105,8 +106,10 @@ class InventoryController extends Controller
         $request->validate([
             'items' => ['nullable', 'array'],
             'items.*.id' => ['nullable', 'integer', 'distinct'],
+            'items.*.save_version' => ['nullable', 'string'],
             'sections' => ['nullable', 'array'],
             'sections.*.id' => ['nullable', 'integer', 'distinct'],
+            'sections.*.save_version' => ['nullable', 'string'],
             'deleted_item_ids' => ['nullable', 'array'],
             'deleted_item_ids.*' => ['integer', 'distinct'],
             'deleted_section_ids' => ['nullable', 'array'],
@@ -129,7 +132,7 @@ class InventoryController extends Controller
                 if (! $record && ! empty($section['id'])) {
                     throw ValidationException::withMessages(['sections' => 'یکی از بخش‌ها دیگر وجود ندارد. صفحه را تازه‌سازی کنید.']);
                 }
-                if ($record && ! empty($section['updated_at']) && $record->updated_at?->toJSON() !== $section['updated_at']) {
+                if ($record && (empty($section['save_version']) || ! hash_equals($record->save_version, $section['save_version']))) {
                     throw ValidationException::withMessages(['sections' => 'این بخش در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
                 }
                 if (! $record) $record = new InventorySection();
@@ -177,7 +180,7 @@ class InventoryController extends Controller
                 if (! $inventory && ! empty($item['id'])) {
                     throw ValidationException::withMessages(['items' => 'یکی از خدمات دیگر وجود ندارد. صفحه را تازه‌سازی کنید.']);
                 }
-                if ($inventory && ! empty($item['updated_at']) && $inventory->updated_at?->toJSON() !== $item['updated_at']) {
+                if ($inventory && (empty($item['save_version']) || ! hash_equals($inventory->save_version, $item['save_version']))) {
                     throw ValidationException::withMessages(['items' => 'این خدمت در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
                 }
                 if (! $inventory) $inventory = new Inventory();

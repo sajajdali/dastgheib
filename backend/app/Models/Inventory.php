@@ -5,11 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\HasSaveVersion;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Inventory extends Model
 {
-    use HasFactory, Auditable;
+    use HasFactory, Auditable, HasSaveVersion;
+
+    protected $appends = ['save_version'];
 
     public function activitySection(): string { return 'انبار'; }
 

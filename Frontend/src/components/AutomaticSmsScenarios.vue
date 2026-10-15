@@ -140,7 +140,7 @@ export default {
     decorateProject(project) { return { ...project, scenarios: (project.scenarios || []).map(scenario => ({ ...scenario, _savedInventoryTag: scenario.inventory_tag })) } },
     decorateScenario(scenario) { return { ...scenario, _savedInventoryTag: scenario.inventory_tag } },
     replaceProject(project) { const index = this.projects.findIndex(item => item.id === project.id); if (index >= 0) this.projects.splice(index, 1, this.decorateProject(project)) },
-    scenarioPayload(scenario) { return { project_id: this.currentProject.id, name: scenario.name || scenario.inventory_tag, inventory_tag: scenario.inventory_tag, is_active: Boolean(scenario.is_active), steps: scenario.steps.map(step => ({ days_after: Math.max(1, Number(step.days_after) || 1), send_at: String(step.send_at || '10:00').slice(0, 5), sms_template: step.sms_template || '' })) } },
+    scenarioPayload(scenario) { return { project_id: this.currentProject.id, updated_at: scenario.updated_at, save_version: scenario.save_version, name: scenario.name || scenario.inventory_tag, inventory_tag: scenario.inventory_tag, is_active: Boolean(scenario.is_active), steps: scenario.steps.map(step => ({ id: step.id || null, days_after: Math.max(1, Number(step.days_after) || 1), send_at: String(step.send_at || '10:00').slice(0, 5), sms_template: step.sms_template || '' })) } },
     async createScenario() {
       this.creatingScenario = true
       try {

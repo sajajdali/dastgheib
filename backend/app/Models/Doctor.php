@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\HasSaveVersion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class Doctor extends Model
 {
-    use Auditable;
+    use Auditable, HasSaveVersion;
 
     public function activitySection(): string { return 'پزشکان'; }
 
@@ -41,7 +42,7 @@ class Doctor extends Model
         'allowed_shortage_hours' => 'decimal:2',
     ];
 
-    protected $appends = ['profile_photo_url', 'profile_thumbnail_url', 'avatar_url'];
+    protected $appends = ['profile_photo_url', 'profile_thumbnail_url', 'avatar_url', 'save_version'];
 
     public function getProfilePhotoUrlAttribute(): ?string
     {

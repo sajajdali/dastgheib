@@ -3,16 +3,26 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\HasSaveVersion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AutomaticSmsScenario extends Model
 {
-    use Auditable;
+    use Auditable, HasSaveVersion;
 
     protected $fillable = ['project_id', 'name', 'inventory_tag', 'is_active'];
     protected $casts = ['is_active' => 'boolean'];
+    protected $appends = ['save_version'];
+
+    public function getSaveVersionAttribute(): string
+    {
+        return hash('sha256', json_encode([
+            self::canonicalSaveAttributes($this),
+            $this->steps->map(fn ($step) => self::canonicalSaveAttributes($step))->all(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
 
     public function activitySection(): string { return 'پیامک اتوماتیک'; }
     public function activityLabel(): string { return $this->name; }

@@ -363,6 +363,10 @@ export default {
     isSyncingChannelRows: false,
     doctorRowsRevision: 0,
     staffRowsRevision: 0,
+    savedDoctorPayloads: {},
+    savedStaffPayloads: {},
+    deletedDoctorIds: [],
+    deletedStaffIds: [],
     isSyncingStaffRows: false,
     savingStaff: false,
     staffSaveMessage: "",
@@ -586,6 +590,15 @@ export default {
       };
     },
 
+    resourcePayload(type, row) {
+      const fields = ['id', 'updated_at', 'save_version', 'user_id', 'name', 'bonus', 'commission_customer_scope',
+        'commission_after_materials', 'sales_bonus_enabled', 'sales_bonus_tiers', 'salary',
+        'hourly_rate', 'overtime_hourly_rate', 'shortage_hourly_deduction', 'absence_deduction',
+        'allowed_shortage_hours', 'profile_photo_path', 'profile_thumbnail_path'];
+      if (type === 'doctor') fields.push('available_days', 'service_section_ids');
+      return Object.fromEntries(fields.filter(field => row[field] !== undefined).map(field => [field, row[field]]));
+    },
+
     syncResourceUser(row, type) {
       const options = type === 'doctor' ? this.doctorUserOptions : this.staffUserOptions;
       const selected = options.find(user => String(user.id) === String(row.user_id));
@@ -620,6 +633,7 @@ export default {
         if (doctorsData.length > 0) {
           this.isSyncingResourceRows = true;
           this.doctorRows = doctorsData.map(this.normalizeDoctorRow);
+          this.savedDoctorPayloads = Object.fromEntries(this.doctorRows.map(row => [String(row.id), JSON.stringify(this.resourcePayload('doctor', row))]));
           this.$nextTick(() => {
             this.isSyncingResourceRows = false;
             this.doctorsDirty = false;
@@ -633,6 +647,7 @@ export default {
         if (staffData.length > 0 && staffRevision === this.staffRowsRevision) {
           this.isSyncingStaffRows = true;
           this.staffRows = staffData.map(this.normalizeStaffRow);
+          this.savedStaffPayloads = Object.fromEntries(this.staffRows.map(row => [String(row.id), JSON.stringify(this.resourcePayload('staff', row))]));
           await this.$nextTick();
           this.isSyncingStaffRows = false;
         }
@@ -667,6 +682,8 @@ export default {
       });
     },
     removeDoctorRow(index) {
+      const id = this.doctorRows[index]?.id;
+      if (id && !this.deletedDoctorIds.includes(Number(id))) this.deletedDoctorIds.push(Number(id));
       this.doctorRows.splice(index, 1);
     },
 
@@ -686,6 +703,8 @@ export default {
       }));
     },
     removeStaffRow(index) {
+      const id = this.staffRows[index]?.id;
+      if (id && !this.deletedStaffIds.includes(Number(id))) this.deletedStaffIds.push(Number(id));
       this.staffRows.splice(index, 1);
       if (this.activeStaffIndex === index) this.activeStaffIndex = null;
       else if (this.activeStaffIndex > index) this.activeStaffIndex -= 1;
@@ -834,10 +853,13 @@ export default {
 
     async autoSaveDoctors() {
       const requestRevision = this.doctorRowsRevision;
-      const validDoctors = this.doctorRows
-        .map(this.normalizeDoctorRow)
-        .filter(row => row.user_id || (row.name && row.name.trim() !== ''));
-      if (validDoctors.length === 0) return this.doctorRows;
+      const deletedIds = [...this.deletedDoctorIds];
+      const submittedDoctors = this.doctorRows
+        .filter(row => row.user_id || String(row.name || '').trim())
+        .map(local => ({ local, payload: this.resourcePayload('doctor', this.normalizeDoctorRow(local)) }))
+        .filter(({ payload }) => !payload.id || this.savedDoctorPayloads[String(payload.id)] !== JSON.stringify(payload));
+      const validDoctors = submittedDoctors.map(({ payload }) => payload);
+      if (validDoctors.length === 0 && !this.deletedDoctorIds.length) return this.doctorRows;
 
       try {
         const response = await fetch('/api/doctors', {
@@ -846,7 +868,7 @@ export default {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify(validDoctors)
+          body: JSON.stringify({ items: validDoctors, deleted_ids: deletedIds })
         });
         const data = await response.json();
         if (!response.ok) {
@@ -856,8 +878,20 @@ export default {
           throw new Error(validationMessage || 'ذخیره پزشکان انجام نشد.');
         }
         if (data.doctors) {
+          this.deletedDoctorIds = this.deletedDoctorIds.filter(id => !deletedIds.includes(id));
           if (requestRevision !== this.doctorRowsRevision) {
-            return this.doctorRows;
+            submittedDoctors.forEach(({ local, payload }) => {
+              const saved = data.doctors.find(row => payload.id
+                ? String(row.id) === String(payload.id)
+                : payload.user_id ? String(row.user_id) === String(payload.user_id)
+                  : String(row.name || '').trim() === String(payload.name || '').trim());
+              if (!saved || !this.doctorRows.includes(local)) return;
+              local.id = saved.id;
+              local.save_version = saved.save_version;
+              local.updated_at = saved.updated_at;
+              this.savedDoctorPayloads[String(saved.id)] = JSON.stringify(this.resourcePayload('doctor', this.normalizeDoctorRow(saved)));
+            });
+            return this.autoSaveDoctors();
           }
 
           const serverDoctors = data.doctors.map(this.normalizeDoctorRow);
@@ -878,6 +912,7 @@ export default {
             ...serverDoctors,
             ...unsavedDoctors
           ];
+          this.savedDoctorPayloads = Object.fromEntries(serverDoctors.map(row => [String(row.id), JSON.stringify(this.resourcePayload('doctor', row))]));
           this.$nextTick(() => { this.isSyncingResourceRows = false; });
         }
         console.log('پزشکان با موفقیت ذخیره شدند:', data);
@@ -905,15 +940,18 @@ export default {
           clearTimeout(this.saveTimeout);
           const revision = this.staffRowsRevision;
           const submitted = this.staffRows.map(this.normalizeStaffRow)
-            .filter(row => row.user_id || String(row.name || '').trim());
-          if (!submitted.length) {
-            this.staffSaveMessage = 'برای ردیف جدید، ابتدا کاربر را انتخاب کنید.';
+            .filter(row => row.user_id || String(row.name || '').trim())
+            .map(row => ({ ...this.resourcePayload('staff', row), _staffKey: row._staffKey }))
+            .filter(row => !row.id || this.savedStaffPayloads[String(row.id)] !== JSON.stringify(this.resourcePayload('staff', row)));
+          if (!submitted.length && !this.deletedStaffIds.length) {
+            this.staffSaveMessage = 'اطلاعات پرسنل ذخیره شده است.';
             return this.staffRows;
           }
+          const deletedIds = [...this.deletedStaffIds];
           const response = await fetch('/api/staff', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(submitted),
+            body: JSON.stringify({ items: submitted.map(({ _staffKey, ...row }) => row), deleted_ids: deletedIds }),
           });
           const data = await response.json();
           if (!response.ok || !Array.isArray(data.staff)) {
@@ -921,6 +959,14 @@ export default {
             throw new Error(message || 'ذخیره پرسنل انجام نشد.');
           }
           changedDuringSave = revision !== this.staffRowsRevision;
+          this.deletedStaffIds = this.deletedStaffIds.filter(id => !deletedIds.includes(id));
+          submitted.forEach(sent => {
+            const saved = data.staff.find(row => sent.id
+              ? String(row.id) === String(sent.id)
+              : sent.user_id ? String(row.user_id) === String(sent.user_id)
+                : String(row.name || '').trim() === String(sent.name || '').trim());
+            if (saved) this.savedStaffPayloads[String(saved.id)] = JSON.stringify(this.resourcePayload('staff', this.normalizeStaffRow(saved)));
+          });
           this.isSyncingStaffRows = true;
           try {
             submitted.forEach(sent => {

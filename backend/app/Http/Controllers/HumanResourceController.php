@@ -11,7 +11,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class HumanResourceController extends Controller
 {
@@ -167,9 +169,12 @@ class HumanResourceController extends Controller
 
     public function saveDoctors(Request $request)
     {
-        $validated = $request->validate([
+        $items = $request->input('items', $request->all());
+        $validated = validator($items, [
             '*' => ['array'],
             '*.id' => ['nullable', 'integer', 'exists:doctors,id'],
+            '*.updated_at' => ['nullable', 'string'],
+            '*.save_version' => ['nullable', 'string'],
             '*.user_id' => ['nullable', 'integer', 'exists:users,id', 'distinct'],
             '*.name' => ['nullable', 'string', 'max:255'],
             '*.bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -185,12 +190,12 @@ class HumanResourceController extends Controller
             '*.allowed_shortage_hours' => ['nullable', 'numeric', 'min:0'],
             '*.available_days' => ['nullable', 'array'],
             '*.service_section_ids' => ['nullable', 'array'],
-        ]);
+        ])->validate();
+        $deletedIds = $request->validate(['deleted_ids' => ['nullable', 'array'], 'deleted_ids.*' => ['integer', 'distinct']])['deleted_ids'] ?? [];
 
-        DB::transaction(function () use ($validated) {
-        $keptIds = [];
+        DB::transaction(function () use ($validated, $deletedIds) {
         foreach ($validated as $doctor) {
-            if (empty($doctor['name']) && empty($doctor['user_id'])) {
+            if (empty($doctor['id']) && empty($doctor['name']) && empty($doctor['user_id'])) {
                 continue;
             }
 
@@ -199,12 +204,15 @@ class HumanResourceController extends Controller
             if (! $record && $user) {
                 $record = Doctor::firstWhere('user_id', $user->id);
             }
+            if ($record && (empty($doctor['save_version']) || ! hash_equals($record->save_version, $doctor['save_version']))) {
+                throw ValidationException::withMessages(['doctors' => 'این پزشک در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
+            }
             $record ??= new Doctor();
-            $record->fill([
+            $values = [
                 'user_id' => $user?->id,
-                'name' => $user?->name ?? $doctor['name'],
+                'name' => $user?->name ?? ($doctor['name'] ?? $record->name),
                 'bonus' => $doctor['bonus'] ?? 0,
-                'commission_customer_scope' => in_array($doctor['commission_customer_scope'] ?? 'both', ['new', 'existing', 'both'], true) ? $doctor['commission_customer_scope'] : 'both',
+                'commission_customer_scope' => in_array($doctor['commission_customer_scope'] ?? 'both', ['new', 'existing', 'both'], true) ? ($doctor['commission_customer_scope'] ?? 'both') : 'both',
                 'commission_after_materials' => (bool) ($doctor['commission_after_materials'] ?? false),
                 'sales_bonus_enabled' => (bool) ($doctor['sales_bonus_enabled'] ?? false),
                 'sales_bonus_tiers' => $this->normalizeSalesBonusTiers($doctor['sales_bonus_tiers'] ?? []),
@@ -223,14 +231,14 @@ class HumanResourceController extends Controller
                     ->all(),
                 'profile_photo_path' => $doctor['profile_photo_path'] ?? $record->profile_photo_path,
                 'profile_thumbnail_path' => $doctor['profile_thumbnail_path'] ?? $record->profile_thumbnail_path,
-            ]);
-            $record->save();
-            $keptIds[] = $record->id;
+            ];
+            if ($record->exists) $values = array_filter($values,
+                fn ($key) => array_key_exists($key, $doctor) || ($key === 'name' && array_key_exists('user_id', $doctor)),
+                ARRAY_FILTER_USE_KEY);
+            $record->fill($values);
+            if (! $record->exists || $record->isDirty()) $record->save();
         }
-
-        if ($keptIds !== []) {
-            Doctor::whereNotIn('id', $keptIds)->get()->each->delete();
-        }
+        foreach ($deletedIds as $id) $this->deleteResourceIfUnused('doctor', (int) $id);
         });
 
         return response()->json([
@@ -241,9 +249,12 @@ class HumanResourceController extends Controller
 
 public function saveStaff(Request $request)
     {
-        $validated = $request->validate([
+        $items = $request->input('items', $request->all());
+        $validated = validator($items, [
             '*' => ['array'],
             '*.id' => ['nullable', 'integer', 'exists:staff,id'],
+            '*.updated_at' => ['nullable', 'string'],
+            '*.save_version' => ['nullable', 'string'],
             '*.user_id' => ['nullable', 'integer', 'exists:users,id', 'distinct'],
             '*.name' => ['nullable', 'string', 'max:255'],
             '*.bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -257,12 +268,12 @@ public function saveStaff(Request $request)
             '*.shortage_hourly_deduction' => ['nullable', 'numeric', 'min:0'],
             '*.absence_deduction' => ['nullable', 'numeric', 'min:0'],
             '*.allowed_shortage_hours' => ['nullable', 'numeric', 'min:0'],
-        ]);
+        ])->validate();
+        $deletedIds = $request->validate(['deleted_ids' => ['nullable', 'array'], 'deleted_ids.*' => ['integer', 'distinct']])['deleted_ids'] ?? [];
 
-        DB::transaction(function () use ($validated) {
-            $keptIds = [];
+        DB::transaction(function () use ($validated, $deletedIds) {
             foreach ($validated as $staff) {
-                if (empty($staff['name']) && empty($staff['user_id'])) {
+                if (empty($staff['id']) && empty($staff['name']) && empty($staff['user_id'])) {
                     continue;
                 }
 
@@ -271,10 +282,13 @@ public function saveStaff(Request $request)
                 if (! $record && $user) {
                     $record = Staff::firstWhere('user_id', $user->id);
                 }
+                if ($record && (empty($staff['save_version']) || ! hash_equals($record->save_version, $staff['save_version']))) {
+                    throw ValidationException::withMessages(['staff' => 'این پرسنل در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
+                }
                 $record ??= new Staff();
-                $record->fill([
+                $values = [
                     'user_id' => $user?->id,
-                    'name' => $user?->name ?? $staff['name'],
+                    'name' => $user?->name ?? ($staff['name'] ?? $record->name),
                     'bonus' => $staff['bonus'] ?? 0,
                     'commission_customer_scope' => $staff['commission_customer_scope'] ?? 'both',
                     'commission_after_materials' => (bool) ($staff['commission_after_materials'] ?? false),
@@ -288,20 +302,41 @@ public function saveStaff(Request $request)
                     'allowed_shortage_hours' => max(0, (float) ($staff['allowed_shortage_hours'] ?? 0)),
                     'profile_photo_path' => $staff['profile_photo_path'] ?? $record->profile_photo_path,
                     'profile_thumbnail_path' => $staff['profile_thumbnail_path'] ?? $record->profile_thumbnail_path,
-                ]);
-                $record->save();
-                $keptIds[] = $record->id;
+                ];
+                if ($record->exists) $values = array_filter($values,
+                    fn ($key) => array_key_exists($key, $staff) || ($key === 'name' && array_key_exists('user_id', $staff)),
+                    ARRAY_FILTER_USE_KEY);
+                $record->fill($values);
+                if (! $record->exists || $record->isDirty()) $record->save();
             }
-
-            if ($keptIds !== []) {
-                Staff::whereNotIn('id', $keptIds)->get()->each->delete();
-            }
+            foreach ($deletedIds as $id) $this->deleteResourceIfUnused('staff', (int) $id);
         });
 
         return response()->json([
             'message' => 'اطلاعات پرسنل با موفقیت به‌روزرسانی شد.',
             'staff' => Staff::query()->orderBy('name')->get(),
         ]);
+    }
+
+    private function deleteResourceIfUnused(string $type, int $id): void
+    {
+        $model = $type === 'doctor' ? Doctor::query()->lockForUpdate()->find($id) : Staff::query()->lockForUpdate()->find($id);
+        if (! $model) return;
+        $column = $type === 'doctor' ? 'doctor_id' : 'staff_id';
+        foreach (['appointment_service_bookings', 'inventory_booking_resources'] as $table) {
+            if (Schema::hasTable($table) && DB::table($table)->where($column, $id)->exists()) {
+                throw ValidationException::withMessages(['deleted_ids' => "«{$model->name}» در نوبت‌دهی استفاده شده است و قابل حذف نیست."]);
+            }
+        }
+        foreach (['attendance_months', 'resource_earning_lines', 'resource_adjustments'] as $table) {
+            if (Schema::hasTable($table) && DB::table($table)->where('resource_type', $type)->where('resource_id', $id)->exists()) {
+                throw ValidationException::withMessages(['deleted_ids' => "«{$model->name}» سابقهٔ مالی یا حضور دارد و قابل حذف نیست."]);
+            }
+        }
+        if (Schema::hasTable('inventory_commissions') && DB::table('inventory_commissions')->where('recipient_type', $type)->where('recipient_id', $id)->exists()) {
+            throw ValidationException::withMessages(['deleted_ids' => "«{$model->name}» در پورسانت خدمات استفاده شده است و قابل حذف نیست."]);
+        }
+        $model->delete();
     }
 
     public function uploadDoctorPhoto(Request $request, Doctor $doctor)
