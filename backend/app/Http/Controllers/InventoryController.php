@@ -14,6 +14,7 @@ use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -49,36 +50,67 @@ class InventoryController extends Controller
     {
         $data = $request->validate([
             'items' => ['required', 'array'],
+            'items.*.id' => ['nullable', 'integer', 'distinct'],
             'items.*.name' => ['required', 'string', 'max:255'],
             'items.*.amount' => ['nullable'],
             'items.*.price' => ['nullable'],
             'items.*.stock' => ['nullable', 'integer', 'min:0'],
             'items.*.min_stock' => ['nullable', 'integer', 'min:0'],
             'items.*.active' => ['nullable', 'boolean'],
+            'deleted_ids' => ['nullable', 'array'],
+            'deleted_ids.*' => ['integer', 'distinct'],
         ]);
 
         DB::transaction(function () use ($data) {
-            InventoryAddonDefinition::query()->delete();
             foreach (array_values($data['items']) as $index => $item) {
-                InventoryAddonDefinition::create([
+                $record = ! empty($item['id'])
+                    ? InventoryAddonDefinition::query()->lockForUpdate()->find($item['id'])
+                    : null;
+                if (! $record && ! empty($item['id'])) {
+                    throw ValidationException::withMessages(['items' => 'یکی از جانبی‌ها دیگر وجود ندارد. صفحه را تازه‌سازی کنید.']);
+                }
+                if ($record && ! empty($item['updated_at']) && $record->updated_at?->toJSON() !== $item['updated_at']) {
+                    throw ValidationException::withMessages(['items' => 'این جانبی در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
+                }
+                if (! $record) $record = new InventoryAddonDefinition();
+                $record->fill([
                     'name' => trim($item['name']),
                     'amount' => $item['amount'] ?? 0,
                     'price' => $item['price'] ?? 0,
                     'stock' => isset($item['stock']) ? (int) $item['stock'] : 0,
                     'min_stock' => $item['min_stock'] ?? $item['minStock'] ?? 5,
                     'active' => $item['active'] ?? true,
-                    'sort_order' => $index,
+                    'sort_order' => $item['sort_order'] ?? $index,
                 ]);
+                if (! $record->exists || $record->isDirty()) $record->save();
+            }
+            foreach ($data['deleted_ids'] ?? [] as $id) {
+                $record = InventoryAddonDefinition::query()->lockForUpdate()->find($id);
+                if (! $record) continue;
+                if ($record->inventories()->exists()) {
+                    throw ValidationException::withMessages(['items' => "جانبی «{$record->name}» در خدمات استفاده می‌شود؛ ابتدا ارتباط آن را بردارید."]);
+                }
+                $record->delete();
             }
         });
 
-        return response()->json(['message' => 'جانبی‌ها ذخیره شدند.']);
+        return response()->json([
+            'message' => 'جانبی‌ها ذخیره شدند.',
+            'addons' => InventoryAddonDefinition::query()->orderBy('sort_order')->orderBy('name')->get(),
+        ]);
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'items' => ['nullable', 'array'],
+            'items.*.id' => ['nullable', 'integer', 'distinct'],
+            'sections' => ['nullable', 'array'],
+            'sections.*.id' => ['nullable', 'integer', 'distinct'],
+            'deleted_item_ids' => ['nullable', 'array'],
+            'deleted_item_ids.*' => ['integer', 'distinct'],
+            'deleted_section_ids' => ['nullable', 'array'],
+            'deleted_section_ids.*' => ['integer', 'distinct'],
             // موجودی منفی نشان‌دهنده کمبود ثبت‌شده توسط خدمات انجام‌شده است.
             'items.*.stock' => ['nullable', 'integer'],
         ]);
@@ -87,86 +119,71 @@ class InventoryController extends Controller
 
         $this->ensureItemsBelongToSubsections($items, $sections);
 
-        DB::transaction(function () use ($items, $sections) {
-            // ذخیرهٔ فعلی انبار شناسه‌ها را بازسازی می‌کند؛ تنظیمات وقت‌دهی
-            // باید پیش از حذف snapshot و روی شناسهٔ جدید بازیابی شوند.
-            $bookingSnapshots = $this->bookingSnapshots();
-            InventoryAddon::query()->delete();
-            InventoryCommission::query()->get()->each->delete();
-            Inventory::query()->get()->each->delete();
-
+        $savedIds = DB::transaction(function () use ($items, $sections, $request) {
             $sectionIdMap = [];
-
-            if (is_array($sections) && count($sections)) {
-                $this->deleteSectionsFromLeaves();
-
-                foreach (array_values($sections) as $index => $section) {
-                    if (empty($section['name'])) {
-                        continue;
-                    }
-
-                    $created = InventorySection::create([
-                        'parent_id' => null,
-                        'level' => max(1, (int) ($section['level'] ?? 1)),
-                        'name' => $section['name'],
-                        'color' => $section['color'] ?? null,
-                        'sort_order' => $section['sort_order'] ?? $index,
-                    ]);
-
-                    foreach (['id', 'client_id'] as $key) {
-                        if (! empty($section[$key])) {
-                            $sectionIdMap[(string) $section[$key]] = $created->id;
-                        }
-                    }
+            foreach (array_values($sections) as $index => $section) {
+                if (empty($section['id']) && empty($section['name'])) continue;
+                $record = ! empty($section['id'])
+                    ? InventorySection::query()->lockForUpdate()->find($section['id'])
+                    : null;
+                if (! $record && ! empty($section['id'])) {
+                    throw ValidationException::withMessages(['sections' => 'یکی از بخش‌ها دیگر وجود ندارد. صفحه را تازه‌سازی کنید.']);
                 }
-
-                foreach (array_values($sections) as $section) {
-                    $key = (string) ($section['id'] ?? $section['client_id'] ?? '');
-                    $parentKey = (string) ($section['parent_id'] ?? $section['parentId'] ?? '');
-                    if ($key === '' || $parentKey === '' || ! isset($sectionIdMap[$key], $sectionIdMap[$parentKey])) {
-                        continue;
-                    }
-
-                    $parentId = $sectionIdMap[$parentKey];
-                    $parentLevel = (int) (InventorySection::query()->find($parentId)?->level ?? 1);
-                    InventorySection::query()->whereKey($sectionIdMap[$key])->update([
-                        'parent_id' => $parentId,
-                        'level' => $parentLevel + 1,
-                    ]);
+                if ($record && ! empty($section['updated_at']) && $record->updated_at?->toJSON() !== $section['updated_at']) {
+                    throw ValidationException::withMessages(['sections' => 'این بخش در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
                 }
-
-                // ذخیرهٔ ساختار انبار شناسهٔ بخش‌ها را بازسازی می‌کند؛
-                // اتصال پزشک به بخش خدمات را به شناسه‌های تازه منتقل کن.
-                Doctor::query()->get()->each(function (Doctor $doctor) use ($sectionIdMap) {
-                    $currentIds = is_array($doctor->service_section_ids) ? $doctor->service_section_ids : [];
-                    $remappedIds = collect($currentIds)
-                        ->map(fn ($id) => $sectionIdMap[(string) $id] ?? $id)
-                        ->filter()
-                        ->unique()
-                        ->values()
-                        ->all();
-
-                    if ($remappedIds !== $currentIds) {
-                        $doctor->update(['service_section_ids' => $remappedIds]);
-                    }
-                });
+                if (! $record) $record = new InventorySection();
+                $sectionAttributes = [
+                    'name' => trim($section['name'] ?? ''),
+                    'color' => $section['color'] ?? null,
+                    'sort_order' => $section['sort_order'] ?? $index,
+                ];
+                if ($record->exists) {
+                    $sectionAttributes = array_filter($sectionAttributes,
+                        fn ($key) => array_key_exists($key, $section), ARRAY_FILTER_USE_KEY);
+                }
+                $record->fill($sectionAttributes);
+                if (! $record->exists || $record->isDirty()) $record->save();
+                foreach (['id', 'client_id'] as $key) {
+                    if (! empty($section[$key])) $sectionIdMap[(string) $section[$key]] = $record->id;
+                }
+            }
+            foreach ($sections as $section) {
+                $key = (string) ($section['id'] ?? $section['client_id'] ?? '');
+                if (! isset($sectionIdMap[$key])) continue;
+                $record = InventorySection::query()->findOrFail($sectionIdMap[$key]);
+                $parentKey = $section['parent_id'] ?? $section['parentId'] ?? null;
+                $parentId = $this->resolveSectionId($parentKey, $sectionIdMap);
+                if ($parentId && ! InventorySection::query()->whereKey($parentId)->exists()) {
+                    throw ValidationException::withMessages(['sections' => 'بخش والد پیدا نشد. صفحه را تازه‌سازی کنید.']);
+                }
+                if ($parentId === $record->id) {
+                    throw ValidationException::withMessages(['sections' => 'بخش نمی‌تواند والد خودش باشد.']);
+                }
+                if (array_key_exists('parent_id', $section) || array_key_exists('parentId', $section) || empty($section['id'])) {
+                    $record->parent_id = $parentId;
+                    $record->level = $parentId ? (int) InventorySection::query()->whereKey($parentId)->value('level') + 1 : 1;
+                }
+                if ($record->isDirty()) $record->save();
             }
 
             $inventoryIdMap = [];
             $pendingAddonIds = [];
             $pendingAddonDefinitionIds = [];
-
             foreach (array_values($items) as $index => $item) {
-                if (empty($item['name']) && empty($item['amount']) && empty($item['price']) && empty($item['stock'])) {
-                    continue;
-                }
-
+                if (empty($item['id']) && empty($item['name']) && empty($item['amount']) && empty($item['price']) && empty($item['stock'])) continue;
                 $sectionKey = $item['section_id'] ?? $item['sectionId'] ?? null;
-
-                $inventory = Inventory::create([
+                $inventory = ! empty($item['id']) ? Inventory::query()->lockForUpdate()->find($item['id']) : null;
+                if (! $inventory && ! empty($item['id'])) {
+                    throw ValidationException::withMessages(['items' => 'یکی از خدمات دیگر وجود ندارد. صفحه را تازه‌سازی کنید.']);
+                }
+                if ($inventory && ! empty($item['updated_at']) && $inventory->updated_at?->toJSON() !== $item['updated_at']) {
+                    throw ValidationException::withMessages(['items' => 'این خدمت در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
+                }
+                if (! $inventory) $inventory = new Inventory();
+                $attributes = [
                     'section_id' => $this->resolveSectionId($sectionKey, $sectionIdMap),
                     'name' => $item['name'] ?? null,
-                    // حتی آرایهٔ خالی هم باید صریحاً ذخیره شود تا حذف همهٔ تگ‌ها برنگردد.
                     'service_tags' => $this->normalizeServiceTags(
                         array_key_exists('service_tags', $item) ? $item['service_tags'] : ($item['serviceTags'] ?? [])
                     ),
@@ -180,32 +197,40 @@ class InventoryController extends Controller
                     'sort_order' => $item['sort_order'] ?? $index,
                     'default_commission_type' => $item['default_commission_type'] ?? $item['defaultCommissionType'] ?? 'percent',
                     'default_commission_value' => $item['default_commission_value'] ?? $item['defaultCommissionValue'] ?? 0,
-                ]);
+                ];
+                if ($inventory->exists) {
+                    $aliases = [
+                        'section_id' => ['section_id', 'sectionId'], 'name' => ['name'],
+                        'service_tags' => ['service_tags', 'serviceTags'], 'amount' => ['amount'],
+                        'price' => ['price'], 'count' => ['count'], 'stock' => ['stock'],
+                        'min_stock' => ['min_stock', 'minStock'], 'active' => ['active'],
+                        'followup_days' => ['followup_days', 'followupDays'], 'sort_order' => ['sort_order'],
+                        'default_commission_type' => ['default_commission_type', 'defaultCommissionType'],
+                        'default_commission_value' => ['default_commission_value', 'defaultCommissionValue'],
+                    ];
+                    $attributes = array_filter($attributes, fn ($key) => collect($aliases[$key])
+                        ->contains(fn ($alias) => array_key_exists($alias, $item)), ARRAY_FILTER_USE_KEY);
+                }
+                $inventory->fill($attributes);
+                if (! $inventory->exists || $inventory->isDirty()) $inventory->save();
 
                 foreach (['id', 'client_id', 'clientId'] as $key) {
                     if (! empty($item[$key])) {
                         $inventoryIdMap[(string) $item[$key]] = $inventory->id;
                     }
                 }
-                $pendingAddonIds[$inventory->id] = $item['default_addon_ids'] ?? $item['defaultAddonIds'] ?? [];
-                $pendingAddonDefinitionIds[$inventory->id] = $item['addon_definition_ids'] ?? $item['addonDefinitionIds'] ?? [];
-
-                foreach (($item['commissions'] ?? []) as $commission) {
-                    if (empty($commission['recipient_type']) || empty($commission['recipient_name'])) {
-                        continue;
-                    }
-
-                    $inventory->commissions()->create([
-                        'recipient_type' => $commission['recipient_type'],
-                        'recipient_id' => $commission['recipient_id'] ?? null,
-                        'recipient_name' => $commission['recipient_name'],
-                        'commission_type' => $commission['commission_type'] ?? 'percent',
-                        'commission_value' => $commission['commission_value'] ?? 0,
-                    ]);
-                }
+                if (array_key_exists('default_addon_ids', $item) || array_key_exists('defaultAddonIds', $item))
+                    $pendingAddonIds[$inventory->id] = $item['default_addon_ids'] ?? $item['defaultAddonIds'] ?? [];
+                if (array_key_exists('addon_definition_ids', $item) || array_key_exists('addonDefinitionIds', $item))
+                    $pendingAddonDefinitionIds[$inventory->id] = $item['addon_definition_ids'] ?? $item['addonDefinitionIds'] ?? [];
+                if (array_key_exists('commissions', $item)) $this->syncCommissions($inventory, $item['commissions'] ?? []);
             }
 
-            $inventories = Inventory::query()->get()->keyBy('id');
+            $inventories = Inventory::query()->whereKey(array_unique(array_merge(
+                array_keys($pendingAddonIds),
+                collect($pendingAddonIds)->flatten()->filter(fn ($id) => is_numeric($id))->map(fn ($id) => (int) $id)->all(),
+                array_values($inventoryIdMap)
+            )))->get()->keyBy('id');
             foreach ($pendingAddonIds as $inventoryId => $rawAddonIds) {
                 $inventory = $inventories->get($inventoryId);
                 if (! $inventory) {
@@ -213,68 +238,98 @@ class InventoryController extends Controller
                 }
                 $addonIds = collect(is_array($rawAddonIds) ? $rawAddonIds : [])
                     ->map(fn ($id) => $inventoryIdMap[(string) $id] ?? (is_numeric($id) ? (int) $id : null))
-                    ->filter(fn ($id) => $id && $id !== $inventory->id && ($inventories->get($id)?->active ?? false))
+                    ->filter(fn ($id) => $id && $id !== $inventory->id && $inventories->has($id))
                     ->unique()
                     ->values()
                     ->all();
-                $inventory->defaultAddons()->sync($addonIds);
+                if ($inventory->defaultAddons()->pluck('inventories.id')->map(fn ($id) => (int) $id)->sort()->values()->all() !== collect($addonIds)->sort()->values()->all())
+                    $inventory->defaultAddons()->sync($addonIds);
             }
 
-            $activeAddonIds = InventoryAddonDefinition::query()->where('active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $availableAddonIds = InventoryAddonDefinition::query()->pluck('id')->map(fn ($id) => (int) $id)->all();
             foreach ($pendingAddonDefinitionIds as $inventoryId => $rawAddonIds) {
                 $inventory = $inventories->get($inventoryId);
                 if (! $inventory) continue;
                 $addonIds = collect(is_array($rawAddonIds) ? $rawAddonIds : [])
                     ->map(fn ($id) => is_numeric($id) ? (int) $id : null)
-                    ->filter(fn ($id) => $id && in_array($id, $activeAddonIds, true))
+                    ->filter(fn ($id) => $id && in_array($id, $availableAddonIds, true))
                     ->unique()->values()->all();
-                $inventory->addonDefinitions()->sync($addonIds);
+                if ($inventory->addonDefinitions()->pluck('inventory_addon_definitions.id')->map(fn ($id) => (int) $id)->sort()->values()->all() !== collect($addonIds)->sort()->values()->all())
+                    $inventory->addonDefinitions()->sync($addonIds);
             }
-
-            foreach ($items as $item) {
-                $oldKey = !empty($item['id']) ? (string) $item['id'] : 'name:'.trim((string)($item['name'] ?? ''));
-                $newId = !empty($item['id']) ? ($inventoryIdMap[(string)$item['id']] ?? null) : null;
-                if (!$newId && !empty($item['name'])) $newId = Inventory::query()->where('name', $item['name'])->value('id');
-                if ($newId && isset($bookingSnapshots[$oldKey])) $this->restoreBookingSnapshot((int)$newId, $bookingSnapshots[$oldKey]);
+            foreach ($request->input('deleted_item_ids', []) as $id) $this->deleteInventoryIfUnused((int) $id);
+            $pendingSections = collect($request->input('deleted_section_ids', []))->map(fn ($id) => (int) $id)->all();
+            while ($pendingSections) {
+                $leafIndex = null;
+                foreach ($pendingSections as $index => $id) {
+                    if (! InventorySection::query()->where('parent_id', $id)->exists()) {
+                        $leafIndex = $index;
+                        break;
+                    }
+                }
+                if ($leafIndex === null) {
+                    throw ValidationException::withMessages(['sections' => 'برای حذف بخش، ابتدا زیرشاخه‌های آن را حذف کنید.']);
+                }
+                $id = $pendingSections[$leafIndex];
+                array_splice($pendingSections, $leafIndex, 1);
+                $section = InventorySection::query()->lockForUpdate()->find($id);
+                if (! $section) continue;
+                if ($section->inventories()->exists()) {
+                    throw ValidationException::withMessages(['sections' => 'برای حذف بخش، ابتدا خدمات آن را حذف کنید.']);
+                }
+                if (Schema::hasTable('patient_media_folders') && Schema::hasColumn('patient_media_folders', 'inventory_section_id')
+                    && DB::table('patient_media_folders')->where('inventory_section_id', $id)->exists()) {
+                    throw ValidationException::withMessages(['sections' => 'این بخش به پوشه‌های پرونده متصل است و قابل حذف نیست.']);
+                }
+                $section->delete();
             }
+            return ['section_ids' => $sectionIdMap, 'item_ids' => $inventoryIdMap];
         });
 
-        return response()->json(['message' => 'اطلاعات انبار با موفقیت ذخیره شد.']);
+        return response()->json(['message' => 'اطلاعات انبار با موفقیت ذخیره شد.', ...$savedIds]);
     }
 
-    /** Delete each child before its parent, without trusting the stored level. */
-    private function deleteSectionsFromLeaves(): void
+    private function syncCommissions(Inventory $inventory, array $commissions): void
     {
-        $sections = InventorySection::query()->get()->keyBy('id');
-        $childCounts = array_fill_keys($sections->keys()->all(), 0);
+        $existing = $inventory->commissions()->get();
+        $used = [];
+        foreach ($commissions as $commission) {
+            if (empty($commission['recipient_type']) || empty($commission['recipient_name'])) continue;
+            $match = $existing->first(fn ($record) => ! in_array($record->id, $used, true)
+                && $record->recipient_type === $commission['recipient_type']
+                && ((! empty($commission['recipient_id']) && (string) $record->recipient_id === (string) $commission['recipient_id'])
+                    || $record->recipient_name === $commission['recipient_name']));
+            if (! $match) $match = new InventoryCommission(['inventory_id' => $inventory->id]);
+            $match->fill([
+                'recipient_type' => $commission['recipient_type'],
+                'recipient_id' => $commission['recipient_id'] ?? null,
+                'recipient_name' => $commission['recipient_name'],
+                'commission_type' => $commission['commission_type'] ?? 'percent',
+                'commission_value' => $commission['commission_value'] ?? 0,
+            ]);
+            if (! $match->exists || $match->isDirty()) $match->save();
+            $used[] = $match->id;
+        }
+        $existing->whereNotIn('id', $used)->each->delete();
+    }
 
-        foreach ($sections as $section) {
-            if ($section->parent_id !== null && isset($childCounts[$section->parent_id])) {
-                $childCounts[$section->parent_id]++;
+    private function deleteInventoryIfUnused(int $id): void
+    {
+        $inventory = Inventory::query()->lockForUpdate()->find($id);
+        if (! $inventory) return;
+        foreach (['appointment_service_bookings', 'inventory_movements', 'service_followups', 'resource_earning_lines', 'patient_media_folders'] as $table) {
+            if (Schema::hasTable($table) && DB::table($table)->where('inventory_id', $id)->exists()) {
+                throw ValidationException::withMessages(['items' => "خدمت «{$inventory->name}» سابقه دارد و قابل حذف نیست؛ آن را غیرفعال کنید."]);
             }
         }
-
-        $leaves = [];
-        foreach ($childCounts as $id => $count) {
-            if ($count === 0) $leaves[] = $id;
+        if (InventoryAddon::query()->where('addon_inventory_id', $id)->exists()) {
+            throw ValidationException::withMessages(['items' => "خدمت «{$inventory->name}» به‌عنوان جانبی استفاده شده است؛ ابتدا ارتباط جانبی را بردارید."]);
         }
-
-        $deleted = 0;
-        while ($leaves) {
-            $id = array_pop($leaves);
-            $section = $sections->get($id);
-            $section->delete();
-            $deleted++;
-
-            $parentId = $section->parent_id;
-            if ($parentId !== null && isset($childCounts[$parentId])) {
-                $childCounts[$parentId]--;
-                if ($childCounts[$parentId] === 0) $leaves[] = $parentId;
-            }
+        if ($inventory->bookingSetting()->exists() || $inventory->bookingResources()->exists()
+            || $inventory->bookingExceptions()->exists() || $inventory->bookingRules()->exists()) {
+            throw ValidationException::withMessages(['items' => "خدمت «{$inventory->name}» تنظیمات نوبت‌دهی دارد؛ برای حفظ آن، خدمت را غیرفعال کنید."]);
         }
-
-        abort_if($deleted !== $sections->count(), 422,
-            'ساختار بخش‌های خدمات نامعتبر است. ارتباط والد و زیرشاخه‌ها را بررسی کنید.');
+        $inventory->delete();
     }
 
     public function duplicate(Request $request, Inventory $inventory)
@@ -360,26 +415,6 @@ class InventoryController extends Controller
         );
     }
 
-    private function bookingSnapshots(): array
-    {
-        $snapshots = [];
-        Inventory::with(['bookingSetting','bookingResources.availabilities.breaks','bookingExceptions','bookingRules'])->get()->each(function (Inventory $item) use (&$snapshots) {
-            if (!$item->bookingSetting && !$item->bookingResources->count() && !$item->bookingExceptions->count() && !$item->bookingRules->count()) return;
-            $payload = [
-                'setting'=>$item->bookingSetting?->toArray(),
-                'resources'=>$item->bookingResources->map(fn($resource)=>[
-                    'data'=>$resource->toArray(),
-                    'availabilities'=>$resource->availabilities->map(fn($availability)=>['data'=>$availability->toArray(),'breaks'=>$availability->breaks->map->toArray()->all()])->all(),
-                ])->all(),
-                'exceptions'=>$item->bookingExceptions->map->toArray()->all(),
-                'rules'=>$item->bookingRules->map->toArray()->all(),
-            ];
-            $snapshots[(string)$item->id] = $payload;
-            $snapshots['name:'.trim((string)$item->name)] = $payload;
-        });
-        return $snapshots;
-    }
-
     private function ensureItemsBelongToSubsections(array $items, array $sections): void
     {
         $sectionParents = [];
@@ -398,6 +433,9 @@ class InventoryController extends Controller
             }
 
             $sectionKey = (string) ($item['section_id'] ?? $item['sectionId'] ?? '');
+            if ($sectionKey === '' && ! empty($item['id'])) {
+                $sectionKey = (string) Inventory::query()->whereKey($item['id'])->value('section_id');
+            }
             $hasParent = array_key_exists($sectionKey, $sectionParents)
                 ? $sectionParents[$sectionKey] !== ''
                 : (bool) InventorySection::query()->whereKey($sectionKey)->value('parent_id');
@@ -408,22 +446,6 @@ class InventoryController extends Controller
                 ]);
             }
         }
-    }
-
-    private function restoreBookingSnapshot(int $inventoryId, array $snapshot): void
-    {
-        $inventory = Inventory::find($inventoryId);
-        if (!$inventory) return;
-        if (!empty($snapshot['setting'])) $inventory->bookingSetting()->create(collect($snapshot['setting'])->except(['id','inventory_id','created_at','updated_at'])->all());
-        foreach ($snapshot['resources'] ?? [] as $resourceSnapshot) {
-            $resource = $inventory->bookingResources()->create(collect($resourceSnapshot['data'])->except(['id','inventory_id','created_at','updated_at','availabilities','doctor','staff'])->all());
-            foreach ($resourceSnapshot['availabilities'] ?? [] as $availabilitySnapshot) {
-                $availability = $resource->availabilities()->create(collect($availabilitySnapshot['data'])->except(['id','booking_resource_id','created_at','updated_at','breaks'])->all());
-                foreach ($availabilitySnapshot['breaks'] ?? [] as $break) $availability->breaks()->create(collect($break)->except(['id','availability_id','created_at','updated_at'])->all());
-            }
-        }
-        foreach ($snapshot['exceptions'] ?? [] as $item) $inventory->bookingExceptions()->create(collect($item)->except(['id','inventory_id','booking_resource_id','created_at','updated_at'])->all());
-        foreach ($snapshot['rules'] ?? [] as $item) $inventory->bookingRules()->create(collect($item)->except(['id','inventory_id','created_at','updated_at'])->all());
     }
 
     public function adjustStock(Request $request)

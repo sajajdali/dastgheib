@@ -599,8 +599,10 @@ export default {
   data() {
     return {
       sections: [],
+      savedSectionPayloads: {},
       serviceTagOptions: [],
       rows: [],
+      savedItemPayloads: {},
       doctors: [],
       staff: [],
       users: [],
@@ -925,7 +927,7 @@ export default {
       const rowName = row?.name
       if (!row?.id) {
         await this.saveData(false)
-        await this.fetchData({ keepState: true })
+        if (this.hasUnsavedChanges) return
         row = this.rows.find(item => item.name === rowName)
       }
       if (!row?.id) return
@@ -1074,9 +1076,10 @@ export default {
     },
     async openStockMovement(row) {
       if (!row?.id) {
+        const rowName = row?.name
         await this.saveData(false)
-        await this.fetchData({ keepState: true })
-        row = this.rows.find(item => item.name === row?.name)
+        if (this.hasUnsavedChanges) return
+        row = this.rows.find(item => item.name === rowName)
         if (!row?.id) return
       }
       this.stockMovement = { open: true, row, direction: "increase", quantity: null, description: "", history: [], loading: true, saving: false }
@@ -1175,6 +1178,7 @@ export default {
       const previousSectionKey = this.activeSectionKey
       const previousSelectedName = this.selectedRow?.name || ""
       this.isFetching = true
+      let loaded = false
 
       try {
         const fresh = Date.now()
@@ -1200,6 +1204,7 @@ export default {
         this.sections = normalizedSections.sections.map((section, index) => ({
           id: section.id,
           client_id: null,
+          updated_at: section.updated_at,
           parent_id: section.parent_id || section.parentId || null,
           level: Number(section.level || 1),
             name: section.name,
@@ -1244,20 +1249,28 @@ export default {
           })
         }
 
+        this.savedSectionPayloads = Object.fromEntries(this.sections
+          .filter(section => section.id)
+          .map(section => [String(section.id), JSON.stringify(this.sectionPayload(section))]))
+        this.savedItemPayloads = Object.fromEntries(this.rows
+          .filter(row => row.id)
+          .map(row => [String(row.id), JSON.stringify(this.itemPayload(row))]))
+
         this.selectedRow = options.keepState
           ? this.activeSectionRows.find(row => row.name === previousSelectedName) || this.activeSectionRows[0] || null
           : this.activeSectionRows[0] || null
+        loaded = true
       } catch (error) {
         console.error(error)
       } finally {
-        setTimeout(() => {
-          this.isFetching = false
-          if (options.keepState) {
-            this.hasUnsavedChanges = false
-            this.saveState = "saved"
-          }
-        }, 200)
+        await this.$nextTick()
+        this.isFetching = false
+        if (options.keepState && loaded) {
+          this.hasUnsavedChanges = false
+          this.saveState = "saved"
+        }
       }
+      return loaded
     },
 
     consumeRequestedSectionKey() {
@@ -1301,6 +1314,7 @@ export default {
       return {
         localId: `row-${item.id || Date.now()}-${index}`,
         id: item.id || null,
+        updated_at: item.updated_at,
         section_id: this.resolveSectionKey(rawSectionKey) || fallbackSection,
         name: item.name || "",
         serviceTags: Array.isArray(item.service_tags || item.serviceTags) ? [...(item.service_tags || item.serviceTags)] : [],
@@ -1357,6 +1371,43 @@ export default {
         return Array.isArray(value) ? value : []
       } catch {
         return []
+      }
+    },
+
+    sectionPayload(section) {
+      return {
+        id: section.id,
+        updated_at: section.updated_at,
+        client_id: section.client_id,
+        parent_id: section.parent_id,
+        level: section.level,
+        name: section.name,
+        color: section.color || this.sectionColors[String(this.sectionKey(section))] || null,
+        sort_order: section.sort_order
+      }
+    },
+
+    itemPayload(row) {
+      return {
+        id: row.id,
+        updated_at: row.updated_at,
+        client_id: row.localId,
+        section_id: row.section_id,
+        name: row.name,
+        service_tags: this.normalizedServiceTags(row.serviceTags),
+        default_addon_ids: row.defaultAddonIds,
+        addon_definition_ids: row.addonDefinitionIds,
+        amount: row.amount,
+        price: row.price,
+        count: row.count,
+        stock: row.stock,
+        min_stock: row.minStock,
+        active: row.active,
+        followup_days: row.followupDays,
+        sort_order: row.sort_order,
+        default_commission_type: row.defaultCommissionType,
+        default_commission_value: row.defaultCommissionValue,
+        commissions: row.commissions
       }
     },
 
@@ -1419,43 +1470,38 @@ export default {
       this.saveState = "saving"
 
       try {
-        await axios.post(`${API}/inventory`, {
-          sections: this.sections.map((section, index) => ({
-            id: section.id,
-            client_id: section.client_id,
-            parent_id: section.parent_id,
-            level: section.level,
-            name: section.name,
-            color: section.color || this.sectionColors[String(this.sectionKey(section))] || null,
-            sort_order: index
-          })),
-          items: this.rows.map((row, index) => ({
-            id: row.id,
-            client_id: row.localId,
-            section_id: row.section_id,
-            name: row.name,
-            service_tags: this.normalizedServiceTags(row.serviceTags),
-            default_addon_ids: row.defaultAddonIds,
-            addon_definition_ids: row.addonDefinitionIds,
-            amount: row.amount,
-            price: row.price,
-            count: row.count,
-            stock: row.stock,
-            min_stock: row.minStock,
-            active: row.active,
-            followup_days: row.followupDays,
-            sort_order: index,
-            default_commission_type: row.defaultCommissionType,
-            default_commission_value: row.defaultCommissionValue,
-            commissions: row.commissions
-          }))
+        const sectionPayloads = this.sections.map(section => this.sectionPayload(section))
+        const itemPayloads = this.rows.map(row => this.itemPayload(row))
+        const currentSectionIds = new Set(this.sections.filter(section => section.id).map(section => String(section.id)))
+        const currentItemIds = new Set(this.rows.filter(row => row.id).map(row => String(row.id)))
+        const { data } = await axios.post(`${API}/inventory`, {
+          sections: sectionPayloads.filter(section => !section.id ||
+            this.savedSectionPayloads[String(section.id)] !== JSON.stringify(section)),
+          items: itemPayloads.filter(item => !item.id ||
+            this.savedItemPayloads[String(item.id)] !== JSON.stringify(item)),
+          deleted_section_ids: Object.keys(this.savedSectionPayloads).filter(id => !currentSectionIds.has(id)).map(Number),
+          deleted_item_ids: Object.keys(this.savedItemPayloads).filter(id => !currentItemIds.has(id)).map(Number)
+        })
+        this.sections.forEach(section => {
+          if (!section.id && section.client_id && data.section_ids?.[section.client_id]) {
+            section.id = data.section_ids[section.client_id]
+          }
+          if (section.parent_id && data.section_ids?.[section.parent_id]) {
+            section.parent_id = data.section_ids[section.parent_id]
+          }
+        })
+        this.rows.forEach(row => {
+          if (!row.id && data.item_ids?.[row.localId]) row.id = data.item_ids[row.localId]
+          if (row.section_id && data.section_ids?.[row.section_id]) row.section_id = data.section_ids[row.section_id]
         })
         this.registerZeroStockNotifications()
         this.hasUnsavedChanges = false
         this.saveState = "saved"
 
-        if (showFeedback) {
-          await this.fetchData({ keepState: true })
+        if (!await this.fetchData({ keepState: true })) {
+          this.hasUnsavedChanges = true
+          this.saveState = "error"
+          Swal.fire({ icon: "warning", title: "ذخیره انجام شد", text: "اطلاعات ذخیره شد، اما بارگذاری دوباره ممکن نبود. اتصال را بررسی و صفحه را تازه‌سازی کنید." })
         }
 
         setTimeout(() => {
@@ -1724,7 +1770,6 @@ export default {
         const sourceName = String(row?.name || '').trim()
         await this.saveData(false)
         if (this.hasUnsavedChanges) return
-        await this.fetchData({ keepState: true })
         row = this.rows.find(item => item.name === sourceName)
       }
       if (!row?.id) return
@@ -1848,10 +1893,39 @@ export default {
       this.addonManager.items.push({ _key: `addon-${Date.now()}-${Math.random()}`, name: '', amount: 0, price: 0, stock: 0, min_stock: 5, active: true })
     },
 
+    addonDefinitionPayload(item) {
+      return {
+        id: item.id || null,
+        updated_at: item.updated_at,
+        name: String(item.name || '').trim(),
+        amount: item.amount,
+        price: item.price,
+        stock: item.stock,
+        min_stock: item.min_stock,
+        active: item.active,
+        sort_order: item.sort_order
+      }
+    },
+
     async saveAddonManager() {
-      await axios.post(`${API}/inventory/addons`, { items: this.addonManager.items.filter(item => String(item.name || '').trim()) })
-      await this.fetchData({ keepState: true })
-      this.closeAddonManager()
+      try {
+        const saved = Object.fromEntries(this.addonDefinitions.map(item =>
+          [String(item.id), JSON.stringify(this.addonDefinitionPayload(item))]))
+        const current = this.addonManager.items.filter(item => String(item.name || '').trim())
+        const currentIds = new Set(current.filter(item => item.id).map(item => String(item.id)))
+        const { data } = await axios.post(`${API}/inventory/addons`, {
+          items: current.map(item => this.addonDefinitionPayload(item))
+            .filter(item => !item.id || saved[String(item.id)] !== JSON.stringify(item)),
+          deleted_ids: Object.keys(saved).filter(id => !currentIds.has(id)).map(Number)
+        })
+        this.addonDefinitions = data.addons || this.addonDefinitions
+        this.closeAddonManager()
+      } catch (error) {
+        const message = String(error?.response?.data?.message || '')
+        Swal.fire({ icon: 'error', title: 'جانبی‌ها ذخیره نشدند', text: /SQLSTATE|Connection:/i.test(message)
+          ? 'دوباره تلاش کنید؛ اگر مشکل تکرار شد به مدیر سیستم اطلاع دهید.'
+          : message || 'اتصال را بررسی کنید و دوباره تلاش کنید.' })
+      }
     },
 
     changeDefaultAddonsParent() {

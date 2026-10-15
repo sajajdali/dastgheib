@@ -155,36 +155,36 @@ class InventoryDefaultAddonsTest extends TestCase
         $this->assertDatabaseMissing('inventories', ['name' => 'خدمت نامعتبر']);
     }
 
-    public function test_inventory_save_deletes_sections_from_leaves_even_when_levels_are_wrong(): void
+    public function test_adding_a_service_does_not_modify_existing_services_or_sections(): void
     {
         $root = InventorySection::create(['name' => 'پوست و زیبایی', 'level' => 1]);
         $child = InventorySection::create(['name' => 'ژل', 'parent_id' => $root->id, 'level' => 1]);
         $grandchild = InventorySection::create(['name' => 'خدمات ژل', 'parent_id' => $child->id, 'level' => 1]);
         $sibling = InventorySection::create(['name' => 'بوتاکس', 'parent_id' => $root->id, 'level' => 1]);
 
+        $existing = Inventory::create(['section_id' => $grandchild->id, 'name' => 'خدمت قبلی', 'amount' => 100000, 'active' => true]);
+        DB::table('inventory_booking_settings')->insert(['inventory_id' => $existing->id]);
+        $updatedAt = $existing->updated_at;
+
         DB::flushQueryLog();
         DB::enableQueryLog();
         try {
             $this->postJson('/api/inventory', [
                 'sections' => [
-                    ['id' => $root->id, 'name' => $root->name],
-                    ['id' => $child->id, 'parent_id' => $root->id, 'name' => $child->name],
-                    ['id' => $grandchild->id, 'parent_id' => $child->id, 'name' => $grandchild->name],
-                    ['id' => $sibling->id, 'parent_id' => $root->id, 'name' => $sibling->name],
+                    ['client_id' => 'new-section', 'parent_id' => $root->id, 'name' => 'خدمات جدید'],
                 ],
-                'items' => [],
+                'items' => [['client_id' => 'new-service', 'section_id' => 'new-section', 'name' => 'خدمت جدید', 'amount' => 250000]],
             ])->assertOk();
 
-            $deletedIds = collect(DB::getQueryLog())
-                ->filter(fn ($query) => str_starts_with(strtolower($query['query']), 'delete from "inventory_sections"'))
-                ->map(fn ($query) => (int) $query['bindings'][0])
-                ->values()
-                ->all();
-
-            $this->assertCount(4, $deletedIds);
-            $this->assertLessThan(array_search($child->id, $deletedIds, true), array_search($grandchild->id, $deletedIds, true));
-            $this->assertLessThan(array_search($root->id, $deletedIds, true), array_search($child->id, $deletedIds, true));
-            $this->assertLessThan(array_search($root->id, $deletedIds, true), array_search($sibling->id, $deletedIds, true));
+            $mutations = collect(DB::getQueryLog())
+                ->filter(fn ($query) => preg_match('/^delete\s+/i', $query['query']))
+                ->values();
+            $this->assertCount(0, $mutations);
+            $this->assertDatabaseHas('inventories', ['id' => $existing->id, 'name' => 'خدمت قبلی', 'section_id' => $grandchild->id]);
+            $this->assertDatabaseHas('inventory_booking_settings', ['inventory_id' => $existing->id]);
+            $this->assertEquals($updatedAt, $existing->fresh()->updated_at);
+            $this->assertDatabaseHas('inventory_sections', ['id' => $sibling->id]);
+            $this->assertDatabaseHas('inventories', ['name' => 'خدمت جدید']);
         } finally {
             DB::disableQueryLog();
             DB::flushQueryLog();
@@ -205,6 +205,95 @@ class InventoryDefaultAddonsTest extends TestCase
             ->assertJsonPath('addons.0.name', 'ژل بی‌حسی')
             ->assertJsonPath('addons.0.amount', '120000')
             ->assertJsonPath('addons.0.stock', 18);
+    }
+
+    public function test_adding_an_addon_preserves_existing_addon_and_its_assignment(): void
+    {
+        $section = InventorySection::create(['name' => 'ژل']);
+        $inventory = Inventory::create(['section_id' => $section->id, 'name' => 'خدمت']);
+        $existing = \App\Models\InventoryAddonDefinition::create(['name' => 'جانبی قبلی', 'amount' => 100]);
+        $inventory->addonDefinitions()->attach($existing->id);
+
+        $this->postJson('/api/inventory/addons', ['items' => [
+            ['name' => 'جانبی جدید', 'amount' => 200],
+        ]])->assertOk();
+
+        $this->assertDatabaseHas('inventory_addon_definitions', ['id' => $existing->id, 'name' => 'جانبی قبلی']);
+        $this->assertDatabaseHas('inventory_addon_assignments', ['inventory_id' => $inventory->id, 'inventory_addon_definition_id' => $existing->id]);
+        $this->assertDatabaseHas('inventory_addon_definitions', ['name' => 'جانبی جدید']);
+    }
+
+    public function test_explicit_delete_refuses_a_service_with_booking_history(): void
+    {
+        $root = InventorySection::create(['name' => 'خدمات']);
+        $section = InventorySection::create(['parent_id' => $root->id, 'level' => 2, 'name' => 'ژل']);
+        $existing = Inventory::create(['section_id' => $section->id, 'name' => 'خدمت دارای سابقه']);
+        Schema::create('appointment_service_bookings', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('inventory_id');
+        });
+        DB::table('appointment_service_bookings')->insert(['inventory_id' => $existing->id]);
+
+        $this->postJson('/api/inventory', [
+            'items' => [['section_id' => $section->id, 'name' => 'خدمت جدید']],
+            'deleted_item_ids' => [$existing->id],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items']);
+
+        $this->assertDatabaseHas('inventories', ['id' => $existing->id]);
+        $this->assertDatabaseMissing('inventories', ['name' => 'خدمت جدید']);
+    }
+
+    public function test_editing_one_field_keeps_the_service_id_stock_and_booking_settings(): void
+    {
+        $root = InventorySection::create(['name' => 'خدمات']);
+        $section = InventorySection::create(['parent_id' => $root->id, 'level' => 2, 'name' => 'ژل']);
+        $existing = Inventory::create(['section_id' => $section->id, 'name' => 'خدمت قبلی', 'stock' => 17, 'amount' => 100]);
+        DB::table('inventory_booking_settings')->insert(['inventory_id' => $existing->id]);
+
+        $this->postJson('/api/inventory', [
+            'items' => [['id' => $existing->id, 'updated_at' => $existing->updated_at->toJSON(), 'name' => 'نام تازه']],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('inventories', [
+            'id' => $existing->id, 'name' => 'نام تازه', 'stock' => 17, 'amount' => 100,
+        ]);
+        $this->assertDatabaseHas('inventory_booking_settings', ['inventory_id' => $existing->id]);
+    }
+
+    public function test_stale_service_edit_is_rejected_without_overwriting_newer_data(): void
+    {
+        $root = InventorySection::create(['name' => 'خدمات']);
+        $section = InventorySection::create(['parent_id' => $root->id, 'level' => 2, 'name' => 'ژل']);
+        $existing = Inventory::create(['section_id' => $section->id, 'name' => 'خدمت', 'stock' => 10]);
+
+        $this->postJson('/api/inventory', [
+            'items' => [['id' => $existing->id, 'updated_at' => '2000-01-01T00:00:00.000000Z', 'name' => 'نام قدیمی']],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items']);
+
+        $this->assertDatabaseHas('inventories', ['id' => $existing->id, 'name' => 'خدمت', 'stock' => 10]);
+    }
+
+    public function test_explicit_section_delete_processes_children_before_parent(): void
+    {
+        $root = InventorySection::create(['name' => 'ریشه']);
+        $child = InventorySection::create(['parent_id' => $root->id, 'level' => 2, 'name' => 'فرزند']);
+        $grandchild = InventorySection::create(['parent_id' => $child->id, 'level' => 3, 'name' => 'نوه']);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        try {
+            $this->postJson('/api/inventory', [
+                'deleted_section_ids' => [$root->id, $child->id, $grandchild->id],
+            ])->assertOk();
+
+            $deletedIds = collect(DB::getQueryLog())
+                ->filter(fn ($query) => str_starts_with(strtolower($query['query']), 'delete from "inventory_sections"'))
+                ->map(fn ($query) => (int) $query['bindings'][0])->values()->all();
+            $this->assertSame([$grandchild->id, $child->id, $root->id], $deletedIds);
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
     }
 
 }
