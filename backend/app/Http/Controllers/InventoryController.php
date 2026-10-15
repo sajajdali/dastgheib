@@ -98,7 +98,7 @@ class InventoryController extends Controller
             $sectionIdMap = [];
 
             if (is_array($sections) && count($sections)) {
-                InventorySection::query()->get()->each->delete();
+                $this->deleteSectionsFromLeaves();
 
                 foreach (array_values($sections) as $index => $section) {
                     if (empty($section['name'])) {
@@ -240,6 +240,41 @@ class InventoryController extends Controller
         });
 
         return response()->json(['message' => 'اطلاعات انبار با موفقیت ذخیره شد.']);
+    }
+
+    /** Delete each child before its parent, without trusting the stored level. */
+    private function deleteSectionsFromLeaves(): void
+    {
+        $sections = InventorySection::query()->get()->keyBy('id');
+        $childCounts = array_fill_keys($sections->keys()->all(), 0);
+
+        foreach ($sections as $section) {
+            if ($section->parent_id !== null && isset($childCounts[$section->parent_id])) {
+                $childCounts[$section->parent_id]++;
+            }
+        }
+
+        $leaves = [];
+        foreach ($childCounts as $id => $count) {
+            if ($count === 0) $leaves[] = $id;
+        }
+
+        $deleted = 0;
+        while ($leaves) {
+            $id = array_pop($leaves);
+            $section = $sections->get($id);
+            $section->delete();
+            $deleted++;
+
+            $parentId = $section->parent_id;
+            if ($parentId !== null && isset($childCounts[$parentId])) {
+                $childCounts[$parentId]--;
+                if ($childCounts[$parentId] === 0) $leaves[] = $parentId;
+            }
+        }
+
+        abort_if($deleted !== $sections->count(), 422,
+            'ساختار بخش‌های خدمات نامعتبر است. ارتباط والد و زیرشاخه‌ها را بررسی کنید.');
     }
 
     public function duplicate(Request $request, Inventory $inventory)

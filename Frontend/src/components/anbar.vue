@@ -1467,7 +1467,11 @@ export default {
         console.error(error)
         this.hasUnsavedChanges = true
         this.saveState = "error"
-        Swal.fire({ icon: "error", title: "خطا در ذخیره", text: error?.response?.data?.message || "اطلاعات خدمات ذخیره نشد. دوباره تلاش کنید." })
+        const serverMessage = String(error?.response?.data?.message || '')
+        const message = /SQLSTATE|Foreign key|Connection:|delete from|insert into/i.test(serverMessage)
+          ? 'ذخیره خدمات انجام نشد. دوباره تلاش کنید؛ اگر مشکل تکرار شد به مدیر سیستم اطلاع دهید.'
+          : serverMessage || 'اطلاعات خدمات ذخیره نشد. اتصال را بررسی کنید و دوباره تلاش کنید.'
+        Swal.fire({ icon: "error", title: "خطا در ذخیره", text: message })
       } finally {
         this.isSaving = false
       }

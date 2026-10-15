@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Inventory;
 use App\Models\InventorySection;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -20,6 +21,7 @@ class InventoryDefaultAddonsTest extends TestCase
             $table->foreignId('parent_id')->nullable();
             $table->integer('level')->default(1);
             $table->string('name');
+            $table->string('color')->nullable();
             $table->integer('sort_order')->default(0);
             $table->timestamps();
         });
@@ -151,6 +153,42 @@ class InventoryDefaultAddonsTest extends TestCase
             ->assertJsonValidationErrors(['items.0.section_id']);
 
         $this->assertDatabaseMissing('inventories', ['name' => 'خدمت نامعتبر']);
+    }
+
+    public function test_inventory_save_deletes_sections_from_leaves_even_when_levels_are_wrong(): void
+    {
+        $root = InventorySection::create(['name' => 'پوست و زیبایی', 'level' => 1]);
+        $child = InventorySection::create(['name' => 'ژل', 'parent_id' => $root->id, 'level' => 1]);
+        $grandchild = InventorySection::create(['name' => 'خدمات ژل', 'parent_id' => $child->id, 'level' => 1]);
+        $sibling = InventorySection::create(['name' => 'بوتاکس', 'parent_id' => $root->id, 'level' => 1]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        try {
+            $this->postJson('/api/inventory', [
+                'sections' => [
+                    ['id' => $root->id, 'name' => $root->name],
+                    ['id' => $child->id, 'parent_id' => $root->id, 'name' => $child->name],
+                    ['id' => $grandchild->id, 'parent_id' => $child->id, 'name' => $grandchild->name],
+                    ['id' => $sibling->id, 'parent_id' => $root->id, 'name' => $sibling->name],
+                ],
+                'items' => [],
+            ])->assertOk();
+
+            $deletedIds = collect(DB::getQueryLog())
+                ->filter(fn ($query) => str_starts_with(strtolower($query['query']), 'delete from "inventory_sections"'))
+                ->map(fn ($query) => (int) $query['bindings'][0])
+                ->values()
+                ->all();
+
+            $this->assertCount(4, $deletedIds);
+            $this->assertLessThan(array_search($child->id, $deletedIds, true), array_search($grandchild->id, $deletedIds, true));
+            $this->assertLessThan(array_search($root->id, $deletedIds, true), array_search($child->id, $deletedIds, true));
+            $this->assertLessThan(array_search($root->id, $deletedIds, true), array_search($sibling->id, $deletedIds, true));
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
     }
 
     public function test_addon_definitions_are_saved_with_inventory_fields_and_exposed_to_context(): void
