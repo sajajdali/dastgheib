@@ -526,7 +526,7 @@
         <p v-if="bookingModal.loading" class="inventory-addons-empty">در حال دریافت تنظیمات...</p>
         <template v-else-if="!bookingModal.settings.booking_enabled">
           <div class="booking-off-state"><div class="booking-off-art">⏱</div><h4>وقت‌دهی این خدمت هنوز فعال نیست</h4><p>با فعال‌کردن وقت‌دهی، می‌توانید پزشک‌ها، روزهای حضور، ساعت کاری و قوانین رزرو را تنظیم کنید.</p><button class="booking-primary-btn" type="button" @click="bookingModal.settings.booking_enabled = true; bookingModal.step = 1">فعال‌کردن وقت‌دهی</button></div>
-          <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeBookingSettings">بستن</button><button class="text-btn primary" type="button" @click="saveBookingSettings">ذخیره وضعیت</button></div>
+          <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeBookingSettings">بستن</button><button class="text-btn primary" type="button" :disabled="bookingModal.saving" @click="saveBookingSettings">{{ bookingModal.saving ? 'در حال ذخیره...' : 'ذخیره وضعیت' }}</button></div>
         </template>
         <template v-else>
           <div class="booking-steps"><button v-for="item in [{id:1,title:'تنظیمات پایه',icon:'⚙'},{id:2,title:'منابع وقت‌دهی',icon:'♙'},{id:3,title:'روز و ساعت حضور',icon:'▦'},{id:4,title:'رزرو آنلاین',icon:'◎'}]" :key="item.id" type="button" :class="{active: bookingModal.step === item.id, done: bookingModal.step > item.id}" @click="bookingModal.step = item.id"><span>{{ bookingModal.step > item.id ? '✓' : item.icon }}</span><small>{{ item.title }}</small></button></div>
@@ -1014,7 +1014,7 @@ export default {
     },
     async saveBookingSettings() {
       const modal = this.bookingModal
-      if (!modal.row?.id) return
+      if (!modal.row?.id || modal.saving) return
       let schedule = []
       try {
         schedule = modal.scheduleJson ? JSON.parse(modal.scheduleJson) : []
@@ -1040,7 +1040,34 @@ export default {
         await this.fetchData({ keepState: true })
         Swal.fire({ icon: "success", toast: true, position: "top-end", timer: 2200, showConfirmButton: false, title: "تنظیمات وقت‌دهی ذخیره شد" })
       } catch (error) {
-        Swal.fire({ icon: "error", title: "خطا در ذخیره", text: error?.response?.data?.message || "تنظیمات وقت‌دهی ذخیره نشد." })
+        const status = Number(error?.response?.status || 0)
+        const serverMessage = String(error?.response?.data?.message || '')
+        const validationErrors = error?.response?.data?.errors || {}
+        const isSafeMessage = serverMessage && !/SQLSTATE|Integrity constraint|Duplicate entry|insert into|select .* from|Connection:/i.test(serverMessage)
+        const invalidField = Object.keys(validationErrors)[0] || ''
+        const validationMessage = invalidField.startsWith('resources')
+          ? 'در مرحله «منابع وقت‌دهی»، پزشک یا اپراتور و ساعت‌های حضور را بررسی کنید.'
+          : invalidField.includes('online_')
+            ? 'در مرحله «رزرو آنلاین»، ساعت شروع و پایان را بررسی کنید.'
+            : invalidField.includes('slot_interval')
+              ? 'فاصله بین نوبت‌ها را در تنظیمات پایه بررسی کنید.'
+              : 'اطلاعات تنظیمات را بررسی و دوباره ذخیره کنید.'
+        const message = status === 422
+          ? (Object.keys(validationErrors).length ? validationMessage : (isSafeMessage ? serverMessage : validationMessage))
+          : status === 409
+            ? isSafeMessage ? serverMessage : 'تنظیمات این خدمت هم‌زمان تغییر کرده است. تنظیمات را دوباره بارگذاری و پس از بررسی ذخیره کنید.'
+            : !error?.response
+              ? 'ارتباط با سرور برقرار نشد. اتصال اینترنت را بررسی کنید و سپس وضعیت ذخیره را دوباره ببینید.'
+              : 'تنظیمات ذخیره نشد. چند لحظه بعد دوباره تلاش کنید؛ اگر مشکل ادامه داشت، به مدیر سیستم اطلاع دهید.'
+        const result = await Swal.fire({
+          icon: 'error',
+          title: 'ذخیره تنظیمات انجام نشد',
+          text: message,
+          showCancelButton: status === 409,
+          confirmButtonText: status === 409 ? 'بارگذاری دوباره تنظیمات' : 'متوجه شدم',
+          cancelButtonText: 'فعلاً بماند'
+        })
+        if (status === 409 && result.isConfirmed) await this.openBookingSettings(modal.row)
       } finally {
         modal.saving = false
       }

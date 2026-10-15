@@ -6,6 +6,7 @@ use App\Models\AppSetting;
 use App\Models\Inventory;
 use App\Models\InventoryBookingAvailability;
 use App\Models\InventoryBookingResource;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -57,14 +58,18 @@ class InventoryBookingController extends Controller
             'exceptions.*.end_time' => ['nullable','date_format:H:i'],
             'exceptions.*.reason' => ['nullable','string','max:255'],
             'rules' => ['array'],
-            'rules.*.rule_type' => ['required','string','max:80'],
+            'rules.*.rule_type' => ['required','string','max:80','distinct'],
             'rules.*.rule_value' => ['nullable'],
             'rules.*.active' => ['boolean'],
         ]);
 
-        foreach ($data['resources'] ?? [] as $index => $resource) {
+        $selectedResources = [];
+        foreach ($data['resources'] ?? [] as $resource) {
             $valid = $resource['role'] === 'doctor' ? !empty($resource['doctor_id']) : !empty($resource['staff_id']);
             abort_unless($valid, 422, 'برای هر منبع، پزشک یا اپراتور متناظر را انتخاب کنید.');
+            $resourceKey = $resource['role'].':'.($resource['role'] === 'doctor' ? $resource['doctor_id'] : $resource['staff_id']);
+            abort_if(isset($selectedResources[$resourceKey]), 422, 'این پزشک یا اپراتور دوبار انتخاب شده است. در مرحله «منابع وقت‌دهی» مورد تکراری را حذف کنید.');
+            $selectedResources[$resourceKey] = true;
             foreach ($resource['availabilities'] ?? [] as $availability) {
                 abort_unless($availability['end_time'] > $availability['start_time'], 422, 'ساعت پایان حضور باید بعد از ساعت شروع باشد.');
                 foreach ($availability['breaks'] ?? [] as $break) {
@@ -73,32 +78,45 @@ class InventoryBookingController extends Controller
             }
         }
 
-        DB::transaction(function () use ($request, $inventory, $data) {
-            $before = $this->payload($inventory);
-            $inventory->bookingSetting()->updateOrCreate([], $data['settings']);
-            $inventory->bookingResources()->delete();
-            foreach (array_values($data['resources'] ?? []) as $order => $resourceData) {
-                $resource = $inventory->bookingResources()->create([
-                    'role'=>$resourceData['role'], 'doctor_id'=>$resourceData['role']==='doctor' ? $resourceData['doctor_id'] : null,
-                    'staff_id'=>$resourceData['role']==='operator' ? $resourceData['staff_id'] : null,
-                    'active'=>$resourceData['active'] ?? true, 'sort_order'=>$order,
-                ]);
-                foreach ($resourceData['availabilities'] ?? [] as $availabilityData) {
-                    $availability = $resource->availabilities()->create(collect($availabilityData)->except('breaks')->all());
-                    foreach ($availabilityData['breaks'] ?? [] as $break) $availability->breaks()->create($break + ['active'=>true]);
+        try {
+            DB::transaction(function () use ($request, $inventory, $data) {
+                // Lock the service itself so two first-time saves cannot both try
+                // to INSERT the same unique inventory_booking_settings row.
+                Inventory::query()->whereKey($inventory->getKey())->lockForUpdate()->firstOrFail();
+                $before = $this->payload($inventory);
+                $inventory->bookingSetting()->updateOrCreate([], $data['settings']);
+                $inventory->bookingResources()->delete();
+                foreach (array_values($data['resources'] ?? []) as $order => $resourceData) {
+                    $resource = $inventory->bookingResources()->create([
+                        'role'=>$resourceData['role'], 'doctor_id'=>$resourceData['role']==='doctor' ? $resourceData['doctor_id'] : null,
+                        'staff_id'=>$resourceData['role']==='operator' ? $resourceData['staff_id'] : null,
+                        'active'=>$resourceData['active'] ?? true, 'sort_order'=>$order,
+                    ]);
+                    foreach ($resourceData['availabilities'] ?? [] as $availabilityData) {
+                        $availability = $resource->availabilities()->create(collect($availabilityData)->except('breaks')->all());
+                        foreach ($availabilityData['breaks'] ?? [] as $break) $availability->breaks()->create($break + ['active'=>true]);
+                    }
                 }
+                $inventory->bookingExceptions()->delete();
+                foreach ($data['exceptions'] ?? [] as $exception) $inventory->bookingExceptions()->create($exception);
+                $inventory->bookingRules()->delete();
+                foreach ($data['rules'] ?? [] as $rule) $inventory->bookingRules()->create($rule);
+                DB::table('inventory_booking_audits')->insert([
+                    'inventory_id'=>$inventory->id, 'changed_by'=>$request->user()?->id,
+                    'before_data'=>json_encode($before, JSON_UNESCAPED_UNICODE),
+                    'after_data'=>json_encode($this->payload($inventory), JSON_UNESCAPED_UNICODE),
+                    'changed_at'=>now(), 'created_at'=>now(), 'updated_at'=>now(),
+                ]);
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            if (! str_contains($exception->getMessage(), 'inventory_booking_settings_inventory_id_unique')) {
+                throw $exception;
             }
-            $inventory->bookingExceptions()->delete();
-            foreach ($data['exceptions'] ?? [] as $exception) $inventory->bookingExceptions()->create($exception);
-            $inventory->bookingRules()->delete();
-            foreach ($data['rules'] ?? [] as $rule) $inventory->bookingRules()->create($rule);
-            DB::table('inventory_booking_audits')->insert([
-                'inventory_id'=>$inventory->id, 'changed_by'=>$request->user()?->id,
-                'before_data'=>json_encode($before, JSON_UNESCAPED_UNICODE),
-                'after_data'=>json_encode($this->payload($inventory), JSON_UNESCAPED_UNICODE),
-                'changed_at'=>now(), 'created_at'=>now(), 'updated_at'=>now(),
-            ]);
-        });
+            report($exception);
+            return response()->json([
+                'message' => 'تنظیمات این خدمت هم‌زمان تغییر کرده است. تنظیمات را دوباره بارگذاری و پس از بررسی ذخیره کنید.',
+            ], 409);
+        }
 
         return response()->json(['message'=>'تنظیمات وقت‌دهی خدمت ذخیره شد.', ...$this->payload($inventory)]);
     }
