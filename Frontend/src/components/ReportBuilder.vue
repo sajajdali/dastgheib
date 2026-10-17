@@ -15,7 +15,7 @@
       <div v-if="filtersOpen" class="rb-body">
         <div class="rb-scope-row">
           <label class="rb-scope-label" for="report-scope">جست‌وجو در</label>
-          <select id="report-scope" v-model="reportScope" class="rb-input rb-select rb-scope-select">
+          <select id="report-scope" v-model="reportScope" class="rb-input rb-select rb-scope-select" @change="activePreset = null">
             <option v-for="source in reportSources" :key="source.id" :value="source.id">{{ source.label }}</option>
           </select>
         </div>
@@ -95,6 +95,7 @@
              :class="{ 'rb-preset--on': activePreset === p.id }" @click="applyPreset(p)">
           <span>{{ p.label }}</span>
           <span class="rb-presetcount">{{ pd(p.fields.length) }} فیلد</span>
+          <span class="rb-presetcount">{{ reportSourceLabel(p.scope) }}</span>
           <span class="rb-presetx" @click.stop="askRemove(p)">✕</span>
         </div>
       </div>
@@ -476,12 +477,12 @@ const FIELDS = [
 ];
 
 const PRESETS = [
-  { id: 'files', label: 'لیست پرونده‌ها', fields: ['fileNo','name','family','phone','gender','birth','city','custseg'] },
-  { id: 'fin', label: 'مالی', fields: ['amount','income','discount','finstatus','debt','deposit','payment','account'] },
-  { id: 'pay', label: 'حقوق', fields: ['doctor','consultant','salary','overtime','work','amount'] },
-  { id: 'cli', label: 'مراجعین', fields: ['name','family','gender','phone','city','birth','custseg'] },
-  { id: 'trt', label: 'عملکرد درمان', fields: ['section2','subsection','areas','problem','extra','count'] },
-  { id: 'mkt', label: 'بازاریابی', fields: ['source','referrer','custseg','noreturn','city'] }
+  { id: 'files', label: 'لیست پرونده‌ها', scope: 'patients', fields: ['fileNo','name','family','phone','gender','birth','city','custseg'] },
+  { id: 'fin', label: 'مالی', scope: 'appointments', fields: ['amount','income','discount','finstatus','debt','deposit','payment','account'] },
+  { id: 'pay', label: 'حقوق', scope: 'appointments', fields: ['doctor','consultant','salary','overtime','work','amount'] },
+  { id: 'cli', label: 'مراجعین', scope: 'patients', fields: ['name','family','gender','phone','city','birth','custseg'] },
+  { id: 'trt', label: 'عملکرد درمان', scope: 'appointments', fields: ['section2','subsection','areas','problem','extra','count'] },
+  { id: 'mkt', label: 'بازاریابی', scope: 'appointments', fields: ['source','referrer','custseg','noreturn','city'] }
 ];
 const REPORT_SOURCES = [
   { id: 'appointments', label: 'نوبت‌دهی' },
@@ -638,6 +639,7 @@ export default {
   },
   methods: {
     pd,
+    reportSourceLabel(scope) { return this.reportSources.find(source => source.id === scope)?.label || 'نوبت‌دهی'; },
     async loadReportOptions() {
       try {
         const { data } = await axios.get('/api/report-builder/options');
@@ -664,13 +666,13 @@ export default {
       const s = {};
       p.fields.forEach(id => { s[id] = true; });
       this.show = s; this.activePreset = p.id; this.page = 1;
-      if (p.id === 'files') this.reportScope = 'patients';
+      this.reportScope = p.scope || 'appointments';
     },
     savePreset() {
       const fields = this.cols.map(c => c.key);
       if (!fields.length) return;
       const id = 'c' + Date.now();
-      this.custom.push({ id, label: this.newName.trim() || 'قالب بدون نام', fields });
+      this.custom.push({ id, label: this.newName.trim() || 'قالب بدون نام', scope: this.reportScope, fields });
       this.persistPresets();
       this.activePreset = id; this.newOpen = false; this.newName = '';
     },
@@ -689,7 +691,8 @@ export default {
     restorePresets() {
       try {
         const presets = JSON.parse(localStorage.getItem('report-builder-custom-presets') || '[]');
-        if (Array.isArray(presets)) this.custom = presets.filter(p => p && p.id && p.label && Array.isArray(p.fields));
+        if (Array.isArray(presets)) this.custom = presets.filter(p => p && p.id && p.label && Array.isArray(p.fields))
+          .map(p => ({ ...p, scope: REPORT_SOURCES.some(source => source.id === p.scope) ? p.scope : 'appointments' }));
       } catch (_) { this.custom = []; }
     },
     openField(f) {
