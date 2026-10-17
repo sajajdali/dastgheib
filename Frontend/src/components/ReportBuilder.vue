@@ -18,7 +18,6 @@
           <select id="report-scope" v-model="reportScope" class="rb-input rb-select rb-scope-select">
             <option v-for="source in reportSources" :key="source.id" :value="source.id">{{ source.label }}</option>
           </select>
-          <span class="rb-sub">تیک ستون‌ها فقط نمایش را تغییر می‌دهد، نه مبنای گزارش را.</span>
         </div>
         <div class="rb-secrow">
           <div class="rb-h2">تعریف گزارش</div>
