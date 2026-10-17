@@ -480,7 +480,7 @@ const PRESETS = [
   { id: 'files', label: 'لیست پرونده‌ها', scope: 'patients', fields: ['fileNo','name','family','phone','gender','birth','city','custseg'] },
   { id: 'fin', label: 'مالی', scope: 'appointments', fields: ['amount','income','discount','finstatus','debt','deposit','payment','account'] },
   { id: 'pay', label: 'حقوق', scope: 'appointments', fields: ['doctor','consultant','salary','overtime','work','amount'] },
-  { id: 'cli', label: 'مراجعین', scope: 'patients', fields: ['name','family','gender','phone','city','birth','custseg'] },
+  { id: 'cli', label: 'مراجعین', scope: 'appointments', fields: ['name','family','gender','phone','city','birth','custseg'] },
   { id: 'trt', label: 'عملکرد درمان', scope: 'appointments', fields: ['section2','subsection','areas','problem','extra','count'] },
   { id: 'mkt', label: 'بازاریابی', scope: 'appointments', fields: ['source','referrer','custseg','noreturn','city'] }
 ];
