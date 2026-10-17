@@ -5,11 +5,10 @@ namespace App\Jobs;
 use App\Events\DynamicReportProgressed;
 use App\Models\DynamicReport;
 use App\Models\DynamicReportRow;
-use App\Reporting\DynamicReports\DynamicReportChunkContextLoader;
 use App\Reporting\DynamicReports\DynamicReportFieldRegistry;
-use App\Reporting\DynamicReports\DynamicReportFilterPipeline;
 use App\Reporting\DynamicReports\DynamicReportRowBuilder;
 use App\Reporting\DynamicReports\Filters\CustomerLevelFilter;
+use App\Reporting\DynamicReports\Sources\ReportSource;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Collection;
@@ -30,8 +29,6 @@ class GenerateDynamicReport implements ShouldQueue
     }
 
     public function handle(
-        DynamicReportFilterPipeline $filterPipeline,
-        DynamicReportChunkContextLoader $contextLoader,
         CustomerLevelFilter $customerLevelFilter,
         DynamicReportFieldRegistry $fields,
         DynamicReportRowBuilder $rowBuilder,
@@ -42,7 +39,12 @@ class GenerateDynamicReport implements ShouldQueue
         $report->rows()->delete();
 
         $filters = $report->filters ?? [];
-        $query = $filterPipeline->query($filters);
+        $sourceKey = data_get($filters, 'scope', 'appointments');
+        $sourceClass = config('dynamic_reports.sources.'.$sourceKey.'.class');
+        if (! $sourceClass) throw new \InvalidArgumentException('مبنای گزارش معتبر نیست.');
+        $source = app($sourceClass);
+        if (! $source instanceof ReportSource) throw new \LogicException("Invalid report source [{$sourceClass}].");
+        $query = $source->query($filters);
         $total = (clone $query)->count();
         $this->progress($report, ['total_rows' => $total, 'progress' => $total ? 5 : 100]);
 
@@ -58,22 +60,25 @@ class GenerateDynamicReport implements ShouldQueue
         $matched = 0;
         $columns = array_values(array_intersect($report->columns ?? [], $fields->keys()));
 
-        $query->chunkById(500, function (Collection $patients) use ($report, $columns, $total, $filters, $contextLoader, $customerLevelFilter, $rowBuilder, &$processed, &$matched): void {
+        $query->chunkById(500, function (Collection $records) use ($report, $columns, $total, $filters, $source, $sourceKey, $customerLevelFilter, $rowBuilder, &$processed, &$matched): void {
             $now = now();
             $rows = [];
 
-            foreach ($contextLoader->load($patients, $filters) as $context) {
+            foreach ($source->rows($records, $filters) as $sourceRow) {
+                $context = $sourceRow['context'];
                 if (! $customerLevelFilter->matches($context, $filters)) continue;
                 $rows[] = [
                     'report_id' => $report->id,
-                    'patient_id' => $context->patient->id,
+                    'patient_id' => $sourceRow['patient_id'],
+                    'source_type' => $sourceKey,
+                    'source_id' => $sourceRow['source_id'],
                     'payload' => json_encode($rowBuilder->build($columns, $context), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                     'created_at' => $now,
                 ];
             }
 
             if ($rows) DynamicReportRow::query()->insert($rows);
-            $processed += $patients->count();
+            $processed += $records->count();
             $matched += count($rows);
             $progress = min(95, 5 + (int) floor(($processed / $total) * 90));
             $this->progress($report, [

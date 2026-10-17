@@ -27,8 +27,15 @@ use App\Reporting\DynamicReports\Resolvers\AppointmentFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\FinancialFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\PatientFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\ReferrerFieldResolver;
+use App\Reporting\DynamicReports\Sources\AppointmentReportSource;
+use App\Reporting\DynamicReports\Sources\PatientReportSource;
 
 return [
+    // A new report base needs one source implementation and one entry here.
+    'sources' => [
+        'appointments' => ['label' => 'نوبت‌دهی', 'class' => AppointmentReportSource::class],
+        'patients' => ['label' => 'پرونده‌ها', 'class' => PatientReportSource::class],
+    ],
     // Canonical statuses used by the appointment screen and report builder.
     'appointment_statuses' => [
         'وقت داده شد',

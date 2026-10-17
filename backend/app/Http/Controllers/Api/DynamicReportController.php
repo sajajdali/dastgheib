@@ -19,7 +19,7 @@ class DynamicReportController extends Controller
 {
     public function options(AppointmentStatusRegistry $statuses, HumanResourceController $humanResources): JsonResponse
     {
-        return response()->json(['appointment_statuses' => $statuses->all(), 'areas' => collect($humanResources->serviceTags())->map(fn ($v) => trim((string) $v))->filter()->unique()->values(), 'extras' => InventoryAddonDefinition::query()->where('active', true)->orderBy('sort_order')->orderBy('name')->pluck('name')->values(), 'doctors' => Doctor::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')]), 'consultants' => Staff::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')])]);
+        return response()->json(['sources' => collect(config('dynamic_reports.sources', []))->map(fn ($source, $id) => ['id' => $id, 'label' => $source['label']])->values(), 'appointment_statuses' => $statuses->all(), 'areas' => collect($humanResources->serviceTags())->map(fn ($v) => trim((string) $v))->filter()->unique()->values(), 'extras' => InventoryAddonDefinition::query()->where('active', true)->orderBy('sort_order')->orderBy('name')->pluck('name')->values(), 'doctors' => Doctor::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')]), 'consultants' => Staff::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')])]);
     }
 
     public function store(StoreDynamicReportRequest $request): JsonResponse

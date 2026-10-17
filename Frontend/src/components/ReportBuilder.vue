@@ -13,6 +13,13 @@
       </div>
 
       <div v-if="filtersOpen" class="rb-body">
+        <div class="rb-scope-row">
+          <label class="rb-scope-label" for="report-scope">جست‌وجو در</label>
+          <select id="report-scope" v-model="reportScope" class="rb-input rb-select rb-scope-select">
+            <option v-for="source in reportSources" :key="source.id" :value="source.id">{{ source.label }}</option>
+          </select>
+          <span class="rb-sub">تیک ستون‌ها فقط نمایش را تغییر می‌دهد، نه مبنای گزارش را.</span>
+        </div>
         <div class="rb-secrow">
           <div class="rb-h2">تعریف گزارش</div>
           <div class="rb-line"></div>
@@ -99,8 +106,8 @@
       <div class="rb-report-range-copy">
         <div class="rb-icon">▦</div>
         <div>
-          <div class="rb-title">بازه گزارش <span v-if="!isPatientFileReport" class="rb-required">اجباری</span></div>
-          <div class="rb-sub">{{ isPatientFileReport ? 'در قالب لیست پرونده‌ها، همه پرونده‌ها مستقل از تاریخ نوبت نمایش داده می‌شوند.' : 'فقط اطلاعات و نوبت‌های داخل این بازه در گزارش محاسبه می‌شوند.' }}</div>
+          <div class="rb-title">بازه گزارش <span class="rb-required">اجباری</span></div>
+          <div class="rb-sub">{{ isPatientFileReport ? 'همهٔ پرونده‌ها نمایش داده می‌شوند؛ اطلاعات وابسته به نوبت فقط از این بازه محاسبه می‌شود.' : 'هر نوبت داخل این بازه یک ردیف جداگانه دارد.' }}</div>
         </div>
       </div>
       <div class="rb-picker rb-report-range-picker" role="button" tabindex="0" @click="openReportDate" @keydown.enter.prevent="openReportDate">
@@ -477,6 +484,10 @@ const PRESETS = [
   { id: 'trt', label: 'عملکرد درمان', fields: ['section2','subsection','areas','problem','extra','count'] },
   { id: 'mkt', label: 'بازاریابی', fields: ['source','referrer','custseg','noreturn','city'] }
 ];
+const REPORT_SOURCES = [
+  { id: 'appointments', label: 'نوبت‌دهی' },
+  { id: 'patients', label: 'پرونده‌ها' }
+];
 
 // داده نمونه — در پروژه واقعی جای آن از API استفاده کنید
 const MOCK = {
@@ -520,7 +531,7 @@ export default {
     FIELDS.forEach(f => { if (f.type === 'text') vals[f.id] = ''; if (f.type === 'select') vals[f.id] = f.options[0]; });
     const initialReportDate = defaultReportDate();
     return {
-      JM, FIELDS,
+      JM, FIELDS, reportSources: REPORT_SOURCES, reportScope: 'appointments',
       filtersOpen: false,
       show: { name: true, family: true }, vals, multi: {}, range: { amount: { from: '', to: '' } },
       appointmentStatuses: ['وقت داده شد','آمد','کنسل شد','پاسخ نداد','پیگیری','انتقال داده شده'], comparators: { debt: 'eq', deposit: 'eq' },
@@ -566,7 +577,7 @@ export default {
       return years;
     },
     cols() { return FIELDS.filter(f => this.show[f.id]).map(f => ({ key: f.id, label: f.label })); },
-    isPatientFileReport() { return this.activePreset === 'files'; },
+    isPatientFileReport() { return this.reportScope === 'patients'; },
     pageCount() { return Math.max(1, Math.ceil(this.totalRows / this.pageSize)); },
     rows() {
       const offset = (this.page - 1) * this.pageSize;
@@ -631,6 +642,7 @@ export default {
     async loadReportOptions() {
       try {
         const { data } = await axios.get('/api/report-builder/options');
+        if (Array.isArray(data.sources) && data.sources.length) this.reportSources = data.sources;
         if (Array.isArray(data.appointment_statuses) && data.appointment_statuses.length) {
           this.appointmentStatuses = data.appointment_statuses;
         }
@@ -653,6 +665,7 @@ export default {
       const s = {};
       p.fields.forEach(id => { s[id] = true; });
       this.show = s; this.activePreset = p.id; this.page = 1;
+      if (p.id === 'files') this.reportScope = 'patients';
     },
     savePreset() {
       const fields = this.cols.map(c => c.key);
@@ -899,7 +912,7 @@ export default {
     payload() {
       return {
         columns: this.cols.map(c => c.key),
-        filters: { scope: this.activePreset === 'files' ? 'patients' : 'appointments', values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, reportDate: this.reportDate, comparators: this.comparators },
+        filters: { scope: this.reportScope, values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, reportDate: this.reportDate, comparators: this.comparators },
         pagination: { page: this.page, pageSize: this.pageSize }
       };
     }
@@ -927,6 +940,9 @@ export default {
 .rb-report-range-card { padding: 18px 26px; display: flex; align-items: center; gap: 22px; }
 .rb-report-range-copy { display: flex; align-items: center; gap: 12px; min-width: 280px; }
 .rb-report-range-picker { max-width: 430px; margin-inline-start: auto; background: #F9FCFB; border-color: #CFE3DD; }
+.rb-scope-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 0 12px; border-bottom: 1px solid #EDF1F4; }
+.rb-scope-label { color: #16232F; font-size: 13px; font-weight: 800; white-space: nowrap; }
+.rb-scope-select { width: min(100%, 240px); min-height: 42px; }
 .rb-report-range-picker .rb-pickericon { margin-inline-start: auto; }
 .rb-required { display: inline-block; margin-inline-start: 6px; padding: 2px 7px; border-radius: 999px; background: #FDECEA; color: #B7352A; font-size: 10px; vertical-align: middle; }
 .rb-built-range { margin: -4px 0 16px; padding: 10px 14px; border: 1px solid #CFE3DD; border-radius: 11px; background: #F1F8F6; color: #315B54; font-size: 13px; }
