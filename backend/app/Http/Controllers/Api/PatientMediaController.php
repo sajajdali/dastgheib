@@ -382,6 +382,18 @@ class PatientMediaController extends Controller
         return response()->json($fresh);
     }
 
+    public function download(Patient $patient, PatientMedia $media)
+    {
+        abort_unless($media->patient_id === $patient->id, 404);
+        abort_unless($media->path && Storage::disk('public')->exists($media->path), 404);
+
+        $downloadName = basename($media->original_name ?: $media->file_name ?: 'patient-photo');
+
+        return Storage::disk('public')->download($media->path, $downloadName, [
+            'Content-Type' => $media->mime_type ?: 'application/octet-stream',
+        ]);
+    }
+
     public function destroy(Patient $patient, PatientMedia $media)
     {
         abort_unless($media->patient_id === $patient->id, 404);

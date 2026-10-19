@@ -129,6 +129,7 @@ return [
             'label' => 'حقوق و تسویه',
             'permissions' => [
                 ['name' => 'payroll.view', 'label' => 'مشاهده حقوق و تسویه'],
+                ['name' => 'personal_report.view', 'label' => 'مشاهده کارکرد شخصی'],
             ],
         ],
         [

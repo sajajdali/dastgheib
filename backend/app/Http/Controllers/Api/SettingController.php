@@ -228,6 +228,7 @@ class SettingController extends Controller
                 'payment_account' => AppSetting::getByKey('appointment_column_payment_account', '1') !== '0',
                 'payment_link' => AppSetting::getByKey('appointment_payment_link_enabled', '0') === '1',
                 'best_staff' => AppSetting::getByKey('appointment_best_staff_enabled', '0') === '1',
+                'photo_status' => AppSetting::getByKey('appointment_photo_status_enabled', '1') !== '0',
             ],
             'attendance_enabled' => AppSetting::getByKey('attendance_enabled', '0') === '1',
             'report_staff_target' => max(0, (float) AppSetting::getByKey('report_staff_target', 120)),
@@ -405,6 +406,12 @@ class SettingController extends Controller
                 ['key' => 'appointment_best_staff_enabled'],
                 ['value' => $request->boolean('appointment_columns.best_staff') ? '1' : '0']
             );
+            if ($request->has('appointment_columns.photo_status')) {
+                AppSetting::updateOrCreate(
+                    ['key' => 'appointment_photo_status_enabled'],
+                    ['value' => $request->boolean('appointment_columns.photo_status') ? '1' : '0']
+                );
+            }
         }
 
         if ($request->has('clinic_schedule')) {

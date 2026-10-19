@@ -253,7 +253,7 @@
                 <button type="button" :disabled="s.expenseLoading" @click="calculateExpenses" :title="v.billReady ? 'محاسبه مجدد هزینه‌ها' : 'محاسبه هزینه‌ها'" aria-label="محاسبه هزینه‌ها" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.bills" @change="v.hide.bills" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="report-card-scroll report-list-stack">
                 <p v-if="s.expenseError" role="alert" style="font-size:12px;color:#b91c1c;overflow-wrap:anywhere">{{ s.expenseError }}</p>
                 <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است.</p>
                 <template v-for="(b, bI) in v.billRows" :key="bI">
@@ -401,7 +401,7 @@
                 </button>
                 <input type="checkbox" :checked="v.ck.docs" @change="v.hide.docs" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div style="overflow-x:auto"><div style="min-width:800px;display:flex;flex-direction:column;gap:10px">
+              <div class="report-card-scroll report-card-scroll-wide"><div style="min-width:800px;display:flex;flex-direction:column;gap:10px">
               <div style="display:grid;grid-template-columns:130px 90px 80px 80px 90px 70px 70px 1fr;gap:10px;align-items:center;font-size:11.5px;color:#94a3b8;font-weight:700;padding:0 4px">
                 <span>پزشک</span><span>آورده</span><span>پورسانت</span><span>حقوق ثابت</span><span>جمع پرداختی</span><span>مشاوره</span><span>انجام کار</span><span>نرخ تبدیل</span>
               </div>
@@ -436,15 +436,17 @@
                 <span style="font-size:11.5px;color:#94a3b8">{{ v.phTotal }}</span>
                 <input type="checkbox" :checked="v.ck.photo" @change="v.hide.photo" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <template v-for="(r, rI) in v.phRows" :key="rI">
-                <div style="display:flex;flex-direction:column;gap:5px">
-                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
-                    <span style="font-weight:700;color:#0f172a">{{ r.n }}</span>
-                    <span style="color:#64748b">{{ r.txt }} <b :style="'color:' + (r.c)">{{ r.p }}</b></span>
+              <div v-if="v.phRows.length" class="report-card-scroll report-list-stack">
+                <template v-for="(r, rI) in v.phRows" :key="rI">
+                  <div style="display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
+                      <span style="font-weight:700;color:#0f172a">{{ r.n }}</span>
+                      <span style="color:#64748b">{{ r.txt }} <b :style="'color:' + (r.c)">{{ r.p }}</b></span>
+                    </div>
+                    <div style="height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + (r.c) + ';border-radius:999px'"></div></div>
                   </div>
-                  <div style="height:9px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:' + (r.c) + ';border-radius:999px'"></div></div>
-                </div>
-              </template>
+                </template>
+              </div>
               <div v-if="!v.phRows.length" class="report-widget-empty">برای نمایش کیفیت عکس‌ها براساس ناحیه و برترین‌ها، گزارش را محاسبه کنید.</div>
               <div v-if="v.photoCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آنالیز عکس‌ها</strong><small>عکس‌ها، نواحی و کیفیت تصاویر بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
@@ -474,7 +476,7 @@
                     <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:50%;background:#ffffff;border:2px solid #cbd5e1;display:inline-block"></i>بدون مراجع</span>
                   </div>
                 </div>
-                <div style="flex:1;min-width:320px;display:grid;grid-template-columns:1fr 1fr;gap:7px 24px;align-content:start">
+                <div class="report-card-scroll city-statistics-scroll" style="flex:1;min-width:320px;display:grid;grid-template-columns:1fr 1fr;gap:7px 24px;align-content:start">
                   <template v-for="(r, rI) in v.cityRows" :key="rI">
                     <div style="display:flex;align-items:center;gap:8px;font-size:12px">
                       <span style="width:62px;color:#334155;font-weight:700">{{ r.n }}</span>
@@ -501,15 +503,17 @@
               <div style="display:grid;grid-template-columns:70px 1fr 55px 70px 90px;gap:10px;align-items:center;font-size:11px;color:#94a3b8;font-weight:700">
                 <span>بازه سنی</span><span></span><span>تعداد</span><span>پرداختی</span><span>خدمت پرتکرار</span>
               </div>
-              <template v-for="(r, rI) in v.ageRows" :key="rI">
-                <div style="display:grid;grid-template-columns:70px 1fr 55px 70px 90px;gap:10px;align-items:center;font-size:12px">
-                  <span style="font-weight:700;color:#0f172a">{{ r.rng }}</span>
-                  <div style="height:12px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:linear-gradient(90deg,#60a5fa,#2563eb);border-radius:999px'"></div></div>
-                  <span style="font-weight:800;color:#0f172a">{{ r.cnt }}</span>
-                  <span style="color:#334155">{{ r.pay }}</span>
-                  <span style="color:#64748b">{{ r.svc }}</span>
-                </div>
-              </template>
+              <div class="report-card-scroll report-list-stack">
+                <template v-for="(r, rI) in v.ageRows" :key="rI">
+                  <div style="display:grid;grid-template-columns:70px 1fr 55px 70px 90px;gap:10px;align-items:center;font-size:12px">
+                    <span style="font-weight:700;color:#0f172a">{{ r.rng }}</span>
+                    <div style="height:12px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:linear-gradient(90deg,#60a5fa,#2563eb);border-radius:999px'"></div></div>
+                    <span style="font-weight:800;color:#0f172a">{{ r.cnt }}</span>
+                    <span style="color:#334155">{{ r.pay }}</span>
+                    <span style="color:#64748b">{{ r.svc }}</span>
+                  </div>
+                </template>
+              </div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.sect" @dragover="v.dv.sect" @drop="v.dp.sect" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.sect) + ';order:' + (v.o.sect)" data-screen-label="درآمد بخش‌ها">
@@ -518,18 +522,20 @@
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">درآمد و سود بخش‌ها</span>
                 <input type="checkbox" :checked="v.ck.sect" @change="v.hide.sect" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <template v-for="(r, rI) in v.sectRows" :key="rI">
-                <div style="display:flex;flex-direction:column;gap:5px">
-                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
-                    <span style="font-weight:700;color:#0f172a">{{ r.n }} <span style="color:#94a3b8;font-weight:600;font-size:11px">{{ r.p }}</span></span>
-                    <span style="color:#64748b">درآمد <b style="color:#0f172a">{{ r.rev }}</b> · سود <b style="color:#15803d">{{ r.prof }}</b></span>
+              <div class="report-card-scroll report-list-stack">
+                <template v-for="(r, rI) in v.sectRows" :key="rI">
+                  <div style="display:flex;flex-direction:column;gap:5px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
+                      <span style="font-weight:700;color:#0f172a">{{ r.n }} <span style="color:#94a3b8;font-weight:600;font-size:11px">{{ r.p }}</span></span>
+                      <span style="color:#64748b">درآمد <b style="color:#0f172a">{{ r.rev }}</b> · سود <b style="color:#15803d">{{ r.prof }}</b></span>
+                    </div>
+                    <div style="height:11px;background:#f1f5f9;border-radius:999px;overflow:hidden;display:flex">
+                      <div :style="'height:100%;width:' + (r.wp) + ';background:#16a34a'"></div>
+                      <div :style="'height:100%;width:' + (r.wr) + ';background:#93c5fd'"></div>
+                    </div>
                   </div>
-                  <div style="height:11px;background:#f1f5f9;border-radius:999px;overflow:hidden;display:flex">
-                    <div :style="'height:100%;width:' + (r.wp) + ';background:#16a34a'"></div>
-                    <div :style="'height:100%;width:' + (r.wr) + ';background:#93c5fd'"></div>
-                  </div>
-                </div>
-              </template>
+                </template>
+              </div>
               <div style="display:flex;gap:16px;font-size:11px;color:#64748b">
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#16a34a;display:inline-block"></i>سود</span>
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#93c5fd;display:inline-block"></i>سایر درآمد</span>
@@ -670,7 +676,7 @@
                 </button>
                 <input type="checkbox" :checked="v.ck.staffapt" @change="v.hide.staffapt" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div style="overflow-x:auto"><div style="min-width:760px;display:flex;flex-direction:column;gap:10px">
+              <div class="report-card-scroll report-card-scroll-wide"><div style="min-width:760px;display:flex;flex-direction:column;gap:10px">
                 <div style="display:grid;grid-template-columns:150px 100px 90px 90px 110px 90px 1fr;gap:10px;align-items:center;font-size:11.5px;color:#94a3b8;font-weight:700;padding:0 4px">
                   <span>پرسنل</span><span>آورده</span><span>پورسانت</span><span>حقوق ثابت</span><span>جمع پرداختی</span><span>تعداد نوبت</span><span>نرخ تبدیل</span>
                 </div>
@@ -2515,7 +2521,7 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .top-services-more:hover{color:#1d4ed8;text-decoration:underline;text-underline-offset:3px}
 .top-services-more:focus-visible{outline:1px solid #60a5fa;outline-offset:3px;border-radius:3px}
 .top-services-more-arrow{font-size:11px;line-height:1;transition:transform .15s ease}
-.report-card-scroll{max-height:310px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-left:5px}.report-card-scroll-wide{overflow-x:auto}.top-services-scroll,.campaign-performance-scroll{display:flex;flex-direction:column;gap:10px}.report-card-scroll::-webkit-scrollbar{width:6px;height:6px}.report-card-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+.report-card-scroll{max-height:310px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-left:5px}.report-card-scroll-wide{overflow-x:auto}.report-list-stack,.top-services-scroll,.campaign-performance-scroll,.cac-campaign-scroll{display:flex;flex-direction:column;gap:10px}.city-statistics-scroll{padding-bottom:3px}.report-card-scroll::-webkit-scrollbar{width:6px;height:6px}.report-card-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}
 .top-services-loading-track>div{width:42%;animation:top-services-loading-slide 1.15s ease-in-out infinite}
 @keyframes top-services-loading-slide{0%{transform:translateX(145%)}50%{transform:translateX(0)}100%{transform:translateX(-145%)}}
 ::-webkit-scrollbar{width:6px;height:6px}

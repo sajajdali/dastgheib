@@ -21,10 +21,19 @@ class TicketController extends Controller
 
     public function update(Request $request, Ticket $ticket)
     {
-        $ticket->update($request->validate([
+        $data = $request->validate([
             'date' => ['sometimes', 'required', 'string', 'max:10'],
             'status' => ['sometimes', 'required', 'in:active,done,expired'],
-        ]));
+            'owner' => ['sometimes', 'required', 'string', 'max:100', Rule::exists('staff', 'name')],
+            'owners' => ['sometimes', 'required', 'array', 'min:1'],
+            'owners.*' => ['required', 'string', 'max:100', 'distinct', Rule::exists('staff', 'name')],
+        ]);
+
+        if (array_key_exists('owners', $data) || array_key_exists('owner', $data)) {
+            $data = $this->withNormalizedOwners($data);
+        }
+
+        $ticket->update($data);
         return $ticket->fresh();
     }
 
@@ -36,13 +45,30 @@ class TicketController extends Controller
 
     private function validated(Request $request): array
     {
-        return $request->validate([
+        return $this->withNormalizedOwners($request->validate([
             'subject' => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
             'date' => ['required', 'string', 'max:10'],
-            'owner' => ['required', 'string', 'max:100', Rule::exists('staff', 'name')],
+            'owner' => ['nullable', 'required_without:owners', 'string', 'max:100', Rule::exists('staff', 'name')],
+            'owners' => ['nullable', 'required_without:owner', 'array', 'min:1'],
+            'owners.*' => ['required', 'string', 'max:100', 'distinct', Rule::exists('staff', 'name')],
             'priority' => ['required', 'in:low,medium,high,urgent'],
             'status' => ['required', 'in:active,done,expired'],
-        ]);
+        ]));
+    }
+
+    private function withNormalizedOwners(array $data): array
+    {
+        $owners = collect($data['owners'] ?? [$data['owner'] ?? null])
+            ->map(fn ($owner) => trim((string) $owner))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $data['owners'] = $owners;
+        $data['owner'] = $owners[0] ?? null;
+
+        return $data;
     }
 }

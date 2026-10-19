@@ -11,5 +11,9 @@ class Ticket extends Model
 
     public function activitySection(): string { return 'تیکت‌ها'; }
 
-    protected $fillable = ['subject', 'description', 'date', 'owner', 'priority', 'status'];
+    protected $fillable = ['subject', 'description', 'date', 'owner', 'owners', 'priority', 'status'];
+
+    protected $casts = [
+        'owners' => 'array',
+    ];
 }

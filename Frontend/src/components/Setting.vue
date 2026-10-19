@@ -175,6 +175,7 @@
             <label><input type="checkbox" v-model="appointmentColumns.payment_account" /> <span>حساب واریز</span></label>
             <label><input type="checkbox" v-model="appointmentColumns.payment_link" /> <span>لینک پرداخت</span></label>
             <label><input type="checkbox" v-model="appointmentColumns.best_staff" /> <span>نمایش بهترین پرسنل ماه</span></label>
+            <label><input type="checkbox" v-model="appointmentColumns.photo_status" /> <span>نمایش وضعیت عکس قبل و عکس بعد</span></label>
           </div>
         </div>
       </div>
@@ -1085,7 +1086,7 @@ const customerLevels = ref({
   gold_visit_count: 3,
   gold_visit_period_months: 3
 });
-const appointmentColumns = ref({ payment_method: true, payment_account: true, payment_link: false, best_staff: false });
+const appointmentColumns = ref({ payment_method: true, payment_account: true, payment_link: false, best_staff: false, photo_status: true });
 const walletServices = ref([]);
 const walletSettings = ref({ enabled: false, default_type: "percent", default_value: 0, expiry_days: 30, sms_template: "مبلغ %param1% تومان واریز شد.\nموجودی فعلی %param2% تومان\nتاریخ استفاده تا %param3%\nبا تشکر کلینیک %param4%", service_overrides: [] });
 const addWalletServiceRule = () => walletSettings.value.service_overrides.push({ service_id: 0, service_name: "", type: "percent", value: 0 });

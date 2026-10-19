@@ -63,22 +63,38 @@
           </label>
         </div>
 
-        <label class="form-field">
-          <span>مسئول</span>
-          <select v-model="newTicket.owner" :disabled="staffLoading">
-            <option value="">{{ staffOwnerPlaceholder }}</option>
-            <option v-for="person in staffOptions" :key="person.id || person.name" :value="person.name">
-              {{ person.name }}
-            </option>
-          </select>
+        <div class="form-field">
+          <span>مسئول‌ها</span>
+          <div class="owner-picker" @click.stop>
+            <button
+              type="button"
+              class="owner-picker-trigger"
+              :disabled="staffLoading || !staffOptions.length"
+              :aria-expanded="ownerMenuOpen"
+              @click="ownerMenuOpen = !ownerMenuOpen"
+            >
+              <span>{{ ownerSelectionLabel }}</span><i>⌄</i>
+            </button>
+            <div v-if="ownerMenuOpen" class="owner-picker-menu">
+              <label v-for="person in staffOptions" :key="person.id || person.name">
+                <input v-model="newTicket.owners" type="checkbox" :value="person.name">
+                <span>{{ person.name }}</span>
+              </label>
+            </div>
+          </div>
+          <div v-if="newTicket.owners.length" class="owner-chips">
+            <span v-for="owner in newTicket.owners" :key="owner">
+              {{ owner }}<button type="button" :aria-label="`حذف ${owner}`" @click="removeOwner(owner)">×</button>
+            </span>
+          </div>
           <button type="button" class="reload-staff-btn" :disabled="staffLoading" @click="loadStaffOptions">
             به‌روزرسانی لیست پرسنل
           </button>
           <small v-if="staffError" class="field-error">{{ staffError }}</small>
-        </label>
+        </div>
 
         <div class="popup-actions">
-          <button class="submit-btn" :disabled="!newTicket.subject || !newTicket.date || !newTicket.owner" @click="addTicket">افزودن</button>
+          <button class="submit-btn" :disabled="!newTicket.subject || !newTicket.date || !newTicket.owners.length" @click="addTicket">افزودن</button>
           <button class="cancel-btn" @click="showForm = false">لغو</button>
         </div>
       </div>
@@ -130,7 +146,7 @@
                 <div class="ticket-title"><strong>{{ element.subject }}</strong><span :class="['priority-badge', `priority-${element.priority || 'medium'}`]">{{ priorityLabel(element.priority) }}</span></div>
                 <p>{{ element.description }}</p>
                 <small>
-                  مسئول: {{ element.owner }} | تاریخ: {{ element.date }}
+                  مسئول‌ها: {{ ticketOwnersLabel(element) }} | تاریخ: {{ element.date }}
                 </small>
               </div>
 
@@ -154,7 +170,7 @@
           <div class="ticket-info">
             <div class="ticket-title"><strong>{{ ticket.subject }}</strong><span :class="['priority-badge', `priority-${ticket.priority || 'medium'}`]">{{ priorityLabel(ticket.priority) }}</span></div>
             <p>{{ ticket.description }}</p>
-            <small>مسئول: {{ ticket.owner }} | تاریخ: {{ ticket.date }}</small>
+            <small>مسئول‌ها: {{ ticketOwnersLabel(ticket) }} | تاریخ: {{ ticket.date }}</small>
           </div>
 
           <button v-if="canDeleteTickets" class="delete-btn" @click="deleteDone(index)">
@@ -174,7 +190,7 @@
           <div class="ticket-info">
             <div class="ticket-title"><strong>{{ ticket.subject }}</strong><span :class="['priority-badge', `priority-${ticket.priority || 'medium'}`]">{{ priorityLabel(ticket.priority) }}</span></div>
             <p>{{ ticket.description }}</p>
-            <small>مسئول: {{ ticket.owner }} | تاریخ: {{ ticket.date }}</small>
+            <small>مسئول‌ها: {{ ticketOwnersLabel(ticket) }} | تاریخ: {{ ticket.date }}</small>
           </div>
 
           <div style="width: 153px;">
@@ -219,7 +235,7 @@ export default defineComponent({
         subject: "",
         description: "",
         date: "",
-        owner: "",
+        owners: [],
         priority: "medium"
       },
 
@@ -232,7 +248,8 @@ export default defineComponent({
       activateDate: "",
       staffOptions: [],
       staffLoading: false,
-      staffError: ""
+      staffError: "",
+      ownerMenuOpen: false
     };
   },
 
@@ -252,7 +269,12 @@ export default defineComponent({
     staffOwnerPlaceholder() {
       if (this.staffLoading) return "در حال دریافت پرسنل...";
       if (!this.staffOptions.length) return "ابتدا پرسنل را در بخش پرسنل تعریف کنید";
-      return "انتخاب از کارمندان کلینیک";
+      return "یک یا چند نفر را انتخاب کنید";
+    },
+    ownerSelectionLabel() {
+      if (!this.newTicket.owners.length) return this.staffOwnerPlaceholder;
+      if (this.newTicket.owners.length === 1) return this.newTicket.owners[0];
+      return `${this.newTicket.owners.length.toLocaleString("fa-IR")} نفر انتخاب شده`;
     }
   },
 
@@ -260,10 +282,12 @@ export default defineComponent({
     this.loadTickets();
     this.loadStaffOptions();
     document.addEventListener("pointerdown", this.keepDatePickerOpen, true);
+    document.addEventListener("click", this.closeOwnerMenu);
   },
 
   beforeUnmount() {
     document.removeEventListener("pointerdown", this.keepDatePickerOpen, true);
+    document.removeEventListener("click", this.closeOwnerMenu);
   },
 
   watch: {
@@ -284,7 +308,25 @@ export default defineComponent({
   methods: {
     openTicketForm() {
       this.showForm = true;
+      this.ownerMenuOpen = false;
       this.loadStaffOptions();
+    },
+
+    closeOwnerMenu() {
+      this.ownerMenuOpen = false;
+    },
+
+    removeOwner(owner) {
+      this.newTicket.owners = this.newTicket.owners.filter(name => name !== owner);
+    },
+
+    ticketOwners(ticket) {
+      const owners = Array.isArray(ticket?.owners) ? ticket.owners : [ticket?.owner];
+      return owners.map(owner => String(owner || "").trim()).filter(Boolean);
+    },
+
+    ticketOwnersLabel(ticket) {
+      return this.ticketOwners(ticket).join("، ") || "تعیین نشده";
     },
 
     keepDatePickerOpen(event) {
@@ -407,11 +449,13 @@ getFirstTodayIndex() {
     },
 
     async addTicket() {
-      if (!this.newTicket.subject || !this.newTicket.date || !this.newTicket.owner) return;
-      if (!this.staffOptions.some(person => person.name === this.newTicket.owner)) return;
+      if (!this.newTicket.subject || !this.newTicket.date || !this.newTicket.owners.length) return;
+      const staffNames = new Set(this.staffOptions.map(person => person.name));
+      if (this.newTicket.owners.some(owner => !staffNames.has(owner))) return;
 
       const draft = {
         ...this.newTicket,
+        owner: this.newTicket.owners[0],
         date: this.normalize(String(this.newTicket.date)),
         status: this.isExpired(this.newTicket.date) ? "expired" : "active"
       };
@@ -430,10 +474,11 @@ getFirstTodayIndex() {
         subject: "",
         description: "",
         date: "",
-        owner: "",
+        owners: [],
         priority: "medium"
       };
 
+      this.ownerMenuOpen = false;
       this.showForm = false;
     },
 
@@ -670,6 +715,92 @@ getFirstTodayIndex() {
 }
 .form-field>span {
   padding-right: 2px;
+}
+.owner-picker {
+  position: relative;
+}
+.owner-picker-trigger {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid #d8e1ee;
+  border-radius: 11px;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  cursor: pointer;
+}
+.owner-picker-trigger[aria-expanded="true"] {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+.owner-picker-trigger:disabled { color: #94a3b8; background: #f8fafc; cursor: not-allowed; }
+.owner-picker-trigger i { color: #64748b; font-size: 16px; font-style: normal; }
+.owner-picker-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  padding: 7px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgba(15,23,42,.18);
+}
+.owner-picker-menu label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  color: #334155;
+  cursor: pointer;
+}
+.owner-picker-menu label:hover { background: #eff6ff; }
+.popup-form .owner-picker-menu input {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: #2563eb;
+  box-shadow: none;
+}
+.owner-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.owner-chips>span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+}
+.owner-chips button {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-family: inherit;
+  cursor: pointer;
 }
 .form-grid {
   display: grid;

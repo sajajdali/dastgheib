@@ -1469,9 +1469,12 @@
                   <small class="media-audit">
                     ثبت: {{ item.uploaded_by_name || 'نامشخص' }} - {{ formatMediaDate(item.created_at) }}
                   </small>
-                  <button type="button" class="media-edit-btn" @click="openMediaEdit(item)">
-                    ویرایش
-                  </button>
+                  <div class="media-file-actions">
+                    <a :href="mediaDownloadUrl(item)" class="media-download-btn" download>↓ دانلود فایل</a>
+                    <button type="button" class="media-edit-btn" @click="openMediaEdit(item)">
+                      ویرایش
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1581,12 +1584,14 @@
             <div class="compare-photo-grid">
               <figure :class="{ empty: !activeBeforeAfterPair.before }">
                 <b>قبل</b>
+                <a v-if="activeBeforeAfterPair.before" :href="mediaDownloadUrl(activeBeforeAfterPair.before)" class="compare-download-btn" title="دانلود عکس قبل" download>↓ دانلود</a>
                 <img v-if="activeBeforeAfterPair.before" :src="activeBeforeAfterPair.before.url" :alt="activeBeforeAfterPair.before.original_name || 'عکس قبل'">
                 <span v-if="!activeBeforeAfterPair.before" class="compare-missing-message">عکس قبل برای نمای «{{ activeBeforeAfterPair.angle || 'بدون عنوان' }}» آپلود نشده است.</span>
                 <button v-if="!activeBeforeAfterPair.before" type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'before')">ورود به گالری برای آپلود</button>
               </figure>
               <figure :class="{ empty: !activeBeforeAfterPair.after }">
                 <b>بعد</b>
+                <a v-if="activeBeforeAfterPair.after" :href="mediaDownloadUrl(activeBeforeAfterPair.after)" class="compare-download-btn" title="دانلود عکس بعد" download>↓ دانلود</a>
                 <img v-if="activeBeforeAfterPair.after" :src="activeBeforeAfterPair.after.url" :alt="activeBeforeAfterPair.after.original_name || 'عکس بعد'">
                 <span v-if="!activeBeforeAfterPair.after" class="compare-missing-message">عکس بعد برای نمای «{{ activeBeforeAfterPair.angle || 'بدون عنوان' }}» آپلود نشده است.</span>
                 <button v-if="!activeBeforeAfterPair.after" type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'after')">ورود به گالری برای آپلود</button>
@@ -3876,6 +3881,11 @@ export default {
       this.mediaEditLoading = false
       this.editMediaFile = null
       this.editMediaForm = {}
+    },
+
+    mediaDownloadUrl(item) {
+      const patientId = item?.patient_id || this.activeMediaPatient?.id
+      return `/api/patients/${patientId}/media/files/${item?.id}/download`
     },
 
     handleEditMediaFile(event) {
@@ -8613,6 +8623,27 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   box-shadow: 0 6px 16px rgba(15, 23, 42, .18);
 }
 
+.compare-download-btn {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 12px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid rgba(191, 219, 254, .9);
+  border-radius: 9px;
+  background: rgba(239, 246, 255, .94);
+  color: #1d4ed8;
+  font-size: 10px;
+  font-weight: 1000;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, .18);
+}
+
+.compare-download-btn:hover { background: #dbeafe; }
+
 .compare-photo-grid img {
   width: 100%;
   height: 100%;
@@ -8858,6 +8889,23 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 .media-edit-btn:hover {
   background: #dbeafe;
 }
+
+.media-file-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 3px; }
+.media-file-actions .media-edit-btn { width: 100%; }
+.media-download-btn {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 900;
+  text-decoration: none;
+}
+.media-download-btn:hover { background: #dcfce7; }
 
 .media-edit-overlay {
   z-index: 2147483646;

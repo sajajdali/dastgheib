@@ -154,7 +154,6 @@ export default {
     visibleItems() {
       return this.items.filter(item => {
         if (item.value === 'HRtimes' && !this.attendanceEnabled) return false
-        if (item.value === 'Payroll' && ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.permissions.includes(permission))) return true
         if (item.value === 'Setting') {
           return this.isClinicManager
         }

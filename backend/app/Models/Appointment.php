@@ -26,5 +26,7 @@ class Appointment extends Model
         ,'wallet_applied' => 'decimal:2'
         ,'referral_commission_value' => 'decimal:2'
         ,'duration_minutes' => 'integer'
+        ,'before_photo_taken_at' => 'datetime'
+        ,'after_photo_taken_at' => 'datetime'
     ];
 }

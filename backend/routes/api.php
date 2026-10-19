@@ -128,6 +128,7 @@ Route::get('/patients/{patient}/media', [PatientMediaController::class, 'index']
 Route::post('/patients/{patient}/media/folders', [PatientMediaController::class, 'storeFolder']);
 Route::delete('/patients/{patient}/media/folders/{folder}', [PatientMediaController::class, 'destroyFolder']);
 Route::post('/patients/{patient}/media/files', [PatientMediaController::class, 'storeFiles']);
+Route::get('/patients/{patient}/media/files/{media}/download', [PatientMediaController::class, 'download']);
 Route::patch('/patients/{patient}/media/files/{media}', [PatientMediaController::class, 'update']);
 Route::post('/patients/{patient}/media/files/{media}', [PatientMediaController::class, 'update']);
 Route::delete('/patients/{patient}/media/files/{media}', [PatientMediaController::class, 'destroy']);
@@ -158,7 +159,7 @@ Route::post('/attendance/months', [AttendanceMonthController::class, 'store'])->
 Route::patch('/attendance/months/{attendanceMonth}', [AttendanceMonthController::class, 'update'])->middleware('permission:attendance.view|attendance.manage');
 Route::delete('/attendance/months/{attendanceMonth}', [AttendanceMonthController::class, 'destroy'])->middleware('permission:attendance.manage');
 Route::apiResource('tickets', TicketController::class)->only(['index', 'store', 'update', 'destroy']);
-Route::get('/personal-report', [PersonalReportController::class, 'show']);
+Route::get('/personal-report', [PersonalReportController::class, 'show'])->middleware('permission:personal_report.view');
 Route::get('/clinic-report/cancellation-rate', [ClinicReportController::class, 'cancellationRate'])->middleware('permission:reports.view');
 Route::get('/clinic-report/expenses', [ClinicReportController::class, 'expenses'])->middleware('permission:reports.view');
 Route::get('/reports/dashboard', [ClinicReportController::class, 'dashboard'])->middleware('permission:reports.view');
@@ -202,11 +203,11 @@ Route::get('/reports/export', [ClinicReportController::class, 'export'])->middle
 Route::apiResource('expenses', ExpenseController::class)->middleware('permission:bills.view');
 Route::post('/campaigns/general', [CampaignController::class, 'general'])->middleware('permission:followups.view');
 Route::apiResource('campaigns', CampaignController::class)->middleware('permission:followups.view');
-Route::get('/payroll/resources', [PayrollReportController::class, 'resources'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
-Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middleware('permission:payroll.view|reports.staff|reports.doctors|reports.financial');
-Route::patch('/payroll/lines/{line}', [PayrollReportController::class, 'updateLine'])->middleware('permission:payroll.view|reports.financial');
-Route::post('/payroll/lines/{line}/restore', [PayrollReportController::class, 'restoreLine'])->middleware('permission:payroll.view|reports.financial');
-Route::delete('/payroll/lines/{line}', [PayrollReportController::class, 'destroyLine'])->middleware('permission:payroll.view|reports.financial');
+Route::get('/payroll/resources', [PayrollReportController::class, 'resources'])->middleware('permission:payroll.view');
+Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middleware('permission:payroll.view');
+Route::patch('/payroll/lines/{line}', [PayrollReportController::class, 'updateLine'])->middleware('permission:payroll.view');
+Route::post('/payroll/lines/{line}/restore', [PayrollReportController::class, 'restoreLine'])->middleware('permission:payroll.view');
+Route::delete('/payroll/lines/{line}', [PayrollReportController::class, 'destroyLine'])->middleware('permission:payroll.view');
 Route::get('/payment-options', [HumanResourceController::class, 'getPaymentOptions']);
 Route::post('/payment-options', [HumanResourceController::class, 'savePaymentOptions']);
 Route::get('/service-tags', [HumanResourceController::class, 'getServiceTags'])->middleware('permission:resources.view|inventory.view|appointments.view|followups.view');
@@ -226,6 +227,7 @@ Route::post('/appointments/{appointment}/settle-previous-debt', [AppointmentCont
 Route::post('/patients/{patient}/debt-payment', [AppointmentController::class, 'payPatientDebt'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->middleware('permission:appointments.update');
 Route::post('/appointments/{appointment}/extend', [AppointmentController::class, 'extend'])->middleware('permission:appointments.update');
+Route::patch('/appointments/{appointment}/photo-status', [AppointmentController::class, 'markPhotoTaken'])->middleware('permission:appointments.update|photos.view');
 Route::post('/appointments/row', [AppointmentController::class, 'saveRow'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments', [AppointmentController::class, 'saveAppointments'])->middleware('permission:appointments.create|appointments.update');
 Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy'])->middleware('permission:appointments.update');

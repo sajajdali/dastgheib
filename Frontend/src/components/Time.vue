@@ -460,6 +460,28 @@
               ></div>
             </th>
 
+            <th
+              v-if="appointmentColumns.photo_status"
+              class="sticky-header photo-status-col"
+              :class="{ 'filtered-header': selectedBeforePhotoStates.length > 0 }"
+            >
+              <div class="header-with-filter"><span>عکس قبل</span><button type="button" class="filter-btn" title="فیلتر وضعیت عکس قبل" @click.stop="togglePhotoFilter('before')">⚙</button></div>
+              <div v-if="showBeforePhotoFilter" class="filter-dropdown photo-filter-dropdown" @click.stop>
+                <label v-for="option in photoStateOptions" :key="option.value"><input v-model="selectedBeforePhotoStates" type="checkbox" :value="option.value"><i :class="`photo-filter-dot ${option.value}`"></i>{{ option.label }}</label>
+              </div>
+            </th>
+
+            <th
+              v-if="appointmentColumns.photo_status"
+              class="sticky-header photo-status-col"
+              :class="{ 'filtered-header': selectedAfterPhotoStates.length > 0 }"
+            >
+              <div class="header-with-filter"><span>عکس بعد</span><button type="button" class="filter-btn" title="فیلتر وضعیت عکس بعد" @click.stop="togglePhotoFilter('after')">⚙</button></div>
+              <div v-if="showAfterPhotoFilter" class="filter-dropdown photo-filter-dropdown" @click.stop>
+                <label v-for="option in photoStateOptions" :key="option.value"><input v-model="selectedAfterPhotoStates" type="checkbox" :value="option.value"><i :class="`photo-filter-dot ${option.value}`"></i>{{ option.label }}</label>
+              </div>
+            </th>
+
             <th class="sticky-header row-action-col">
               عملیات
             </th>
@@ -1148,42 +1170,51 @@
 
               </td>
 
-              <td class="row-action-col">
+              <td v-if="appointmentColumns.photo_status" class="photo-status-col">
                 <button
                   type="button"
-                  class="insert-appointment-row-btn"
-                  title="افزودن وقت بعد از این ساعت"
-                  aria-label="افزودن وقت بعد از این ساعت"
-                  @click.stop="insertRowAfter(day, row)"
-                >
-                  +
-                </button>
+                  class="appointment-photo-light"
+                  :class="photoStatusState(row, 'before')"
+                  :disabled="photoStatusState(row, 'before') === 'gray' || Boolean(photoStatusSavingKey)"
+                  :data-tooltip="photoStatusTooltip(row, 'before')"
+                  :aria-label="photoStatusTitle(row, 'before')"
+                  @click.stop="markAppointmentPhoto(row, 'before')"
+                ><span></span></button>
+              </td>
 
+              <td v-if="appointmentColumns.photo_status" class="photo-status-col">
                 <button
                   type="button"
-                  class="row-tracking-btn"
-                  title="گزارش زمان نوبت"
-                  aria-label="گزارش زمان نوبت"
-                  @click.stop="clockAppointmentArrival(day, row)"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="12" cy="12" r="8" />
-                    <path d="M12 8v5l3 2" />
-                  </svg>
-                </button>
+                  class="appointment-photo-light"
+                  :class="photoStatusState(row, 'after')"
+                  :disabled="photoStatusState(row, 'after') === 'gray' || Boolean(photoStatusSavingKey)"
+                  :data-tooltip="photoStatusTooltip(row, 'after')"
+                  :aria-label="photoStatusTitle(row, 'after')"
+                  @click.stop="markAppointmentPhoto(row, 'after')"
+                ><span></span></button>
+              </td>
 
-                <button type="button" class="row-history-btn" title="تاریخچه فعالیت نوبت" aria-label="تاریخچه فعالیت نوبت" @click.stop="openAppointmentHistory(row)">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/><circle cx="3" cy="6" r=".8"/><circle cx="3" cy="12" r=".8"/><circle cx="3" cy="18" r=".8"/></svg>
-                </button>
-
+              <td class="row-action-col" :class="{ 'action-menu-open': activeRowActionMenu === row._rowId }">
                 <button
                   type="button"
-                  class="row-delete-btn"
-                  title="حذف این ردیف"
-                  @click.stop="deleteAppointmentRow(day, row)"
+                  class="row-actions-trigger"
+                  :class="{ active: activeRowActionMenu === row._rowId }"
+                  title="نمایش عملیات این ردیف"
+                  aria-label="نمایش عملیات این ردیف"
+                  :aria-expanded="activeRowActionMenu === row._rowId"
+                  @click.stop="toggleRowActionMenu(row)"
                 >
-                  ×
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                  <span>عملیات</span>
                 </button>
+
+                <div v-if="activeRowActionMenu === row._rowId" class="row-actions-menu" role="menu" @click.stop>
+                  <header><strong>عملیات نوبت</strong><small>{{ row.lastname || row.time || 'ردیف خالی' }}</small></header>
+                  <button type="button" role="menuitem" @click="handleRowAction('insert', day, row)"><i class="action-icon add">+</i><span><b>افزودن وقت</b><small>ساخت ردیف بعد از این ساعت</small></span></button>
+                  <button type="button" role="menuitem" @click="handleRowAction('tracking', day, row)"><i class="action-icon clock">◷</i><span><b>گزارش زمان</b><small>ورود، انتظار و پایان نوبت</small></span></button>
+                  <button type="button" role="menuitem" @click="handleRowAction('history', day, row)"><i class="action-icon history">≡</i><span><b>تاریخچه فعالیت</b><small>مشاهده کاربر و زمان تغییرات</small></span></button>
+                  <button type="button" role="menuitem" class="danger" @click="handleRowAction('delete', day, row)"><i class="action-icon remove">×</i><span><b>حذف ردیف</b><small>پاک‌کردن این نوبت یا زمان</small></span></button>
+                </div>
               </td>
 
             </tr>
@@ -1674,10 +1705,27 @@
                   </label>
                   <label>
                     <span>خدمت</span>
-                    <select v-model="service.name" :disabled="!service.sectionId" @change="onServiceNameChanged(service, activeTimelineDraft)">
-                      <option value="">{{ service.sectionId ? 'انتخاب خدمت' : 'ابتدا زیر‌بخش را انتخاب کنید' }}</option>
-                      <option v-for="serviceName in serviceOptionsFor(service, activeTimelineDraft)" :key="serviceName" :value="serviceName">{{ serviceName }}</option>
-                    </select>
+                    <Multiselect
+                      v-model="service.name"
+                      :options="serviceOptionsFor(service, activeTimelineDraft)"
+                      :multiple="false"
+                      :searchable="true"
+                      :internal-search="true"
+                      :close-on-select="true"
+                      :clear-on-select="false"
+                      :allow-empty="true"
+                      :disabled="!service.sectionId"
+                      :placeholder="service.sectionId ? 'نام خدمت را جست‌وجو کنید' : 'ابتدا زیر‌بخش را انتخاب کنید'"
+                      select-label="انتخاب"
+                      selected-label="انتخاب شد"
+                      deselect-label="حذف"
+                      class="timeline-service-multiselect"
+                      @select="onServiceNameChanged(service, activeTimelineDraft)"
+                      @remove="onServiceNameChanged(service, activeTimelineDraft)"
+                    >
+                      <template #noResult>خدمتی با این نام پیدا نشد.</template>
+                      <template #noOptions>خدمتی در این زیر‌بخش ثبت نشده است.</template>
+                    </Multiselect>
                   </label>
                 </div>
                 <div v-if="service.name" class="timeline-service-tags">
@@ -2501,6 +2549,7 @@ export default {
 
       allCollapsed: false,
       activeServicePopup: null,
+      activeRowActionMenu: null,
       highlightedRowId: null,
       highlightedRowTimer: null,
       timelineModalOpen: false,
@@ -2542,7 +2591,8 @@ export default {
         payment_method: false,
         payment_account: false,
         payment_link: false,
-        best_staff: false
+        best_staff: false,
+        photo_status: true
       },
       clinicSchedule: {
         is_configured: false,
@@ -2621,6 +2671,7 @@ export default {
         { value: 'status', label: 'وضعیت‌ها' },
         { value: 'service', label: 'خدمات' },
         { value: 'financial', label: 'مالی' },
+        { value: 'photo', label: 'عکس‌ها' },
         { value: 'edit', label: 'ویرایش‌ها' },
       ],
       financialPaymentDeletingId: null,
@@ -2679,6 +2730,12 @@ export default {
       selectedGenders: [],
       selectedAppointmentSms: [],
       selectedInfoSms: [],
+      selectedBeforePhotoStates: [],
+      selectedAfterPhotoStates: [],
+      photoStateOptions: [
+        { value: 'red', label: 'قرمز' },
+        { value: 'green', label: 'سبز' }
+      ],
       smsFilterOptions: [{ value: '', label: 'بدون وضعیت' }, { value: 'انتظار', label: 'انتظار' }, { value: 'ارسال شد', label: 'ارسال شد' }],
       selectedServiceDoctors: [],
       selectedServiceConsultants: [],
@@ -2711,6 +2768,9 @@ export default {
       showGenderFilter: false,
       showAppointmentSmsFilter: false,
       showInfoSmsFilter: false,
+      showBeforePhotoFilter: false,
+      showAfterPhotoFilter: false,
+      photoStatusSavingKey: '',
 
       saveTimeout: null,
       saveRetryTimeout: null,
@@ -2771,7 +2831,7 @@ export default {
       if (this.appointmentHistoryFilter === 'all') return this.appointmentHistoryRows
       return this.appointmentHistoryRows.filter(log => {
         const text = `${log.event || ''} ${log.section || ''} ${JSON.stringify(log.new_values || {})}`
-        return this.appointmentHistoryFilter === 'financial' ? /مالی|پرداخت|تسویه|بدهی|کیف پول/i.test(text) : this.appointmentHistoryFilter === 'status' ? /وضعیت|done|status|انجام|تایید/i.test(text) : this.appointmentHistoryFilter === 'service' ? /خدمت|service/i.test(text) : /ویرایش|updated/i.test(text)
+        return this.appointmentHistoryFilter === 'financial' ? /مالی|پرداخت|تسویه|بدهی|کیف پول/i.test(text) : this.appointmentHistoryFilter === 'status' ? /وضعیت|done|status|انجام|تایید/i.test(text) : this.appointmentHistoryFilter === 'service' ? /خدمت|service/i.test(text) : this.appointmentHistoryFilter === 'photo' ? /photo/i.test(text) : /ویرایش|updated/i.test(text)
       })
     },
     emptyTimeFilterActive() {
@@ -2784,6 +2844,7 @@ export default {
       return JSON.stringify([
         this.selectedStatuses, this.selectedSources, this.selectedDone,
         this.selectedGenders, this.selectedAppointmentSms, this.selectedInfoSms,
+        this.selectedBeforePhotoStates, this.selectedAfterPhotoStates,
         this.selectedServiceSections, this.selectedServiceDoctors,
         this.selectedServiceConsultants, this.selectedServiceSubsections,
         this.amountFilterMin, this.amountFilterMax,
@@ -2798,6 +2859,7 @@ export default {
         this.searchQuery.trim() || this.selectedStatuses.length || this.selectedSources.length ||
         this.selectedDone.length || this.selectedGenders.length ||
         this.selectedAppointmentSms.length || this.selectedInfoSms.length ||
+        this.selectedBeforePhotoStates.length || this.selectedAfterPhotoStates.length ||
         this.serviceFilterCount || this.amountFilterActive || this.emptyTimeFilterActive ||
         this.bookingTimelineFilterActive || this.timelineSlotFilter !== 'all'
       );
@@ -3037,7 +3099,8 @@ export default {
     },
     appointmentTableColspan() {
       return 14 +
-        (this.appointmentColumns.payment_link ? 1 : 0);
+        (this.appointmentColumns.payment_link ? 1 : 0) +
+        (this.appointmentColumns.photo_status ? 2 : 0);
     },
 
     appointmentMinuteStep() {
@@ -3313,6 +3376,8 @@ export default {
       if (newValues.appointment_sms || newValues.info_sms || newValues.completion_sms_statuses) return 'وضعیت پیامک تغییر کرد'
       if (newValues.done) return 'وضعیت انجام کار تغییر کرد'
       if (newValues.status) return 'وضعیت نوبت تغییر کرد'
+      if (Object.prototype.hasOwnProperty.call(newValues, 'before_photo_taken_at')) return newValues.before_photo_taken_at ? 'عکس قبل ثبت شد' : 'تأیید عکس قبل لغو شد'
+      if (Object.prototype.hasOwnProperty.call(newValues, 'after_photo_taken_at')) return newValues.after_photo_taken_at ? 'عکس بعد ثبت شد' : 'تأیید عکس بعد لغو شد'
       if (newValues.services) return 'خدمات نوبت ویرایش شد'
       if (newValues.amount || newValues.debt || newValues.payment_method) return 'اطلاعات مالی نوبت تغییر کرد'
       return 'اطلاعات نوبت ویرایش شد'
@@ -3320,10 +3385,12 @@ export default {
     appointmentHistorySummary(log) {
       const oldValues = log?.old_values || {}
       const newValues = log?.new_values || {}
-      const labels = { status: 'وضعیت نوبت', done: 'وضعیت انجام کار', services: 'خدمات', amount: 'مبلغ', debt: 'بدهی', payment_method: 'روش پرداخت', lastname: 'نام بیمار', phone: 'شماره تماس', file_number: 'شماره پرونده', time: 'ساعت نوبت', doctor: 'پزشک', consultant: 'مشاور', source: 'نحوه آشنایی', description: 'توضیحات', appointment_sms: 'پیامک نوبت', info_sms: 'پیامک اطلاعات' }
+      const labels = { status: 'وضعیت نوبت', done: 'وضعیت انجام کار', services: 'خدمات', amount: 'مبلغ', debt: 'بدهی', payment_method: 'روش پرداخت', lastname: 'نام بیمار', phone: 'شماره تماس', file_number: 'شماره پرونده', time: 'ساعت نوبت', doctor: 'پزشک', consultant: 'مشاور', source: 'نحوه آشنایی', description: 'توضیحات', appointment_sms: 'پیامک نوبت', info_sms: 'پیامک اطلاعات', before_photo_taken_at: 'عکس قبل', after_photo_taken_at: 'عکس بعد' }
       const hiddenKeys = ['id', 'lock_version', 'sort_order', 'month', 'day_num', 'updated_at', 'created_at', 'completed_at', 'arrived_at', 'wait_minutes']
       const keys = Object.keys(newValues).filter(key => !hiddenKeys.includes(key) && labels[key]).slice(0, 4)
       if (newValues.appointment_sms || newValues.info_sms || newValues.completion_sms_statuses) return 'پیامک در وضعیت جدید ثبت شد.'
+      if (Object.prototype.hasOwnProperty.call(newValues, 'before_photo_taken_at')) return newValues.before_photo_taken_at ? `عکس قبل در ${this.formatAuditDate(newValues.before_photo_taken_at)} ثبت شد.` : 'تأیید عکس قبل لغو و چراغ دوباره قرمز شد.'
+      if (Object.prototype.hasOwnProperty.call(newValues, 'after_photo_taken_at')) return newValues.after_photo_taken_at ? `عکس بعد در ${this.formatAuditDate(newValues.after_photo_taken_at)} ثبت شد.` : 'تأیید عکس بعد لغو و چراغ دوباره قرمز شد.'
       return keys.map(key => {
         const before = this.appointmentHistoryDisplayValue(key, oldValues[key])
         const after = this.appointmentHistoryDisplayValue(key, newValues[key])
@@ -5791,6 +5858,12 @@ export default {
             doctorNoteUnread: Boolean(item.doctor_note_unread),
             done: this.emptyScheduleCellValue(item.done),
             completedAt: item.completed_at || "",
+            beforePhotoTakenAt: item.before_photo_taken_at || "",
+            beforePhotoTakenById: item.before_photo_taken_by_id || null,
+            beforePhotoTakenByName: item.before_photo_taken_by_name || "",
+            afterPhotoTakenAt: item.after_photo_taken_at || "",
+            afterPhotoTakenById: item.after_photo_taken_by_id || null,
+            afterPhotoTakenByName: item.after_photo_taken_by_name || "",
             amount: item.amount ? this.formatDisplayMoney(item.amount) : "",
             originalAmount: item.original_amount ? this.formatDisplayMoney(item.original_amount) : "",
             debt: item.debt ? this.formatDisplayMoney(item.debt) : "",
@@ -7792,6 +7865,7 @@ this.calculateFinalAmount(row)
 
       this.activeServicePopup = null;
       this.activeServiceTagPicker = null;
+      this.activeRowActionMenu = null;
 
       this.showStatusFilter = false;
       this.showDoctorFilter = false;
@@ -7801,8 +7875,24 @@ this.calculateFinalAmount(row)
       this.showGenderFilter = false;
       this.showAppointmentSmsFilter = false;
       this.showInfoSmsFilter = false;
+      this.showBeforePhotoFilter = false;
+      this.showAfterPhotoFilter = false;
       this.showServiceSectionFilter = false;
       document.querySelectorAll('.service-type-picker[open]').forEach(details => { details.open = false; });
+    },
+
+    toggleRowActionMenu(row) {
+      const shouldOpen = this.activeRowActionMenu !== row?._rowId;
+      this.closeAllPopupsAndFilters();
+      this.activeRowActionMenu = shouldOpen ? row._rowId : null;
+    },
+
+    async handleRowAction(action, day, row) {
+      this.activeRowActionMenu = null;
+      if (action === 'insert') return this.insertRowAfter(day, row);
+      if (action === 'tracking') return this.clockAppointmentArrival(day, row);
+      if (action === 'history') return this.openAppointmentHistory(row);
+      if (action === 'delete') return this.deleteAppointmentRow(day, row);
     },
 
     flashRowHighlight(rowId, duration = 1300) {
@@ -7827,6 +7917,8 @@ this.calculateFinalAmount(row)
         '.filter-btn',
         '.service-popup',
         '.service-mini-btn',
+        '.row-actions-menu',
+        '.row-actions-trigger',
         '.swal2-container',
         '.section-filter-menu',
         '.section-filter-toggle',
@@ -9080,6 +9172,8 @@ this.calculateFinalAmount(row)
         const genderOk = !this.selectedGenders.length || this.selectedGenders.includes(row.gender);
         const appointmentSmsOk = !this.selectedAppointmentSms.length || this.selectedAppointmentSms.includes(row.appointmentSms || '');
         const infoSmsOk = !this.selectedInfoSms.length || this.selectedInfoSms.includes(row.infoSms || '');
+        const beforePhotoOk = !this.selectedBeforePhotoStates.length || this.selectedBeforePhotoStates.includes(this.photoStatusState(row, 'before'));
+        const afterPhotoOk = !this.selectedAfterPhotoStates.length || this.selectedAfterPhotoStates.includes(this.photoStatusState(row, 'after'));
 
         const sectionOk = !this.selectedServiceSections.length ||
           this.normalizeServiceSectionIds(row.serviceTypes).some(sectionId =>
@@ -9131,7 +9225,7 @@ this.calculateFinalAmount(row)
           (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
         );
 
-        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingRootSectionOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
+        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && beforePhotoOk && afterPhotoOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingRootSectionOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
       });
 
       rows = rows
@@ -9163,6 +9257,71 @@ this.calculateFinalAmount(row)
           return "st-transferred";
         default:
           return "";
+      }
+    },
+
+    togglePhotoFilter(kind) {
+      const before = kind === 'before';
+      const shouldOpen = before ? !this.showBeforePhotoFilter : !this.showAfterPhotoFilter;
+      this.closeAllPopupsAndFilters();
+      if (before) this.showBeforePhotoFilter = shouldOpen;
+      else this.showAfterPhotoFilter = shouldOpen;
+    },
+
+    photoStatusState(row, kind) {
+      const takenAt = kind === 'before' ? row?.beforePhotoTakenAt : row?.afterPhotoTakenAt;
+      if (takenAt) return 'green';
+      return String(row?.status || '').trim() === 'آمد' ? 'red' : 'gray';
+    },
+
+    photoStatusTitle(row, kind) {
+      const label = kind === 'before' ? 'عکس قبل' : 'عکس بعد';
+      const state = this.photoStatusState(row, kind);
+      if (state === 'gray') return `${label}: بیمار هنوز نیامده است`;
+      if (state === 'red') return `${label}: در انتظار ثبت توسط عکاس؛ برای تأیید کلیک کنید`;
+      const user = kind === 'before' ? row?.beforePhotoTakenByName : row?.afterPhotoTakenByName;
+      const takenAt = kind === 'before' ? row?.beforePhotoTakenAt : row?.afterPhotoTakenAt;
+      return `${label}: ثبت‌شده توسط ${user || 'سیستم'} در ${this.formatAuditDate(takenAt)}`;
+    },
+
+    photoStatusTooltip(row, kind) {
+      const label = kind === 'before' ? 'عکس قبل' : 'عکس بعد';
+      const state = this.photoStatusState(row, kind);
+      if (state === 'gray') return `خاکستری — ${label}: بیمار هنوز در وضعیت «آمد» قرار نگرفته است.`;
+      if (state === 'red') return `قرمز — ${label}: بیمار آمده، اما عکس هنوز ثبت نشده است. عکاس برای تأیید روی چراغ کلیک کند.`;
+      const user = kind === 'before' ? row?.beforePhotoTakenByName : row?.afterPhotoTakenByName;
+      const takenAt = kind === 'before' ? row?.beforePhotoTakenAt : row?.afterPhotoTakenAt;
+      return `سبز — ${label}: عکس توسط ${user || 'سیستم'} در ${this.formatAuditDate(takenAt)} ثبت شده است. برای لغو تأیید و قرمزکردن دوباره کلیک کنید.`;
+    },
+
+    async markAppointmentPhoto(row, kind) {
+      if (!row?.appointmentId || this.photoStatusState(row, kind) === 'gray') return;
+      const savingKey = `${row._rowId}:${kind}`;
+      if (this.photoStatusSavingKey) return;
+      this.photoStatusSavingKey = savingKey;
+      try {
+        const { data } = await axios.patch(`/api/appointments/${row.appointmentId}/photo-status`, { kind });
+        const appointment = data?.appointment || {};
+        row.lockVersion = Number(appointment.lock_version || row.lockVersion || 1);
+        row.beforePhotoTakenAt = appointment.before_photo_taken_at || '';
+        row.beforePhotoTakenById = appointment.before_photo_taken_by_id || null;
+        row.beforePhotoTakenByName = appointment.before_photo_taken_by_name || '';
+        row.afterPhotoTakenAt = appointment.after_photo_taken_at || '';
+        row.afterPhotoTakenById = appointment.after_photo_taken_by_id || null;
+        row.afterPhotoTakenByName = appointment.after_photo_taken_by_name || '';
+        row._persistedStateFingerprint = this.appointmentRowStateFingerprint(
+          this.days.find(day => (day.rows || []).includes(row)), row,
+          this.days.find(day => (day.rows || []).includes(row))?.rows.indexOf(row) || 0
+        );
+      } catch (error) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'ثبت وضعیت عکس انجام نشد',
+          text: error?.response?.data?.message || 'لطفاً دوباره تلاش کنید.',
+          confirmButtonText: 'باشه'
+        });
+      } finally {
+        this.photoStatusSavingKey = '';
       }
     },
 
@@ -10252,6 +10411,22 @@ smsColor(val) {
 .timeline-service-fields > label > span,
 .timeline-service-tags > span { color: #475569; font-size: 10px; font-weight: 900; }
 .timeline-service-fields select { height: 42px; }
+.timeline-service-fields > label:has(.timeline-service-multiselect) { position: relative; z-index: 25; }
+.timeline-service-multiselect { min-width: 0; min-height: 42px; color: #0f172a; font-family: inherit; font-size: 12px; direction: rtl; }
+.timeline-service-multiselect .multiselect__select { right: auto; left: 1px; width: 38px; height: 40px; }
+.timeline-service-multiselect .multiselect__tags { min-height: 42px; display: flex; align-items: center; padding: 6px 10px 5px 40px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; text-align: right; }
+.timeline-service-multiselect.multiselect--active .multiselect__tags { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.timeline-modal .timeline-service-multiselect .multiselect__input,
+.timeline-service-multiselect .multiselect__single,
+.timeline-service-multiselect .multiselect__placeholder { width: 100%!important; min-width: 0!important; min-height: 24px!important; margin: 0!important; padding: 2px 0!important; border: 0!important; border-radius: 0!important; background: transparent!important; color: #334155!important; font-family: inherit!important; font-size: 12px!important; line-height: 20px!important; text-align: right!important; direction: rtl!important; box-shadow: none!important; }
+.timeline-service-multiselect .multiselect__placeholder { color: #64748b!important; }
+.timeline-service-multiselect .multiselect__content-wrapper { top: calc(100% + 6px); z-index: 120; max-height: 260px!important; overflow: auto; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; box-shadow: 0 16px 38px rgba(15,23,42,.2); direction: rtl; text-align: right; }
+.timeline-service-multiselect .multiselect__content { width: 100%; padding: 5px; }
+.timeline-service-multiselect .multiselect__option { min-height: 40px; padding: 10px 12px; border-radius: 7px; color: #334155; font-size: 12px; font-weight: 800; text-align: right; }
+.timeline-service-multiselect .multiselect__option--highlight,
+.timeline-service-multiselect .multiselect__option--selected.multiselect__option--highlight { background: #eff6ff; color: #1d4ed8; }
+.timeline-service-multiselect .multiselect__option--selected { background: #dbeafe; color: #1d4ed8; font-weight: 1000; }
+.timeline-service-multiselect .multiselect__option::after { left: 10px; right: auto; background: transparent!important; color: inherit!important; font-size: 10px; }
 .timeline-service-tags { display: grid; gap: 8px; padding-top: 2px; border-top: 1px dashed #e2e8f0; }
 .timeline-service-tags small { color: #94a3b8; font-size: 10px; }
 .timeline-tag-options { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -11353,11 +11528,13 @@ th.sms-col .header-with-filter > span:first-child {
 }
 
 .row-action-col {
-  width: 132px;
-  min-width: 132px;
-  max-width: 132px;
+  width: 92px;
+  min-width: 92px;
+  max-width: 92px;
   text-align: center !important;
 }
+.row-actions-trigger{width:76px;height:32px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:10px;background:linear-gradient(180deg,#fff,#f8fafc);color:#475569;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;box-shadow:0 3px 8px rgba(15,23,42,.07);transition:.18s ease}.row-actions-trigger svg{width:15px;height:15px;fill:currentColor}.row-actions-trigger:hover,.row-actions-trigger.active{border-color:#93c5fd;background:#eff6ff;color:#2563eb;box-shadow:0 5px 14px rgba(37,99,235,.14)}td.row-action-col.action-menu-open{position:relative;z-index:2200}.row-actions-menu{position:absolute;top:calc(100% - 3px);left:5px;z-index:2201;width:238px;overflow:hidden;border:1px solid #dbe3ed;border-radius:15px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.24);direction:rtl;text-align:right!important;animation:row-actions-enter .16s ease}.row-actions-menu>header{display:grid;gap:2px;padding:11px 13px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#eff6ff,#f8fafc);text-align:right!important}.row-actions-menu>header strong{color:#1e3a8a;font-size:11px}.row-actions-menu>header small{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.row-actions-menu>button{width:100%!important;height:auto!important;min-height:48px;display:grid!important;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:9px;padding:7px 10px!important;border:0!important;border-bottom:1px solid #f1f5f9!important;border-radius:0!important;background:#fff!important;color:#334155!important;font-family:inherit;cursor:pointer;transition:.15s ease}.row-actions-menu>button:last-child{border-bottom:0!important}.row-actions-menu>button:hover{background:#f8fafc!important}.row-actions-menu>button>span{min-width:0;display:grid;gap:2px;text-align:right!important}.row-actions-menu>button b{color:#1e293b;font-size:11px;text-align:right!important}.row-actions-menu>button small{color:#94a3b8;font-size:8px;font-weight:700;text-align:right!important}.row-actions-menu .action-icon{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#e0f2fe;color:#0369a1;font-size:18px;font-style:normal;font-weight:900}.row-actions-menu .action-icon.clock{background:#fef3c7;color:#b45309}.row-actions-menu .action-icon.history{background:#e0e7ff;color:#4f46e5}.row-actions-menu>button.danger{background:#fffafa!important}.row-actions-menu>button.danger:hover{background:#fef2f2!important}.row-actions-menu>button.danger b{color:#b91c1c}.row-actions-menu .action-icon.remove{background:#fee2e2;color:#dc2626}@keyframes row-actions-enter{from{opacity:0;transform:translateY(-5px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.photo-status-col{width:76px;min-width:76px;max-width:76px;text-align:center!important;position:relative}.photo-status-col .header-with-filter>span:first-child{font-size:10px}.appointment-photo-light{position:relative;width:34px!important;height:34px!important;min-width:34px!important;display:inline-grid!important;place-items:center!important;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;cursor:pointer;transition:transform .18s ease,filter .18s ease}.appointment-photo-light span{display:block;width:22px;height:22px;border:3px solid rgba(255,255,255,.9);border-radius:50%;box-shadow:0 2px 7px rgba(15,23,42,.25),inset 0 0 0 1px rgba(15,23,42,.1)}.appointment-photo-light.gray span{background:#94a3b8}.appointment-photo-light.red span{background:#fca5a5;box-shadow:0 0 0 4px #fee2e2,0 2px 8px rgba(220,38,38,.3);animation:photo-status-pulse 1.8s infinite}.appointment-photo-light.green span{background:#22c55e;box-shadow:0 0 0 4px #dcfce7,0 2px 8px rgba(22,163,74,.3)}.appointment-photo-light.red:hover,.appointment-photo-light.green:hover{transform:scale(1.13);filter:saturate(1.15)}.appointment-photo-light:disabled{opacity:1;cursor:default}.appointment-photo-light::before{content:"";position:absolute;right:50%;bottom:calc(100% + 5px);z-index:1602;border:6px solid transparent;border-top-color:#0f172a;transform:translateX(50%);opacity:0;visibility:hidden;pointer-events:none;transition:.15s ease}.appointment-photo-light::after{content:attr(data-tooltip);position:absolute;right:50%;bottom:calc(100% + 16px);z-index:1601;width:max-content;max-width:260px;padding:8px 11px;border-radius:9px;background:#0f172a;color:#fff;font-family:inherit;font-size:10px;font-weight:700;line-height:1.8;white-space:normal;text-align:right!important;direction:rtl;box-shadow:0 9px 24px rgba(15,23,42,.3);transform:translateX(50%) translateY(4px);opacity:0;visibility:hidden;pointer-events:none;transition:.15s ease}.appointment-photo-light:hover::before,.appointment-photo-light:hover::after,.appointment-photo-light:focus-visible::before,.appointment-photo-light:focus-visible::after{opacity:1;visibility:visible}.appointment-photo-light:hover::after,.appointment-photo-light:focus-visible::after{transform:translateX(50%) translateY(0)}.photo-filter-dropdown{right:auto;left:4px;min-width:125px}.photo-filter-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(15,23,42,.12)}.photo-filter-dot.gray{background:#94a3b8}.photo-filter-dot.red{background:#fca5a5}.photo-filter-dot.green{background:#22c55e}@keyframes photo-status-pulse{0%,100%{box-shadow:0 0 0 3px #fee2e2,0 2px 8px rgba(220,38,38,.25)}50%{box-shadow:0 0 0 6px rgba(254,226,226,.65),0 2px 10px rgba(220,38,38,.35)}}
 .row-history-btn{width:26px;height:26px;display:inline-grid;place-items:center;flex:0 0 26px;margin:0;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;color:#4f46e5;cursor:pointer;transition:.2s}.row-history-btn:hover{border-color:#a5b4fc;background:#e0e7ff}.row-history-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .appointment-history-overlay{position:fixed;inset:0;z-index:1000020;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.appointment-history-modal{width:min(720px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.32);direction:rtl}.appointment-history-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#eff6ff,#f0fdf4)}.appointment-history-modal header small{color:#2563eb;font-size:10px;font-weight:900}.appointment-history-modal h3{margin:4px 0;font-size:20px}.appointment-history-modal header p{margin:0;color:#64748b;font-size:11px}.appointment-history-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:#64748b;font-size:22px;cursor:pointer}.appointment-history-filters{display:flex;gap:7px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid #e2e8f0;background:#fff}.appointment-history-filters button{height:32px;padding:0 12px;border:1px solid #dbeafe;border-radius:999px;background:#f8fbff;color:#475569;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.appointment-history-filters button.active{border-color:#2563eb;background:#2563eb;color:#fff}.appointment-history-empty{min-height:220px;display:grid;place-items:center;color:#64748b;font-size:12px;font-weight:900}.appointment-history-timeline{overflow:auto;padding:18px 22px}.appointment-history-timeline article{position:relative;display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding-bottom:14px}.appointment-history-timeline article:not(:last-child)::before{content:"";position:absolute;right:8px;top:18px;bottom:-2px;width:2px;background:#dbeafe}.appointment-history-timeline article>i{position:relative;z-index:1;width:16px;height:16px;border:3px solid #bfdbfe;border-radius:50%;background:#2563eb;box-shadow:0 0 0 3px #fff}.appointment-history-timeline article>div{padding:11px 13px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}.appointment-history-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.appointment-history-card-head strong{color:#1e293b;font-size:13px}.appointment-history-card-head time{color:#64748b;font-size:10px;direction:ltr}.appointment-history-timeline p{margin:5px 0 0;color:#64748b;font-size:10px}.appointment-history-timeline p b{color:#1d4ed8}.appointment-history-timeline small{display:block;margin-top:7px;padding-top:7px;border-top:1px solid #f1f5f9;color:#475569;font-size:10px;line-height:1.8;word-break:break-word}
 

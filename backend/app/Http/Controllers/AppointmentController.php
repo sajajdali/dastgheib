@@ -901,6 +901,42 @@ class AppointmentController extends Controller
         ]);
     }
 
+    public function markPhotoTaken(Request $request, Appointment $appointment)
+    {
+        $data = $request->validate([
+            'kind' => ['required', 'string', 'in:before,after'],
+        ]);
+
+        if (trim((string) $appointment->status) !== 'آمد') {
+            return response()->json([
+                'message' => 'ثبت عکس فقط بعد از تغییر وضعیت نوبت به «آمد» امکان‌پذیر است.',
+            ], 422);
+        }
+
+        $prefix = $data['kind'] === 'before' ? 'before_photo' : 'after_photo';
+        $takenAtColumn = $prefix.'_taken_at';
+        $takenByIdColumn = $prefix.'_taken_by_id';
+        $takenByNameColumn = $prefix.'_taken_by_name';
+
+        $wasTaken = (bool) $appointment->{$takenAtColumn};
+        $user = $request->user();
+        $appointment->forceFill([
+            $takenAtColumn => $wasTaken ? null : now(),
+            $takenByIdColumn => $wasTaken ? null : $user?->id,
+            $takenByNameColumn => $wasTaken ? null : ($user?->name ?: 'سیستم'),
+            'lock_version' => max(1, (int) $appointment->lock_version) + 1,
+        ])->save();
+        $appointment->refresh();
+        $this->broadcastAppointmentChange($appointment);
+
+        return response()->json([
+            'message' => $wasTaken
+                ? ($data['kind'] === 'before' ? 'تأیید عکس قبل لغو شد.' : 'تأیید عکس بعد لغو شد.')
+                : ($data['kind'] === 'before' ? 'عکس قبل ثبت شد.' : 'عکس بعد ثبت شد.'),
+            'appointment' => $appointment,
+        ]);
+    }
+
     /** A generated clock value alone is not an appointment; every user field is. */
     private function incomingAppointmentHasMeaningfulData(array $appointment): bool
     {

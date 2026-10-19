@@ -61,7 +61,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
         <span>ویرایش پروفایل</span>
       </button>
-      <button type="button" @click="uiMenuOpen = false; openMyReport()">
+      <button v-if="canViewPersonalReport" type="button" @click="uiMenuOpen = false; openMyReport()">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/><path d="M3 20h18"/></svg>
         <span>گزارش شخصی</span>
       </button>
@@ -91,7 +91,7 @@
       </button>
     </aside>
 
-    <div v-if="myReportOpen" class="my-report-overlay" dir="rtl" @click.self="myReportOpen = false">
+    <div v-if="myReportOpen && canViewPersonalReport" class="my-report-overlay" dir="rtl" @click.self="myReportOpen = false">
       <section class="my-report-modal">
         <header>
           <div><small>گزارش شخصی</small><h2>{{ myReport?.name || user.name }}</h2></div>
@@ -257,12 +257,12 @@
 
       <!-- حضور غیاب -->
       <HRtimes
-        v-if="currentPage === 'HRtimes' && attendanceEnabled"
+        v-if="currentPage === 'HRtimes' && attendanceEnabled && user.permissions?.includes('attendance.view')"
         :permissions="user.permissions || []"
         :current-user="user"
       />
 
-      <PayrollSettlement v-if="currentPage === 'Payroll'" />
+      <PayrollSettlement v-if="currentPage === 'Payroll' && user.permissions?.includes('payroll.view')" />
 
       <!-- تنظیمات -->
       <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : settingsInitialSection" :initial-accordion="settingsInitialAccordion" />
@@ -623,6 +623,10 @@ export default {
       return this.user?.permissions?.includes("activity_logs.view");
     },
 
+    canViewPersonalReport() {
+      return this.user?.permissions?.includes("personal_report.view");
+    },
+
     userAvatarUrl() {
       return this.user?.avatar_url || this.user?.profile_thumbnail_url || this.user?.profile_photo_url || "";
     },
@@ -799,6 +803,7 @@ export default {
     },
 
     openMyReport() {
+      if (!this.canViewPersonalReport) return;
       this.reportMonth = this.currentJalaliMonth;
       this.myReportOpen = true;
       this.loadMyReport();
@@ -896,7 +901,6 @@ export default {
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return false;
       if (page === 'Setting' || page === 'Satisfaction' || page === 'AutomaticSms' || page === 'Store' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
       if (page === 'HRtimes' && !this.attendanceEnabled) return false;
-      if (page === 'Payroll') return ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.user?.permissions?.includes(permission));
       return !permissionMap[page] || this.user?.permissions?.includes(permissionMap[page]);
     },
 
@@ -1196,10 +1200,6 @@ export default {
         Payroll: 'payroll.view'
       };
       const requiredPermission = permissionMap[menuValue];
-      if (menuValue === "Payroll" && ['payroll.view', 'reports.financial', 'reports.staff', 'reports.doctors'].some(permission => this.user.permissions.includes(permission))) {
-        if (await this.confirmLeavingInventory(menuValue)) this.currentPage = menuValue;
-        return;
-      }
       if (requiredPermission && !this.user.permissions.includes(requiredPermission)) return;
 
       if (menuValue === "HRtimes" && !this.attendanceEnabled) return;

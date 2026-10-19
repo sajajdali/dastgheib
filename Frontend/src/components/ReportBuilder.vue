@@ -1041,10 +1041,11 @@ export default {
 .rb-presetx:hover { color: #C0392B; }
 
 .rb-reporthead { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-.rb-tablewrap { overflow: auto; border: 1px solid #EDF1F4; border-radius: 14px; }
+.rb-tablewrap { max-height: min(520px, 58vh); overflow: auto; overscroll-behavior: contain;
+  scrollbar-gutter: stable; border: 1px solid #EDF1F4; border-radius: 14px; }
 .rb-table { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
 .rb-table th { background: #F7FAFB; padding: 13px 14px; text-align: right; font-weight: 700;
-  color: #33414E; border-bottom: 1px solid #EDF1F4; }
+  color: #33414E; border-bottom: 1px solid #EDF1F4; position: sticky; top: 0; z-index: 2; }
 .rb-thnum { color: #5A6675 !important; }
 .rb-table td { padding: 12px 14px; color: #2B3845; border-bottom: 1px solid #F2F5F7; }
 .rb-tdnum { color: #9AA6B1 !important; }
