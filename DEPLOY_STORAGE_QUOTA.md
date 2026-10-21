@@ -19,7 +19,7 @@ php artisan up
 
 در کنار آن، نسخهٔ جدید `Frontend` را build کنید و فایل‌های `dist/assets` و `dist/index.html` را به‌ترتیب در `backend/public/assets` و `backend/public/app.html` منتشر کنید. اگر سایت از `backend/public/index.html` استفاده می‌کند، همان HTML جدید را آنجا نیز قرار دهید. فایل‌های قدیمی `backend/public/storage` را پاک یا جابه‌جا نکنید.
 
-در aaPanel، برای **هر دامنهٔ tenant که ریشه‌اش `backend/public` همین پروژه است**، در تنظیمات Nginx این location را در بلوک `server` قرار دهید و پس از `nginx -t`، Nginx را reload کنید:
+در aaPanel، برای **هر دامنهٔ tenant که ریشه‌اش `backend/public` همین پروژه است**، در تنظیمات Nginx این location را در بلوک `server` قرار دهید (نمونهٔ آماده: `deploy/nginx/tenant-files.conf`) و پس از `nginx -t`، Nginx را reload کنید:
 
 ```nginx
 location ^~ /tenant-files/ {
