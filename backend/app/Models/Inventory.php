@@ -12,7 +12,15 @@ class Inventory extends Model
 {
     use HasFactory, Auditable, HasSaveVersion;
 
-    protected $appends = ['save_version'];
+    protected $appends = ['save_version', 'content_save_version'];
+
+    public function getContentSaveVersionAttribute(): string
+    {
+        $attributes = self::canonicalSaveAttributes($this);
+        unset($attributes['stock'], $attributes['updated_at']);
+
+        return hash('sha256', json_encode($attributes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
 
     public function activitySection(): string { return 'انبار'; }
 

@@ -1088,7 +1088,7 @@ export default {
       try {
         const { data } = await axios.get(`${API}/inventory/${row.id}/movements`)
         this.stockMovement.history = data.movements || []
-        row.stock = Number(data.current_stock || 0)
+        this.syncServerStock(row, data.item)
       } finally {
         this.stockMovement.loading = false
       }
@@ -1134,7 +1134,7 @@ export default {
       try {
         const { data } = await axios.get(`${API}/inventory/${this.movementList.row.id}/movements`, { params: { date_from: this.movementList.dateFrom || undefined, date_to: this.movementList.dateTo || undefined, limit: 500 } })
         this.movementList.items = data.movements || []
-        this.movementList.row.stock = Number(data.current_stock || 0)
+        this.syncServerStock(this.movementList.row, data.item)
       } finally {
         this.movementList.loading = false
       }
@@ -1155,7 +1155,7 @@ export default {
           quantity,
           description: movement.description,
         })
-        movement.row.stock = Number(data.stock || 0)
+        this.syncServerStock(movement.row, data.item)
         movement.history = [data.movement, ...movement.history]
         movement.quantity = null
         movement.description = ""
@@ -1175,6 +1175,31 @@ export default {
         hour: '2-digit',
         minute: '2-digit'
       }).format(new Date(value))
+    },
+    syncServerStock(row, item) {
+      if (!row?.id || !item) return
+      const saved = JSON.parse(this.savedItemPayloads[String(row.id)] || '{}')
+      row.stock = Math.trunc(Number(item.stock) || 0)
+      saved.stock = row.stock
+      if (row.content_save_version === item.content_save_version) {
+        row.save_version = item.save_version
+        row.updated_at = item.updated_at
+        saved.save_version = item.save_version
+        saved.updated_at = item.updated_at
+      }
+      this.savedItemPayloads[String(row.id)] = JSON.stringify(saved)
+      const key = this.inventoryNotificationKey(row)
+      if (key) this.originalStockByKey[key] = row.stock
+      this.$nextTick(() => {
+        const sectionsChanged = this.sections.some(section => !section.id ||
+          this.savedSectionPayloads[String(section.id)] !== JSON.stringify(this.sectionPayload(section)))
+          || Object.keys(this.savedSectionPayloads).some(id => !this.sections.some(section => String(section.id) === id))
+        const itemsChanged = this.rows.some(current => !current.id ||
+          this.savedItemPayloads[String(current.id)] !== JSON.stringify(this.itemPayload(current)))
+          || Object.keys(this.savedItemPayloads).some(id => !this.rows.some(current => String(current.id) === id))
+        this.hasUnsavedChanges = sectionsChanged || itemsChanged
+        if (!this.hasUnsavedChanges) this.saveState = 'idle'
+      })
     },
     async fetchData(options = {}) {
       const previousSectionKey = this.activeSectionKey
@@ -1319,6 +1344,7 @@ export default {
         id: item.id || null,
         updated_at: item.updated_at,
         save_version: item.save_version,
+        content_save_version: item.content_save_version,
         section_id: this.resolveSectionKey(rawSectionKey) || fallbackSection,
         name: item.name || "",
         serviceTags: Array.isArray(item.service_tags || item.serviceTags) ? [...(item.service_tags || item.serviceTags)] : [],
@@ -1397,6 +1423,7 @@ export default {
         id: row.id,
         updated_at: row.updated_at,
         save_version: row.save_version,
+        content_save_version: row.content_save_version,
         client_id: row.localId,
         section_id: row.section_id,
         name: row.name,
@@ -1414,6 +1441,20 @@ export default {
         default_commission_type: row.defaultCommissionType,
         default_commission_value: row.defaultCommissionValue,
         commissions: row.commissions
+      }
+    },
+
+    changedItemPayload(item) {
+      if (!item.id) return item
+      const previous = JSON.parse(this.savedItemPayloads[String(item.id)] || '{}')
+      const changed = Object.fromEntries(Object.entries(item).filter(([key, value]) =>
+        !['id', 'updated_at', 'save_version', 'content_save_version', 'client_id'].includes(key)
+        && JSON.stringify(value) !== JSON.stringify(previous[key])))
+      return {
+        id: item.id,
+        save_version: item.save_version,
+        content_save_version: item.content_save_version,
+        ...changed
       }
     },
 
@@ -1484,7 +1525,8 @@ export default {
           sections: sectionPayloads.filter(section => !section.id ||
             this.savedSectionPayloads[String(section.id)] !== JSON.stringify(section)),
           items: itemPayloads.filter(item => !item.id ||
-            this.savedItemPayloads[String(item.id)] !== JSON.stringify(item)),
+            this.savedItemPayloads[String(item.id)] !== JSON.stringify(item))
+            .map(item => this.changedItemPayload(item)),
           deleted_section_ids: Object.keys(this.savedSectionPayloads).filter(id => !currentSectionIds.has(id)).map(Number),
           deleted_item_ids: Object.keys(this.savedItemPayloads).filter(id => !currentItemIds.has(id)).map(Number)
         })

@@ -14,17 +14,33 @@
 
   <Login v-else-if="!user" @authenticated="handleAuthenticated" />
 
+  <StorageFullScreen v-else-if="storageFull" :manager="isClinicManager" :initial-storage="storageFullData" @available="handleStorageAvailable" @logout="logout" />
+
   <div v-else id="app" :class="{ dark: isDark, 'booking-page-active': currentPage === 'Vaghtdahi' }">
 
-    <div
-      class="connection-indicator"
-      :class="`is-${connectionStatus}`"
-      role="status"
-      aria-live="polite"
-      :title="connectionStatusText"
-    >
-      <i aria-hidden="true"></i>
-      <span v-if="connectionStatus !== 'online'">{{ connectionStatusText }}</span>
+    <div class="status-indicators">
+      <div
+        class="connection-indicator"
+        :class="`is-${connectionStatus}`"
+        role="status"
+        aria-live="polite"
+        :title="connectionStatusText"
+      >
+        <i aria-hidden="true"></i>
+        <span v-if="connectionStatus !== 'online'">{{ connectionStatusText }}</span>
+      </div>
+      <button
+        v-if="isClinicManager && storageWarningLevel"
+        type="button"
+        class="storage-status-alert"
+        :class="`is-${storageWarningLevel}`"
+        :aria-label="`هشدار فضای ذخیره‌سازی؛ ${storageWarningPercent.toLocaleString('fa-IR')} درصد مصرف شده. مشاهده وضعیت فضا`"
+        :title="`فضای ذخیره‌سازی: ${storageWarningPercent.toLocaleString('fa-IR')}٪ مصرف شده — مشاهده فضا`"
+        @click="openStorageSettings"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.7 19a1.5 1.5 0 0 0 1.3 2.2h16a1.5 1.5 0 0 0 1.3-2.2L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg>
+        <span>{{ storageWarningPercent.toLocaleString('fa-IR') }}٪ از فضای شما پر شده است</span>
+      </button>
     </div>
 
     <button
@@ -129,6 +145,7 @@
     <div class="page-container">
 
       <!-- پیشفرض -->
+      <StorageWidget v-if="isClinicManager && currentPage === null" @open="openStorageSettings" />
       <Saranj v-if="currentPage === null" :current-user="user" />
 
       <!-- صفحات -->
@@ -392,6 +409,8 @@ import Bills from "./components/Bills.vue";
 
 import Setting from "./components/Setting.vue";
 import Store from "./components/Store.vue";
+import StorageWidget from "./components/StorageWidget.vue";
+import StorageFullScreen from "./components/StorageFullScreen.vue";
 import ServiceTickets from "./components/ServiceTickets.vue";
 import SatisfactionPublicPage from "./components/SatisfactionPublicPage.vue";
 
@@ -444,6 +463,8 @@ export default {
 
     Setting,
     Store,
+    StorageWidget,
+    StorageFullScreen,
     ServiceTickets,
     SatisfactionPublicPage,
 
@@ -486,6 +507,9 @@ export default {
       // حضور و غیاب فقط بر اساس ماژول اشتراک مجموعه کنترل می‌شود.
       ,attendanceEnabled: true
       ,uiMenuOpen: false
+      ,storageFull: false
+      ,storageFullData: null
+      ,storageStatusTimer: null
       ,legacyLeadsEnabled: false
       ,isCentralApp: centralDomains.includes(window.location.hostname.toLowerCase())
       ,backGuardActive: false
@@ -502,6 +526,7 @@ export default {
   mounted() {
 
     window.addEventListener("app:auth-expired", this.handleAuthExpired);
+    window.addEventListener("app:storage-full", this.handleStorageFull);
     window.addEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
     if (this.surveyToken) {
       this.authLoading = false;
@@ -515,6 +540,9 @@ export default {
     this.installBrowserBackGuard();
     this.startConnectionMonitor();
     this.checkAuth();
+    this.storageStatusTimer = window.setInterval(() => {
+      if (this.user && !this.storageFull) this.refreshStorageStatus();
+    }, 30000);
 
     const saved = localStorage.getItem("darkMode");
 
@@ -532,12 +560,14 @@ export default {
     stopPresence();
     document.body.classList.remove("central-host");
     window.removeEventListener("app:auth-expired", this.handleAuthExpired);
+    window.removeEventListener("app:storage-full", this.handleStorageFull);
     window.removeEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
     window.removeEventListener("popstate", this.handleBrowserBack);
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
     window.removeEventListener("online", this.handleBrowserOnline);
     window.removeEventListener("offline", this.handleBrowserOffline);
     clearInterval(this.connectionTimer);
+    clearInterval(this.storageStatusTimer);
     this.connectionAbortController?.abort();
   },
 
@@ -578,6 +608,18 @@ export default {
         server: "ارتباط با سرور برقرار نیست",
         checking: "در حال بررسی اتصال"
       }[this.connectionStatus] || "وضعیت اتصال نامشخص است";
+    },
+
+    storageWarningPercent() {
+      return Number(this.storageFullData?.percentage || 0);
+    },
+
+    storageWarningLevel() {
+      const percentage = this.storageWarningPercent;
+      if (percentage >= 100) return null;
+      if (percentage >= 90) return 'critical';
+      if (percentage >= 80) return 'warning';
+      return null;
     },
 
     showLocalClinicShortcut() {
@@ -843,6 +885,8 @@ export default {
       try {
         const { data } = await axios.get("/api/auth/user");
         this.user = data.user;
+        await this.refreshStorageStatus();
+        if (this.storageFull) return;
         startPresence(this.user);
         await this.loadAttendanceStatus();
         this.restoreLastClinicPage();
@@ -859,11 +903,46 @@ export default {
       }
     },
 
-    handleAuthenticated(user) {
+    async handleAuthenticated(user) {
       this.user = user;
+      this.authLoading = true;
+      await this.refreshStorageStatus();
+      this.authLoading = false;
+      if (this.storageFull) return;
       startPresence(user);
       this.currentPage = null;
       window.__intentionalLogout = false;
+      this.loadAttendanceStatus();
+    },
+
+    async refreshStorageStatus() {
+      try {
+        const { data } = await axios.get('/api/storage/status');
+        this.storageFullData = data.storage;
+        if (Number(data.storage?.used_bytes) >= Number(data.storage?.quota_bytes)) {
+          this.handleStorageFull({ detail: { storage: data.storage } });
+        } else {
+          this.storageFull = false;
+        }
+      } catch (error) {
+        console.error('بررسی وضعیت فضای ذخیره‌سازی انجام نشد.', error);
+      }
+    },
+
+    handleStorageFull(event) {
+      if (!this.user || this.storageFull) return;
+      this.storageFullData = event.detail?.storage || null;
+      this.storageFull = true;
+      this.currentPage = null;
+      this.uiMenuOpen = false;
+      stopPresence();
+    },
+
+    handleStorageAvailable() {
+      this.storageFull = false;
+      this.storageFullData = null;
+      this.currentPage = null;
+      startPresence(this.user);
       this.loadAttendanceStatus();
     },
 
@@ -899,7 +978,7 @@ export default {
       };
       const feature = featureMap[page];
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return false;
-      if (page === 'Setting' || page === 'Satisfaction' || page === 'AutomaticSms' || page === 'Store' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
+      if (page === 'Setting' || page === 'Satisfaction' || page === 'AutomaticSms' || page === 'Store' || page === 'Storage' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
       if (page === 'HRtimes' && !this.attendanceEnabled) return false;
       return !permissionMap[page] || this.user?.permissions?.includes(permissionMap[page]);
     },
@@ -909,7 +988,12 @@ export default {
       try {
         const savedPage = localStorage.getItem(this.lastClinicPageStorageKey());
         if (savedPage && savedPage !== '__home__' && this.canRestoreClinicPage(savedPage)) {
-          this.currentPage = savedPage;
+          if (savedPage === 'Storage') {
+            this.settingsInitialSection = 'storage';
+            this.currentPage = 'Setting';
+          } else {
+            this.currentPage = savedPage;
+          }
         }
       } catch {
         // نبودن دسترسی localStorage نباید جلوی ورود به سامانه را بگیرد.
@@ -1096,6 +1180,7 @@ export default {
       stopPresence();
       this.user = null;
       this.currentPage = null;
+      this.storageFull = false;
       await Swal.fire({
         icon: "info",
         title: "از حساب خارج شدید",
@@ -1112,6 +1197,7 @@ export default {
       stopPresence();
       this.user = null;
       this.currentPage = null;
+      this.storageFull = false;
       try {
         await axios.post("/logout");
       } catch (error) {
@@ -1149,7 +1235,11 @@ export default {
       return result.isConfirmed;
     },
 
-    async changePage(menuValue) {
+    async changePage(menuValue, settingsSection = 'internal') {
+      if (menuValue === 'Storage') {
+        settingsSection = 'storage';
+        menuValue = 'Setting';
+      }
       if (menuValue === "Notif") {
         menuValue = "Peygiri";
       }
@@ -1177,7 +1267,13 @@ export default {
       };
       const feature = featureMap[menuValue];
       if (menuValue === "Setting" || menuValue === "Satisfaction" || menuValue === "AutomaticSms") {
-        if (this.isClinicManager && await this.confirmLeavingInventory(menuValue)) this.currentPage = menuValue;
+        if (this.isClinicManager && await this.confirmLeavingInventory(menuValue)) {
+          if (menuValue === 'Setting') {
+            this.settingsInitialSection = settingsSection;
+            this.settingsInitialAccordion = '';
+          }
+          this.currentPage = menuValue;
+        }
         return;
       }
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return;
@@ -1219,6 +1315,10 @@ export default {
 
       }
 
+    },
+
+    openStorageSettings() {
+      this.changePage('Setting', 'storage');
     },
 
     openPatientProfileFromAppointment(payload) {
@@ -1695,13 +1795,19 @@ body.central-host #app {
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
-.connection-indicator {
+.status-indicators {
   position: fixed;
-  top: 29px;
+  top: 20px;
   right: 20px;
   z-index: 2147483002;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  direction: rtl;
+}
+.connection-indicator {
   min-width: 12px;
-  min-height: 12px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -1736,6 +1842,35 @@ body.central-host #app {
 .connection-indicator.is-checking i { background: #f59e0b; box-shadow: 0 0 0 1px rgba(15, 23, 42, .12), 0 0 10px rgba(245, 158, 11, .55); }
 .dark .connection-indicator span { background: rgba(30, 41, 59, .97); }
 @keyframes connectionPulse { 50% { opacity: .45; transform: scale(.82); } }
+.storage-status-alert {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #e9bd62;
+  border-radius: 14px;
+  background: #fff7df;
+  color: #93600c;
+  box-shadow: 0 8px 24px #9a681b29;
+  direction: rtl;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  animation: storageAlertPulse 2.4s ease-in-out infinite;
+}
+.storage-status-alert svg { width: 17px; height: 17px; flex: none; fill: currentColor; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
+.storage-status-alert.is-critical { border-color: #f6a5b3; background: #fff0f2; color: #c1244f; box-shadow: 0 4px 14px #c1244f29; }
+.storage-status-alert:hover,
+.storage-status-alert:focus-visible { animation-play-state: paused; outline: 2px solid currentColor; outline-offset: 2px; }
+.dark .storage-status-alert { background: #493914; color: #ffe29d; }
+.dark .storage-status-alert.is-critical { background: #4c1f2c; color: #ffc1d0; }
+@keyframes storageAlertPulse { 50% { opacity: .6; transform: scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .storage-status-alert { animation: none; } }
 
 /* در نوبت‌دهی دکمه همبرگری نیز همراه منوی اصلی از صفحه خارج شود. */
 .booking-page-active .utility-menu-toggle {
@@ -2123,7 +2258,8 @@ body.central-host #app {
 
 @media (max-width: 600px) {
   .utility-menu-toggle { top: 30px; left: 14px; width: 42px; height: 42px; }
-  .connection-indicator { top: 18px; right: 12px; }
+  .status-indicators { top: 9px; right: 12px; }
+  .storage-status-alert { right: 12px; bottom: 12px; max-width: calc(100vw - 24px); }
   .utility-menu-panel { top: 60px; left: 12px; width: min(230px, calc(100vw - 24px)); }
   .service-page-grid { grid-template-columns: 1fr; }
   .service-purchase-list { grid-template-columns: 1fr; }

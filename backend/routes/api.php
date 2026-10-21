@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\PatientMediaController;
+use App\Http\Controllers\StorageQuotaController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\HumanResourceController;
 use App\Http\Controllers\AppointmentController;
@@ -58,7 +59,11 @@ Route::post('/public/satisfaction/{token}', [SatisfactionController::class, 'sub
 Route::get('/public/satisfaction/integration/swagger', [SatisfactionDocumentationController::class, 'index'])->middleware('throttle:60,1');
 Route::get('/public/satisfaction/integration/openapi.json', [SatisfactionDocumentationController::class, 'spec'])->middleware('throttle:60,1');
 Route::get('/connectivity', fn () => response()->json(['online' => true]))->middleware('throttle:120,1');
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', \App\Http\Middleware\EnforceTenantStorageQuota::class])->group(function () {
+Route::get('/storage/status', [StorageQuotaController::class, 'status']);
+Route::get('/storage', [StorageQuotaController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::get('/storage/database', [StorageQuotaController::class, 'database'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::post('/storage/orders', [StorageQuotaController::class, 'order'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/auth/user', [AuthController::class, 'user']);
 Route::put('/auth/user', [AuthController::class, 'updateUser']);
 Route::post('/auth/user/photo', [AuthController::class, 'uploadUserPhoto']);
@@ -96,6 +101,7 @@ Route::post('/report-builder/reports', [DynamicReportController::class, 'store']
 Route::get('/report-builder/options', [DynamicReportController::class, 'options'])->middleware('permission:reports.view');
 Route::get('/report-builder/reports/{dynamicReport}', [DynamicReportController::class, 'show'])->middleware('permission:reports.view');
 Route::get('/report-builder/reports/{dynamicReport}/rows', [DynamicReportController::class, 'rows'])->middleware('permission:reports.view');
+Route::get('/report-builder/reports/{dynamicReport}/export', [DynamicReportController::class, 'export'])->middleware('permission:reports.view');
 
 // نقش‌ها و دسترسی‌ها
 Route::get('/roles', [RoleController::class, 'index'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');

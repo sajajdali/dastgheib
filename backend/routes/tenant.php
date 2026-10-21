@@ -7,6 +7,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\SatisfactionIntegrationController;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
+use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
@@ -26,6 +27,14 @@ Route::middleware([
     'tenant.active',
 ])->group(function () {
     Route::middleware('web')->group(function () {
+        Route::get('/tenant-files/{path}', function (string $path) {
+            abort_if(str_contains($path, '..'), 404);
+            if (! Storage::disk('public')->exists($path)) {
+                app(\App\Services\TenantStorageService::class)->importLegacyCurrentTenant();
+            }
+            abort_unless(Storage::disk('public')->exists($path), 404);
+            return response()->file(Storage::disk('public')->path($path));
+        })->where('path', '.*');
         Route::get('/csrf-cookie', fn () => response()->noContent())->name('tenant.csrf-cookie');
         Route::post('/login', [AuthController::class, 'login'])->middleware('guest')->name('login');
         Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');

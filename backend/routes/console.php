@@ -21,6 +21,7 @@ Schedule::call(function () {
 Schedule::call(fn () => (new SendLeadAlertSms('morning'))->handle(app(ShsmsService::class)))->name('lead-alert-sms-morning')->dailyAt('09:00')->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::call(fn () => (new SendLeadAlertSms('night'))->handle(app(ShsmsService::class)))->name('lead-alert-sms-night')->dailyAt('23:00')->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('modules:expire-subscriptions')->hourly()->timezone('Asia/Tehran')->withoutOverlapping();
+Schedule::command('storage:reconcile')->dailyAt('03:00')->timezone('Asia/Tehran')->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

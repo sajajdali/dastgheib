@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenant;
 use App\Services\ModuleSubscriptionService;
+use App\Services\TenantStorageService;
 use Database\Seeders\CompleteDemoDataSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ use Stancl\Tenancy\Database\Models\Domain;
 
 class CentralTenantController extends Controller
 {
-    public function __construct(private readonly ModuleSubscriptionService $subscriptions)
+    public function __construct(private readonly ModuleSubscriptionService $subscriptions, private readonly TenantStorageService $storage)
     {
     }
 
@@ -40,6 +41,7 @@ class CentralTenantController extends Controller
             'status' => ['sometimes', 'string', Rule::in(['active', 'inactive'])],
             'plan_id' => ['nullable', 'integer', 'exists:central_billing_plans,id'],
             'user_count' => ['sometimes', 'integer', 'min:1', 'max:100000'],
+            'storage_quota_gb' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'module_ids' => ['sometimes', 'array'],
             'module_ids.*' => ['string', 'max:120'],
         ]);
@@ -54,6 +56,12 @@ class CentralTenantController extends Controller
         ]);
 
         $tenant->domains()->create(['domain' => Str::lower($data['domain'])]);
+        $this->storage->ensureRow($tenant->getTenantKey());
+        DB::connection(config('tenancy.database.central_connection'))
+            ->table('central_tenant_storage')->where('tenant_id', $tenant->getTenantKey())
+            ->update([
+                'base_quota_bytes' => (int) ($data['storage_quota_gb'] ?? TenantStorageService::DEFAULT_BASE_QUOTA_GB) * TenantStorageService::GIB,
+            ]);
 
         if ($data['seed'] ?? true) {
             Artisan::call('tenants:seed', [
@@ -75,6 +83,7 @@ class CentralTenantController extends Controller
             'status' => ['sometimes', 'required', 'string', Rule::in(['active', 'inactive'])],
             'plan_id' => ['sometimes', 'nullable', 'integer', 'exists:central_billing_plans,id'],
             'user_count' => ['sometimes', 'integer', 'min:1', 'max:100000'],
+            'storage_quota_gb' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'module_ids' => ['sometimes', 'array'],
             'module_ids.*' => ['string', 'max:120'],
         ]);
@@ -83,7 +92,15 @@ class CentralTenantController extends Controller
             $data['module_ids'] = Tenant::withBaseModules($data['module_ids']);
         }
 
+        $quotaGb = $data['storage_quota_gb'] ?? null;
+        unset($data['storage_quota_gb']);
         $tenant->update($data);
+        if ($quotaGb !== null) {
+            $this->storage->ensureRow($tenant->getTenantKey());
+            DB::connection(config('tenancy.database.central_connection'))
+                ->table('central_tenant_storage')->where('tenant_id', $tenant->getTenantKey())
+                ->update(['base_quota_bytes' => (int) $quotaGb * TenantStorageService::GIB, 'updated_at' => now()]);
+        }
 
         return response()->json([
             'message' => 'سیستم به‌روزرسانی شد.',
@@ -152,6 +169,11 @@ class CentralTenantController extends Controller
 
     private function tenantData(Tenant $tenant): array
     {
+        $storage = $this->storage->summary($tenant->getTenantKey());
+        if (! $storage['scanned_at']) {
+            $storage = $this->storage->reconcileTenant($tenant);
+        }
+
         return [
             'id' => $tenant->getTenantKey(),
             'name' => $tenant->name ?? $tenant->getTenantKey(),
@@ -159,6 +181,7 @@ class CentralTenantController extends Controller
             'database' => $tenant->database()->getName(),
             'plan_id' => $tenant->plan_id ?? null,
             'user_count' => $tenant->user_count ?? 1,
+            'storage' => $storage,
             'module_ids' => $this->subscriptions->enabledModuleIds($tenant->getTenantKey()),
             'module_subscriptions' => $this->moduleSubscriptions($tenant),
             'domains' => $tenant->domains

@@ -62,6 +62,16 @@
       </button>
 
       <button
+        v-if="canViewSettings"
+        type="button"
+        class="tab-btn"
+        :class="{ active: activeSection === 'storage' }"
+        @click="toggleSection('storage')"
+      >
+        فضای ذخیره‌سازی
+      </button>
+
+      <button
         v-if="canViewResources"
         type="button"
         class="tab-btn"
@@ -872,6 +882,7 @@
       <button class="save-all-btn" @click="saveAccessSettings">ذخیره سطوح دسترسی</button>
     </div>
 
+    <StorageDashboard v-if="canViewSettings && activeSection === 'storage'" />
     <Manabe v-if="canViewResources && activeSection === 'resources'" />
 
   </div>
@@ -885,6 +896,7 @@ import "leaflet/dist/leaflet.css";
 import Swal from "sweetalert2";
 import Roles from "./Roles.vue";
 import Manabe from "./manabe.vue";
+import StorageDashboard from "./StorageDashboard.vue";
 import axios from "axios";
 
 const props = defineProps({
@@ -915,6 +927,8 @@ watch(() => props.initialSection, (section) => {
     activeSection.value = "satisfaction";
   } else if (section === "sms" && canViewSettings.value) {
     activeSection.value = "sms";
+  } else if (section === "storage" && canViewSettings.value) {
+    activeSection.value = "storage";
   } else if (section === "internal" && canViewSettings.value) {
     activeSection.value = "internal";
   }

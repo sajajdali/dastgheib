@@ -127,7 +127,7 @@
           {{ cols.length ? pd(totalRows) + ' رکورد · ' + pd(cols.length) + ' ستون' : 'بدون ستون' }}
           · برای نهایی شدن و مشاهدهٔ گزارش، روی «ایجاد گزارش» بزنید
         </div>
-        <div class="rb-btn rb-btn--teal rb-push" :style="{ opacity: busy || !resultRows.length ? .6 : 1 }" @click="exportExcel">
+        <div class="rb-btn rb-btn--teal rb-push" :style="{ opacity: busy || !reportId || !totalRows ? .6 : 1 }" @click="exportExcel">
           <span v-if="busy === 'export'" class="rb-spin rb-spin--sm"></span>
           <span v-else class="rb-dl">⤓</span>
           <span>{{ busy === 'export' ? 'در حال آماده‌سازی…' : 'خروجی اکسل' }}</span>
@@ -791,20 +791,6 @@ export default {
       if (this.dateValue(this.reportDate.from) > this.dateValue(this.reportDate.to)) { this.reportDateError = 'تاریخ شروع باید قبل از تاریخ پایان باشد.'; return; }
       this.reportDateOpen = false;
     },
-    runSteps(kind, steps, done) {
-      if (this.busy) return;
-      this.busy = kind; this.busyStep = steps[0];
-      let i = 0;
-      this.timer = setInterval(() => {
-        i++;
-        if (i < steps.length) this.busyStep = steps[i];
-        else {
-          clearInterval(this.timer);
-          this.busy = null; this.busyStep = '';
-          if (done) done();
-        }
-      }, 620);
-    },
     async buildReport() {
       if (!this.cols.length || this.busy) return;
       if (!this.reportDate.from || !this.reportDate.to) { this.reportError = 'برای ایجاد گزارش، تاریخ شروع و پایان بازه گزارش را انتخاب کنید.'; this.openReportDate(); return; }
@@ -892,23 +878,39 @@ export default {
     changePageSize() {
       this.page = 1; this.loadReportRows();
     },
-    exportExcel() {
-      if (!this.cols.length || !this.resultRows.length || this.busy) return;
-      this.runSteps('export', ['تهیه ستون‌ها…','نوشتن سطرها در فایل…','فشرده‌سازی و آماده‌سازی دانلود…'], () => this.download());
-    },
-    download() {
-      const cols = this.cols;
-      let html = '<meta charset="utf-8"><table border="1" dir="rtl"><tr>' +
-        cols.map(c => '<th>' + c.label + '</th>').join('') + '</tr>';
-      this.resultRows.forEach(row => {
-        html += '<tr>' + cols.map(c => '<td>' + (row[c.key] ?? '—') + '</td>').join('') + '</tr>';
-      });
-      html += '</table>';
-      const url = URL.createObjectURL(new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = 'گزارش-کلینیک.xls'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      this.$emit('export', this.payload());
+    async exportExcel() {
+      if (!this.reportId || !this.totalRows || this.busy) return;
+      this.busy = 'export';
+      this.busyStep = `دریافت همهٔ ${pd(this.totalRows)} ردیف گزارش…`;
+      this.reportProgress = 0;
+      this.reportError = '';
+      try {
+        const { data } = await axios.get(`/api/report-builder/reports/${this.reportId}/export`, {
+          responseType: 'blob',
+          onDownloadProgress: event => {
+            if (event.total) this.reportProgress = Math.min(99, Math.round(event.loaded * 100 / event.total));
+          }
+        });
+        const url = URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'گزارش-کلینیک.xls';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        this.reportProgress = 100;
+        this.$emit('export', this.payload());
+      } catch (error) {
+        let message = 'دریافت فایل گزارش ناموفق بود. دوباره تلاش کنید.';
+        if (error.response?.data instanceof Blob) {
+          try { message = JSON.parse(await error.response.data.text()).message || message; } catch (_) { /* Keep the fallback message. */ }
+        }
+        this.reportError = message;
+      } finally {
+        this.busy = null;
+        this.busyStep = '';
+      }
     },
     // ساختار فیلترها برای ارسال به API
     payload() {

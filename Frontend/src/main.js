@@ -57,6 +57,9 @@ axios.interceptors.response.use(
       error.isAuthExpired = true
       notifyAuthExpired()
     }
+    if (status === 423 && error.response?.data?.code === 'storage_full') {
+      window.dispatchEvent(new CustomEvent('app:storage-full', { detail: { storage: error.response.data.storage } }))
+    }
     return Promise.reject(error)
   },
 )
@@ -90,6 +93,10 @@ window.fetch = async (input, init = {}) => {
     headers,
   })
   if ([401, 419].includes(response.status) && !String(url).includes('/api/auth/user')) notifyAuthExpired()
+  if (response.status === 423) {
+    const payload = await response.clone().json().catch(() => null)
+    if (payload?.code === 'storage_full') window.dispatchEvent(new CustomEvent('app:storage-full', { detail: { storage: payload.storage } }))
+  }
   return response
 }
 

@@ -28,6 +28,10 @@
           تعداد کاربران سیستم
           <input v-model.number="form.userCount" class="central-input" type="number" min="1" required />
         </label>
+        <label class="central-form-label">
+          فضای پایه سایت (گیگابایت)
+          <input v-model.number="form.storageQuotaGb" class="central-input" type="number" min="0" max="10000" required />
+        </label>
         <label class="central-check">
           <input v-model="form.seed" type="checkbox" />
           ساخت کاربر مدیر و دسترسی‌های اولیه
@@ -86,6 +90,7 @@
           <span>نام شعبه</span>
           <span>دامنه</span>
           <span>دیتابیس</span>
+          <span>فضای فایل‌ها</span>
           <span>وضعیت</span>
           <span>دامنه جدید</span>
           <span>عملیات</span>
@@ -109,6 +114,7 @@
             </a>
           </div>
           <span class="central-small central-ltr">{{ tenant.database }}</span>
+          <div class="central-small"><strong>{{ formatStorage(tenant.storage?.used_bytes) }} / {{ formatStorage(tenant.storage?.quota_bytes) }}</strong><div>{{ tenant.storage?.percentage || 0 }}٪ مصرف</div></div>
           <select class="central-select" :value="tenant.status" @change="$emit('update-tenant', { tenant, payload: { status: $event.target.value } })">
             <option value="active">فعال</option>
             <option value="inactive">غیرفعال</option>
@@ -119,6 +125,7 @@
           </form>
           <div class="central-actions">
             <button class="central-button secondary compact" type="button" :disabled="saving" @click="$emit('seed-demo-data', tenant)">دیتای تستی</button>
+            <button class="central-button secondary compact" type="button" :disabled="saving" @click="$emit('reconcile-storage', tenant)">بازشماری فضا</button>
             <button class="central-button secondary compact" type="button" @click="startEditTenant(tenant)">ویرایش</button>
             <button class="central-button danger compact" type="button" @click="$emit('delete-tenant', tenant)">حذف</button>
           </div>
@@ -140,6 +147,11 @@
         <label class="central-form-label">
           تعداد کاربران سیستم
           <input v-model.number="tenantEditor.userCount" class="central-input" type="number" min="1" required />
+        </label>
+        <label class="central-form-label">
+          فضای پایه سایت (گیگابایت)
+          <input v-model.number="tenantEditor.storageQuotaGb" class="central-input" type="number" min="0" max="10000" required />
+          <small>فضای بسته‌های خریداری‌شده به این مقدار افزوده می‌شود.</small>
         </label>
 
         <label class="central-form-label">
@@ -197,7 +209,7 @@ const props = defineProps({
   message: { type: String, default: "" },
 });
 
-const emit = defineEmits(["create-tenant", "update-tenant", "add-domain", "remove-domain", "delete-tenant", "seed-demo-data"]);
+const emit = defineEmits(["create-tenant", "update-tenant", "add-domain", "remove-domain", "delete-tenant", "seed-demo-data", "reconcile-storage"]);
 
 const form = reactive({
   id: "",
@@ -205,6 +217,7 @@ const form = reactive({
   domain: "",
   planId: "",
   userCount: 1,
+  storageQuotaGb: 2,
   seed: true,
 });
 const selectedModules = ref([]);
@@ -215,6 +228,7 @@ const editingTenant = ref(null);
 const tenantEditor = reactive({
   planId: "",
   userCount: 1,
+  storageQuotaGb: 2,
   moduleIds: [],
 });
 
@@ -262,6 +276,7 @@ function submitTenant() {
     seed: form.seed,
     plan_id: form.planId || null,
     user_count: Number(form.userCount || 1),
+    storage_quota_gb: Number(form.storageQuotaGb),
     module_ids: selectedModules.value,
   });
 }
@@ -280,6 +295,7 @@ function startEditTenant(tenant) {
   editingTenant.value = tenant;
   tenantEditor.planId = tenant.plan_id || "";
   tenantEditor.userCount = Number(tenant.user_count || 1);
+  tenantEditor.storageQuotaGb = Number(tenant.storage?.base_quota_bytes || 0) / 1073741824;
   tenantEditor.moduleIds = Array.isArray(tenant.module_ids)
     ? [...tenant.module_ids]
     : enabledModules.value.map((module) => module.id);
@@ -289,6 +305,7 @@ function resetTenantEditor() {
   editingTenant.value = null;
   tenantEditor.planId = "";
   tenantEditor.userCount = 1;
+  tenantEditor.storageQuotaGb = 2;
   tenantEditor.moduleIds = [];
 }
 
@@ -304,6 +321,7 @@ function saveTenantSettings() {
     payload: {
       plan_id: tenantEditor.planId || null,
       user_count: Number(tenantEditor.userCount || 1),
+      storage_quota_gb: Number(tenantEditor.storageQuotaGb),
       module_ids: tenantEditor.moduleIds,
     },
   });
@@ -322,5 +340,11 @@ function formatMoney(value) {
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("fa-IR");
+}
+function formatStorage(value) {
+  const bytes = Number(value || 0);
+  return bytes >= 1073741824
+    ? `${(bytes / 1073741824).toLocaleString('fa-IR', { maximumFractionDigits: 2 })} گیگ`
+    : `${(bytes / 1048576).toLocaleString('fa-IR', { maximumFractionDigits: 1 })} مگ`;
 }
 </script>

@@ -74,6 +74,12 @@ const navItems = [
     icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>',
   },
   {
+    key: "storage",
+    label: "فضای ذخیره‌سازی",
+    title: "بسته‌های فضا و درخواست‌های خرید",
+    icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h.01M11 15h6"/></svg>',
+  },
+  {
     key: "discounts",
     label: "کدهای تخفیف",
     title: "مدیریت کدهای تخفیف",

@@ -51,6 +51,11 @@ export default defineConfig(({ mode }) => {
         target: devApiTarget,
         changeOrigin: true,
       },
+      '/tenant-files': {
+        target: devApiTarget,
+        changeOrigin: false,
+        headers: { host: devTenantHost },
+      },
       '/csrf-cookie': {
         target: devApiTarget,
         changeOrigin: false,

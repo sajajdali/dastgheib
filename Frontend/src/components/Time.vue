@@ -634,16 +634,41 @@
                   </span>
                   <span v-if="isDebtor(row)" class="debtor-warning-icon" :title="`هشدار بدهکاری: ${formatDisplayMoney(debtorWarningAmount(row))} تومان`">!</span>
                   <span v-if="isCreditor(row)" class="creditor-warning-icon" :title="`طلبکار: ${formatDisplayMoney(Math.abs(appointmentBalanceAmount(row)))} تومان`">ط</span>
-                  <input
-                    v-if="!row.appointmentId || editingPatientNameRowId === row._rowId"
-                    v-model="row.lastname"
-                    :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
-                    :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
-                    @click.stop
-                    @input="onPatientNameInput(row)"
-                    @keyup.enter.prevent="$event.target.blur()"
-                    @blur="finishPatientNameEdit(row)"
-                  />
+                  <template v-if="!row.appointmentId || editingPatientNameRowId === row._rowId">
+                    <input
+                      v-model="row.lastname"
+                      :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
+                      :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
+                      @click.stop
+                      @focus="searchTablePatients(row)"
+                      @input="onPatientNameInput(row)"
+                      @keyup.enter.prevent="$event.target.blur()"
+                      @blur="finishPatientNameEdit(row)"
+                    />
+                    <div
+                      v-if="tablePatientSearchRowId === row._rowId"
+                      class="timeline-patient-results table-patient-results"
+                      @mousedown.prevent
+                    >
+                      <div v-if="tablePatientSearchLoading" class="timeline-patient-search-state">در حال جست‌وجو...</div>
+                      <button
+                        v-for="patient in tablePatientSearchResults"
+                        v-else
+                        :key="patient.id || patient.file_number"
+                        type="button"
+                        class="timeline-patient-result"
+                        @click="selectTablePatient(row, patient)"
+                      >
+                        <PatientAvatar :patient="patient" :level="normalizeCustomerLevel(patient.customer_level)" :size="38" />
+                        <span class="timeline-patient-result-info">
+                          <strong>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</strong>
+                          <small>پرونده {{ patient.file_number || '—' }} <b>•</b> {{ displayPatientPhone(patient.phone) || 'بدون موبایل' }}</small>
+                        </span>
+                        <em :class="`level-${normalizeCustomerLevel(patient.customer_level)}`">{{ customerLevelLabel(patient.customer_level) }}</em>
+                      </button>
+                      <div v-if="!tablePatientSearchLoading && !tablePatientSearchResults.length" class="timeline-patient-search-state">پرونده‌ای با این مشخصات پیدا نشد.</div>
+                    </div>
+                  </template>
                   <span
                     v-else
                     class="appointment-patient-name-value"
@@ -2570,6 +2595,11 @@ export default {
       timelinePatientSearchLoading: false,
       timelinePatientSearchOpen: false,
       timelinePatientSearchTimer: null,
+      tablePatientSearchRowId: null,
+      tablePatientSearchResults: [],
+      tablePatientSearchLoading: false,
+      tablePatientSearchTimer: null,
+      tablePatientSearchRequest: 0,
       timelineFileNumberLookupTimer: null,
       timelineFileNumberLookupRequest: 0,
       suspendScheduleAutosave: false,
@@ -3482,18 +3512,27 @@ export default {
       const targetHasDraft = target && this.appointmentRowStateFingerprint(day, target, targetIndex)
         !== target._persistedStateFingerprint;
       const serverRow = this.realtimeAppointmentRow(payload);
+      let appliedServerRow = false;
 
-      if (target && !targetHasDraft) {
+      if (byIdIndex >= 0 && targetHasDraft) {
+        // The same appointment already has local edits. A realtime update
+        // must not add another card with its ID beside that draft.
+      } else if (target && !targetHasDraft) {
         day.rows.splice(targetIndex, 1, serverRow);
+        appliedServerRow = true;
+      } else if (target && this.saveInProgress && !target.appointmentId) {
+        // A create event can arrive before the POST response assigns the ID
+        // to this draft. Keep the draft; the response will identify it.
       } else {
         // Never overwrite somebody's in-progress form. Add the authoritative
         // booking as its own row and leave the draft available for moving.
         day.rows.push(serverRow);
+        appliedServerRow = true;
       }
 
       this.sortDayRowsByTime(day);
       const serverIndex = day.rows.findIndex(row => Number(row.appointmentId) === appointmentId);
-      if (serverIndex >= 0) {
+      if (appliedServerRow && serverIndex >= 0) {
         day.rows[serverIndex]._persistedStateFingerprint =
           this.appointmentRowStateFingerprint(day, day.rows[serverIndex], serverIndex);
       }
@@ -3780,7 +3819,54 @@ export default {
         row.customerLevel = 'silver';
       }
       this.autoSetAppointmentStatus(row);
+      this.searchTablePatients(row);
       this.saveData();
+    },
+
+    searchTablePatients(row) {
+      clearTimeout(this.tablePatientSearchTimer);
+      const query = String(row?.lastname || '').trim();
+      const rowId = row?._rowId;
+      const requestId = ++this.tablePatientSearchRequest;
+
+      if (!rowId || query.length < 2) {
+        this.tablePatientSearchRowId = null;
+        this.tablePatientSearchResults = [];
+        this.tablePatientSearchLoading = false;
+        return;
+      }
+
+      this.tablePatientSearchRowId = rowId;
+      this.tablePatientSearchResults = [];
+      this.tablePatientSearchLoading = true;
+      this.tablePatientSearchTimer = setTimeout(async () => {
+        try {
+          const { data } = await axios.get('/api/patients/search', { params: { q: query } });
+          if (requestId !== this.tablePatientSearchRequest || this.tablePatientSearchRowId !== rowId) return;
+          this.tablePatientSearchResults = Array.isArray(data) ? data : [];
+        } catch (error) {
+          if (requestId !== this.tablePatientSearchRequest) return;
+          console.error('خطا در جست‌وجوی بیمار جدول', error);
+          this.tablePatientSearchResults = [];
+        } finally {
+          if (requestId === this.tablePatientSearchRequest) this.tablePatientSearchLoading = false;
+        }
+      }, 250);
+    },
+
+    closeTablePatientSearch(row) {
+      setTimeout(() => {
+        if (this.tablePatientSearchRowId === row?._rowId) this.tablePatientSearchRowId = null;
+      }, 120);
+    },
+
+    async selectTablePatient(row, patient) {
+      this.tablePatientSearchRequest += 1;
+      clearTimeout(this.tablePatientSearchTimer);
+      this.applyPatientToAppointment(row, patient);
+      this.tablePatientSearchRowId = null;
+      this.tablePatientSearchResults = [];
+      await this.persistDirectAppointment(row);
     },
     openPatientProfileFromRow(row) {
       if (!row?.hasPatientFile) return;
@@ -4793,6 +4879,7 @@ export default {
     },
 
     async finishPatientNameEdit(row) {
+      this.closeTablePatientSearch(row);
       if (this.editingPatientNameRowId === row?._rowId) this.editingPatientNameRowId = null;
       await this.persistDirectAppointment(row);
     },
@@ -6508,6 +6595,12 @@ this.calculateFinalAmount(row)
               // version, or a retry could create the same booking again.
               const row = payloadRows[index];
               row.appointmentId = appointment.id;
+              // A realtime event may have reached this tab before the POST
+              // response. Keep the edited row and remove any second card for
+              // the very same database appointment.
+              scheduledDays.forEach(day => {
+                day.rows = day.rows.filter(item => item === row || Number(item.appointmentId) !== Number(appointment.id));
+              });
               row.lockVersion = Number(appointment.lock_version || 1);
               row.registeredBy = appointment.registered_by || row.registeredBy || '';
               row.registeredAt = appointment.registered_at || row.registeredAt || appointment.created_at || '';
@@ -8998,6 +9091,7 @@ this.calculateFinalAmount(row)
     getDayTotalAmount(day) {
 
       return day.rows.reduce((sum, row) => {
+        if (!this.appointmentPaymentIsSettled(row)) return sum;
         return sum + this.moneyToNumber(row.amount);
       }, 0);
 
@@ -9006,6 +9100,7 @@ this.calculateFinalAmount(row)
     getDayClinicProfit(day) {
 
       return day.rows.reduce((sum, row) => {
+        if (!this.appointmentPaymentIsSettled(row)) return sum;
         return sum + this.calculateClinicProfitRow(row);
       }, 0);
 
@@ -10563,6 +10658,7 @@ smsColor(val) {
 }
 
 .timeline-form-grid.patient-search-open{position:relative;z-index:500}.timeline-patient-search-field{position:relative;z-index:510}.timeline-patient-results{position:absolute;z-index:520;top:calc(100% + 7px);right:0;left:0;max-height:310px;overflow:auto;padding:7px;border:1px solid #dbeafe;border-radius:14px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.2)}.timeline-patient-result{width:100%;display:flex;align-items:center;gap:11px;padding:9px;border:0;border-radius:11px;background:#fff;color:#0f172a;font-family:inherit;text-align:right;cursor:pointer}.timeline-patient-result:hover{background:#eff6ff}.timeline-patient-result-info{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}.timeline-patient-result-info strong{overflow:hidden;font-size:13px;font-weight:1000;text-overflow:ellipsis;white-space:nowrap}.timeline-patient-result-info small{color:#64748b;font-size:10px;font-weight:800}.timeline-patient-result-info small b{padding:0 3px;color:#cbd5e1}.timeline-patient-result em{flex:0 0 auto;padding:3px 7px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:9px;font-style:normal;font-weight:1000}.timeline-patient-result em.level-problematic{background:#fee2e2;color:#dc2626}.timeline-patient-result em.level-blue{background:#dbeafe;color:#2563eb}.timeline-patient-result em.level-gold{background:#fef3c7;color:#a16207}.timeline-patient-search-state{padding:18px;color:#64748b;font-size:12px;font-weight:800;text-align:center}
+.appointment-patient-name:has(.table-patient-results){position:relative;z-index:600}.main-schedule-table tbody tr.data-row:has(.table-patient-results),.main-schedule-table tbody tr.data-row>td:has(.table-patient-results){position:relative;z-index:599;overflow:visible!important}.table-patient-results{top:calc(100% + 5px);right:0;left:auto;width:min(390px,80vw);max-height:280px;text-align:right}.table-patient-results .timeline-patient-result{min-height:54px}.table-patient-results .timeline-patient-result-info strong{font-size:12px}
 .timeline-quick-team{position:relative;z-index:1;display:grid;grid-template-columns:1.35fr 1fr;gap:14px;padding:18px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.timeline-quick-team label{min-width:0;display:flex;flex-direction:column;gap:8px;color:#334155;font-size:12px;font-weight:1000}.timeline-quick-team select{width:100%;height:42px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit}.timeline-sms-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.timeline-sms-options>label{display:flex;align-items:center;gap:11px;padding:13px 14px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;cursor:pointer;transition:.18s}.timeline-sms-options>label:hover,.timeline-sms-options>label.active{border-color:#60a5fa;background:#eff6ff;box-shadow:0 5px 14px rgba(37,99,235,.08)}.timeline-sms-options input{width:18px!important;height:18px!important;flex:0 0 18px;accent-color:#2563eb}.timeline-sms-options span{display:flex;flex-direction:column;gap:3px}.timeline-sms-options b{color:#1e293b;font-size:12px}.timeline-sms-options small{color:#64748b;font-size:10px;font-weight:700}@media(max-width:700px){.timeline-quick-team,.timeline-sms-options{grid-template-columns:1fr}}
 .timeline-doctor-multiselect{position:relative;z-index:80;min-height:44px;color:#1e293b;font-family:inherit;font-size:12px;direction:rtl}.timeline-doctor-multiselect .multiselect__select{right:auto;left:1px;width:38px;height:42px}.timeline-doctor-multiselect .multiselect__tags{min-height:44px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px 5px 40px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;text-align:right}.timeline-doctor-multiselect.multiselect--active .multiselect__tags{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}.timeline-doctor-multiselect .multiselect__tag{display:inline-flex;align-items:center;gap:6px;margin:0;padding:6px 9px 6px 27px;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:900;line-height:1.2}.timeline-doctor-multiselect .multiselect__tag-icon{right:auto;left:0;width:24px;border-radius:8px 0 0 8px}.timeline-doctor-multiselect .multiselect__tag-icon::after{color:#1d4ed8}.timeline-doctor-multiselect .multiselect__tag-icon:hover{background:#bfdbfe}.timeline-doctor-multiselect .multiselect__input,.timeline-doctor-multiselect .multiselect__placeholder{width:auto!important;min-width:150px!important;height:28px!important;min-height:28px!important;margin:0!important;padding:4px 2px!important;border:0!important;background:transparent!important;color:#64748b!important;font-family:inherit!important;font-size:11px!important;text-align:right!important;direction:rtl!important;box-shadow:none!important}.timeline-doctor-multiselect .multiselect__content-wrapper{top:calc(100% + 6px);max-height:230px!important;overflow:auto;border:1px solid #dbeafe;border-radius:11px;background:#fff;box-shadow:0 16px 38px rgba(15,23,42,.18);direction:rtl;text-align:right}.timeline-doctor-multiselect .multiselect__content{width:100%;padding:5px}.timeline-doctor-multiselect .multiselect__option{min-height:40px;padding:10px 12px;border-radius:8px;color:#334155;font-size:12px;font-weight:800;text-align:right}.timeline-doctor-multiselect .multiselect__option--highlight,.timeline-doctor-multiselect .multiselect__option--selected.multiselect__option--highlight{background:#eff6ff;color:#1d4ed8}.timeline-doctor-multiselect .multiselect__option--selected{background:#dbeafe;color:#1d4ed8;font-weight:1000}.timeline-doctor-multiselect .multiselect__option::after{left:10px;right:auto;background:transparent!important;color:inherit!important;font-size:10px}
 .timeline-doctor-multiselect .multiselect__tags{min-height:46px!important;display:flex!important;align-items:center!important;gap:6px!important;flex-wrap:wrap!important;padding:6px 10px 6px 42px!important;overflow:visible!important}

@@ -6,6 +6,7 @@ use App\Http\Controllers\CentralBillingController;
 use App\Http\Controllers\CentralServiceTicketController;
 use App\Http\Controllers\CentralTenantController;
 use App\Http\Controllers\CentralCalendarController;
+use App\Http\Controllers\CentralStorageController;
 
 foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
     Route::domain($centralDomain)->group(function () {
@@ -33,6 +34,12 @@ foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
                 Route::post('/tenants/{tenant}/domains', [CentralTenantController::class, 'storeDomain']);
                 Route::delete('/tenants/{tenant}/domains/{domain}', [CentralTenantController::class, 'destroyDomain']);
                 Route::delete('/tenants/{tenant}', [CentralTenantController::class, 'destroy']);
+                Route::get('/storage', [CentralStorageController::class, 'index']);
+                Route::post('/storage/packages', [CentralStorageController::class, 'savePackage']);
+                Route::patch('/storage/packages/{package}', [CentralStorageController::class, 'savePackage']);
+                Route::patch('/storage/orders/{order}', [CentralStorageController::class, 'decideOrder']);
+                Route::post('/storage/orders/{order}/renew', [CentralStorageController::class, 'renewOrder']);
+                Route::post('/storage/tenants/{tenant}/reconcile', [CentralStorageController::class, 'reconcile']);
 
                 Route::get('/calendar/events', [CentralCalendarController::class, 'index']);
                 Route::put('/calendar/events/{date}', [CentralCalendarController::class, 'update']);

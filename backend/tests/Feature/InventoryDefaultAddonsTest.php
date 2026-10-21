@@ -273,6 +273,53 @@ class InventoryDefaultAddonsTest extends TestCase
         $this->assertDatabaseHas('inventories', ['id' => $existing->id, 'name' => 'خدمت', 'stock' => 10]);
     }
 
+    public function test_service_edit_after_stock_change_keeps_current_stock(): void
+    {
+        $root = InventorySection::create(['name' => 'خدمات']);
+        $section = InventorySection::create(['parent_id' => $root->id, 'level' => 2, 'name' => 'ژل']);
+        $existing = Inventory::create(['section_id' => $section->id, 'name' => 'خدمت', 'stock' => 10, 'price' => 100]);
+        $existing = $existing->fresh();
+        $saveVersion = $existing->save_version;
+        $contentSaveVersion = $existing->content_save_version;
+
+        $existing->update(['stock' => 9]);
+
+        $this->postJson('/api/inventory', [
+            'items' => [[
+                'id' => $existing->id,
+                'save_version' => $saveVersion,
+                'content_save_version' => $contentSaveVersion,
+                'price' => 120,
+            ]],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('inventories', [
+            'id' => $existing->id, 'stock' => 9, 'price' => 120,
+        ]);
+
+        $this->postJson('/api/inventory', [
+            'items' => [[
+                'id' => $existing->id,
+                'save_version' => $saveVersion,
+                'content_save_version' => $contentSaveVersion,
+                'stock' => 8,
+            ]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items']);
+
+        $this->postJson('/api/inventory', [
+            'items' => [[
+                'id' => $existing->id,
+                'save_version' => $saveVersion,
+                'content_save_version' => $contentSaveVersion,
+                'name' => 'نام قدیمی',
+            ]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['items']);
+
+        $this->assertDatabaseHas('inventories', [
+            'id' => $existing->id, 'name' => 'خدمت', 'stock' => 9, 'price' => 120,
+        ]);
+    }
+
     public function test_explicit_section_delete_processes_children_before_parent(): void
     {
         $root = InventorySection::create(['name' => 'ریشه']);

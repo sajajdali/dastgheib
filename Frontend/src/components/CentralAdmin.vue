@@ -46,6 +46,18 @@
       v-model="modules"
     />
 
+    <CentralStorage
+      v-else-if="activeTab === 'storage'"
+      :packages="storagePackages"
+      :orders="storageOrders"
+      :saving="saving"
+      :error="storageError"
+      :message="storageMessage"
+      @save-package="saveStoragePackage"
+      @decide-order="decideStorageOrder"
+      @renew-order="renewStorageOrder"
+    />
+
     <CentralStoreTerms
       v-else-if="activeTab === 'storeTerms'"
       :terms="storeTerms"
@@ -80,6 +92,7 @@
       @add-domain="addDomain"
       @remove-domain="removeDomain"
       @seed-demo-data="seedDemoData"
+      @reconcile-storage="reconcileStorage"
       @delete-tenant="deleteTenant"
     />
   </CentralLayout>
@@ -95,6 +108,7 @@ import CentralModules from "../central/components/CentralModules.vue";
 import CentralPackages from "../central/components/CentralPackages.vue";
 import CentralServiceTickets from "../central/components/CentralServiceTickets.vue";
 import CentralCalendar from "../central/components/CentralCalendar.vue";
+import CentralStorage from "../central/components/CentralStorage.vue";
 import CentralStoreTerms from "../central/components/CentralStoreTerms.vue";
 import CentralTenantManager from "../central/components/CentralTenantManager.vue";
 import { CENTRAL_MODULES } from "../central/data/modules";
@@ -105,6 +119,10 @@ const authLoading = ref(true);
 const loginLoading = ref(false);
 const tenants = ref([]);
 const billingPlans = ref([]);
+const storagePackages = ref([]);
+const storageOrders = ref([]);
+const storageError = ref("");
+const storageMessage = ref("");
 const userPricing = ref({ included_users: 1, extra_user_price: 0 });
 const discountCodes = ref([]);
 const storeTerms = ref(null);
@@ -228,7 +246,49 @@ async function logout() {
 }
 
 async function refreshAll() {
-  await Promise.allSettled([loadBilling(), loadStoreTerms(), loadTenants(), loadServiceTickets()]);
+  await Promise.allSettled([loadBilling(), loadStoreTerms(), loadTenants(), loadServiceTickets(), loadStorage()]);
+}
+
+async function loadStorage() {
+  try {
+    const { data } = await axios.get('/central-api/storage');
+    storagePackages.value = data.packages || [];
+    storageOrders.value = data.orders || [];
+  } catch (requestError) {
+    storageError.value = responseMessage(requestError, 'دریافت بسته‌های فضا انجام نشد.');
+  }
+}
+
+async function saveStoragePackage({ id, payload }) {
+  saving.value = true; storageError.value = ''; storageMessage.value = '';
+  try {
+    if (id) await axios.patch(`/central-api/storage/packages/${id}`, payload);
+    else await axios.post('/central-api/storage/packages', payload);
+    await loadStorage(); storageMessage.value = 'بسته ذخیره شد.';
+  } catch (e) { storageError.value = responseMessage(e, 'ذخیره بسته انجام نشد.'); }
+  finally { saving.value = false; }
+}
+
+async function decideStorageOrder({ order, status }) {
+  if (status === 'active' && !window.confirm(`پرداخت بسته ${order.package_name} برای ${order.tenant_id} تأیید شده است؟`)) return;
+  saving.value = true; storageError.value = ''; storageMessage.value = '';
+  try {
+    await axios.patch(`/central-api/storage/orders/${order.id}`, { status });
+    await Promise.all([loadStorage(), loadTenants()]);
+    storageMessage.value = status === 'active' ? 'فضای خریداری‌شده فعال شد.' : 'درخواست رد شد.';
+  } catch (e) { storageError.value = responseMessage(e, 'بررسی درخواست انجام نشد.'); }
+  finally { saving.value = false; }
+}
+
+async function renewStorageOrder(order) {
+  if (!window.confirm(`تمدید یک ماههٔ بسته ${order.package_name} برای ${order.tenant_id} تأیید شده است؟`)) return;
+  saving.value = true; storageError.value = '';
+  try {
+    await axios.post(`/central-api/storage/orders/${order.id}/renew`);
+    await Promise.all([loadStorage(), loadTenants()]);
+    storageMessage.value = 'بسته یک ماه تمدید شد.';
+  } catch (e) { storageError.value = responseMessage(e, 'تمدید بسته انجام نشد.'); }
+  finally { saving.value = false; }
 }
 
 async function loadBilling() {
@@ -409,6 +469,16 @@ async function createTenant(payload) {
   } finally {
     saving.value = false;
   }
+}
+
+async function reconcileStorage(tenant) {
+  saving.value = true; error.value = '';
+  try {
+    const { data } = await axios.post(`/central-api/storage/tenants/${tenant.id}/reconcile`);
+    replaceTenant({ ...tenant, storage: data.storage });
+    message.value = `فضای سایت ${tenant.name || tenant.id} بازشماری شد.`;
+  } catch (e) { error.value = responseMessage(e, 'بازشماری فضا انجام نشد.'); }
+  finally { saving.value = false; }
 }
 
 async function updateTenant({ tenant, payload }) {

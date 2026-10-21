@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use Stancl\JobPipeline\JobPipeline;
 use Stancl\Tenancy\Events;
@@ -76,10 +77,17 @@ class TenancyServiceProvider extends ServiceProvider
             Events\EndingTenancy::class => [],
             Events\TenancyEnded::class => [
                 Listeners\RevertToCentralContext::class,
+                function () {
+                    config()->set('filesystems.disks.public.url', rtrim((string) config('app.url'), '/').'/storage');
+                    Storage::forgetDisk('public');
+                },
             ],
 
             Events\BootstrappingTenancy::class => [],
-            Events\TenancyBootstrapped::class => [],
+            Events\TenancyBootstrapped::class => [function () {
+                config()->set('filesystems.disks.public.url', '/tenant-files');
+                Storage::forgetDisk('public');
+            }],
             Events\RevertingToCentralContext::class => [],
             Events\RevertedToCentralContext::class => [],
 

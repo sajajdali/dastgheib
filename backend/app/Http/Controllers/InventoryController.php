@@ -107,6 +107,7 @@ class InventoryController extends Controller
             'items' => ['nullable', 'array'],
             'items.*.id' => ['nullable', 'integer', 'distinct'],
             'items.*.save_version' => ['nullable', 'string'],
+            'items.*.content_save_version' => ['nullable', 'string'],
             'sections' => ['nullable', 'array'],
             'sections.*.id' => ['nullable', 'integer', 'distinct'],
             'sections.*.save_version' => ['nullable', 'string'],
@@ -181,7 +182,12 @@ class InventoryController extends Controller
                     throw ValidationException::withMessages(['items' => 'یکی از خدمات دیگر وجود ندارد. صفحه را تازه‌سازی کنید.']);
                 }
                 if ($inventory && (empty($item['save_version']) || ! hash_equals($inventory->save_version, $item['save_version']))) {
-                    throw ValidationException::withMessages(['items' => 'این خدمت در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
+                    $stockOnlyChange = ! array_key_exists('stock', $item)
+                        && ! empty($item['content_save_version'])
+                        && hash_equals($inventory->content_save_version, $item['content_save_version']);
+                    if (! $stockOnlyChange) {
+                        throw ValidationException::withMessages(['items' => 'این خدمت در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
+                    }
                 }
                 if (! $inventory) $inventory = new Inventory();
                 $attributes = [
@@ -514,6 +520,7 @@ class InventoryController extends Controller
 
         return response()->json([
             'current_stock' => (float) ($inventory->stock ?? 0),
+            'item' => $inventory,
             'movements' => $query
                 ->latest('occurred_at')
                 ->latest('id')

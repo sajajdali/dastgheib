@@ -14,6 +14,7 @@ use App\Http\Controllers\HumanResourceController;
 use App\Models\InventoryAddonDefinition;
 use App\Models\Doctor;
 use App\Models\Staff;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DynamicReportController extends Controller
 {
@@ -71,6 +72,41 @@ class DynamicReportController extends Controller
                 'from' => $rows->firstItem(), 'to' => $rows->lastItem(),
             ],
             'summary' => ['amount_total' => $amountTotal],
+        ]);
+    }
+
+    public function export(Request $request, DynamicReport $dynamicReport, DynamicReportFieldRegistry $fields): StreamedResponse
+    {
+        $this->authorizeReport($request, $dynamicReport);
+        abort_unless($dynamicReport->status === 'completed', 409, 'گزارش هنوز آماده نشده است.');
+
+        $columns = collect($dynamicReport->columns ?? [])
+            ->map(fn ($key) => ['key' => $key, 'label' => $fields->label($key)])
+            ->all();
+
+        return response()->streamDownload(function () use ($dynamicReport, $columns): void {
+            echo "\xEF\xBB\xBF";
+            echo '<html><head><meta charset="utf-8"></head><body><table border="1" dir="rtl"><thead><tr>';
+            foreach ($columns as $column) {
+                echo '<th>'.htmlspecialchars($column['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</th>';
+            }
+            echo '</tr></thead><tbody>';
+
+            $dynamicReport->rows()->chunkById(500, function ($rows) use ($columns): void {
+                foreach ($rows as $row) {
+                    echo '<tr>';
+                    foreach ($columns as $column) {
+                        $value = data_get($row->payload, $column['key'], '—');
+                        echo '<td>'.htmlspecialchars((string) ($value ?? '—'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</td>';
+                    }
+                    echo '</tr>';
+                }
+            }, 'id');
+
+            echo '</tbody></table></body></html>';
+        }, 'clinic-report.xls', [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+            'Cache-Control' => 'no-store',
         ]);
     }
 

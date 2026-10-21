@@ -15,6 +15,8 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    'legacy_public_root' => env('PUBLIC_STORAGE_DIRECT', false) ? public_path('storage') : storage_path('app/public'),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks

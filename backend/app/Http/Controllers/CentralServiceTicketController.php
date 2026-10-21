@@ -133,11 +133,24 @@ class CentralServiceTicketController extends Controller
             'answered_by' => $ticket->answered_by,
             'answered_at' => $ticket->answered_at,
             'answer_attachment_name' => $ticket->answer_attachment_name ?? null,
-            'answer_attachment_url' => ($ticket->answer_attachment_path ?? null) ? Storage::disk('public')->url($ticket->answer_attachment_path) : null,
+            'answer_attachment_url' => ($ticket->answer_attachment_path ?? null)
+                ? rtrim((string) config('app.url'), '/').'/storage/'.$ticket->answer_attachment_path
+                : null,
             'attachment_name' => $ticket->attachment_name,
-            'attachment_url' => $ticket->attachment_path ? Storage::disk('public')->url($ticket->attachment_path) : null,
+            'attachment_url' => $ticket->attachment_path ? $this->tenantAttachmentUrl($ticket) : null,
             'created_at' => $ticket->created_at,
             'updated_at' => $ticket->updated_at,
         ];
+    }
+
+    private function tenantAttachmentUrl(object $ticket): ?string
+    {
+        $domain = $this->table()->getConnection()->table('domains')
+            ->where('tenant_id', $ticket->tenant_id)->orderBy('id')->value('domain');
+        if (! $domain) {
+            return null;
+        }
+        $scheme = parse_url((string) config('app.url'), PHP_URL_SCHEME) ?: 'https';
+        return $scheme.'://'.$domain.'/tenant-files/'.ltrim($ticket->attachment_path, '/');
     }
 }
