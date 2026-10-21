@@ -98,6 +98,24 @@
         <span class="best-staff-copy"><small>بهترین پرسنل ماه</small><strong>{{ bestStaffOfMonth.name }}</strong></span>
         <b>{{ bestStaffOfMonth.count.toLocaleString('fa-IR') }} نوبت</b>
       </div>
+      <div v-if="canViewMonthlyFinancialSummary" class="monthly-financial-summary" :class="{ 'is-open': monthlyFinancialSummaryOpen }" @click.stop>
+        <button type="button" class="monthly-financial-toggle" :title="monthlyFinancialSummaryOpen ? 'بستن خلاصه مالی' : 'نمایش خلاصه مالی ماه'" :aria-label="monthlyFinancialSummaryOpen ? 'بستن خلاصه مالی' : 'نمایش خلاصه مالی ماه'" :aria-expanded="monthlyFinancialSummaryOpen" aria-controls="table-monthly-financial-content" @click="monthlyFinancialSummaryOpen = !monthlyFinancialSummaryOpen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2h12"/><path d="M2 8h16M15 13h5"/><circle cx="15" cy="13" r=".7"/></svg>
+        </button>
+        <div id="table-monthly-financial-content" class="monthly-financial-content" :aria-hidden="!monthlyFinancialSummaryOpen">
+          <span class="monthly-financial-period">{{ currentScheduleMonthLabel }}</span>
+          <span v-if="canViewAppointmentIncome" class="monthly-financial-item cashbox">
+            <small>جمع صندوق ماه</small>
+            <strong>{{ formatDisplayMoney(monthlyCashboxTotal) }}</strong>
+            <em>تومان</em>
+          </span>
+          <span v-if="canViewClinicProfit" class="monthly-financial-item profit">
+            <small>سود کلینیک ماه</small>
+            <strong>{{ formatDisplayMoney(monthlyClinicProfit) }}</strong>
+            <em>تومان</em>
+          </span>
+        </div>
+      </div>
       </template>
     </div>
 
@@ -1341,6 +1359,24 @@
         <span v-else class="best-staff-avatar">{{ bestStaffOfMonth.name.charAt(0) }}</span>
         <span class="best-staff-copy"><small>بهترین پرسنل ماه</small><strong>{{ bestStaffOfMonth.name }}</strong></span>
         <b>{{ bestStaffOfMonth.count.toLocaleString('fa-IR') }} نوبت</b>
+      </div>
+      <div v-if="canViewMonthlyFinancialSummary" class="monthly-financial-summary" :class="{ 'is-open': monthlyFinancialSummaryOpen }" @click.stop>
+        <button type="button" class="monthly-financial-toggle" :title="monthlyFinancialSummaryOpen ? 'بستن خلاصه مالی' : 'نمایش خلاصه مالی ماه'" :aria-label="monthlyFinancialSummaryOpen ? 'بستن خلاصه مالی' : 'نمایش خلاصه مالی ماه'" :aria-expanded="monthlyFinancialSummaryOpen" aria-controls="timeline-monthly-financial-content" @click="monthlyFinancialSummaryOpen = !monthlyFinancialSummaryOpen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-12a2 2 0 0 1 2-2h12"/><path d="M2 8h16M15 13h5"/><circle cx="15" cy="13" r=".7"/></svg>
+        </button>
+        <div id="timeline-monthly-financial-content" class="monthly-financial-content" :aria-hidden="!monthlyFinancialSummaryOpen">
+          <span class="monthly-financial-period">{{ currentScheduleMonthLabel }}</span>
+          <span v-if="canViewAppointmentIncome" class="monthly-financial-item cashbox">
+            <small>جمع صندوق ماه</small>
+            <strong>{{ formatDisplayMoney(monthlyCashboxTotal) }}</strong>
+            <em>تومان</em>
+          </span>
+          <span v-if="canViewClinicProfit" class="monthly-financial-item profit">
+            <small>سود کلینیک ماه</small>
+            <strong>{{ formatDisplayMoney(monthlyClinicProfit) }}</strong>
+            <em>تومان</em>
+          </span>
+        </div>
       </div>
       <div class="appointment-search-wrap timeline-search-wrap">
         <div class="appointment-search-input-wrap">
@@ -2683,6 +2719,7 @@ export default {
       balanceAuditModalOpen: false,
       balanceAuditLoading: false,
       balanceAuditRows: [],
+      monthlyFinancialSummaryOpen: false,
       financialPanelOpen: false,
       activeFinancialRow: null,
       financialServicesOpen: true,
@@ -2818,7 +2855,7 @@ export default {
         lastname: 145,
         gender: 58,
         phone: 112,
-        fileNumber: 92,
+        fileNumber: 78,
         time: 92,
         status: 105,
         doctor: 120,
@@ -3064,6 +3101,34 @@ export default {
 
     canViewBalanceAudits() {
       return this.permissions.includes("reports.financial");
+    },
+
+    canViewAppointmentIncome() {
+      return this.permissions.includes("appointments.income");
+    },
+
+    canViewClinicProfit() {
+      return this.permissions.includes("reports.financial");
+    },
+
+    canViewMonthlyFinancialSummary() {
+      return this.canViewAppointmentIncome || this.canViewClinicProfit;
+    },
+
+    currentScheduleMonthLabel() {
+      const month = this.months[this.currentMonth];
+      if (!month) return "ماه انتخاب‌شده";
+      return `${this.scheduleMonthLabel(month)} ${this.formatScheduleYear(String(month).slice(0, 4))}`;
+    },
+
+    monthlyCashboxTotal() {
+      if (!this.canViewAppointmentIncome) return 0;
+      return this.days.reduce((sum, day) => sum + this.getDayTotalAmount(day), 0);
+    },
+
+    monthlyClinicProfit() {
+      if (!this.canViewClinicProfit) return 0;
+      return this.days.reduce((sum, day) => sum + this.getDayClinicProfit(day), 0);
     },
 
     sentCompletionSmsOptions() {
@@ -7959,6 +8024,7 @@ this.calculateFinalAmount(row)
       this.activeServicePopup = null;
       this.activeServiceTagPicker = null;
       this.activeRowActionMenu = null;
+      this.monthlyFinancialSummaryOpen = false;
 
       this.showStatusFilter = false;
       this.showDoctorFilter = false;
@@ -8200,7 +8266,7 @@ this.calculateFinalAmount(row)
         lastname: 110,
         gender: 52,
         phone: 96,
-        fileNumber: 78,
+        fileNumber: 70,
         time: 82,
         status: 88,
         serviceType: 95,
@@ -8257,10 +8323,10 @@ this.calculateFinalAmount(row)
       const context = canvas.getContext('2d');
       context.font = '12px Vazir, sans-serif';
       const contentWidth = Math.max(...values.map((value) => context.measureText(String(value).trim()).width));
-      const minimums = { lastname: 110, gender: 52, time: 82, amount: 155, service: 64, appointmentSms: 80, infoSms: 80 };
-      const extras = { lastname: 48, amount: 62, description: 48, serviceType: 30 };
+      const minimums = { lastname: 110, gender: 52, fileNumber: 70, time: 82, amount: 155, service: 64, appointmentSms: 80, infoSms: 80 };
+      const extras = { lastname: 48, fileNumber: 14, amount: 62, description: 48, serviceType: 30 };
       this.columnWidths[column] = Math.ceil(
-        Math.min(280, Math.max(minimums[column] || 64, contentWidth + (extras[column] || 24)))
+        Math.min(column === 'fileNumber' ? 160 : 280, Math.max(minimums[column] || 64, contentWidth + (extras[column] || 24)))
       );
     },
 
@@ -11305,6 +11371,19 @@ smsColor(val) {
   box-shadow: 0 4px 10px rgba(15, 23, 42, .06);
 }
 
+.main-schedule-table th.file-col {
+  padding: 5px 7px;
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.main-schedule-table td.file-col input {
+  padding-inline: 3px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .sticky-header.filtered-header {
   background: #bbdefb !important;
 }
@@ -12224,6 +12303,118 @@ td.st-transferred {
 }
 
 .best-staff-month-card{min-height:44px;display:flex;align-items:center;gap:8px;padding:5px 9px;border:1px solid #fde68a;border-radius:13px;background:linear-gradient(135deg,#fffbeb,#fff7ed);box-shadow:0 7px 18px rgba(245,158,11,.12);white-space:nowrap}.best-staff-month-card img,.best-staff-avatar{width:34px;height:34px;flex:0 0 34px;border:2px solid #fbbf24;border-radius:50%;object-fit:cover}.best-staff-avatar{display:grid;place-items:center;background:#fef3c7;color:#92400e;font-size:13px;font-weight:900}.best-staff-copy{display:grid;gap:1px}.best-staff-copy small{color:#b45309;font-size:8px;font-weight:800}.best-staff-copy strong{color:#78350f;font-size:10px}.best-staff-month-card>b{padding:4px 7px;border-radius:8px;background:#f59e0b;color:#fff;font-size:9px}
+
+.monthly-financial-summary{
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  padding:4px;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 2px 8px rgba(15,23,42,.045);
+  direction:rtl;
+  white-space:nowrap;
+  overflow:hidden;
+  transition:border-color .3s ease,box-shadow .3s ease,background .3s ease;
+}
+
+.monthly-financial-summary.is-open{
+  border-color:#d7e2ef;
+  background:rgba(255,255,255,.98);
+  box-shadow:0 9px 24px rgba(15,23,42,.08);
+}
+
+.monthly-financial-toggle{
+  position:relative;
+  z-index:1;
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:0;
+  border-radius:9px;
+  background:linear-gradient(145deg,#eff6ff,#e0ecff);
+  color:#2563eb;
+  cursor:pointer;
+  box-shadow:inset 0 0 0 1px rgba(59,130,246,.12);
+  transition:transform .25s ease,background .25s ease,color .25s ease,box-shadow .25s ease;
+}
+
+.monthly-financial-toggle::after{
+  content:"";
+  position:absolute;
+  left:5px;
+  bottom:5px;
+  width:6px;
+  height:6px;
+  border:2px solid #fff;
+  border-radius:50%;
+  background:#10b981;
+  box-shadow:0 1px 4px rgba(16,185,129,.35);
+}
+
+.monthly-financial-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .4s cubic-bezier(.22,1,.36,1)}
+.monthly-financial-toggle:hover{transform:translateY(-1px);background:linear-gradient(145deg,#dbeafe,#e0e7ff);color:#1d4ed8;box-shadow:inset 0 0 0 1px rgba(37,99,235,.16),0 5px 12px rgba(37,99,235,.13)}
+.monthly-financial-toggle:focus-visible{outline:3px solid rgba(59,130,246,.2);outline-offset:2px}
+.monthly-financial-summary.is-open .monthly-financial-toggle{background:#2563eb;color:#fff;box-shadow:0 5px 14px rgba(37,99,235,.22)}
+.monthly-financial-summary.is-open .monthly-financial-toggle svg{transform:scale(.92) rotate(-6deg)}
+
+.monthly-financial-content{
+  max-width:0;
+  min-width:0;
+  display:flex;
+  align-self:stretch;
+  align-items:center;
+  overflow:hidden;
+  opacity:0;
+  transform:translateX(10px);
+  pointer-events:none;
+  transition:max-width .5s cubic-bezier(.22,1,.36,1),opacity .22s ease,transform .38s cubic-bezier(.22,1,.36,1);
+}
+
+.monthly-financial-summary.is-open .monthly-financial-content{
+  max-width:410px;
+  opacity:1;
+  transform:translateX(0);
+  pointer-events:auto;
+}
+
+.monthly-financial-period{
+  align-self:stretch;
+  display:grid;
+  place-items:center;
+  min-width:58px;
+  margin-right:5px;
+  padding:0 8px;
+  border-radius:8px;
+  background:#f8fafc;
+  color:#64748b;
+  font-size:9px;
+  font-weight:900;
+}
+
+.monthly-financial-item{
+  position:relative;
+  display:grid;
+  grid-template-columns:auto auto;
+  align-items:center;
+  column-gap:4px;
+  min-width:126px;
+  padding:3px 14px 3px 10px;
+  color:#0f172a;
+}
+
+.monthly-financial-item + .monthly-financial-item{border-right:1px solid #eef2f7}
+.monthly-financial-item::before{content:"";position:absolute;right:6px;top:9px;width:4px;height:4px;border-radius:50%;background:#3b82f6}
+.monthly-financial-item.profit::before{background:#10b981}
+.monthly-financial-item small{grid-column:1/-1;color:#64748b;font-size:8px;font-weight:800;line-height:1.4}
+.monthly-financial-item strong{color:#0f172a;font-size:12px;font-weight:1000;line-height:1.35}
+.monthly-financial-item em{color:#94a3b8;font-size:8px;font-style:normal;font-weight:700}
+
+@media(max-width:700px){.monthly-financial-summary.is-open{max-width:100%;box-sizing:border-box}.monthly-financial-summary.is-open .monthly-financial-content{max-width:calc(100vw - 86px);overflow-x:auto}.monthly-financial-period{min-height:36px}.monthly-financial-item{flex:1;min-width:122px}}
 
 .balance-audit-btn {
   height: 36px;
