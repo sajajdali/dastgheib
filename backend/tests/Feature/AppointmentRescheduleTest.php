@@ -23,8 +23,11 @@ class AppointmentRescheduleTest extends TestCase
             $table->string('month');
             $table->integer('day_num');
             $table->string('time');
+            $table->unsignedSmallInteger('duration_minutes')->nullable();
             $table->integer('lock_version')->default(1);
             $table->string('lastname');
+            $table->string('doctor')->nullable();
+            $table->string('consultant')->nullable();
             $table->string('status')->nullable();
             $table->json('services')->nullable();
             $table->json('payment_details')->nullable();
@@ -58,15 +61,22 @@ class AppointmentRescheduleTest extends TestCase
         $original = $appointment->toArray();
         $this->move($appointment);
         $updated = $appointment->fresh();
-        $this->assertSame(1, Appointment::count());
+        $this->assertSame(2, Appointment::count());
         $this->assertSame('1405-07', $updated->month);
         $this->assertSame(2, $updated->day_num);
         $this->assertSame('11:30', $updated->time);
         $this->assertSame(2, $updated->lock_version);
-        $this->assertSame('انتقال داده شده', $updated->status);
+        $this->assertSame('وقت داده شد', $updated->status);
         foreach (['id', 'lastname', 'services', 'payment_details'] as $field) {
             $this->assertEquals($original[$field], $updated->toArray()[$field]);
         }
+        $marker = Appointment::query()->whereKeyNot($updated->id)->firstOrFail();
+        $this->assertSame('1405-06', $marker->month);
+        $this->assertSame(15, $marker->day_num);
+        $this->assertSame('09:00', $marker->time);
+        $this->assertSame('انتقال داده شده', $marker->status);
+        $this->assertSame(0, (int) $marker->amount);
+        $this->assertNull($marker->payment_details);
         Event::assertDispatched(AppointmentChanged::class, fn ($event) => $event->month === '1405-06');
         Event::assertDispatched(AppointmentChanged::class, fn ($event) => $event->month === '1405-07');
     }
@@ -103,6 +113,41 @@ class AppointmentRescheduleTest extends TestCase
 
         $this->assertSame('1405-06', $appointment->fresh()->month);
         $this->assertSame('09:00', $appointment->fresh()->time);
+    }
+
+    public function test_transfer_allows_same_time_for_a_different_doctor(): void
+    {
+        $appointment = $this->appointment();
+        $appointment->update(['doctor' => 'دکتر الف']);
+        Appointment::create([
+            'month' => '1405-07', 'day_num' => 2, 'time' => '11:30',
+            'lastname' => 'already booked', 'status' => 'booked',
+            'doctor' => 'دکتر ب', 'services' => [], 'payment_details' => [],
+        ]);
+
+        $this->move($appointment, $appointment->fresh()->lock_version);
+
+        $this->assertSame('1405-07', $appointment->fresh()->month);
+        $this->assertSame(2, $appointment->fresh()->day_num);
+        $this->assertSame('11:30', $appointment->fresh()->time);
+    }
+
+    public function test_transfer_rejects_overlapping_time_for_the_same_doctor(): void
+    {
+        $appointment = $this->appointment();
+        $appointment->update(['doctor' => 'دکتر الف']);
+        Appointment::create([
+            'month' => '1405-07', 'day_num' => 2, 'time' => '11:30',
+            'lastname' => 'already booked', 'status' => 'booked',
+            'doctor' => 'دکتر الف', 'services' => [], 'payment_details' => [],
+        ]);
+
+        try {
+            $this->move($appointment, $appointment->fresh()->lock_version);
+            $this->fail('The same doctor must not receive overlapping appointments.');
+        } catch (HttpException $exception) {
+            $this->assertSame(409, $exception->getStatusCode());
+        }
     }
 
     public function test_events_use_distinct_private_tenant_channels(): void

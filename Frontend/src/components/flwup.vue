@@ -5079,9 +5079,12 @@ export default {
   width:100%;
   max-width:100%;
   min-width:0;
+  max-height:min(58dvh,680px);
   overflow-x:auto;
-  overflow-y:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
 }
+.campaign-table-modal .contacts-table thead th{position:sticky;top:0}
 .campaign-table-modal .filterable{position:relative;overflow:visible!important}
 .campaign-table-modal .filter-dropdown{
   position:fixed;

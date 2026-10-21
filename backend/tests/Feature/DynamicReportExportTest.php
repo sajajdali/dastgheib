@@ -62,6 +62,40 @@ class DynamicReportExportTest extends TestCase
         $this->assertStringContainsString('&lt;script&gt;unsafe&lt;/script&gt;', $content);
     }
 
+    public function test_rows_include_patient_profile_metadata_without_exporting_it_as_a_column(): void
+    {
+        $report = DynamicReport::query()->create([
+            'user_id' => 1,
+            'status' => 'completed',
+            'columns' => ['name'],
+            'filters' => ['scope' => 'patients'],
+            'total_rows' => 1,
+        ]);
+        DB::table('dynamic_report_rows')->insert([
+            'report_id' => $report->id,
+            'patient_id' => 42,
+            'payload' => json_encode([
+                'name' => 'سارا',
+                '_patient' => [
+                    'id' => 42,
+                    'file_number' => '1042',
+                    'first_name' => 'سارا',
+                    'last_name' => 'محمدی',
+                    'avatar_url' => '/storage/patients/42/thumb.webp',
+                ],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+
+        $this->getJson("/api/report-builder/reports/{$report->id}/rows")
+            ->assertOk()
+            ->assertJsonPath('data.0._patient.id', 42)
+            ->assertJsonPath('data.0._patient.avatar_url', '/storage/patients/42/thumb.webp');
+
+        $content = $this->get("/api/report-builder/reports/{$report->id}/export")->streamedContent();
+        $this->assertStringNotContainsString('_patient', $content);
+        $this->assertStringNotContainsString('thumb.webp', $content);
+    }
+
     public function test_export_rejects_reports_owned_by_another_user(): void
     {
         $report = DynamicReport::query()->create([

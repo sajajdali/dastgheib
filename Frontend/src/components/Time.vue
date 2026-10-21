@@ -82,7 +82,9 @@
       </button>
       <div v-if="bookingFiltersOpen" class="booking-timeline-filters table-booking-filters" aria-label="فیلتر جدولی وقت‌دهی خدمات">
         <label><span>بخش</span><select v-model="draftBookingRootSectionFilter" @change="onDraftBookingRootSectionChanged"><option value="">همه بخش‌ها</option><option v-for="section in enabledBookingRootSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
-        <label><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label v-if="bookingSubsectionFilterOptions.length"><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label v-if="bookingSecondSubsectionFilterOptions.length"><span>زیر‌بخش دوم</span><select v-model="draftBookingSecondSubsectionFilter" @change="onDraftBookingSecondSubsectionFilterChanged"><option value="">همه زیر‌بخش‌های دوم</option><option v-for="section in bookingSecondSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label v-if="bookingThirdSubsectionFilterOptions.length"><span>زیر‌بخش سوم</span><select v-model="draftBookingThirdSubsectionFilter" @change="onDraftBookingThirdSubsectionFilterChanged"><option value="">همه زیر‌بخش‌های سوم</option><option v-for="section in bookingThirdSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
         <label><span>پزشک / اپراتور</span><select v-model="draftBookingResourceFilter"><option value="">همه منابع</option><option v-for="resource in bookingResourceFilterOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
         <button type="button" class="booking-filter-apply" @click="applyBookingTimelineFilters">اعمال فیلتر</button>
         <button v-if="bookingTimelineFilterActive" type="button" class="booking-filter-clear" @click="clearBookingTimelineFilters">پاک کردن</button>
@@ -583,13 +585,13 @@
                     </svg>
                   </button>
 
-                  <div class="day-summary-left">
-                    <span>
+                  <div v-if="canViewMonthlyFinancialSummary" class="day-summary-left">
+                    <span v-if="canViewAppointmentIncome">
                       جمع صندوق:
                       {{ formatDisplayMoney(getDayTotalAmount(day)) }}
                     </span>
 
-                    <span>
+                    <span v-if="canViewClinicProfit">
                       سود کلینیک:
                       {{ formatDisplayMoney(getDayClinicProfit(day)) }}
                     </span>
@@ -1348,7 +1350,9 @@
       </button>
       <div v-if="bookingFiltersOpen" class="booking-timeline-filters" aria-label="فیلتر وقت‌دهی خدمات">
         <label><span>بخش</span><select v-model="draftBookingRootSectionFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingRootSectionChanged"><option value="">همه بخش‌ها</option><option v-for="section in enabledBookingRootSectionOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
-        <label><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label v-if="bookingSubsectionFilterOptions.length"><span>زیر‌بخش</span><select v-model="draftBookingServiceFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingServiceFilterChanged"><option value="">همه زیر‌بخش‌ها</option><option v-for="section in bookingSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label v-if="bookingSecondSubsectionFilterOptions.length"><span>زیر‌بخش دوم</span><select v-model="draftBookingSecondSubsectionFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingSecondSubsectionFilterChanged"><option value="">همه زیر‌بخش‌های دوم</option><option v-for="section in bookingSecondSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
+        <label v-if="bookingThirdSubsectionFilterOptions.length"><span>زیر‌بخش سوم</span><select v-model="draftBookingThirdSubsectionFilter" :disabled="timelineScheduleLoading" @change="onDraftBookingThirdSubsectionFilterChanged"><option value="">همه زیر‌بخش‌های سوم</option><option v-for="section in bookingThirdSubsectionFilterOptions" :key="section.id" :value="String(section.id)">{{ section.label }}</option></select></label>
         <label><span>پزشک / اپراتور</span><select v-model="draftBookingResourceFilter" :disabled="timelineScheduleLoading"><option value="">همه منابع</option><option v-for="resource in bookingResourceFilterOptions" :key="resource.value" :value="resource.value">{{ resource.label }}</option></select></label>
         <button type="button" class="booking-filter-apply" :disabled="timelineScheduleLoading" @click="applyBookingTimelineFilters">{{ timelineScheduleLoading ? 'در حال اعمال…' : 'اعمال فیلتر' }}</button>
         <button v-if="bookingTimelineFilterActive" type="button" class="booking-filter-clear" :disabled="timelineScheduleLoading" @click="clearBookingTimelineFilters">پاک کردن</button>
@@ -1448,7 +1452,7 @@
                 class="timeline-delete-appointment-btn"
                 title="حذف این نوبت"
                 aria-label="حذف این نوبت"
-                @click.stop="deleteAppointmentRow(day, row)"
+                @click.stop="deleteAppointmentRow(day, row, { preserveTimeSlot: true })"
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M6 6l1 15h10l1-15" /><path d="M10 11v6" /><path d="M14 11v6" />
@@ -2778,6 +2782,8 @@ export default {
       bookingResourceFilter: "",
       draftBookingRootSectionFilter: "",
       draftBookingServiceFilter: "",
+      draftBookingSecondSubsectionFilter: "",
+      draftBookingThirdSubsectionFilter: "",
       draftBookingResourceFilter: "",
       timelineScheduleLoading: false,
       timelineScheduleLoadRequest: 0,
@@ -2951,22 +2957,22 @@ export default {
       return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label, 'fa'));
     },
     enabledBookingRootSectionOptions() {
-      const roots = new Map();
-      this.enabledBookingSectionOptions.forEach(section => {
-        const rootId = String(this.rootSectionIdFor(section.id) || section.id);
-        const root = (this.serviceSections || []).find(item => String(item.id) === rootId);
-        roots.set(rootId, { id: rootId, label: String(root?.name || this.bookingSectionPathLabel(rootId) || section.label) });
-      });
-      return [...roots.values()].sort((a, b) => a.label.localeCompare(b.label, 'fa'));
+      return this.sortedServiceSections.map(section => ({ id: section.id, label: section.name }));
     },
     bookingSubsectionFilterOptions() {
-      return this.bookingSectionsForFilters(this.draftBookingRootSectionFilter, '');
+      return this.bookingChildSectionOptions(this.draftBookingRootSectionFilter);
+    },
+    bookingSecondSubsectionFilterOptions() {
+      return this.bookingChildSectionOptions(this.draftBookingServiceFilter);
+    },
+    bookingThirdSubsectionFilterOptions() {
+      return this.bookingChildSectionOptions(this.draftBookingSecondSubsectionFilter);
     },
     bookingResourceOptions() {
       return this.bookingResourcesForFilters(this.bookingRootSectionFilter, this.bookingServiceFilter);
     },
     bookingResourceFilterOptions() {
-      return this.bookingResourcesForFilters(this.draftBookingRootSectionFilter, this.draftBookingServiceFilter);
+      return this.bookingResourcesForFilters(this.draftBookingRootSectionFilter, this.draftBookingThirdSubsectionFilter || this.draftBookingSecondSubsectionFilter || this.draftBookingServiceFilter);
     },
     bookingTimelineFilterActive() {
       return Boolean(this.bookingRootSectionFilter || this.bookingServiceFilter || this.bookingResourceFilter);
@@ -3298,6 +3304,7 @@ export default {
       if (view === 'timeline') {
         this.appointmentView = 'timeline';
         await this.refreshBookingTimelineSchedule();
+        this.focusTodayInTimeline();
         return;
       }
 
@@ -3327,9 +3334,18 @@ export default {
       this.syncAllDaysCollapsedState();
     },
 
+    bookingChildSectionOptions(parentId) {
+      if (!parentId) return [];
+      return (this.serviceSections || [])
+        .filter(section => String(section.parent_id || section.parentId || '') === String(parentId))
+        .map(section => ({ id: section.id, label: section.name }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'fa'));
+    },
+
     bookingSectionsForFilters(rootSectionId = '', subsectionId = '') {
+      const selectedBranchIds = subsectionId ? new Set(this.serviceBranchIds(subsectionId).map(String)) : null;
       return this.enabledBookingSectionOptions.filter(section => {
-        if (subsectionId && String(section.id) !== String(subsectionId)) return false;
+        if (selectedBranchIds && !selectedBranchIds.has(String(section.id))) return false;
         if (!rootSectionId) return true;
         return String(this.rootSectionIdFor(section.id) || section.id) === String(rootSectionId);
       });
@@ -3367,24 +3383,34 @@ export default {
     },
 
     onDraftBookingRootSectionChanged() {
-      const subsectionExists = this.bookingSubsectionFilterOptions.some(section => String(section.id) === String(this.draftBookingServiceFilter));
-      if (!subsectionExists) this.draftBookingServiceFilter = '';
+      this.draftBookingServiceFilter = '';
+      this.draftBookingSecondSubsectionFilter = '';
+      this.draftBookingThirdSubsectionFilter = '';
       const resourceExists = this.bookingResourceFilterOptions.some(resource => resource.value === this.draftBookingResourceFilter);
       if (!resourceExists) this.draftBookingResourceFilter = '';
     },
 
     onDraftBookingServiceFilterChanged() {
-      if (this.draftBookingServiceFilter) {
-        const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.draftBookingServiceFilter));
-        this.draftBookingRootSectionFilter = String(this.rootSectionIdFor(section?.id) || section?.id || this.draftBookingRootSectionFilter);
-      }
+      this.draftBookingSecondSubsectionFilter = '';
+      this.draftBookingThirdSubsectionFilter = '';
+      const resourceExists = this.bookingResourceFilterOptions.some(resource => resource.value === this.draftBookingResourceFilter);
+      if (!resourceExists) this.draftBookingResourceFilter = '';
+    },
+
+    onDraftBookingSecondSubsectionFilterChanged() {
+      this.draftBookingThirdSubsectionFilter = '';
+      const resourceExists = this.bookingResourceFilterOptions.some(resource => resource.value === this.draftBookingResourceFilter);
+      if (!resourceExists) this.draftBookingResourceFilter = '';
+    },
+
+    onDraftBookingThirdSubsectionFilterChanged() {
       const resourceExists = this.bookingResourceFilterOptions.some(resource => resource.value === this.draftBookingResourceFilter);
       if (!resourceExists) this.draftBookingResourceFilter = '';
     },
 
     applyBookingTimelineFilters() {
       this.bookingRootSectionFilter = this.draftBookingRootSectionFilter;
-      this.bookingServiceFilter = this.draftBookingServiceFilter;
+      this.bookingServiceFilter = this.draftBookingThirdSubsectionFilter || this.draftBookingSecondSubsectionFilter || this.draftBookingServiceFilter;
       this.bookingResourceFilter = this.draftBookingResourceFilter;
       if (this.appointmentView === 'timeline') this.refreshBookingTimelineSchedule();
     },
@@ -3392,6 +3418,8 @@ export default {
     clearBookingTimelineFilters() {
       this.draftBookingRootSectionFilter = '';
       this.draftBookingServiceFilter = '';
+      this.draftBookingSecondSubsectionFilter = '';
+      this.draftBookingThirdSubsectionFilter = '';
       this.draftBookingResourceFilter = '';
       this.bookingRootSectionFilter = '';
       this.bookingServiceFilter = '';
@@ -3776,6 +3804,25 @@ export default {
       if ((this.months[this.currentMonth] || "") !== today.format("jYYYY-jMM")) return;
       const todayDay = this.ensureScheduleDay(today);
       this.activateScheduleDay(todayDay);
+    },
+
+    focusTodayInTimeline(smooth = true) {
+      const today = moment();
+      if (this.appointmentView !== 'timeline') return;
+      if ((this.months[this.currentMonth] || '') !== today.format('jYYYY-jMM')) return;
+
+      const todayDay = this.ensureScheduleDay(today);
+      this.$nextTick(() => {
+        window.requestAnimationFrame(() => {
+          const element = this.$el?.querySelector(
+            `.appointment-timeline .timeline-day-row[data-day-number="${Number(todayDay.dayNum)}"]`
+          );
+          element?.scrollIntoView({
+            behavior: smooth ? 'smooth' : 'auto',
+            block: 'center'
+          });
+        });
+      });
     },
 
     scheduleFingerprint() {
@@ -4181,6 +4228,7 @@ export default {
       if (this.isEmptyAppointmentRow(row)) return "is-empty";
 
       const status = String(row?.status || "").trim();
+      if (status.includes("انتقال داده شده")) return "is-transferred";
       if (status.includes("کنسل")) return "is-canceled";
       if (this.isCreditor(row)) return "is-creditor";
       if (this.isDebtor(row)) return "is-debtor";
@@ -4361,7 +4409,7 @@ export default {
         if (!Array.isArray(draft.services) || !draft.services.length) {
           draft.services = [this.createEmptyAppointmentRow().services[0]];
         }
-        draft.services[0].sectionId = subsectionId;
+        draft.services[0].sectionId = this.bookingSectionsForFilters(rootSectionId, subsectionId)[0]?.id || subsectionId;
         draft.services[0].rootSectionId = rootSectionId;
       } else if (selectedRootSectionId) {
         draft.serviceTypes = [selectedRootSectionId];
@@ -5058,30 +5106,35 @@ export default {
       this.timelineTransferError = '';
       try {
         const row = this.activeTimelineRow;
-        if (!await this.persistDirectAppointment(row)) return;
-        const fingerprintBeforeTransfer = this.scheduleFingerprint();
+        // Existing appointments are already persisted. Saving the source row
+        // again before rescheduling can race with realtime updates and reject
+        // a perfectly valid move before the reschedule endpoint is reached.
+        if (!row.appointmentId && !await this.persistDirectAppointment(row)) return;
         const { data } = await axios.post(`/api/appointments/${row.appointmentId}/reschedule`, {
           lock_version: row.lockVersion, month: date.format('jYYYY-jMM'),
           day_num: Number(date.format('jD')), time,
         });
-        // Remove only the confirmed moved row; leave other unsaved rows intact.
-        const unchangedDuringTransfer = this.scheduleFingerprint() === fingerprintBeforeTransfer;
-        const sourceDay = this.activeTimelineDay;
-        sourceDay.rows = sourceDay.rows.filter(item => item !== row);
-        row.time = time;
-        row.status = 'انتقال داده شده';
-        row.lockVersion = data.lock_version;
-        if (date.format('jYYYY-jMM') === this.months[this.currentMonth]) {
-          const targetDay = this.ensureScheduleDay(date);
-          targetDay.rows.push(row);
-          this.sortDayRowsByTime(targetDay);
-          row._persistedStateFingerprint = this.appointmentRowStateFingerprint(targetDay, row, targetDay.rows.indexOf(row));
-          this.activateScheduleDay(targetDay);
-          this.flashRowHighlight(row._rowId);
-        }
-        if (unchangedDuringTransfer) this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
+        const targetMonth = date.format('jYYYY-jMM');
         this.timelineSaving = false;
         this.closeTimelineModal(true);
+
+        if (targetMonth !== this.months[this.currentMonth]) {
+          if (!this.months.includes(targetMonth)) {
+            this.months.push(targetMonth);
+            this.months = this.fillMissingMonths(this.months);
+          }
+          this.currentMonth = this.months.indexOf(targetMonth);
+          localStorage.setItem('schedule_current_month', this.currentMonth);
+          await this.fetchMonthEvents(true);
+        }
+
+        delete this.monthAppointmentsCache[targetMonth];
+        delete this.monthDaysCache[targetMonth];
+        await this.fetchData(true);
+        const targetDay = this.days.find(day => Number(day.dayNum) === Number(date.format('jD')));
+        const targetRow = targetDay?.rows.find(item => Number(item.appointmentId) === Number(data.appointment_id));
+        if (targetDay) this.activateScheduleDay(targetDay);
+        if (targetRow) this.flashRowHighlight(targetRow._rowId);
         await Swal.fire({ icon: 'success', title: 'نوبت منتقل شد', text: `زمان جدید: ${date.format('jYYYY/jMM/jDD')}، ساعت ${time}` });
       } catch (error) {
         this.timelineTransferError = this.saveErrorMessage(error);
@@ -8051,7 +8104,11 @@ this.calculateFinalAmount(row)
       if (action === 'insert') return this.insertRowAfter(day, row);
       if (action === 'tracking') return this.clockAppointmentArrival(day, row);
       if (action === 'history') return this.openAppointmentHistory(row);
-      if (action === 'delete') return this.deleteAppointmentRow(day, row);
+      if (action === 'delete') {
+        return this.deleteAppointmentRow(day, row, {
+          preserveTimeSlot: this.rowHasAppointment(row)
+        });
+      }
     },
 
     flashRowHighlight(rowId, duration = 1300) {
@@ -9047,9 +9104,25 @@ this.calculateFinalAmount(row)
       return result.isConfirmed;
     },
 
-    async deleteAppointmentRow(day, row) {
+    async deleteAppointmentRow(day, row, { preserveTimeSlot = false } = {}) {
       const index = day.rows.findIndex(item => item._rowId === row._rowId);
       if (index === -1) return;
+
+      if (this.rowHasAppointment(row)) {
+        const confirmed = preserveTimeSlot
+          ? (await Swal.fire({
+              icon: 'warning',
+              title: 'حذف نوبت این ساعت',
+              text: `نوبت ساعت ${row.time || 'انتخاب‌شده'} پاک می‌شود و این ساعت خالی می‌ماند. مطمئنید؟`,
+              showCancelButton: true,
+              confirmButtonText: 'بله، نوبت پاک شود',
+              cancelButtonText: 'انصراف',
+              confirmButtonColor: '#dc2626',
+              reverseButtons: true
+            })).isConfirmed
+          : await this.confirmDeleteFilledRows(1);
+        if (!confirmed) return;
+      }
 
       // The avatar preview is rendered outside the row (fixed positioning),
       // so removing a hovered row does not necessarily fire mouseleave.
@@ -9060,11 +9133,6 @@ this.calculateFinalAmount(row)
         (row.fileNumber && this.activePatientProfile?.file_number === row.fileNumber)
       )) {
         this.closePatientProfileModal();
-      }
-
-      if (this.rowHasAppointment(row)) {
-        const confirmed = await this.confirmDeleteFilledRows(1);
-        if (!confirmed) return;
       }
 
       if (row.appointmentId) {
@@ -9080,7 +9148,18 @@ this.calculateFinalAmount(row)
           return;
         }
       }
-      day.rows.splice(index, 1);
+      if (preserveTimeSlot && row.time) {
+        const otherEmptySlot = day.rows.some((item, itemIndex) =>
+          itemIndex !== index && item.time === row.time && this.isEmptyAppointmentRow(item)
+        );
+        if (otherEmptySlot) {
+          day.rows.splice(index, 1);
+        } else {
+          day.rows.splice(index, 1, { ...this.createEmptyAppointmentRow(), time: row.time });
+        }
+      } else {
+        day.rows.splice(index, 1);
+      }
       if (this.activeServicePopup === row._rowId) {
         this.activeServicePopup = null;
       }
@@ -9217,19 +9296,20 @@ this.calculateFinalAmount(row)
 
     activeBookingServicesForDuration() {
       if (!this.bookingServiceFilter) return [];
-      const section = this.enabledBookingSectionOptions.find(item => String(item.id) === String(this.bookingServiceFilter));
-      if (!section) return [];
-      if (!this.bookingResourceFilter) return section.services;
+      const services = this.bookingSectionsForFilters(this.bookingRootSectionFilter, this.bookingServiceFilter)
+        .flatMap(section => section.services);
+      if (!services.length) return [];
+      if (!this.bookingResourceFilter) return services;
 
       const [type, id] = String(this.bookingResourceFilter).split(':');
-      const assigned = section.services.filter(service =>
+      const assigned = services.filter(service =>
         (service.booking_resources || service.bookingResources || []).some(resource =>
           type === 'doctor'
             ? resource.role === 'doctor' && Number(resource.doctor_id) === Number(id)
             : resource.role !== 'doctor' && Number(resource.staff_id) === Number(id)
         )
       );
-      return assigned.length ? assigned : section.services;
+      return assigned.length ? assigned : services;
     },
 
     bookingDurationMinutesForRow(row) {
@@ -9237,8 +9317,9 @@ this.calculateFinalAmount(row)
       if (!configuredServices.length) return Number(this.clinicSchedule.interval_minutes || 15);
 
       const selectedSectionId = String(this.bookingServiceFilter || '');
+      const selectedBranchIds = new Set(this.serviceBranchIds(selectedSectionId).map(String));
       const explicitNames = new Set((row.services || [])
-        .filter(service => String(service.sectionId || service.section_id || '') === selectedSectionId)
+        .filter(service => selectedBranchIds.has(String(service.sectionId || service.section_id || this.sectionIdForService(service.name, row) || '')))
         .map(service => String(service.name || '').trim())
         .filter(Boolean));
       const durationServices = explicitNames.size
@@ -9268,6 +9349,7 @@ this.calculateFinalAmount(row)
 
     bookingSlotIsOccupied(day, row) {
       if (!this.bookingServiceFilter || !this.isEmptyAppointmentRow(row)) return false;
+      const selectedBranchIds = new Set(this.serviceBranchIds(this.bookingServiceFilter).map(String));
       const candidateTime = String(row.time || '').slice(0, 5);
       if (!candidateTime) return false;
       const candidateMinute = this.minutesFromTime(candidateTime);
@@ -9276,7 +9358,7 @@ this.calculateFinalAmount(row)
         if (this.isEmptyAppointmentRow(appointment) || !this.bookingRowMatchesSelectedResource(appointment)) return false;
         const appointmentServices = appointment.services || [];
         const matchesSection = appointmentServices.some(service =>
-          String(service.sectionId || service.section_id || this.sectionIdForService(service.name, appointment) || '') === String(this.bookingServiceFilter)
+          selectedBranchIds.has(String(service.sectionId || service.section_id || this.sectionIdForService(service.name, appointment) || ''))
         );
         if (!matchesSection) return false;
         const startTime = String(appointment.time || '').slice(0, 5);
@@ -9370,9 +9452,10 @@ this.calculateFinalAmount(row)
           const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
           return String(this.rootSectionIdFor(sectionId) || sectionId || '') === String(this.bookingRootSectionFilter);
         });
-        const bookingServiceOk = !this.bookingServiceFilter || keepEmptyBookingSlot || services.some(service => {
+        const bookingBranchIds = this.bookingServiceFilter ? new Set(this.serviceBranchIds(this.bookingServiceFilter).map(String)) : null;
+        const bookingServiceOk = !bookingBranchIds || keepEmptyBookingSlot || services.some(service => {
           const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
-          return String(sectionId || '') === String(this.bookingServiceFilter);
+          return bookingBranchIds.has(String(sectionId || ''));
         });
         const bookingResourceOk = !this.bookingResourceFilter || keepEmptyBookingSlot || this.bookingRowMatchesSelectedResource(row);
         const timelineSlotOk = this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
@@ -13087,6 +13170,31 @@ td.st-arrived select {
   border-color: #b91c1c !important;
   background: #d50000 !important;
   box-shadow: 0 5px 14px rgba(213, 0, 0, .14) !important;
+}
+
+.appointment-timeline .timeline-card.is-transferred {
+  border-color: #c4b5fd !important;
+  background: linear-gradient(145deg, #f5f3ff, #ede9fe) !important;
+  box-shadow: inset -4px 0 0 #7c3aed, 0 5px 14px rgba(124, 58, 237, .14) !important;
+}
+
+.appointment-timeline .timeline-card.is-transferred .timeline-time-chip {
+  border: 1px solid #c4b5fd;
+  background: #7c3aed !important;
+  color: #fff !important;
+  box-shadow: 0 5px 12px rgba(124, 58, 237, .18);
+}
+
+.appointment-timeline .timeline-card.is-transferred .timeline-card-body strong,
+.appointment-timeline .timeline-card.is-transferred .timeline-card-body span,
+.appointment-timeline .timeline-card.is-transferred .timeline-card-body small {
+  color: #4c1d95 !important;
+}
+
+.appointment-timeline .timeline-card.is-transferred .timeline-status-label {
+  border: 1px solid #c4b5fd;
+  background: #ddd6fe !important;
+  color: #5b21b6 !important;
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-time-chip {

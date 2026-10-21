@@ -169,7 +169,29 @@
             <tbody>
               <tr v-for="r in rows" :key="r.no">
                 <td class="rb-tdnum">{{ r.no }}</td>
-                <td v-for="(cell, i) in r.cells" :key="i">{{ cell }}</td>
+                <td v-for="cell in r.cells" :key="cell.key">
+                  <button
+                    v-if="cell.key === patientIdentityColumnKey && r.patient?.id"
+                    type="button"
+                    class="rb-patient-link"
+                    :class="{ 'is-disabled': !canOpenPatientProfiles }"
+                    :disabled="!canOpenPatientProfiles"
+                    :title="canOpenPatientProfiles ? 'باز کردن پرونده در صفحه جدید' : 'دسترسی مشاهده پرونده ندارید'"
+                    @click="openPatientProfile(r.patient)"
+                  >
+                    <PatientAvatar
+                      v-if="r.patient.avatar_url"
+                      :patient="r.patient"
+                      :src="r.patient.avatar_url"
+                      :size="34"
+                      :alt="patientDisplayName(r.patient)"
+                      :clickable="canOpenPatientProfiles"
+                    />
+                    <span>{{ cell.value }}</span>
+                    <small v-if="canOpenPatientProfiles" aria-hidden="true">↗</small>
+                  </button>
+                  <template v-else>{{ cell.value }}</template>
+                </td>
               </tr>
             </tbody>
             <tfoot v-if="cols.some(column => column.key === 'amount')">
@@ -376,6 +398,7 @@
 <script>
 import axios from 'axios';
 import { subscribeReportProgress } from '../services/presence';
+import PatientAvatar from './PatientAvatar.vue';
 
 const FA = '۰۱۲۳۴۵۶۷۸۹';
 const pd = s => String(s).replace(/[0-9]/g, d => FA[d]);
@@ -526,6 +549,10 @@ const MOCK = {
 
 export default {
   name: 'ReportBuilder',
+  components: { PatientAvatar },
+  props: {
+    permissions: { type: Array, default: () => [] }
+  },
   data() {
     const vals = {};
     FIELDS.forEach(f => { if (f.type === 'text') vals[f.id] = ''; if (f.type === 'select') vals[f.id] = f.options[0]; });
@@ -577,13 +604,18 @@ export default {
       return years;
     },
     cols() { return FIELDS.filter(f => this.show[f.id]).map(f => ({ key: f.id, label: f.label })); },
+    canOpenPatientProfiles() { return this.permissions.includes('patients.view'); },
+    patientIdentityColumnKey() {
+      return ['name', 'family', 'fileNo', 'phone'].find(key => this.cols.some(column => column.key === key)) || null;
+    },
     isPatientFileReport() { return this.reportScope === 'patients'; },
     pageCount() { return Math.max(1, Math.ceil(this.totalRows / this.pageSize)); },
     rows() {
       const offset = (this.page - 1) * this.pageSize;
       return this.resultRows.map((row, index) => ({
         no: pd(offset + index + 1),
-        cells: this.cols.map(column => row[column.key] ?? '—')
+        patient: row._patient || null,
+        cells: this.cols.map(column => ({ key: column.key, value: row[column.key] ?? '—' }))
       }));
     },
     pageNums() {
@@ -639,6 +671,18 @@ export default {
   },
   methods: {
     pd,
+    patientDisplayName(patient) {
+      return [patient?.first_name, patient?.last_name].map(value => String(value || '').trim()).filter(Boolean).join(' ') || 'مشتری';
+    },
+    openPatientProfile(patient) {
+      if (!this.canOpenPatientProfiles || !patient?.id || !patient?.file_number) return;
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('openPatientProfile', '1');
+      url.searchParams.set('file_number', String(patient.file_number));
+      window.open(url.toString(), '_blank', 'noopener,noreferrer');
+    },
     reportSourceLabel(scope) { return this.reportSources.find(source => source.id === scope)?.label || 'نوبت‌دهی'; },
     async loadReportOptions() {
       try {
@@ -1052,6 +1096,7 @@ export default {
 .rb-table td { padding: 12px 14px; color: #2B3845; border-bottom: 1px solid #F2F5F7; }
 .rb-tdnum { color: #9AA6B1 !important; }
 .rb-table tbody tr:hover { background: #FAFCFD; }
+.rb-patient-link{appearance:none;display:inline-flex;align-items:center;gap:9px;min-height:36px;padding:0;border:0;background:transparent;color:#0f6b5e;font:inherit;font-weight:800;cursor:pointer;text-align:right}.rb-patient-link>span{border-bottom:1px dashed transparent}.rb-patient-link>small{color:#94a3b8;font-size:11px;transition:.15s}.rb-patient-link:not(:disabled):hover>span{border-bottom-color:#0f6b5e}.rb-patient-link:not(:disabled):hover>small{color:#0f6b5e;transform:translate(-1px,-1px)}.rb-patient-link.is-disabled{color:#2B3845;cursor:default}.rb-patient-link:focus-visible{outline:2px solid #0E6B5E;outline-offset:4px;border-radius:8px}
 .rb-empty { border: 1px dashed #DCE4E9; border-radius: 14px; padding: 54px; text-align: center;
   color: #5A6675; font-size: 13.5px; }
 

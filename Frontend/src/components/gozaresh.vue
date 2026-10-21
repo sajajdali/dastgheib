@@ -6,7 +6,7 @@
         <button type="button" @click="activeView = 'reports'">داشبورد</button>
         <button type="button" class="active">گزارش‌ساز</button>
       </div>
-      <ReportBuilder />
+      <ReportBuilder :permissions="permissions" />
     </template>
   </section>
 </template>
@@ -18,6 +18,9 @@ import ReportBuilder from './ReportBuilder.vue'
 export default {
   name: 'Gozaresh',
   components: { NativeStaticReports, ReportBuilder },
+  props: {
+    permissions: { type: Array, default: () => [] }
+  },
   data() {
     return { activeView: 'reports' }
   }

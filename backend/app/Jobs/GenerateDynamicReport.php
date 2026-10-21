@@ -67,12 +67,21 @@ class GenerateDynamicReport implements ShouldQueue
             foreach ($source->rows($records, $filters) as $sourceRow) {
                 $context = $sourceRow['context'];
                 if (! $customerLevelFilter->matches($context, $filters)) continue;
+                $payload = $rowBuilder->build($columns, $context);
+                $patient = $context->patient;
+                $payload['_patient'] = [
+                    'id' => $patient->exists ? $patient->getKey() : null,
+                    'file_number' => $patient->file_number,
+                    'first_name' => $patient->first_name,
+                    'last_name' => $patient->last_name,
+                    'avatar_url' => $patient->avatar_url,
+                ];
                 $rows[] = [
                     'report_id' => $report->id,
                     'patient_id' => $sourceRow['patient_id'],
                     'source_type' => $sourceKey,
                     'source_id' => $sourceRow['source_id'],
-                    'payload' => json_encode($rowBuilder->build($columns, $context), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'payload' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                     'created_at' => $now,
                 ];
             }

@@ -28,6 +28,7 @@ use App\Services\CustomerLevelService;
 use App\Services\ShsmsService;
 use App\Support\PatientPhoneVisibility;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AppointmentController extends Controller
 {
@@ -195,6 +196,49 @@ class AppointmentController extends Controller
             ->orWhere(function ($query) {
                 $query->whereNotNull('service_types')->whereNotIn('service_types', ['', '[]', 'null']);
             });
+    }
+
+    /**
+     * Return the people whose calendars are occupied by an appointment.
+     * The same clock time can legitimately be used by different doctors or
+     * operators; only appointments sharing a resource should conflict.
+     */
+    private function appointmentResourceKeys(array|Appointment $appointment): array
+    {
+        $values = $appointment instanceof Appointment ? $appointment->toArray() : $appointment;
+        $keys = [];
+        $add = function (string $type, mixed $name) use (&$keys): void {
+            $normalized = preg_replace('/\s+/u', ' ', trim((string) $name));
+            if ($normalized !== '') {
+                $keys[] = $type.':'.mb_strtolower($normalized, 'UTF-8');
+            }
+        };
+
+        $add('doctor', $values['doctor'] ?? null);
+        $add('operator', $values['consultant'] ?? null);
+
+        $services = $values['services'] ?? [];
+        if (is_string($services)) {
+            $services = json_decode($services, true) ?: [];
+        }
+        foreach (is_array($services) ? $services : [] as $service) {
+            if (! is_array($service)) continue;
+            $add('doctor', $service['doctor'] ?? null);
+            $add('operator', $service['consultant'] ?? null);
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    private function appointmentResourcesConflict(array $candidateResources, Appointment $other): bool
+    {
+        $otherResources = $this->appointmentResourceKeys($other);
+
+        // An unassigned appointment has no separate calendar lane, so keep
+        // the conservative global conflict rule for legacy/general bookings.
+        return $candidateResources === []
+            || $otherResources === []
+            || array_intersect($candidateResources, $otherResources) !== [];
     }
 
     private function appointmentNoteKey(Appointment $appointment): string
@@ -693,6 +737,11 @@ class AppointmentController extends Controller
         // guard applies when claiming a new slot or moving to another slot.
         if ($sameSlot) return;
 
+        $candidateValues = $previous
+            ? array_replace($previous->toArray(), $incoming)
+            : $incoming;
+        $candidateResources = $this->appointmentResourceKeys($candidateValues);
+
         // A manually extended appointment owns every covered clock slot, even
         // though only its starting time is stored as a database row.
         $candidateMinute = $this->appointmentTimeMinutes($time);
@@ -706,11 +755,12 @@ class AppointmentController extends Controller
                 ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
                 ->lockForUpdate()
                 ->get()
-                ->contains(function (Appointment $appointment) use ($candidateMinute, $candidateEnd) {
+                ->contains(function (Appointment $appointment) use ($candidateMinute, $candidateEnd, $candidateResources) {
                     $start = $this->appointmentTimeMinutes((string) $appointment->time);
                     return $start !== null
                         && $candidateMinute < $start + max(1, (int) $appointment->duration_minutes)
-                        && $candidateEnd > $start;
+                        && $candidateEnd > $start
+                        && $this->appointmentResourcesConflict($candidateResources, $appointment);
                 });
             abort_if($coveredByExtendedAppointment, 409,
                 'این ساعت بخشی از یک نوبت ادغام‌شده است و امکان رزرو آن وجود ندارد.');
@@ -730,7 +780,10 @@ class AppointmentController extends Controller
             // are not bookings and must not block a real patient appointment.
             ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
             ->lockForUpdate()
-            ->exists();
+            ->get()
+            ->contains(fn (Appointment $appointment) =>
+                $this->appointmentResourcesConflict($candidateResources, $appointment)
+            );
 
         abort_if($occupied, 409,
             'این ساعت همین حالا توسط کاربر دیگری رزرو شده است. اطلاعات صفحه به‌روزرسانی می‌شود.');
@@ -748,29 +801,83 @@ class AppointmentController extends Controller
             'day_num' => ['required', 'integer', 'between:1,31'],
             'time' => ['required', 'date_format:H:i'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
-        [$before, $updated] = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($appointment, $data) {
+        [$before, $sourceMarker, $updated] = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($appointment, $data) {
             return DB::transaction(function () use ($appointment, $data) {
                 $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
                 abort_if((int) $current->lock_version !== (int) $data['lock_version'], 409,
                     'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید و دوباره انتقال دهید.');
                 $this->assertAppointmentSlotAvailable($data, $data['month'], $current);
                 $before = clone $current;
-                $current->update([
+
+                // Keep an explicit, non-financial marker in the source slot.
+                // The original appointment id (and therefore its wallet,
+                // ledger and service relations) moves to the destination.
+                $sourceMarker = $current->replicate();
+                $sourceMarkerReset = [
+                    'status' => 'انتقال داده شده',
+                    'duration_minutes' => null,
+                    'arrived_at' => null,
+                    'wait_minutes' => null,
+                    'done' => null,
+                    'completed_at' => null,
+                    'before_photo_taken_at' => null,
+                    'before_photo_taken_by_id' => null,
+                    'before_photo_taken_by_name' => null,
+                    'after_photo_taken_at' => null,
+                    'after_photo_taken_by_id' => null,
+                    'after_photo_taken_by_name' => null,
+                    'amount' => 0,
+                    'original_amount' => 0,
+                    'debt' => 0,
+                    'discount' => 0,
+                    'wallet_applied' => 0,
+                    'payment_method' => null,
+                    'payment_account' => null,
+                    'payment_details' => null,
+                    'payment_link' => null,
+                    'payment_link_sent_count' => 0,
+                    'payment_link_last_sent_at' => null,
+                    'referrer_phone' => null,
+                    'referral_score' => 0,
+                    'referral_commission_type' => null,
+                    'referral_commission_value' => 0,
+                    'new_customer' => false,
+                    'appointment_sms' => null,
+                    'info_sms' => null,
+                    'completion_sms_statuses' => [],
+                    'lock_version' => 1,
+                ];
+                $sourceMarker->forceFill(collect($sourceMarkerReset)
+                    ->filter(fn ($value, string $column) => Schema::hasColumn('appointments', $column))
+                    ->all())->save();
+
+                $destinationValues = [
                     'month' => $data['month'],
                     'day_num' => $data['day_num'],
                     'time' => $data['time'],
-                    'status' => 'انتقال داده شده',
+                    'status' => 'وقت داده شد',
+                    'arrived_at' => null,
+                    'wait_minutes' => null,
+                    'done' => null,
+                    'completed_at' => null,
                     'lock_version' => (int) $current->lock_version + 1,
-                ]);
-                return [$before, $current];
+                ];
+                $current->update(collect($destinationValues)
+                    ->filter(fn ($value, string $column) => Schema::hasColumn('appointments', $column))
+                    ->all());
+                return [$before, $sourceMarker, $current];
             });
         });
-        // Notify both calendars when moving across months, on this tenant's private channel.
-        if ($before->month !== $updated->month) {
-            $this->broadcastAppointmentChange($before, 'rescheduled');
-        }
+        // The source marker and destination booking are both authoritative
+        // calendar rows and must refresh in every connected client.
+        $this->broadcastAppointmentChange($sourceMarker, 'rescheduled');
         $this->broadcastAppointmentChange($updated, 'rescheduled');
-        return response()->json(['appointment_id' => $updated->id, 'lock_version' => $updated->lock_version]);
+        return response()->json([
+            'appointment_id' => $updated->id,
+            'lock_version' => $updated->lock_version,
+            'appointment' => $updated->fresh(),
+            'source_marker' => $sourceMarker->fresh(),
+        ]);
     }
 
     /** Extend an appointment into the immediately following empty timeline slot. */
