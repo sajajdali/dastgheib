@@ -1062,10 +1062,43 @@
                     :data-followup-row-id="String(row._localId)"
                   >
                     <td>
-                      <div class="campaign-patient-cell">
+                      <div class="campaign-patient-cell" :class="{ 'patient-search-open': followupPatientSearchRowId === row._localId }">
                         <img v-if="patientAvatar(row)" :src="patientAvatar(row)" :class="['campaign-patient-avatar', patientAvatarClass(row)]" alt="" :title="followupRowHasPatient(row) ? 'باز کردن پرونده در صفحه جدید' : 'برای این مخاطب پرونده‌ای ثبت نشده است'" @click.stop="openFollowupPatientProfile(row)" />
                         <span v-else :class="['campaign-patient-avatar', 'fallback', patientAvatarClass(row)]" :title="followupRowHasPatient(row) ? 'باز کردن پرونده در صفحه جدید' : 'برای این مخاطب پرونده‌ای ثبت نشده است'" @click.stop="openFollowupPatientProfile(row)">{{ patientInitial(row) }}</span>
-                        <input v-model="row.fullName" @input="onFollowupNameInput(row)" />
+                        <input
+                          v-model="row.fullName"
+                          type="text"
+                          autocomplete="off"
+                          placeholder="نام، پرونده یا موبایل..."
+                          @click.stop
+                          @focus="searchFollowupPatients(row)"
+                          @input="onFollowupNameInput(row)"
+                          @blur="closeFollowupPatientSearch(row)"
+                        />
+                        <div
+                          v-if="followupPatientSearchRowId === row._localId"
+                          class="followup-patient-results"
+                          @mousedown.prevent
+                        >
+                          <div v-if="followupPatientSearchLoading" class="followup-patient-search-state">در حال جست‌وجو...</div>
+                          <button
+                            v-for="patient in followupPatientSearchResults"
+                            v-else
+                            :key="patient.id || patient.file_number"
+                            type="button"
+                            class="followup-patient-result"
+                            @click="selectFollowupPatient(row, patient)"
+                          >
+                            <img v-if="patientAvatar(patient)" :src="patientAvatar(patient)" alt="" />
+                            <span v-else class="followup-patient-result-avatar">{{ patientInitial(patient) }}</span>
+                            <span class="followup-patient-result-info">
+                              <strong>{{ followupPatientName(patient) }}</strong>
+                              <small>پرونده {{ patient.file_number || '—' }} <b>•</b> {{ displayPatientPhone(patient.phone, row) || 'بدون موبایل' }}</small>
+                            </span>
+                            <em :class="followupPatientLevelClass(patient)">{{ followupPatientLevelLabel(patient) }}</em>
+                          </button>
+                          <div v-if="!followupPatientSearchLoading && !followupPatientSearchResults.length" class="followup-patient-search-state">پرونده‌ای با این مشخصات پیدا نشد.</div>
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -1507,6 +1540,11 @@ export default {
       showArchived: false,
       showMissedFollowups: false,
       patientLookupTimers: {},
+      followupPatientSearchRowId: null,
+      followupPatientSearchResults: [],
+      followupPatientSearchLoading: false,
+      followupPatientSearchTimer: null,
+      followupPatientSearchRequest: 0,
       reasonOptions: ["هزینه", "کمبود وقت", "تصمیم‌گیری", "ترس", "مسیر", "تردید", "غیره"],
 
       showDateReportModal: false,
@@ -1814,6 +1852,8 @@ export default {
 
   beforeUnmount() {
     clearTimeout(this.bulkPhonePasteNoticeTimer);
+    clearTimeout(this.followupPatientSearchTimer);
+    Object.values(this.patientLookupTimers).forEach(timer => clearTimeout(timer));
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
     window.removeEventListener("scroll", this.closeAllFilters, true);
     window.removeEventListener("resize", this.closeAllFilters);
@@ -1892,17 +1932,27 @@ export default {
 
     followupHistoryRows(row) {
       if (!row) return [];
+      const patientId = String(row.patient_id || row.patientId || (!row._localId ? row.id : '') || '').trim();
+      const fileNumber = this.normalizeFollowupLookup(row.file_number || row.fileNumber);
       const phone = this.normalizePhoneLookup(row.phone);
       const name = this.normalizeFollowupLookup(row.fullName);
-      if (phone.length < 7 && name.length < 2) return [];
+      if (!patientId && !fileNumber && phone.length < 7 && name.length < 2) return [];
 
       const currentId = String(row._localId || "");
       const rows = [];
       this.campaigns.forEach(campaign => {
         (campaign.rows || []).forEach(item => {
-          const samePhone = phone.length >= 7 && this.normalizePhoneLookup(item.phone) === phone;
-          const sameName = phone.length < 7 && name.length >= 2 && this.normalizeFollowupLookup(item.fullName) === name;
-          if (!samePhone && !sameName) return;
+          const itemPatientId = String(item.patient_id || item.patientId || '').trim();
+          const itemFileNumber = this.normalizeFollowupLookup(item.file_number || item.fileNumber);
+          const itemPhone = this.normalizePhoneLookup(item.phone);
+          const samePatient = patientId && itemPatientId && itemPatientId === patientId;
+          const sameFileNumber = fileNumber && itemFileNumber && itemFileNumber === fileNumber;
+          const samePhone = phone.length >= 7 && itemPhone.length >= 7 && itemPhone === phone;
+          const itemHasStrongIdentity = Boolean(itemPatientId || itemFileNumber || itemPhone.length >= 7);
+          const sameLegacyName = name.length >= 2
+            && !itemHasStrongIdentity
+            && this.normalizeFollowupLookup(item.fullName) === name;
+          if (!samePatient && !sameFileNumber && !samePhone && !sameLegacyName) return;
           rows.push({
             ...item,
             rowId: item._localId,
@@ -2017,13 +2067,9 @@ export default {
     },
 
     openRequestedFollowups(request) {
-      const phone = this.normalizeFollowupLookup(request.phone);
-      const name = this.normalizeFollowupLookup(request.fullName);
-      const terms = [phone, name].filter(Boolean);
-      if (!terms.length) return;
-
-      const matched = this.findFollowupMatch(terms);
-      if (!matched) {
+      const rows = this.followupHistoryRows(request);
+      if (!rows.length) {
+        if (this.campaignsLoadingFromServer) return;
         this.showDateReportModal = true;
         this.reportFilterTab = "customers";
         this.reportSearch = request.phone || request.fullName || "";
@@ -2032,13 +2078,15 @@ export default {
 
       this.showDateReportModal = false;
       this.showMissedFollowups = false;
-      this.showArchived = this.isCampaignArchived(matched.campaign);
-      this.openCampaign(matched.campaign.id, matched.row._localId);
-      this.campaignSearch = request.phone || request.fullName || matched.row.fullName || matched.row.phone || "";
-      this.$nextTick(() => {
-        document.querySelector(".campaign-table-modal .toolbar-input")?.focus();
-        this.scrollToHighlightedFollowupRow();
-      });
+      this.activeCampaignId = null;
+      this.activeHistoryRow = {
+        ...request,
+        patient_id: request.patient_id || request.patientId || request.id || '',
+        file_number: request.file_number || request.fileNumber || '',
+        fullName: request.fullName || rows[0]?.fullName || '',
+        phone: request.phone || rows[0]?.phone || '',
+      };
+      this.historyModalOpen = true;
     },
 
     findFollowupMatch(terms) {
@@ -2341,20 +2389,7 @@ export default {
 
         if (!patient) return;
 
-        row.fullName =
-          `${patient.first_name || ""} ${patient.last_name || ""}`.trim();
-
-        row.gender =
-          patient.gender || "";
-
-        // اگر دوست داشتی تاریخ تماس هم خودکار ست شود
-        row.profile_thumbnail_url = patient.profile_thumbnail_url || "";
-        row.profile_photo_url = patient.profile_photo_url || "";
-        row.avatar_url = patient.avatar_url || "";
-        row.avatarUrl = avatarUrl(patient);
-        row.patient_id = patient.id || "";
-        row.file_number = patient.file_number || "";
-        row.customer_level = patient.customer_level || "silver";
+        this.applyPatientToFollowupRow(row, patient);
         this.ensureContactDateTime(row);
 
       } catch (e) {
@@ -2376,12 +2411,14 @@ export default {
       return new Date(now - tzOffset).toISOString().split("T")[0];
     },
 
-    closeAllFilters() {
+    closeAllFilters(event = null) {
+      if (event?.type === 'scroll' && event.target?.closest?.('.followup-patient-results')) return;
       this.activeFilter = null;
       this.activeReportFilter = null;
       this.filterMenuStyle = {};
       this.reportFilterMenuStyle = {};
       this.closeLandingMenu();
+      this.closeFollowupPatientSearch();
     },
 
     async hydrateFollowupPatientProfiles() {
@@ -2767,8 +2804,110 @@ export default {
 },
 
     onFollowupNameInput(row) {
-      if (!String(row?.fullName || '').trim()) return;
+      if (!row) return;
+      const name = String(row.fullName || '').trim();
+      if (row.patient_id && this.normalizeFollowupLookup(name) !== this.normalizeFollowupLookup(row._selectedPatientName)) {
+        row.patient_id = '';
+        row.patientId = '';
+        row.file_number = '';
+        row.fileNumber = '';
+        row.customer_level = 'silver';
+        row.profile_thumbnail_url = '';
+        row.profile_photo_url = '';
+        row.avatar_url = '';
+        row.avatarUrl = '';
+      }
+      if (name) this.ensureContactDateTime(row);
+      this.searchFollowupPatients(row);
+    },
+
+    followupPatientName(patient) {
+      return [patient?.first_name, patient?.last_name].filter(Boolean).join(' ').trim()
+        || String(patient?.full_name || '').trim()
+        || 'بدون نام';
+    },
+
+    followupPatientLevel(patient) {
+      const level = String(patient?.customer_level || patient?.customerLevel || 'silver').trim().toLowerCase();
+      return ['silver', 'blue', 'gold', 'problematic'].includes(level) ? level : 'silver';
+    },
+
+    followupPatientLevelClass(patient) {
+      return `level-${this.followupPatientLevel(patient)}`;
+    },
+
+    followupPatientLevelLabel(patient) {
+      return ({ problematic: 'دردسرساز', blue: 'آبی', silver: 'نقره‌ای', gold: 'طلایی' })[this.followupPatientLevel(patient)];
+    },
+
+    applyPatientToFollowupRow(row, patient) {
+      if (!row || !patient) return;
+      const fullName = this.followupPatientName(patient);
+      row.fullName = fullName === 'بدون نام' ? '' : fullName;
+      row.phone = patient.phone || row.phone || '';
+      row.gender = patient.gender || '';
+      row.profile_thumbnail_url = patient.profile_thumbnail_url || '';
+      row.profile_photo_url = patient.profile_photo_url || '';
+      row.avatar_url = patient.avatar_url || '';
+      row.avatarUrl = avatarUrl(patient);
+      row.patient_id = patient.id || '';
+      row.file_number = patient.file_number || '';
+      row.customer_level = this.followupPatientLevel(patient);
+      row._selectedPatientName = row.fullName;
       this.ensureContactDateTime(row);
+    },
+
+    searchFollowupPatients(row) {
+      clearTimeout(this.followupPatientSearchTimer);
+      const query = String(row?.fullName || '').trim();
+      const rowId = row?._localId;
+      const requestId = ++this.followupPatientSearchRequest;
+
+      if (!rowId || query.length < 2) {
+        this.followupPatientSearchRowId = null;
+        this.followupPatientSearchResults = [];
+        this.followupPatientSearchLoading = false;
+        return;
+      }
+
+      this.followupPatientSearchRowId = rowId;
+      this.followupPatientSearchResults = [];
+      this.followupPatientSearchLoading = true;
+      this.followupPatientSearchTimer = setTimeout(async () => {
+        try {
+          const { data } = await axios.get('/api/patients/search', { params: { q: query } });
+          if (
+            requestId !== this.followupPatientSearchRequest
+            || this.followupPatientSearchRowId !== rowId
+            || String(row.fullName || '').trim() !== query
+          ) return;
+          this.followupPatientSearchResults = Array.isArray(data) ? data : [];
+        } catch (error) {
+          if (requestId !== this.followupPatientSearchRequest) return;
+          console.error('خطا در جست‌وجوی بیمار پیگیری', error);
+          this.followupPatientSearchResults = [];
+        } finally {
+          if (requestId === this.followupPatientSearchRequest) this.followupPatientSearchLoading = false;
+        }
+      }, 250);
+    },
+
+    closeFollowupPatientSearch(row = null) {
+      const close = () => {
+        if (row && this.followupPatientSearchRowId !== row._localId) return;
+        this.followupPatientSearchRequest += 1;
+        clearTimeout(this.followupPatientSearchTimer);
+        this.followupPatientSearchRowId = null;
+        this.followupPatientSearchResults = [];
+        this.followupPatientSearchLoading = false;
+      };
+      if (row) setTimeout(close, 120);
+      else close();
+    },
+
+    selectFollowupPatient(row, patient) {
+      this.applyPatientToFollowupRow(row, patient);
+      this.closeFollowupPatientSearch();
     },
     ensureContactDateTime(row) {
       if (!row) return;
@@ -3409,7 +3548,8 @@ export default {
           await this.saveCampaignsToServer();
           this.saveCampaignsToLocal();
         }
-        this.hydrateFollowupPatientProfiles();
+        await this.hydrateFollowupPatientProfiles();
+        if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
       }
     },
 
@@ -5157,8 +5297,20 @@ export default {
 .campaign-table-modal .contacts-table .th-content{width:100%;min-width:0;gap:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .campaign-table-modal .filter-btn{width:19px;height:19px;flex:0 0 19px;display:grid;place-items:center;padding:0;color:#64748b;font-size:10px}
 .campaign-table-modal .resizer{width:5px}.campaign-table-modal .resizer:hover{background:#60a5fa}
-.campaign-patient-cell{height:38px;min-width:0;gap:4px;overflow:visible}
+.campaign-patient-cell{position:relative;height:38px;min-width:0;gap:4px;overflow:visible}
 .campaign-patient-cell input{min-width:0;flex:1}
+.campaign-patient-cell.patient-search-open{z-index:610}
+.campaign-table-modal .contacts-table tbody tr:has(.followup-patient-results),.campaign-table-modal .contacts-table tbody td:has(.followup-patient-results){position:relative;z-index:609;overflow:visible!important}
+.followup-patient-results{position:absolute;z-index:620;top:calc(100% + 5px);right:30px;width:min(390px,calc(100vw - 42px));max-height:280px;overflow:auto;padding:7px;border:1px solid #dbeafe;border-radius:13px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.22);text-align:right}
+.followup-patient-result{width:100%;min-height:52px;display:flex;align-items:center;gap:9px;padding:7px;border:0;border-radius:10px;background:#fff;color:#0f172a;font-family:inherit;text-align:right;cursor:pointer}
+.followup-patient-result:hover,.followup-patient-result:focus{background:#eff6ff;outline:0}
+.followup-patient-result>img,.followup-patient-result-avatar{width:36px;height:36px;flex:0 0 36px;border:2px solid #bfdbfe;border-radius:50%;object-fit:cover;background:#eff6ff}
+.followup-patient-result-avatar{display:grid;place-items:center;color:#1d4ed8;font-size:11px;font-weight:1000}
+.followup-patient-result-info{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.followup-patient-result-info strong{overflow:hidden;color:#1e293b;font-size:11px;font-weight:1000;text-overflow:ellipsis;white-space:nowrap}
+.followup-patient-result-info small{color:#64748b;font-size:9px;font-weight:800;white-space:nowrap}.followup-patient-result-info small b{padding:0 3px;color:#cbd5e1}
+.followup-patient-result em{flex:0 0 auto;padding:3px 6px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:8px;font-style:normal;font-weight:1000}.followup-patient-result em.level-blue{background:#dbeafe;color:#2563eb}.followup-patient-result em.level-gold{background:#fef3c7;color:#a16207}.followup-patient-result em.level-problematic{background:#fee2e2;color:#dc2626}
+.followup-patient-search-state{padding:16px;color:#64748b;font-size:10px;font-weight:900;text-align:center}
 .campaign-patient-avatar{position:relative;z-index:2;width:28px;height:28px;flex:0 0 28px;border:2px solid #cbd5e1;box-shadow:0 2px 6px rgba(15,23,42,.10);transition:transform .18s ease,box-shadow .18s ease;transform-origin:right center;cursor:pointer}.campaign-patient-avatar.level-none{border-color:#dbe3ed;box-shadow:none;cursor:default}.campaign-patient-avatar.level-silver{border-color:#94a3b8;box-shadow:0 0 0 2px rgba(148,163,184,.16)}.campaign-patient-avatar.level-blue{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.16)}.campaign-patient-avatar.level-gold{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.18)}.campaign-patient-avatar.level-problematic{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.16)}
 .campaign-patient-avatar:hover{z-index:500;transform:scale(1.12);box-shadow:0 7px 16px rgba(15,23,42,.2)}
 .contacts-table td:has(.campaign-patient-avatar:hover),.contacts-table tr:has(.campaign-patient-avatar:hover){z-index:450}

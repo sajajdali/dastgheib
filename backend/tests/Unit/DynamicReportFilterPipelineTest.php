@@ -22,7 +22,7 @@ class DynamicReportFilterPipelineTest extends TestCase
         $query = app(DynamicReportFilterPipeline::class)->query([
             'values' => [
                 'name' => 'سارا', 'family' => 'محمدی', 'gender' => 'زن',
-                'phone' => '0912', 'fileNo' => '10', 'city' => 'تهران', 'referrer' => 'علی',
+                'phone' => '0912', 'nationalId' => '0012', 'fileNo' => '10', 'city' => 'تهران', 'referrer' => 'علی',
             ],
             'birthDate' => ['from' => '1360-01-01', 'to' => '1400-12-29'],
         ]);
@@ -31,6 +31,7 @@ class DynamicReportFilterPipelineTest extends TestCase
         $this->assertStringContainsString('first_name', $sql);
         $this->assertStringContainsString('last_name', $sql);
         $this->assertStringContainsString('birth_date', $sql);
+        $this->assertStringContainsString('national_id', $sql);
         $this->assertStringContainsString('exists (', strtolower($sql));
         $this->assertContains('سارا%', $query->getBindings());
         $this->assertContains('1400-12-29', $query->getBindings());

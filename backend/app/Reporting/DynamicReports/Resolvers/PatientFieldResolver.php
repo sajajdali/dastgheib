@@ -6,7 +6,7 @@ use App\Reporting\DynamicReports\ReportPatientContext;
 
 class PatientFieldResolver implements ReportFieldResolver
 {
-    private const FIELDS = ['name', 'family', 'gender', 'phone', 'fileNo', 'city', 'birth', 'custseg', 'finstatus'];
+    private const FIELDS = ['name', 'family', 'gender', 'phone', 'nationalId', 'fileNo', 'city', 'birth', 'custseg', 'finstatus'];
 
     public function supports(string $field): bool { return in_array($field, self::FIELDS, true); }
 
@@ -18,6 +18,7 @@ class PatientFieldResolver implements ReportFieldResolver
             'family' => $patient->last_name,
             'gender' => match ($patient->gender) { 'female' => 'زن', 'male' => 'مرد', default => $patient->gender },
             'phone' => $patient->phone,
+            'nationalId' => $patient->national_id,
             'fileNo' => $patient->file_number,
             'city' => $patient->city,
             'birth' => $patient->birth_date ? str_replace('-', '/', (string) $patient->birth_date) : null,

@@ -2716,23 +2716,39 @@ export default {
     },
 
     patientAge(birthDate) {
-      if (!birthDate) return '-'
+      const normalized = this.toEnglishDigits(String(birthDate ?? '').trim()).replace(/-/g, '/')
+      const parts = normalized.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/)
+      if (!parts) return '-'
+
+      const [, rawYear, rawMonth, rawDay] = parts
+      const year = Number(rawYear)
+      const month = Number(rawMonth)
+      const day = Number(rawDay)
+      if (month < 1 || month > 12 || day < 1 || day > 31) return '-'
 
       let parsed
       try {
-        const normalized = this.toEnglishDigits(String(birthDate).trim()).replace(/-/g, '/')
-        const year = Number(normalized.split('/')[0])
-        parsed = year >= 1700
-          ? moment(normalized, ['YYYY/MM/DD', 'YYYY/M/D'], true)
-          : moment(normalized, ['jYYYY/jMM/jDD', 'jYYYY/jM/jD'], true)
+        const padded = `${String(year).padStart(4, '0')}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`
+        if (year >= 1700) {
+          parsed = moment(padded, 'YYYY/MM/DD', true)
+          if (!parsed?.isValid?.()
+            || parsed.year() !== year
+            || parsed.month() + 1 !== month
+            || parsed.date() !== day) return '-'
+        } else {
+          parsed = moment(padded, 'jYYYY/jMM/jDD', true)
+          if (!parsed?.isValid?.()
+            || parsed.jYear() !== year
+            || parsed.jMonth() + 1 !== month
+            || parsed.jDate() !== day) return '-'
+        }
       } catch (error) {
         return '-'
       }
 
-      if (!parsed?.isValid?.()) return '-'
-
       const age = moment().diff(parsed, 'years')
-      return age >= 0 ? `${age} سال` : '-'
+      if (age < 0) return '-'
+      return age === 0 ? 'کمتر از یک سال' : `${age} سال`
     },
 
     toEnglishDigits(value = '') {
@@ -9125,6 +9141,6 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   font-weight: bold;
 }
 .withdraw-btn:hover { background-color: #b91c1c; }
-.profile-wallet-action{border-color:#bbf7d0!important;background:#f0fdf4!important;color:#15803d!important}.profile-wallet-action svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.wallet-modal{max-height:min(92vh,940px);overflow:auto}.wallet-expiry-banner{border:1px solid #fde68a;color:#92400e}.wallet-report-in-modal{margin:0;padding:17px;border:1px solid #e2e8f0;border-radius:18px;background:#fff}.wallet-reward-delete{justify-self:start;border:1px solid #fecaca;border-radius:8px;padding:7px 10px;background:#fff1f2;color:#be123c;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}.wallet-reward-delete:hover{background:#ffe4e6}
+.wallet-modal{max-height:min(92vh,940px);overflow:auto}.wallet-expiry-banner{border:1px solid #fde68a;color:#92400e}.wallet-report-in-modal{margin:0;padding:17px;border:1px solid #e2e8f0;border-radius:18px;background:#fff}.wallet-reward-delete{justify-self:start;border:1px solid #fecaca;border-radius:8px;padding:7px 10px;background:#fff1f2;color:#be123c;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}.wallet-reward-delete:hover{background:#ffe4e6}
 @media(max-width:760px){.wallet-modal{padding:16px;border-radius:18px}.wallet-modal .wallet-content{grid-template-columns:1fr}.wallet-modal .patient-name,.wallet-modal .wallet-input-group{grid-column:auto}.wallet-modal .balance-box,.wallet-modal .wallet-expiry-banner,.wallet-modal .wallet-reward-total{min-height:66px}.wallet-actions{display:grid;grid-template-columns:1fr 1fr}.wallet-actions button{width:100%;padding:11px 8px}.wallet-reward-report,.wallet-report-in-modal{padding:12px}.wallet-reward-report>header{align-items:flex-start;flex-direction:column}}
 </style>

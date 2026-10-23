@@ -52,7 +52,7 @@ final class AppointmentReportSource implements ReportSource
             $this->compare($query, $expression, $operator, data_get($filters, 'values.'.$key));
         }
 
-        $patientFields = ['name' => 'first_name', 'family' => 'last_name', 'city' => 'city'];
+        $patientFields = ['name' => 'first_name', 'family' => 'last_name', 'nationalId' => 'national_id', 'city' => 'city'];
         $hasPatientFilters = collect($patientFields)->keys()->contains(fn ($key) => filled(data_get($filters, 'values.'.$key)))
             || data_get($filters, 'birthDate.from') || data_get($filters, 'birthDate.to')
             || $this->selected($filters, 'finstatus');

@@ -523,29 +523,20 @@
               'day-has-search-results': appointmentSearchResultCountForDay(day) > 0
             }"
           >
-            <td :colspan="appointmentTableColspan">
+            <td
+              :colspan="appointmentTableColspan"
+              role="button"
+              tabindex="0"
+              :aria-expanded="!day.collapsed"
+              :aria-label="`${day.dateLabel}؛ ${day.collapsed ? 'باز کردن روز' : 'بستن روز'}`"
+              @click="toggleDay(day)"
+              @keydown.enter.self.prevent="toggleDay(day)"
+              @keydown.space.self.prevent="toggleDay(day)"
+            >
 
               <div class="day-row-content">
 
                 <div class="day-btns-left">
-
-                  <button
-                    class="collapse-btn"
-                    @click.stop="toggleDay(day)"
-                  >
-                    <span
-                      :class="['arrow', { collapsed: day.collapsed }]"
-                    >
-                      ▼
-                    </span>
-                  </button>
-
-                  <button
-                    class="mini-btn"
-                    @click.stop="removeRow(day)"
-                  >
-                    -
-                  </button>
 
                   <button
                     class="mini-btn delete-all-day-btn"
@@ -1517,6 +1508,7 @@
       </div>
     </section>
 
+    <Teleport to="body">
     <div v-if="timelineModalOpen" class="timeline-modal-overlay" @click.self="closeTimelineModal()">
       <section class="timeline-modal" role="dialog" aria-modal="true" aria-labelledby="timeline-modal-title" @click.stop>
         <header class="timeline-modal-header">
@@ -1761,11 +1753,18 @@
                   <button v-if="activeTimelineDraft.services.length > 1" type="button" title="حذف خدمت" @click.stop="removeService(activeTimelineDraft, sIndex)">×</button>
                 </header>
                 <div class="timeline-service-fields">
-                  <label>
-                    <span>زیر‌بخش</span>
-                    <select v-model="service.sectionId" @change="onServiceSectionChanged(service, activeTimelineDraft)">
-                      <option value="">انتخاب زیر‌بخش</option>
-                      <option v-for="sectionId in serviceSubsectionOptions(service, activeTimelineDraft)" :key="sectionId" :value="String(sectionId)">{{ serviceSectionLabel(sectionId) }}</option>
+                  <label v-if="timelineServiceRootSectionIds(activeTimelineDraft).length > 1">
+                    <span>بخش خدمت</span>
+                    <select :value="service.rootSectionId" @change="setTimelineServiceRootSection(service, $event.target.value)">
+                      <option value="">انتخاب بخش</option>
+                      <option v-for="sectionId in timelineServiceRootSectionIds(activeTimelineDraft)" :key="sectionId" :value="String(sectionId)">{{ serviceSectionLabel(sectionId) }}</option>
+                    </select>
+                  </label>
+                  <label v-for="level in serviceSectionLevels(service)" :key="`${level.parentId}-${level.depth}`">
+                    <span>{{ level.depth === 0 ? 'زیر‌بخش' : `زیر‌بخش سطح ${Number(level.depth + 2).toLocaleString('fa-IR')}` }}</span>
+                    <select :value="level.value" @change="setTimelineServiceSectionLevel(service, level, $event.target.value)">
+                      <option value="">{{ serviceSectionLevelPlaceholder(level) }}</option>
+                      <option v-for="sectionId in level.options" :key="sectionId" :value="String(sectionId)">{{ serviceSectionLabel(sectionId) }}</option>
                     </select>
                   </label>
                   <label>
@@ -1779,8 +1778,8 @@
                       :close-on-select="true"
                       :clear-on-select="false"
                       :allow-empty="true"
-                      :disabled="!service.sectionId"
-                      :placeholder="service.sectionId ? 'نام خدمت را جست‌وجو کنید' : 'ابتدا زیر‌بخش را انتخاب کنید'"
+                      :disabled="!serviceCanChooseItem(service)"
+                      :placeholder="serviceCanChooseItem(service) ? 'نام خدمت را جست‌وجو کنید' : 'مسیر زیر‌بخش را کامل کنید'"
                       select-label="انتخاب"
                       selected-label="انتخاب شد"
                       deselect-label="حذف"
@@ -1876,6 +1875,7 @@
         </footer>
       </section>
     </div>
+    </Teleport>
 
     <div v-if="trackingModalOpen" class="tracking-modal-overlay" @click.self="closeTrackingModal">
       <section class="tracking-modal" role="dialog" aria-modal="true" aria-labelledby="tracking-modal-title" @click.stop>
@@ -2077,8 +2077,9 @@
     </div>
 
     <!-- نوار ماه‌ها در پایین صفحه -->
-    <div v-if="dailyReportModalOpen" class="daily-report-overlay" @click.self="closeDailyReport">
-      <section class="daily-report-modal" @click.stop>
+    <Teleport to="body">
+      <div v-if="dailyReportModalOpen" class="daily-report-overlay" @click.self="closeDailyReport">
+        <section class="daily-report-modal" @click.stop>
         <header>
           <div>
             <span>{{ activeDailyReport?.day?.dateLabel || 'گزارش روز' }}</span>
@@ -2161,8 +2162,9 @@
             </section>
           </div>
         </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </Teleport>
 
     <div v-if="balanceAuditModalOpen" class="balance-audit-overlay" @click.self="closeBalanceAuditModal">
       <section class="balance-audit-modal" @click.stop>
@@ -4478,11 +4480,11 @@ export default {
         const picker = pickerVm?.$refs?.picker || document.querySelector("body > .vpd-wrapper:last-of-type") || document.querySelector(".vpd-wrapper");
         if (!picker) return;
         picker.classList.add("timeline-time-picker-layer");
-        picker.style.setProperty("z-index", "2147483006", "important");
+        picker.style.setProperty("z-index", "2147483646", "important");
         picker.style.setProperty("position", "fixed", "important");
         const container = picker.querySelector(".vpd-container");
         if (container) {
-          container.style.setProperty("z-index", "2147483007", "important");
+          container.style.setProperty("z-index", "2147483646", "important");
         }
       };
       this.$nextTick(raise);
@@ -5540,12 +5542,12 @@ export default {
         const materialCost = Number(item.price || 0) * cc;
         const doctor = this.doctors.find(d => d.name === service.doctor);
         const doctorPercent = Number(doctor?.bonus || 0);
-        const doctorWage = this.commissionBase(doctor, row, serviceAmount, materialCost) * (doctorPercent / 100);
+        const doctorWage = this.commissionBase(doctor, row, serviceAmount, materialCost, 'doctor') * (doctorPercent / 100);
 
         const consultantName = String(service.consultant || row.consultant || row.timelineConsultant || '').trim();
         const consultant = this.staff.find(s => String(s.name || '').trim() === consultantName);
         const staffPercent = Number(consultant?.bonus || 0);
-        const staffCommission = this.commissionBase(consultant, row, serviceAmount, materialCost) * (staffPercent / 100);
+        const staffCommission = this.commissionBase(consultant, row, serviceAmount, materialCost, 'staff') * (staffPercent / 100);
 
         financial.totalAmount += serviceAmount;
         financial.materialCost += materialCost;
@@ -6258,7 +6260,7 @@ export default {
         const doctorPercent =
           Number(doctor?.bonus || 0);
 
-        doctorShare += this.commissionBase(doctor, row, serviceAmount, materialCost) * (doctorPercent / 100);
+        doctorShare += this.commissionBase(doctor, row, serviceAmount, materialCost, 'doctor') * (doctorPercent / 100);
 
         const consultantName = String(service.consultant || row.consultant || row.timelineConsultant || '').trim();
         const consultant = this.staff.find(
@@ -6268,7 +6270,7 @@ export default {
         const consultantPercent =
           Number(consultant?.bonus || 0);
 
-        consultantShare += this.commissionBase(consultant, row, serviceAmount, materialCost) * (consultantPercent / 100);
+        consultantShare += this.commissionBase(consultant, row, serviceAmount, materialCost, 'staff') * (consultantPercent / 100);
 
       });
 
@@ -6379,7 +6381,17 @@ export default {
       return true;
     },
 
-    commissionBase(resource, row, serviceAmount, materialCost) {
+    sourceBlocksDoctorCommission(row) {
+      const source = String(row?.source || '').trim().toLocaleLowerCase('fa-IR');
+      if (!source) return false;
+      return this.sourceOptions.some(channel =>
+        Boolean(channel?.exclude_doctor_commission)
+        && String(channel?.name || '').trim().toLocaleLowerCase('fa-IR') === source
+      );
+    },
+
+    commissionBase(resource, row, serviceAmount, materialCost, recipientType = 'staff') {
+      if (recipientType === 'doctor' && this.sourceBlocksDoctorCommission(row)) return 0;
       if (!this.commissionAppliesToCustomer(resource, row)) return 0;
       return resource?.commission_after_materials
         ? Math.max(serviceAmount - materialCost, 0)
@@ -7909,6 +7921,11 @@ this.calculateFinalAmount(row)
       if (!this.activeTimelineDraft) return;
       this.addService(this.activeTimelineDraft);
       const addedService = this.activeTimelineDraft.services[this.activeTimelineDraft.services.length - 1];
+      const selectedRoots = this.normalizeServiceSectionIds(this.activeTimelineDraft.serviceTypes);
+      if (addedService && selectedRoots.length === 1) {
+        addedService.rootSectionId = selectedRoots[0];
+        addedService.sectionId = this.defaultServiceSectionId(this.activeTimelineDraft);
+      }
       if (addedService && this.activeTimelineDraft.timelineDoctors?.[0]) {
         addedService.doctor = this.activeTimelineDraft.timelineDoctors[0];
       }
@@ -8925,8 +8942,23 @@ this.calculateFinalAmount(row)
 
     onRowServiceTypesChanged(row) {
       row.serviceTypes = this.normalizeServiceSectionIds(row.serviceTypes);
+      const selectedRoots = new Set(row.serviceTypes.map(String));
       const allowed = new Set(this.serviceSectionScopeIds(row.serviceTypes));
       (row.services || []).forEach(service => {
+        const serviceRootId = String(service.rootSectionId || this.rootSectionIdFor(service.sectionId) || '');
+        if (serviceRootId && !selectedRoots.has(serviceRootId)) {
+          service.sectionId = '';
+          service.rootSectionId = '';
+          service.name = '';
+          service.tags = [];
+          service.doctor = '';
+          service.cc = '';
+          service.addons = [];
+          service.inventory_id = null;
+        }
+        if (row.serviceTypes.length === 1 && !service.rootSectionId) {
+          service.rootSectionId = row.serviceTypes[0];
+        }
         if (!service.sectionId) service.sectionId = this.defaultServiceSectionId(row);
         if (!service.rootSectionId) service.rootSectionId = this.rootSectionIdFor(service.sectionId);
         if (service.sectionId && !allowed.has(String(service.sectionId))) {
@@ -8958,6 +8990,10 @@ this.calculateFinalAmount(row)
         String(service?.rootSectionId || this.rootSectionIdFor(service?.sectionId) || '')
       ).filter(Boolean))];
       if (serviceRoots.length) return serviceRoots;
+      return this.normalizeServiceSectionIds(row?.serviceTypes);
+    },
+
+    timelineServiceRootSectionIds(row) {
       return this.normalizeServiceSectionIds(row?.serviceTypes);
     },
 
@@ -9025,6 +9061,20 @@ this.calculateFinalAmount(row)
     setServiceSectionLevel(service, row, level, selectedSectionId) {
       const fallbackSectionId = Number(level?.depth || 0) > 0 ? level.parentId : '';
       this.onServiceSectionChanged(service, row, selectedSectionId || fallbackSectionId);
+    },
+
+    setTimelineServiceRootSection(service, sectionId) {
+      if (!this.activeTimelineDraft) return;
+      const selectedRoots = [...this.activeTimelineDraft.serviceTypes];
+      this.setServiceRootSection(service, this.activeTimelineDraft, sectionId);
+      this.activeTimelineDraft.serviceTypes = selectedRoots;
+    },
+
+    setTimelineServiceSectionLevel(service, level, sectionId) {
+      if (!this.activeTimelineDraft) return;
+      const selectedRoots = [...this.activeTimelineDraft.serviceTypes];
+      this.setServiceSectionLevel(service, this.activeTimelineDraft, level, sectionId);
+      this.activeTimelineDraft.serviceTypes = selectedRoots;
     },
 
     setServiceRootSection(service, row, sectionId) {
@@ -10481,17 +10531,17 @@ smsColor(val) {
 .timeline-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000000;
+  z-index: 2147483645;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: 12px;
   background: rgba(15,23,42,.58);
   backdrop-filter: blur(5px);
 }
 
 .timeline-modal {
   width: min(1180px, 98vw);
-  max-height: 92vh;
+  max-height: calc(100dvh - 24px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -10537,12 +10587,23 @@ smsColor(val) {
 }
 
 .timeline-modal-body {
+  min-height: 0;
   display: grid;
   gap: 14px;
   padding: 18px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #60a5fa #e8eef7;
   background: #fff;
 }
+
+.timeline-modal-body::-webkit-scrollbar { width: 12px; }
+.timeline-modal-body::-webkit-scrollbar-track { border-radius: 999px; background: #e8eef7; }
+.timeline-modal-body::-webkit-scrollbar-thumb { border: 3px solid #e8eef7; border-radius: 999px; background: #60a5fa; }
+.timeline-modal-body::-webkit-scrollbar-thumb:hover { background: #2563eb; }
 
 .timeline-validation-alert {
   padding: 11px 13px;
@@ -10658,13 +10719,20 @@ smsColor(val) {
 .timeline-service-fields > label:has(.timeline-service-multiselect) { position: relative; z-index: 25; }
 .timeline-service-multiselect { min-width: 0; min-height: 42px; color: #0f172a; font-family: inherit; font-size: 12px; direction: rtl; }
 .timeline-service-multiselect .multiselect__select { right: auto; left: 1px; width: 38px; height: 40px; }
-.timeline-service-multiselect .multiselect__tags { min-height: 42px; display: flex; align-items: center; padding: 6px 10px 5px 40px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; text-align: right; }
+.timeline-service-multiselect .multiselect__tags { position: relative; min-height: 42px; display: flex; align-items: center; overflow: hidden; padding: 6px 10px 5px 40px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; text-align: right; }
 .timeline-service-multiselect.multiselect--active .multiselect__tags { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
 .timeline-modal .timeline-service-multiselect .multiselect__input,
 .timeline-service-multiselect .multiselect__single,
 .timeline-service-multiselect .multiselect__placeholder { width: 100%!important; min-width: 0!important; min-height: 24px!important; margin: 0!important; padding: 2px 0!important; border: 0!important; border-radius: 0!important; background: transparent!important; color: #334155!important; font-family: inherit!important; font-size: 12px!important; line-height: 20px!important; text-align: right!important; direction: rtl!important; box-shadow: none!important; }
 .timeline-service-multiselect .multiselect__placeholder { color: #64748b!important; }
-.timeline-service-multiselect .multiselect__content-wrapper { top: calc(100% + 6px); z-index: 120; max-height: 260px!important; overflow: auto; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; box-shadow: 0 16px 38px rgba(15,23,42,.2); direction: rtl; text-align: right; }
+.timeline-service-multiselect:not(.multiselect--active) .multiselect__input { display: none!important; }
+.timeline-service-multiselect.multiselect--active .multiselect__single { display: none!important; }
+.timeline-service-multiselect .multiselect__single { overflow: hidden!important; text-overflow: ellipsis!important; white-space: nowrap!important; }
+.timeline-service-multiselect .multiselect__content-wrapper { top: calc(100% + 6px); z-index: 120; max-height: 260px!important; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; scrollbar-width: auto; scrollbar-color: #60a5fa #eef2f7; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; box-shadow: 0 16px 38px rgba(15,23,42,.2); direction: rtl; text-align: right; }
+.timeline-service-multiselect .multiselect__content-wrapper::-webkit-scrollbar { width: 10px; }
+.timeline-service-multiselect .multiselect__content-wrapper::-webkit-scrollbar-track { background: #eef2f7; }
+.timeline-service-multiselect .multiselect__content-wrapper::-webkit-scrollbar-thumb { border: 2px solid #eef2f7; border-radius: 999px; background: #60a5fa; }
+.timeline-service-multiselect.multiselect--above .multiselect__content-wrapper { top: auto; bottom: calc(100% + 6px); }
 .timeline-service-multiselect .multiselect__content { width: 100%; padding: 5px; }
 .timeline-service-multiselect .multiselect__option { min-height: 40px; padding: 10px 12px; border-radius: 7px; color: #334155; font-size: 12px; font-weight: 800; text-align: right; }
 .timeline-service-multiselect .multiselect__option--highlight,
@@ -11533,6 +11601,14 @@ smsColor(val) {
   background-color: #4a4a4a;
   padding: 0;
   border: none;
+  cursor: pointer;
+}
+
+.day-separator-row td:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline: 3px solid rgba(96, 165, 250, .75);
+  outline-offset: -3px;
 }
 
 .day-row-content {
@@ -11589,26 +11665,6 @@ smsColor(val) {
   background: transparent;
   color: #fff;
   opacity: .72;
-}
-
-.collapse-btn {
-  background: transparent;
-  border: none;
-  color: white;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-}
-
-.arrow {
-  font-size: 12px;
-  transition: transform 0.3s;
-  display: inline-block;
-}
-
-.arrow.collapsed {
-  transform: rotate(-90deg);
 }
 
 .main-schedule-table td {
@@ -12700,7 +12756,7 @@ td.st-transferred {
 .daily-report-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000000;
+  z-index: 2147483646;
   display: grid;
   place-items: center;
   padding: 20px;
@@ -12954,11 +13010,11 @@ tr.data-row td {
 .timeline-time-picker-layer {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483006 !important;
+  z-index: 2147483646 !important;
 }
 
 .timeline-time-picker-layer .vpd-container {
-  z-index: 2147483007 !important;
+  z-index: 2147483646 !important;
 }
 
 .service-popup-meta {

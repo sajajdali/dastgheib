@@ -27,17 +27,37 @@ class ChannelController extends Controller
             '*.id' => ['nullable', 'integer'],
             '*.name' => ['required', 'string', 'max:255'],
             '*.icon' => ['nullable', 'string', 'max:30'],
+            '*.exclude_doctor_commission' => ['sometimes', 'boolean'],
         ]);
 
         $savedChannels = [];
+        $changedCommissionSources = [];
         foreach ($channelsData as $channel) {
             $model = !empty($channel['id']) ? Channel::find($channel['id']) : null;
+            $previousName = trim((string) ($model?->name ?? ''));
+            $previousRule = (bool) ($model?->exclude_doctor_commission ?? false);
             $model ??= new Channel();
             $model->fill([
                 'name' => trim($channel['name']),
                 'icon' => $channel['icon'] ?? null,
+                'exclude_doctor_commission' => (bool) ($channel['exclude_doctor_commission'] ?? false),
             ])->save();
+            if ($model->wasRecentlyCreated && (bool) $model->exclude_doctor_commission) {
+                // A recreated channel may match historical appointment source
+                // text, so the rule must apply to those rows immediately too.
+                $changedCommissionSources[] = $model->name;
+            } elseif ($model->wasRecentlyCreated === false && (
+                $previousName !== $model->name
+                || $previousRule !== (bool) $model->exclude_doctor_commission
+            )) {
+                $changedCommissionSources[] = $previousName;
+                $changedCommissionSources[] = $model->name;
+            }
             $savedChannels[] = $model->fresh();
+        }
+
+        if ($changedCommissionSources !== []) {
+            app(AppointmentController::class)->resyncResourceEarningsForSources($changedCommissionSources);
         }
 
         return response()->json($savedChannels);
@@ -69,10 +89,12 @@ class ChannelController extends Controller
             return response()->json(['error' => 'کانال یافت نشد.'], 404);
         }
 
+        $source = $channel->name;
         if ($channel->icon_image_path) {
             Storage::disk('public')->delete($channel->icon_image_path);
         }
         $channel->delete();
+        app(AppointmentController::class)->resyncResourceEarningsForSources([$source]);
         return response()->json(null, 204);
     }
 }

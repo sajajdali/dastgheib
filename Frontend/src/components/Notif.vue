@@ -222,7 +222,7 @@ export default {
 
       await this.loadPendingSmsQueueNotifications()
 
-      await this.loadUnresolvedYesterdayAppointmentNotifications()
+      await this.loadOverdueUnresolvedAppointmentNotifications()
 
       await this.loadMissingDoneAfterArrivalNotifications()
 
@@ -703,13 +703,33 @@ export default {
         && Number(appointment?.day_num || 0) === previous.day
     },
 
+    appointmentJalaliDateKey(appointment) {
+      const month = this.normalizeDigits(appointment?.month)
+      const match = month.match(/^(\d{4})-(\d{1,2})$/)
+      const day = Number(this.normalizeDigits(appointment?.day_num))
+      if (!match || day < 1 || day > 31) return ""
+      return `${match[1]}-${String(Number(match[2])).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    },
+
+    isPastAppointmentDay(appointment) {
+      const appointmentDate = this.appointmentJalaliDateKey(appointment)
+      return Boolean(appointmentDate && appointmentDate < this.jalaliToday())
+    },
+
+    appointmentJalaliDateLabel(appointment) {
+      const date = this.appointmentJalaliDateKey(appointment)
+      if (!date) return "روز نامشخص"
+      const persianDigits = "۰۱۲۳۴۵۶۷۸۹"
+      return date.replace(/-/g, "/").replace(/\d/g, digit => persianDigits[Number(digit)])
+    },
+
     appointmentOutcomeIsUnresolved(appointment) {
       const status = String(appointment?.status || "").trim()
       const done = String(appointment?.done || "").trim()
       return status === "وقت داده شد" && !done
     },
 
-    async loadUnresolvedYesterdayAppointmentNotifications() {
+    async loadOverdueUnresolvedAppointmentNotifications() {
 
       try {
         const response = await fetch(`${API}/appointments`, { headers: { Accept: "application/json" } })
@@ -718,7 +738,7 @@ export default {
         const appointments = await response.json()
 
         ;(Array.isArray(appointments) ? appointments : [])
-          .filter(appointment => this.isYesterdayAppointment(appointment))
+          .filter(appointment => this.isPastAppointmentDay(appointment))
           .filter(appointment => this.isMeaningfulAppointment(appointment))
           .filter(appointment => this.appointmentOutcomeIsUnresolved(appointment))
           .filter(appointment => String(appointment?.lastname || "").trim())
@@ -727,7 +747,7 @@ export default {
 
             this.notifications.push({
 
-              id: `unresolved-yesterday-appointment-${appointment.id || `${appointment.month}-${appointment.day_num}-${appointment.time}-${patientName}`}`,
+              id: `overdue-unresolved-appointment-${appointment.id || `${appointment.month}-${appointment.day_num}-${appointment.time}-${patientName}`}`,
 
               type: "وقت‌دهی",
 
@@ -735,7 +755,7 @@ export default {
 
               appointment,
 
-              message: `وضعیت ${this.personTitle(appointment)} ${patientName} را مشخص کنید`,
+              message: `وضعیت ${this.personTitle(appointment)} ${patientName} را در روز <b>${this.appointmentJalaliDateLabel(appointment)}</b> مشخص کنید`,
 
               action: "appointment-material"
 
@@ -743,7 +763,7 @@ export default {
           })
 
       } catch {
-        // Yesterday appointment outcome reminder is only shown when appointment data is available.
+        // Overdue appointment outcome reminders are only shown when appointment data is available.
       }
 
     },

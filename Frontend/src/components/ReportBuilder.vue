@@ -180,9 +180,8 @@
                     @click="openPatientProfile(r.patient)"
                   >
                     <PatientAvatar
-                      v-if="r.patient.avatar_url"
                       :patient="r.patient"
-                      :src="r.patient.avatar_url"
+                      :src="r.patient.avatar_url || r.patient.profile_thumbnail_url || r.patient.profile_photo_url || ''"
                       :size="34"
                       :alt="patientDisplayName(r.patient)"
                       :clickable="canOpenPatientProfiles"
@@ -464,6 +463,7 @@ const FIELDS = [
   { g: 'مشخصات مراجع', id: 'family', label: 'نام خانوادگی', type: 'text' },
   { g: 'مشخصات مراجع', id: 'gender', label: 'جنسیت', type: 'select', options: ['همه','مرد','زن'] },
   { g: 'مشخصات مراجع', id: 'phone', label: 'شماره تماس', type: 'text', ph: '۰۹…' },
+  { g: 'مشخصات مراجع', id: 'nationalId', label: 'کد ملی', type: 'text', ph: '۱۰ رقم' },
   { g: 'مشخصات مراجع', id: 'fileNo', label: 'شماره پرونده', type: 'text' },
   { g: 'مشخصات مراجع', id: 'city', label: 'شهر', type: 'text' },
   { g: 'مشخصات مراجع', id: 'birth', label: 'تاریخ تولد', type: 'date' },
@@ -518,6 +518,7 @@ const MOCK = {
   family: ['محمدی','رضایی','کاظمی','جعفری','نوری','سلطانی'],
   gender: ['زن','مرد','زن','مرد','زن','مرد'],
   phone: ['۰۹۱۲۳۳۴۵۵۶۷','۰۹۳۵۱۱۲۴۴۷۸','۰۹۱۹۸۸۷۶۵۴۳','۰۹۳۰۲۲۱۱۳۴۵','۰۹۱۲۷۷۸۸۹۹۰','۰۹۳۷۴۵۶۱۲۳۴'],
+  nationalId: ['۰۰۱۰۰۰۰۰۰۱','۰۰۱۰۰۰۰۰۰۲','۰۰۱۰۰۰۰۰۰۳','۰۰۱۰۰۰۰۰۰۴','۰۰۱۰۰۰۰۰۰۵','۰۰۱۰۰۰۰۰۰۶'],
   fileNo: ['۱۰۲۴','۱۰۲۵','۱۰۲۶','۱۰۲۷','۱۰۲۸','۱۰۲۹'],
   city: ['تهران','کرج','اصفهان','تهران','شیراز','مشهد'],
   birth: ['۱۳۷۲/۰۴/۱۱','۱۳۶۸/۰۹/۲۳','۱۳۷۵/۰۱/۰۵','۱۳۶۵/۱۱/۱۷','۱۳۷۹/۰۶/۲۹','۱۳۷۰/۰۳/۰۸'],

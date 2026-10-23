@@ -19,6 +19,7 @@ class DynamicReportFieldsTest extends TestCase
             'last_name' => 'محمدی',
             'gender' => 'female',
             'phone' => '09121234567',
+            'national_id' => '0012345678',
             'file_number' => '1042',
             'city' => 'تهران',
             'financial_status' => 'بدهکار',
@@ -38,6 +39,7 @@ class DynamicReportFieldsTest extends TestCase
         $this->assertSame('طلایی', $fields->resolve('custseg', $context));
         $this->assertSame('زن', $fields->resolve('gender', $context));
         $this->assertSame('09121234567', $fields->resolve('phone', $context));
+        $this->assertSame('0012345678', $fields->resolve('nationalId', $context));
         $this->assertSame('1042', $fields->resolve('fileNo', $context));
         $this->assertSame('تهران', $fields->resolve('city', $context));
         $this->assertSame('کارت‌خوان', $fields->resolve('payment', $context));
@@ -48,7 +50,7 @@ class DynamicReportFieldsTest extends TestCase
     public function test_every_builder_field_is_whitelisted(): void
     {
         $fields = app(DynamicReportFieldRegistry::class);
-        $this->assertCount(33, $fields->keys());
+        $this->assertCount(34, $fields->keys());
         $this->assertSame($fields->keys(), array_keys($fields->labels()));
 
         foreach (config('dynamic_reports.field_resolvers') as $resolverClass) {

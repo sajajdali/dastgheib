@@ -14,7 +14,7 @@ class DynamicReportFilterPipeline
     public function query(array $filters): Builder
     {
         $query = Patient::query()->select([
-            'id', 'first_name', 'last_name', 'phone', 'file_number', 'gender',
+            'id', 'first_name', 'last_name', 'phone', 'national_id', 'file_number', 'gender',
             'birth_date', 'city', 'financial_status', 'customer_level',
         ]);
         foreach (config('dynamic_reports.query_filters', []) as $filterClass) {

@@ -20,7 +20,7 @@ class DynamicReportSourcesTest extends TestCase
         parent::setUp();
         Schema::create('patients', function (Blueprint $table) {
             $table->id(); $table->string('first_name')->nullable(); $table->string('last_name')->nullable();
-            $table->string('phone')->nullable(); $table->string('file_number')->nullable();
+            $table->string('phone')->nullable(); $table->string('national_id')->nullable(); $table->string('file_number')->nullable();
             $table->string('gender')->nullable(); $table->string('city')->nullable();
             $table->date('birth_date')->nullable(); $table->string('financial_status')->nullable();
             $table->string('customer_level')->nullable(); $table->softDeletes(); $table->timestamps();

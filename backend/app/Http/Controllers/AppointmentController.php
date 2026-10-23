@@ -9,6 +9,7 @@ use App\Models\AppointmentBalanceAudit;
 use App\Models\AppointmentFinancialTransaction;
 use App\Models\AppointmentNoteMessage;
 use App\Models\ActivityLog;
+use App\Models\Channel;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Inventory;
@@ -2239,6 +2240,7 @@ class AppointmentController extends Controller
         $inventories = Inventory::with('commissions')->whereIn('name', $names)->get()->keyBy('name');
         $doctors = Doctor::query()->get()->keyBy(fn (Doctor $doctor) => $this->resourceKey($doctor->name));
         $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
+        $doctorCommissionBlocked = $this->sourceBlocksDoctorCommission($appointment->source);
 
         foreach ($lines as $line) {
             // جانبی‌های مستقل فقط در مبلغ نوبت اثر دارند و پورسانت ندارند.
@@ -2254,6 +2256,9 @@ class AppointmentController extends Controller
                 ['type' => 'doctor', 'name' => $line['doctor'] ?: $appointment->doctor, 'map' => $doctors],
                 ['type' => 'staff', 'name' => $line['consultant'] ?: $appointment->consultant, 'map' => $staff],
             ] as $target) {
+                if ($target['type'] === 'doctor' && $doctorCommissionBlocked) {
+                    continue;
+                }
                 $resourceName = trim((string) $target['name']);
                 if ($resourceName === '') {
                     continue;
@@ -2464,8 +2469,50 @@ class AppointmentController extends Controller
         };
     }
 
+    private function sourceBlocksDoctorCommission(?string $source): bool
+    {
+        $sourceKey = $this->resourceKey($source);
+        if ($sourceKey === '') {
+            return false;
+        }
+
+        return Channel::query()
+            ->where('exclude_doctor_commission', true)
+            ->get(['name'])
+            ->contains(fn (Channel $channel) => $this->resourceKey($channel->name) === $sourceKey);
+    }
+
+    /** Rebuild persisted earning lines after a channel commission rule changes. */
+    public function resyncResourceEarningsForSources(array $sources): void
+    {
+        $sourceKeys = collect($sources)
+            ->map(fn ($source) => $this->resourceKey($source))
+            ->filter()
+            ->unique()
+            ->values();
+        if ($sourceKeys->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($sourceKeys) {
+            $appointments = Appointment::query()->get()->filter(
+                fn (Appointment $appointment) => $sourceKeys->contains($this->resourceKey($appointment->source))
+            );
+            $months = $appointments->pluck('month')->filter()->unique()->values();
+            $appointments->each(fn (Appointment $appointment) => $this->syncResourceEarningLines($appointment));
+            $months->each(fn (string $month) => $this->syncMonthlySalesBonusLines($month));
+        });
+    }
+
     private function syncMonthlySalesBonusLines(string $month): void
     {
+        // Sales bonuses are derived rows. Rebuild them instead of appending a
+        // duplicate every time an appointment or channel rule is saved.
+        ResourceEarningLine::query()
+            ->where('month', $month)
+            ->where('earning_type', 'sales_bonus')
+            ->delete();
+
         foreach ([['type' => 'doctor', 'model' => Doctor::class], ['type' => 'staff', 'model' => Staff::class]] as $target) {
             $target['model']::query()->where('sales_bonus_enabled', true)->get()->each(function (Doctor|Staff $resource) use ($month, $target) {
                 $sales = (float) ResourceEarningLine::query()

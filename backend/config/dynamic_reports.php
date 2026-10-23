@@ -19,6 +19,7 @@ use App\Reporting\DynamicReports\Filters\FileNumberFilter;
 use App\Reporting\DynamicReports\Filters\FirstNameFilter;
 use App\Reporting\DynamicReports\Filters\GenderFilter;
 use App\Reporting\DynamicReports\Filters\LastNameFilter;
+use App\Reporting\DynamicReports\Filters\NationalIdFilter;
 use App\Reporting\DynamicReports\Filters\NoReturnFilter;
 use App\Reporting\DynamicReports\Filters\PhoneFilter;
 use App\Reporting\DynamicReports\Filters\ReferrerFilter;
@@ -53,6 +54,7 @@ return [
         LastNameFilter::class,
         GenderFilter::class,
         PhoneFilter::class,
+        NationalIdFilter::class,
         FileNumberFilter::class,
         CityFilter::class,
         BirthDateFilter::class,
@@ -75,7 +77,7 @@ return [
 
     // Adding an output field only requires a label and a dedicated resolver.
     'fields' => [
-        'name' => 'نام', 'family' => 'نام خانوادگی', 'gender' => 'جنسیت', 'phone' => 'شماره تماس',
+        'name' => 'نام', 'family' => 'نام خانوادگی', 'gender' => 'جنسیت', 'phone' => 'شماره تماس', 'nationalId' => 'کد ملی',
         'fileNo' => 'شماره پرونده', 'city' => 'شهر', 'birth' => 'تاریخ تولد', 'custseg' => 'تفکیک مشتری',
         'referrer' => 'معرف', 'noreturn' => 'عدم بازگشت', 'status' => 'وضعیت',
         'appointmentCreatedDate' => 'تاریخ ثبت نوبت', 'appointmentDate' => 'تاریخ نوبت (خدمت)', 'source' => 'منبع',

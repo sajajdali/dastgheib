@@ -31,3 +31,20 @@ test('followup waits for the user to select a timeline day and time', () => {
   assert.match(timeSource, /pendingTimelineFollowup && isEmptyAppointmentRow\(row\) \? 'is-followup-target'/)
   assert.match(timeSource, /applyFollowupPrefillToDraft\(this\.activeTimelineDraft, this\.pendingTimelineFollowup\)/)
 })
+
+test('opening followups from a patient shows history from every campaign', () => {
+  const method = source.match(/openRequestedFollowups\(request\) \{[\s\S]*?\n    \},\n\n    findFollowupMatch/)[0]
+  assert.match(method, /const rows = this\.followupHistoryRows\(request\)/)
+  assert.match(method, /this\.activeHistoryRow = \{/)
+  assert.match(method, /this\.historyModalOpen = true/)
+  assert.doesNotMatch(method, /this\.openCampaign\(/)
+})
+
+test('patient followup history matches records across campaigns by stable identity', () => {
+  const method = source.match(/followupHistoryRows\(row\) \{[\s\S]*?\n    \},\n\n    openFollowupHistory/)[0]
+  assert.match(method, /this\.campaigns\.forEach\(campaign/)
+  assert.match(method, /samePatient/)
+  assert.match(method, /sameFileNumber/)
+  assert.match(method, /samePhone/)
+  assert.match(method, /sameLegacyName/)
+})

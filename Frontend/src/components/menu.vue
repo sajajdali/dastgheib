@@ -24,10 +24,15 @@
         v-if="overflowItems.length"
         class="menu-item more-menu-item"
         :class="{ active: overflowOpen || overflowActive }"
+        role="button"
+        tabindex="0"
+        :aria-label="overflowOpen ? 'بستن منوی بیشتر' : 'باز کردن منوی بیشتر'"
+        :title="overflowOpen ? 'بستن منوی بیشتر' : 'بیشتر'"
+        :aria-expanded="overflowOpen"
         @click.stop="overflowOpen = !overflowOpen"
+        @keydown.enter.stop.prevent="overflowOpen = !overflowOpen"
+        @keydown.space.stop.prevent="overflowOpen = !overflowOpen"
       >
-        <div class="menu-dot"></div>
-        <span>بیشتر</span>
         <svg class="more-arrow" :class="{ open: overflowOpen }" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M8 10l4 4 4-4"/>
         </svg>
@@ -732,18 +737,29 @@ export default {
       return String(appointment?.month || '') === `${previous.year}-${String(previous.month).padStart(2, '0')}`
         && Number(appointment?.day_num || 0) === previous.day
     },
+    appointmentJalaliDateKey(appointment) {
+      const month = this.normalizeDigits(appointment?.month)
+      const match = month.match(/^(\d{4})-(\d{1,2})$/)
+      const day = Number(this.normalizeDigits(appointment?.day_num))
+      if (!match || day < 1 || day > 31) return ''
+      return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    },
+    isPastAppointmentDay(appointment) {
+      const appointmentDate = this.appointmentJalaliDateKey(appointment)
+      return Boolean(appointmentDate && appointmentDate < this.jalaliToday())
+    },
     appointmentOutcomeIsUnresolved(appointment) {
       const status = String(appointment?.status || '').trim()
       const done = String(appointment?.done || '').trim()
       return status === 'وقت داده شد' && !done
     },
-    async countUnresolvedYesterdayAppointments() {
+    async countOverdueUnresolvedAppointments() {
       try {
         const response = await fetch(`${API}/appointments`, { headers: { Accept: 'application/json' } })
         if (!response.ok) return 0
         const appointments = await response.json()
         return (Array.isArray(appointments) ? appointments : [])
-          .filter(appointment => this.isYesterdayAppointment(appointment))
+          .filter(appointment => this.isPastAppointmentDay(appointment))
           .filter(appointment => this.appointmentOutcomeIsUnresolved(appointment))
           .filter(appointment => String(appointment?.lastname || '').trim())
           .length
@@ -859,7 +875,7 @@ export default {
       this.notificationCounts.Vaghtdahi += await this.countMissingMaterialAppointments()
       this.notificationCounts.Vaghtdahi += await this.countMissingPhoneAppointments()
       this.notificationCounts.Vaghtdahi += await this.countPendingSmsQueue()
-      this.notificationCounts.Vaghtdahi += await this.countUnresolvedYesterdayAppointments()
+      this.notificationCounts.Vaghtdahi += await this.countOverdueUnresolvedAppointments()
       this.notificationCounts.Vaghtdahi += await this.countMissingDoneAfterArrivalAppointments()
       this.notificationCounts.Vaghtdahi += await this.countMissingSourceYesterdayAppointments()
       this.notificationCounts.Vaghtdahi += await this.countMissingDoctorAppointments()
@@ -995,9 +1011,9 @@ export default {
   box-shadow: 0 0 0 4px rgba(255, 255, 255, .18);
 }
 
-.more-menu-item { overflow: visible; }
+.more-menu-item { min-width: 44px; justify-content: center; overflow: visible; padding: 0 10px; }
 .more-backdrop{position:fixed;inset:0;z-index:2147483001;border:0;background:transparent;cursor:default}
-.more-arrow{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round;transition:transform 180ms ease}.more-arrow.open{transform:rotate(180deg)}
+.more-arrow{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 2px 3px rgba(15,23,42,.16));transition:transform 180ms ease,filter 180ms ease}.more-menu-item:hover .more-arrow,.more-menu-item.active .more-arrow{filter:drop-shadow(0 3px 6px rgba(37,99,235,.3))}.more-arrow.open{transform:rotate(180deg)}
 .more-submenu{position:absolute;top:calc(100% + 8px);right:0;z-index:2147483002;width:190px;padding:8px;display:grid;gap:5px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;box-shadow:0 18px 48px rgba(15,23,42,.18)}
 .more-submenu button{min-height:36px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;border-radius:8px;background:transparent;color:#475569;cursor:pointer;font-size:12px;font-weight:850;text-align:right}.more-submenu button:hover,.more-submenu button.active{background:#eff6ff;color:#2563eb}.more-submenu button b{min-width:20px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border-radius:999px;background:#dc2626;color:#fff;font-size:10px}
 

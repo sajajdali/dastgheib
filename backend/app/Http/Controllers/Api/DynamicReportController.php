@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDynamicReportRequest;
 use App\Jobs\GenerateDynamicReport;
 use App\Models\DynamicReport;
+use App\Models\Patient;
 use App\Reporting\DynamicReports\DynamicReportFieldRegistry;
 use App\Reporting\DynamicReports\AppointmentStatusRegistry;
 use Illuminate\Http\JsonResponse;
@@ -62,10 +63,30 @@ class DynamicReportController extends Controller
                 return (float) str_replace([',', '٬', ' '], '', (string) data_get($row->payload, 'amount', 0));
             });
         }
+        $patients = Patient::query()
+            ->whereKey($rows->getCollection()->pluck('patient_id')->filter()->unique())
+            ->get(['id', 'file_number', 'first_name', 'last_name', 'customer_level', 'profile_photo_path', 'profile_thumbnail_path'])
+            ->keyBy('id');
 
         return response()->json([
             'columns' => collect($dynamicReport->columns)->map(fn ($key) => ['key' => $key, 'label' => $fields->label($key)])->values(),
-            'data' => $rows->getCollection()->map(fn ($row) => $row->payload)->values(),
+            'data' => $rows->getCollection()->map(function ($row) use ($patients) {
+                $payload = $row->payload;
+                $patient = $patients->get($row->patient_id);
+                if ($patient) {
+                    $payload['_patient'] = [
+                        'id' => $patient->getKey(),
+                        'file_number' => $patient->file_number,
+                        'first_name' => $patient->first_name,
+                        'last_name' => $patient->last_name,
+                        'customer_level' => $patient->customer_level,
+                        'profile_photo_url' => $patient->profile_photo_url,
+                        'profile_thumbnail_url' => $patient->profile_thumbnail_url,
+                        'avatar_url' => $patient->avatar_url,
+                    ];
+                }
+                return $payload;
+            })->values(),
             'meta' => [
                 'current_page' => $rows->currentPage(), 'last_page' => $rows->lastPage(),
                 'per_page' => $rows->perPage(), 'total' => $rows->total(),

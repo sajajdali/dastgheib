@@ -17,6 +17,11 @@ class Channel extends Model
         'name',
         'icon',
         'icon_image_path',
+        'exclude_doctor_commission',
+    ];
+
+    protected $casts = [
+        'exclude_doctor_commission' => 'boolean',
     ];
 
     protected $appends = ['icon_image_url'];
