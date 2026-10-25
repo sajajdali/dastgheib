@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CentralServiceTicketController;
 use App\Http\Controllers\StoreCheckoutController;
+use App\Http\Controllers\TenantSubscriptionController;
 use App\Http\Controllers\Api\CompletionSmsController;
 use App\Http\Controllers\Api\PhotoComparisonController;
 use App\Http\Controllers\Api\BeautyAnnotationController;
@@ -59,7 +60,7 @@ Route::post('/public/satisfaction/{token}', [SatisfactionController::class, 'sub
 Route::get('/public/satisfaction/integration/swagger', [SatisfactionDocumentationController::class, 'index'])->middleware('throttle:60,1');
 Route::get('/public/satisfaction/integration/openapi.json', [SatisfactionDocumentationController::class, 'spec'])->middleware('throttle:60,1');
 Route::get('/connectivity', fn () => response()->json(['online' => true]))->middleware('throttle:120,1');
-Route::middleware(['auth', \App\Http\Middleware\EnforceTenantStorageQuota::class])->group(function () {
+Route::middleware(['auth', 'tenant.subscription', \App\Http\Middleware\EnforceTenantStorageQuota::class])->group(function () {
 Route::get('/storage/status', [StorageQuotaController::class, 'status']);
 Route::get('/storage', [StorageQuotaController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/storage/database', [StorageQuotaController::class, 'database'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
@@ -68,6 +69,8 @@ Route::get('/auth/user', [AuthController::class, 'user']);
 Route::put('/auth/user', [AuthController::class, 'updateUser']);
 Route::post('/auth/user/photo', [AuthController::class, 'uploadUserPhoto']);
 Route::delete('/auth/user/photo', [AuthController::class, 'deleteUserPhoto']);
+Route::get('/subscription', [TenantSubscriptionController::class, 'show']);
+Route::post('/subscription/renew', [TenantSubscriptionController::class, 'renew'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/store/terms', [StoreCheckoutController::class, 'terms']);
 Route::post('/store/checkout', [StoreCheckoutController::class, 'checkout']);
 Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIndex']);

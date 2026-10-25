@@ -14,11 +14,29 @@
 
   <Login v-else-if="!user" @authenticated="handleAuthenticated" />
 
+  <SubscriptionRenewal
+    v-else-if="subscriptionExpired"
+    :initial-subscription="tenantSubscription"
+    :manager="isClinicManager"
+    fullscreen
+    @renewed="handleSubscriptionRenewed"
+    @logout="logout"
+  />
+
   <StorageFullScreen v-else-if="storageFull" :manager="isClinicManager" :initial-storage="storageFullData" @available="handleStorageAvailable" @logout="logout" />
 
   <div v-else id="app" :class="{ dark: isDark, 'booking-page-active': currentPage === 'Vaghtdahi' }">
 
     <div class="status-indicators">
+      <button
+        v-if="subscriptionWarningDays !== null"
+        type="button"
+        class="subscription-status-alert"
+        :class="{ today: subscriptionWarningDays === 0 }"
+        @click="subscriptionWarningOpen = true"
+      >
+        {{ subscriptionWarningText }}
+      </button>
       <div
         class="connection-indicator"
         :class="`is-${connectionStatus}`"
@@ -322,7 +340,13 @@
             <span>ماژول‌های فعال</span>
             <strong>{{ activeModuleNames.length.toLocaleString('fa-IR') }} مورد</strong>
           </article>
+          <article class="service-metric-card">
+            <span>کاربران اشتراک</span>
+            <strong>{{ Number(tenantSubscription.actual_users || 0).toLocaleString('fa-IR') }} از {{ Number(tenantSubscription.licensed_users || 0).toLocaleString('fa-IR') }}</strong>
+          </article>
         </div>
+
+        <button v-if="isClinicManager" type="button" class="service-renew-button" @click="subscriptionRenewalOpen = true">تمدید اشتراک</button>
 
         <section class="service-modules-card service-page-card">
           <div class="service-card-head">
@@ -364,6 +388,27 @@
           </footer>
         </section>
       </section>
+
+      <div v-if="subscriptionWarningOpen" class="subscription-warning-overlay" @click.self="subscriptionWarningOpen = false">
+        <section class="subscription-warning-modal" role="dialog" aria-modal="true">
+          <span>!</span>
+          <h2>{{ subscriptionWarningText }}</h2>
+          <p>تاریخ پایان اشتراک: {{ serviceExpiresAtLabel }}</p>
+          <div>
+            <button type="button" @click="subscriptionWarningOpen = false">بعداً</button>
+            <button v-if="isClinicManager" type="button" @click="subscriptionWarningOpen = false; subscriptionRenewalOpen = true">تمدید اشتراک</button>
+          </div>
+        </section>
+      </div>
+
+      <SubscriptionRenewal
+        v-if="subscriptionRenewalOpen"
+        :initial-subscription="tenantSubscription"
+        :manager="isClinicManager"
+        closable
+        @renewed="handleSubscriptionRenewed"
+        @close="subscriptionRenewalOpen = false"
+      />
 
     </div>
 
@@ -413,6 +458,7 @@ import StorageWidget from "./components/StorageWidget.vue";
 import StorageFullScreen from "./components/StorageFullScreen.vue";
 import ServiceTickets from "./components/ServiceTickets.vue";
 import SatisfactionPublicPage from "./components/SatisfactionPublicPage.vue";
+import SubscriptionRenewal from "./components/SubscriptionRenewal.vue";
 
 import HRtimes from "./components/HRtimes.vue";
 import PayrollSettlement from "./components/PayrollSettlement.vue";
@@ -467,6 +513,7 @@ export default {
     StorageFullScreen,
     ServiceTickets,
     SatisfactionPublicPage,
+    SubscriptionRenewal,
 
     HRtimes,
     PayrollSettlement
@@ -510,6 +557,8 @@ export default {
       ,storageFull: false
       ,storageFullData: null
       ,storageStatusTimer: null
+      ,subscriptionWarningOpen: false
+      ,subscriptionRenewalOpen: false
       ,legacyLeadsEnabled: false
       ,isCentralApp: centralDomains.includes(window.location.hostname.toLowerCase())
       ,backGuardActive: false
@@ -527,6 +576,7 @@ export default {
 
     window.addEventListener("app:auth-expired", this.handleAuthExpired);
     window.addEventListener("app:storage-full", this.handleStorageFull);
+    window.addEventListener("app:subscription-expired", this.handleSubscriptionExpired);
     window.addEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
     if (this.surveyToken) {
       this.authLoading = false;
@@ -541,7 +591,7 @@ export default {
     this.startConnectionMonitor();
     this.checkAuth();
     this.storageStatusTimer = window.setInterval(() => {
-      if (this.user && !this.storageFull) this.refreshStorageStatus();
+      if (this.user && !this.storageFull && !this.subscriptionExpired) this.refreshStorageStatus();
     }, 30000);
 
     const saved = localStorage.getItem("darkMode");
@@ -561,6 +611,7 @@ export default {
     document.body.classList.remove("central-host");
     window.removeEventListener("app:auth-expired", this.handleAuthExpired);
     window.removeEventListener("app:storage-full", this.handleStorageFull);
+    window.removeEventListener("app:subscription-expired", this.handleSubscriptionExpired);
     window.removeEventListener("app:open-appointments-timeline", this.handleOpenAppointmentsTimelineEvent);
     window.removeEventListener("popstate", this.handleBrowserBack);
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
@@ -601,6 +652,26 @@ export default {
   },
 
   computed: {
+    tenantSubscription() {
+      return this.user?.tenant?.subscription || {};
+    },
+
+    subscriptionExpired() {
+      return Boolean(this.user && this.tenantSubscription.is_expired);
+    },
+
+    subscriptionWarningDays() {
+      if (!this.tenantSubscription.managed || this.tenantSubscription.is_expired) return null;
+      const days = Number(this.tenantSubscription.days_remaining);
+      return Number.isFinite(days) && days >= 0 && days <= 3 ? days : null;
+    },
+
+    subscriptionWarningText() {
+      const days = this.subscriptionWarningDays;
+      if (days === 0) return "اشتراک امروز به پایان می‌رسد";
+      return `${Number(days || 0).toLocaleString("fa-IR")} روز تا پایان اشتراک مانده است`;
+    },
+
     connectionStatusText() {
       return {
         online: "اتصال برقرار است",
@@ -709,23 +780,27 @@ export default {
     },
 
     servicePlanName() {
-      return this.user?.tenant?.plan?.name || "بدون پلن ثبت‌شده";
+      return this.tenantSubscription.plan_name || this.user?.tenant?.plan?.name || "بدون پلن ثبت‌شده";
     },
 
     serviceStatusLabel() {
+      if (this.tenantSubscription.is_expired) return "منقضی شده";
+      if (!this.tenantSubscription.managed) return "بدون محدودیت زمانی";
       return (this.user?.tenant?.status || "active") === "active" ? "فعال" : "غیرفعال";
     },
 
     serviceDaysRemainingLabel() {
-      const days = this.user?.tenant?.plan?.days_remaining;
+      const days = this.tenantSubscription.days_remaining ?? this.user?.tenant?.plan?.days_remaining;
       if (days === null || days === undefined) return "نامشخص";
-      return days > 0 ? `${Number(days).toLocaleString("fa-IR")} روز مانده` : "منقضی شده";
+      if (this.tenantSubscription.is_expired) return "منقضی شده";
+      return days > 0 ? `${Number(days).toLocaleString("fa-IR")} روز مانده` : "امروز پایان می‌یابد";
     },
 
     serviceExpiresAtLabel() {
-      const value = this.user?.tenant?.plan?.expires_at;
+      const value = this.tenantSubscription.expires_at || this.user?.tenant?.plan?.expires_at;
       if (!value) return "ثبت نشده";
-      return new Date(`${value}T12:00:00`).toLocaleDateString("fa-IR-u-ca-persian", {
+      const normalized = String(value).includes('T') ? value : String(value).replace(' ', 'T');
+      return new Date(normalized).toLocaleDateString("fa-IR-u-ca-persian", {
         year: "numeric",
         month: "long",
         day: "numeric",
@@ -885,6 +960,11 @@ export default {
       try {
         const { data } = await axios.get("/api/auth/user");
         this.user = data.user;
+        if (this.subscriptionExpired) {
+          stopPresence();
+          return;
+        }
+        this.openDailySubscriptionWarning();
         await this.refreshStorageStatus();
         if (this.storageFull) return;
         startPresence(this.user);
@@ -905,6 +985,12 @@ export default {
 
     async handleAuthenticated(user) {
       this.user = user;
+      if (this.subscriptionExpired) {
+        this.authLoading = false;
+        stopPresence();
+        return;
+      }
+      this.openDailySubscriptionWarning();
       this.authLoading = true;
       await this.refreshStorageStatus();
       this.authLoading = false;
@@ -936,6 +1022,45 @@ export default {
       this.currentPage = null;
       this.uiMenuOpen = false;
       stopPresence();
+    },
+
+    handleSubscriptionExpired(event) {
+      if (!this.user) return;
+      const subscription = event.detail?.subscription || {};
+      this.user = {
+        ...this.user,
+        tenant: { ...(this.user.tenant || {}), subscription },
+      };
+      this.currentPage = null;
+      this.uiMenuOpen = false;
+      this.subscriptionRenewalOpen = false;
+      stopPresence();
+    },
+
+    openDailySubscriptionWarning() {
+      if (this.subscriptionWarningDays === null) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const key = `subscription-warning:${this.user?.tenant?.id}:${today}:${this.subscriptionWarningDays}`;
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+      this.subscriptionWarningOpen = true;
+    },
+
+    handleSubscriptionRenewed(subscription) {
+      this.subscriptionWarningOpen = false;
+      this.subscriptionRenewalOpen = false;
+      if (this.user?.tenant) {
+        this.user.tenant.subscription = subscription;
+        this.user.tenant.plan_id = subscription.plan_id;
+        this.user.tenant.plan = {
+          id: subscription.plan_id,
+          name: subscription.plan_name,
+          duration_days: subscription.duration_days,
+          expires_at: subscription.expires_at,
+          days_remaining: subscription.days_remaining,
+        };
+      }
+      window.location.reload();
     },
 
     handleStorageAvailable() {
@@ -1484,6 +1609,7 @@ export default {
 </script>
 
 <style>
+.subscription-status-alert{min-height:34px;padding:0 13px;border:1px solid #fdba74;border-radius:999px;background:#fff7ed;color:#c2410c;font-family:inherit;font-size:11px;font-weight:1000;box-shadow:0 8px 22px rgba(194,65,12,.13);cursor:pointer}.subscription-status-alert.today{border-color:#fca5a5;background:#fef2f2;color:#b91c1c}.subscription-warning-overlay{position:fixed;inset:0;z-index:2147483644;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.6);backdrop-filter:blur(6px);direction:rtl}.subscription-warning-modal{width:min(480px,94vw);padding:26px;border-radius:22px;background:#fff;box-shadow:0 30px 90px rgba(15,23,42,.3);text-align:center}.subscription-warning-modal>span{width:58px;height:58px;display:grid;place-items:center;margin:0 auto 12px;border-radius:50%;background:#fff7ed;color:#ea580c;font-size:30px;font-weight:1000}.subscription-warning-modal h2{margin:0 0 8px;color:#0f172a;font-size:21px}.subscription-warning-modal p{margin:0 0 20px;color:#64748b}.subscription-warning-modal>div{display:flex;justify-content:center;gap:9px}.subscription-warning-modal button,.service-renew-button{height:42px;padding:0 17px;border:0;border-radius:10px;font-family:inherit;font-weight:1000;cursor:pointer}.subscription-warning-modal button:first-child{background:#e2e8f0;color:#475569}.subscription-warning-modal button:last-child,.service-renew-button{background:#2563eb;color:#fff}.service-renew-button{margin:0 0 18px;box-shadow:0 8px 22px rgba(37,99,235,.2)}
 
 * {
 

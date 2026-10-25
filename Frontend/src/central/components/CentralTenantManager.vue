@@ -99,6 +99,23 @@
           <div>
             <strong>{{ tenant.name || tenant.id }}</strong>
             <div class="central-small">{{ tenant.id }}</div>
+            <div class="central-small">
+              {{ tenant.subscription?.plan_name || 'بدون اشتراک زمان‌دار' }} ·
+              {{ formatNumber(tenant.subscription?.actual_users || 0) }} از {{ formatNumber(tenant.subscription?.licensed_users || tenant.user_count || 1) }} کاربر
+            </div>
+            <div v-if="tenant.subscription?.managed" class="central-small">
+              {{ tenant.subscription?.is_expired ? 'منقضی شده' : `${formatNumber(tenant.subscription?.days_remaining || 0)} روز مانده` }}
+            </div>
+            <div v-if="tenant.subscription?.pending_renewal" class="central-pending-renewal">
+              <strong>درخواست تمدید:</strong>
+              {{ tenant.subscription.pending_renewal.plan_name }} ·
+              {{ formatNumber(tenant.subscription.pending_renewal.licensed_users) }} کاربر ·
+              {{ formatMoney(tenant.subscription.pending_renewal.price) }}
+              <div class="central-actions">
+                <button class="central-button compact" type="button" :disabled="saving" @click="$emit('approve-subscription', tenant)">تأیید پرداخت</button>
+                <button class="central-button danger compact" type="button" :disabled="saving" @click="$emit('reject-subscription', tenant)">رد درخواست</button>
+              </div>
+            </div>
           </div>
           <div class="central-domain-list">
             <a
@@ -146,7 +163,8 @@
 
         <label class="central-form-label">
           تعداد کاربران سیستم
-          <input v-model.number="tenantEditor.userCount" class="central-input" type="number" min="1" required />
+          <input v-model.number="tenantEditor.userCount" class="central-input" type="number" :min="editingTenant?.subscription?.actual_users || 1" required />
+          <small>کمتر از تعداد کاربران فعال فعلی قابل ثبت نیست.</small>
         </label>
         <label class="central-form-label">
           فضای پایه سایت (گیگابایت)
@@ -209,7 +227,7 @@ const props = defineProps({
   message: { type: String, default: "" },
 });
 
-const emit = defineEmits(["create-tenant", "update-tenant", "add-domain", "remove-domain", "delete-tenant", "seed-demo-data", "reconcile-storage"]);
+const emit = defineEmits(["create-tenant", "update-tenant", "add-domain", "remove-domain", "delete-tenant", "seed-demo-data", "reconcile-storage", "approve-subscription", "reject-subscription"]);
 
 const form = reactive({
   id: "",
@@ -294,7 +312,7 @@ function toggleAllSelectableModules(event) {
 function startEditTenant(tenant) {
   editingTenant.value = tenant;
   tenantEditor.planId = tenant.plan_id || "";
-  tenantEditor.userCount = Number(tenant.user_count || 1);
+  tenantEditor.userCount = Math.max(Number(tenant.user_count || 1), Number(tenant.subscription?.actual_users || 0));
   tenantEditor.storageQuotaGb = Number(tenant.storage?.base_quota_bytes || 0) / 1073741824;
   tenantEditor.moduleIds = Array.isArray(tenant.module_ids)
     ? [...tenant.module_ids]

@@ -89,6 +89,8 @@
       :message="message"
       @create-tenant="createTenant"
       @update-tenant="updateTenant"
+      @approve-subscription="approveSubscription"
+      @reject-subscription="rejectSubscription"
       @add-domain="addDomain"
       @remove-domain="removeDomain"
       @seed-demo-data="seedDemoData"
@@ -204,6 +206,11 @@ function responseMessage(requestError, fallback) {
   const errors = requestError.response?.data?.errors;
   if (errors) return Object.values(errors).flat().filter(Boolean).join(" ");
   return requestError.response?.data?.message || fallback;
+}
+
+function formatMoney(value) {
+  const amount = Number(value || 0);
+  return amount === 0 ? "رایگان" : `${amount.toLocaleString("fa-IR")} تومان`;
 }
 
 async function checkAuth() {
@@ -490,6 +497,38 @@ async function updateTenant({ tenant, payload }) {
   } catch (requestError) {
     error.value = responseMessage(requestError, "به‌روزرسانی انجام نشد.");
     await loadTenants();
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function approveSubscription(tenant) {
+  const request = tenant.subscription?.pending_renewal;
+  if (!request || !window.confirm(`پرداخت ${formatMoney(request.price)} برای تمدید ${tenant.name || tenant.id} تأیید شده است؟`)) return;
+  saving.value = true;
+  error.value = "";
+  try {
+    const { data } = await axios.post(`/central-api/subscriptions/${request.id}/approve`);
+    replaceTenant(data.tenant);
+    message.value = data.message;
+  } catch (requestError) {
+    error.value = responseMessage(requestError, "تأیید تمدید انجام نشد.");
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function rejectSubscription(tenant) {
+  const request = tenant.subscription?.pending_renewal;
+  if (!request || !window.confirm(`درخواست تمدید ${tenant.name || tenant.id} رد شود؟`)) return;
+  saving.value = true;
+  error.value = "";
+  try {
+    const { data } = await axios.post(`/central-api/subscriptions/${request.id}/reject`);
+    replaceTenant(data.tenant);
+    message.value = data.message;
+  } catch (requestError) {
+    error.value = responseMessage(requestError, "رد درخواست انجام نشد.");
   } finally {
     saving.value = false;
   }

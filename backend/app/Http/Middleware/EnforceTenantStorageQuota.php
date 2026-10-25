@@ -20,6 +20,7 @@ class EnforceTenantStorageQuota
         if (
             ($request->is('api/auth/user', 'api/storage', 'api/storage/status') && $request->isMethod('GET'))
             || ($request->is('api/storage/orders') && $request->isMethod('POST'))
+            || $request->is('api/subscription', 'api/subscription/*', 'api/store/terms', 'api/service-tickets', 'api/service-tickets/*')
         ) {
             return $next($request);
         }

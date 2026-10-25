@@ -60,6 +60,9 @@ axios.interceptors.response.use(
     if (status === 423 && error.response?.data?.code === 'storage_full') {
       window.dispatchEvent(new CustomEvent('app:storage-full', { detail: { storage: error.response.data.storage } }))
     }
+    if (status === 402 && error.response?.data?.code === 'subscription_expired') {
+      window.dispatchEvent(new CustomEvent('app:subscription-expired', { detail: { subscription: error.response.data.subscription } }))
+    }
     return Promise.reject(error)
   },
 )
@@ -96,6 +99,10 @@ window.fetch = async (input, init = {}) => {
   if (response.status === 423) {
     const payload = await response.clone().json().catch(() => null)
     if (payload?.code === 'storage_full') window.dispatchEvent(new CustomEvent('app:storage-full', { detail: { storage: payload.storage } }))
+  }
+  if (response.status === 402) {
+    const payload = await response.clone().json().catch(() => null)
+    if (payload?.code === 'subscription_expired') window.dispatchEvent(new CustomEvent('app:subscription-expired', { detail: { subscription: payload.subscription } }))
   }
   return response
 }

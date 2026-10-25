@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tenant;
 use App\Support\ActivityLogger;
+use App\Services\TenantSubscriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -179,17 +180,7 @@ class AuthController extends Controller
         $tenantData = null;
 
         if ($tenant) {
-            $planId = $tenant->plan_id ?? null;
-            $plan = $planId
-                ? DB::connection(config('tenancy.database.central_connection'))
-                    ->table('central_billing_plans')
-                    ->where('id', $planId)
-                    ->first()
-                : null;
-            $startedAt = $tenant->created_at;
-            $expiresAt = ($plan && $startedAt)
-                ? $startedAt->copy()->addDays((int) $plan->duration_days)
-                : null;
+            $subscription = app(TenantSubscriptionService::class)->statusData($tenant);
             $smsBalance = DB::table('app_settings')->where('key', 'sms_credit_balance')->value('value');
 
             $subscriptionModules = DB::connection(config('tenancy.database.central_connection'))
@@ -208,14 +199,15 @@ class AuthController extends Controller
                 'name' => $tenant->name ?? tenant('id'),
                 'status' => $tenant->status ?? 'active',
                 'module_ids' => Tenant::withBaseModules([...$legacyModules, ...$subscriptionModules]),
-                'plan_id' => $planId,
-                'plan' => $plan ? [
-                    'id' => $plan->id,
-                    'name' => $plan->name,
-                    'duration_days' => (int) $plan->duration_days,
-                    'expires_at' => optional($expiresAt)->toDateString(),
-                    'days_remaining' => $expiresAt ? max(0, now()->startOfDay()->diffInDays($expiresAt->copy()->startOfDay(), false)) : null,
+                'plan_id' => $subscription['plan_id'],
+                'plan' => $subscription['managed'] ? [
+                    'id' => $subscription['plan_id'],
+                    'name' => $subscription['plan_name'],
+                    'duration_days' => $subscription['duration_days'],
+                    'expires_at' => $subscription['expires_at'],
+                    'days_remaining' => $subscription['days_remaining'],
                 ] : null,
+                'subscription' => $subscription,
                 'sms_balance' => $smsBalance,
             ];
         }

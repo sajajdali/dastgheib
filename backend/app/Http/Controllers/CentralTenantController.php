@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CentralStoreTermAcceptance;
+use App\Models\CentralTenantSubscription;
 use App\Models\Tenant;
 use App\Services\ModuleSubscriptionService;
 use App\Services\TenantStorageService;
+use App\Services\TenantSubscriptionService;
 use Database\Seeders\CompleteDemoDataSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +19,11 @@ use Stancl\Tenancy\Database\Models\Domain;
 
 class CentralTenantController extends Controller
 {
-    public function __construct(private readonly ModuleSubscriptionService $subscriptions, private readonly TenantStorageService $storage)
+    public function __construct(
+        private readonly ModuleSubscriptionService $subscriptions,
+        private readonly TenantStorageService $storage,
+        private readonly TenantSubscriptionService $tenantSubscriptions,
+    )
     {
     }
 
@@ -69,6 +76,11 @@ class CentralTenantController extends Controller
                 '--force' => true,
             ]);
         }
+        $this->tenantSubscriptions->assignFromCentral(
+            $tenant,
+            $data['plan_id'] ?? null,
+            (int) ($data['user_count'] ?? 1),
+        );
 
         return response()->json([
             'message' => 'سیستم جدید ساخته شد.',
@@ -92,6 +104,15 @@ class CentralTenantController extends Controller
             $data['module_ids'] = Tenant::withBaseModules($data['module_ids']);
         }
 
+        if (array_key_exists('user_count', $data)) {
+            $actualUsers = $this->tenantSubscriptions->actualActiveUsers($tenant);
+            if ((int) $data['user_count'] < $actualUsers) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'user_count' => "ظرفیت کاربران نمی‌تواند کمتر از {$actualUsers} کاربر فعال فعلی باشد.",
+                ]);
+            }
+        }
+
         $quotaGb = $data['storage_quota_gb'] ?? null;
         unset($data['storage_quota_gb']);
         $tenant->update($data);
@@ -100,6 +121,13 @@ class CentralTenantController extends Controller
             DB::connection(config('tenancy.database.central_connection'))
                 ->table('central_tenant_storage')->where('tenant_id', $tenant->getTenantKey())
                 ->update(['base_quota_bytes' => (int) $quotaGb * TenantStorageService::GIB, 'updated_at' => now()]);
+        }
+        if (array_key_exists('plan_id', $data) || array_key_exists('user_count', $data)) {
+            $this->tenantSubscriptions->assignFromCentral(
+                $tenant->fresh(),
+                $tenant->plan_id ?? null,
+                (int) ($tenant->user_count ?? 1),
+            );
         }
 
         return response()->json([
@@ -167,6 +195,30 @@ class CentralTenantController extends Controller
         ]);
     }
 
+    public function approveSubscription(CentralTenantSubscription $subscription): JsonResponse
+    {
+        $subscription = $this->tenantSubscriptions->approvePending($subscription);
+        $this->syncAcceptanceStatus($subscription, 'paid');
+        $tenant = Tenant::query()->findOrFail($subscription->tenant_id);
+
+        return response()->json([
+            'message' => 'پرداخت تأیید و اشتراک فعال شد.',
+            'tenant' => $this->tenantData($tenant->fresh('domains')),
+        ]);
+    }
+
+    public function rejectSubscription(CentralTenantSubscription $subscription): JsonResponse
+    {
+        $subscription = $this->tenantSubscriptions->rejectPending($subscription);
+        $this->syncAcceptanceStatus($subscription, 'rejected');
+        $tenant = Tenant::query()->findOrFail($subscription->tenant_id);
+
+        return response()->json([
+            'message' => 'درخواست تمدید رد شد.',
+            'tenant' => $this->tenantData($tenant->fresh('domains')),
+        ]);
+    }
+
     private function tenantData(Tenant $tenant): array
     {
         $storage = $this->storage->summary($tenant->getTenantKey());
@@ -184,6 +236,7 @@ class CentralTenantController extends Controller
             'storage' => $storage,
             'module_ids' => $this->subscriptions->enabledModuleIds($tenant->getTenantKey()),
             'module_subscriptions' => $this->moduleSubscriptions($tenant),
+            'subscription' => $this->tenantSubscriptions->statusData($tenant),
             'domains' => $tenant->domains
                 ->map(fn (Domain $domain) => [
                     'id' => $domain->id,
@@ -200,6 +253,23 @@ class CentralTenantController extends Controller
         $scheme = parse_url((string) config('app.url'), PHP_URL_SCHEME) ?: 'https';
 
         return $scheme.'://'.$domain.'/';
+    }
+
+    private function syncAcceptanceStatus(CentralTenantSubscription $subscription, string $status): void
+    {
+        $acceptance = CentralStoreTermAcceptance::query()
+            ->where('tenant_id', $subscription->tenant_id)
+            ->where('status', 'pending')
+            ->latest('id')
+            ->get()
+            ->first(fn (CentralStoreTermAcceptance $item) => collect($item->items)
+                ->contains(fn (array $line) => (int) ($line['subscription_id'] ?? 0) === (int) $subscription->id));
+        if (! $acceptance) return;
+
+        $acceptance->update([
+            'status' => $status,
+            'paid_at' => $status === 'paid' ? now() : null,
+        ]);
     }
 
     private function moduleSubscriptions(Tenant $tenant): array

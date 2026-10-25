@@ -38,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'tenant.active' => \App\Http\Middleware\EnsureTenantIsActive::class,
+            'tenant.subscription' => \App\Http\Middleware\EnsureTenantSubscriptionActive::class,
             'central.admin' => \App\Http\Middleware\EnsureCentralAdmin::class,
         ]);
     })

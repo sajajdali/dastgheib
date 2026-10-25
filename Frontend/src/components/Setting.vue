@@ -190,6 +190,58 @@
         </div>
       </div>
 
+      <div class="accordion birthday-automation-accordion">
+        <div class="accordion-header" @click="toggleAccordion('birthdaySmsAutomation')">
+          پیامک تبریک تولد
+        </div>
+
+        <div v-if="openAccordion === 'birthdaySmsAutomation'" class="accordion-body birthday-automation-body">
+          <section class="birthday-automation-card">
+            <header class="birthday-automation-head">
+              <span class="birthday-automation-icon" aria-hidden="true">✦</span>
+              <div class="birthday-automation-intro">
+                <strong>تبریک تولد خودکار</strong>
+                <small>برای هر بیمار، سالی یک پیامک در ساعت ۹ صبح ارسال می‌شود.</small>
+              </div>
+              <label class="birthday-automation-switch">
+                <input v-model="birthdaySmsAutomation.enabled" type="checkbox" @change="handleBirthdayAutomationToggle">
+                <span class="birthday-switch-track" aria-hidden="true"></span>
+                <span class="birthday-switch-label">{{ birthdaySmsAutomation.enabled ? 'فعال' : 'غیرفعال' }}</span>
+              </label>
+            </header>
+
+            <div v-if="!birthdaySmsTemplateReady" class="birthday-template-warning">
+              <span>!</span>
+              <p><strong>ابتدا الگوی پیامک را فعال کنید.</strong><small>در بخش «پیامک»، الگوی تبریک تولد را فعال و نام الگوی SHSMS را وارد کنید.</small></p>
+              <button type="button" @click="activeSection = 'sms'">رفتن به تنظیمات پیامک</button>
+            </div>
+            <div v-else class="birthday-template-ready">
+              <span aria-hidden="true">✓</span>
+              <span>الگوی پیامک آماده است <b dir="ltr">{{ smsSettings.birthday.content }}</b></span>
+            </div>
+
+            <fieldset :disabled="!birthdaySmsAutomation.enabled">
+              <legend>زمان ارسال پیامک</legend>
+              <div class="birthday-timing-options">
+                <label :class="{ selected: birthdaySmsAutomation.timing === 'same_day' }">
+                  <input v-model="birthdaySmsAutomation.timing" type="radio" value="same_day">
+                  <span><strong>همان روز تولد</strong><small>ساعت ۹ صبح روز تولد</small></span>
+                </label>
+                <label :class="{ selected: birthdaySmsAutomation.timing === 'days_before' }">
+                  <input v-model="birthdaySmsAutomation.timing" type="radio" value="days_before">
+                  <span><strong>چند روز قبل از تولد</strong><small>ارسال زودتر برای یادآوری</small></span>
+                </label>
+              </div>
+            </fieldset>
+
+            <label v-if="birthdaySmsAutomation.enabled && birthdaySmsAutomation.timing === 'days_before'" class="birthday-days-before">
+              <span><strong>فاصله تا روز تولد</strong><small>از ۱ تا ۳۰ روز قبل قابل تنظیم است.</small></span>
+              <div><input v-model.number="birthdaySmsAutomation.days_before" type="number" min="1" max="30" aria-label="تعداد روز قبل از تولد"><b>روز قبل</b></div>
+            </label>
+          </section>
+        </div>
+      </div>
+
       <div v-if="featureEnabled('patients')" class="accordion wallet-settings-card">
         <div class="accordion-header" @click="toggleAccordion('customerWallet')">کیف پول مشتری و پاداش معرف</div>
         <div v-if="openAccordion === 'customerWallet'" class="accordion-body wallet-settings-body">
@@ -630,7 +682,7 @@
           </div>
         </article>
         <article class="birthday-sms-card" :class="{ 'is-inactive': !smsSettings.birthday.enabled }">
-          <div><span class="section-eyebrow">ارسال خودکار ساعت ۹ صبح</span><h3>پیامک تبریک تولد</h3><p>برای بیمارانی که امروز تولدشان است فقط یک پیام در هر سال ارسال می‌شود.</p></div>
+          <div><span class="section-eyebrow">تعریف الگوی SHSMS</span><h3>پیامک تبریک تولد</h3><p>فعال‌سازی ارسال خودکار و انتخاب زمان آن از بخش «تنظیمات داخلی» انجام می‌شود.</p></div>
           <label class="active-switch"><input v-model="smsSettings.birthday.enabled" type="checkbox"><span>{{ smsSettings.birthday.enabled ? 'فعال' : 'غیرفعال' }}</span></label>
           <label class="template-message-field">نام الگوی SHSMS<input v-model.trim="smsSettings.birthday.content" type="text" maxlength="190" placeholder="مثلاً birthday_message"><small>متن پیام را در پنل SHSMS تعریف کنید؛ اینجا فقط نام الگو وارد می‌شود.</small></label>
           <section class="sms-template-parameter-list" aria-label="ترتیب پارامترهای الگوی تبریک تولد">
@@ -982,6 +1034,8 @@ const sms = ref({ appointment: "", info: "", welcome: "" });
 const reportStaffTarget = ref(120);
 const reportMonthlyCapacity = ref(0);
 const smsSettings = ref({ provider: "shsms", api_token: "", account_configured: false, editing_api_token: false, clinic_info: { address: "", instagram_url: "", phone: "", location_url: "" }, templates: [], birthday: { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true, inventory_empty_template: "", active_tickets_template: "", daily_appointments_template: "", daily_financial_template: "" } });
+const birthdaySmsAutomation = ref({ enabled: false, timing: "same_day", days_before: 1 });
+const birthdaySmsTemplateReady = computed(() => Boolean(smsSettings.value.birthday?.enabled && smsSettings.value.birthday?.content?.trim()));
 const leadRecipientDraft = ref("");
 const leadAlertKeys = ["inventory_empty", "active_tickets", "daily_appointments", "daily_financial"];
 const leadAlertDefinitions = [
@@ -1542,6 +1596,19 @@ const toggleAllLeadAlerts = (checked) => {
     smsSettings.value.lead_alerts[key] = checked;
   });
 };
+const handleBirthdayAutomationToggle = async () => {
+  if (!birthdaySmsAutomation.value.enabled || birthdaySmsTemplateReady.value) return;
+  birthdaySmsAutomation.value.enabled = false;
+  const result = await Swal.fire({
+    icon: "warning",
+    title: "الگوی پیامک فعال نیست",
+    text: "ابتدا در بخش پیامک، الگوی تبریک تولد را فعال و نام الگوی SHSMS را وارد کنید.",
+    showCancelButton: true,
+    confirmButtonText: "رفتن به تنظیمات پیامک",
+    cancelButtonText: "بستن"
+  });
+  if (result.isConfirmed) activeSection.value = "sms";
+};
 
 const removeSmsTemplate = async (index) => {
   const template = smsSettings.value.templates[index];
@@ -1593,6 +1660,13 @@ const fetchSettings = async () => {
         parameters: Array.isArray(template.parameters) ? template.parameters : [],
         active: template.active !== false
       }));
+    }
+    if (data.birthday_sms_automation) {
+      birthdaySmsAutomation.value = {
+        enabled: Boolean(data.birthday_sms_automation.enabled),
+        timing: data.birthday_sms_automation.timing === "days_before" ? "days_before" : "same_day",
+        days_before: Math.max(1, Number(data.birthday_sms_automation.days_before || 1))
+      };
     }
     if (data.profile_fields) profileFields.value = data.profile_fields;
     if (Array.isArray(data.education_options) && data.education_options.length) educationOptions.value = [...data.education_options];
@@ -1671,6 +1745,13 @@ const fetchSettings = async () => {
 // ۲. ذخیره تنظیمات داخلی به لاراول
 const saveInternalSettings = async (showMessage = true) => {
   try {
+    if (birthdaySmsAutomation.value.enabled && !birthdaySmsTemplateReady.value) {
+      throw new Error("ابتدا الگوی «پیامک تبریک تولد» را در بخش پیامک فعال و نام الگوی SHSMS را ثبت کنید.");
+    }
+    if (birthdaySmsAutomation.value.enabled && birthdaySmsAutomation.value.timing === "days_before"
+      && (!Number.isInteger(Number(birthdaySmsAutomation.value.days_before)) || Number(birthdaySmsAutomation.value.days_before) < 1 || Number(birthdaySmsAutomation.value.days_before) > 30)) {
+      throw new Error("تعداد روز قبل از تولد باید عددی بین ۱ تا ۳۰ باشد.");
+    }
     // پpayload کاملاً تمیز و ساختاریافته به صورت JSON
     const payload = {
       profile_fields: profileFields.value,
@@ -1680,6 +1761,11 @@ const saveInternalSettings = async (showMessage = true) => {
       patient_required_fields: patientRequiredFields.value,
       customer_levels: customerLevelPayload(),
       appointment_columns: appointmentColumns.value,
+      birthday_sms_automation: {
+        enabled: birthdaySmsAutomation.value.enabled,
+        timing: birthdaySmsAutomation.value.timing,
+        days_before: birthdaySmsAutomation.value.timing === "days_before" ? Number(birthdaySmsAutomation.value.days_before) : 0
+      },
       wallet_settings: { ...walletSettings.value, service_overrides: walletSettings.value.service_overrides.filter(rule => rule.service_id && rule.service_name) },
       clinic_schedule: clinicSchedule.value,
       report_staff_target: Math.max(0, Number(reportStaffTarget.value) || 0),
@@ -2546,4 +2632,59 @@ textarea{ min-height:120px; resize:none; }
   border-radius: var(--ui-action-radius);
 }
 .wallet-settings-body{display:grid;gap:16px}.wallet-enable-row{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #bbf7d0;border-radius:14px;background:#f0fdf4}.wallet-enable-row span{display:grid;gap:4px}.wallet-enable-row small,.wallet-service-rules small,.wallet-sms-template small{color:#64748b;font-size:10px}.wallet-default-rule{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.wallet-default-rule label,.wallet-sms-template{display:grid;gap:7px;font-size:11px;font-weight:800}.wallet-days-input{display:flex;align-items:center;gap:7px}.wallet-days-input input{flex:1}.wallet-days-input em{font-style:normal}.wallet-service-rules{display:grid;gap:10px;padding:14px;border:1px solid #e2e8f0;border-radius:14px}.wallet-service-rules header{display:flex;align-items:center;justify-content:space-between;gap:12px}.wallet-service-rules header div{display:grid;gap:3px}.wallet-service-rules header button{border:0;border-radius:9px;padding:8px 12px;background:#e0f2fe;color:#0369a1;font-family:inherit;font-weight:900;cursor:pointer}.wallet-service-rule{display:grid;grid-template-columns:minmax(180px,2fr) 1fr 1fr 34px;gap:8px}.wallet-rule-remove{border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-size:20px;cursor:pointer}.wallet-sms-template textarea{resize:vertical;line-height:2}@media(max-width:760px){.wallet-default-rule,.wallet-service-rule{grid-template-columns:1fr}.wallet-rule-remove{height:34px}}
+.birthday-automation-body { padding: 0; }
+.birthday-automation-card { display: grid; gap: 0; color: #17243b; }
+.birthday-automation-head { display: flex; align-items: center; gap: 14px; padding: 24px; background: #f8fbff; }
+.birthday-automation-icon { display: grid; flex: 0 0 46px; place-items: center; width: 46px; height: 46px; border-radius: 15px; background: #e8efff; color: #4967d5; font-size: 27px; }
+.birthday-automation-intro { display: grid; flex: 1; min-width: 0; gap: 4px; }
+.birthday-automation-intro strong { font-size: 16px; line-height: 1.6; }
+.birthday-automation-intro small { color: #61718b; font-size: 12px; line-height: 1.8; }
+.birthday-automation-switch { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 8px; cursor: pointer; color: #6b778c; font-size: 12px; font-weight: 800; }
+.birthday-automation-switch input { position: absolute; width: 1px; height: 1px; padding: 0; opacity: 0; }
+.birthday-switch-track { position: relative; width: 38px; height: 22px; border-radius: 999px; background: #bdc8d8; transition: background .2s; }
+.birthday-switch-track::after { content: ''; position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px #26334833; transition: transform .2s; }
+.birthday-automation-switch input:checked + .birthday-switch-track { background: #359a78; }
+.birthday-automation-switch input:checked + .birthday-switch-track::after { transform: translateX(-16px); }
+.birthday-automation-switch input:checked ~ .birthday-switch-label { color: #167354; }
+.birthday-automation-switch input:focus-visible + .birthday-switch-track { outline: 3px solid #a9c7ff; outline-offset: 3px; }
+.birthday-template-ready, .birthday-template-warning { display: flex; align-items: center; gap: 10px; margin: 18px 24px 0; padding: 12px 14px; border-radius: 12px; font-size: 12px; line-height: 1.8; }
+.birthday-template-ready { background: #edf9f2; color: #176648; }
+.birthday-template-ready > span:first-child { display: grid; flex: 0 0 20px; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #ccefd9; font-weight: 900; }
+.birthday-template-ready b { display: inline-block; max-width: 100%; margin-right: 5px; overflow-wrap: anywhere; font-size: 11px; }
+.birthday-template-warning { border: 1px solid #f7d9a5; background: #fffbf1; color: #8d5d11; }
+.birthday-template-warning > span { display: grid; flex: 0 0 22px; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #fff0cc; font-weight: 900; }
+.birthday-template-warning p { display: grid; flex: 1; gap: 2px; margin: 0; }
+.birthday-template-warning small { color: #957346; font-size: 11px; }
+.birthday-template-warning button { border: 1px solid #edcf91; border-radius: 9px; padding: 8px 11px; background: #fff; color: #825512; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.birthday-automation-card fieldset { min-width: 0; margin: 20px 24px 0; padding: 0; border: 0; }
+.birthday-automation-card legend { margin-bottom: 12px; color: #243550; font-size: 13px; font-weight: 800; }
+.birthday-timing-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.birthday-timing-options label { display: flex; align-items: flex-start; gap: 11px; min-width: 0; min-height: 88px; box-sizing: border-box; padding: 16px; border: 1px solid #dce5f0; border-radius: 13px; background: #fff; cursor: pointer; transition: border-color .2s, background .2s, box-shadow .2s; }
+.birthday-timing-options label.selected { border-color: #83a6ec; background: #f3f7ff; box-shadow: 0 0 0 2px #eaf1ff; }
+.birthday-timing-options input { flex: 0 0 auto; box-sizing: border-box; width: 17px; height: 17px; margin: 3px 0 0; padding: 0; accent-color: #5279db; }
+.birthday-timing-options label span { display: grid; min-width: 0; gap: 4px; }
+.birthday-timing-options strong { color: #243550; font-size: 13px; line-height: 1.6; }
+.birthday-timing-options small { color: #718099; font-size: 11px; line-height: 1.7; }
+.birthday-automation-card fieldset:disabled .birthday-timing-options { opacity: .65; }
+.birthday-automation-card fieldset:disabled .birthday-timing-options label { cursor: default; }
+.birthday-days-before { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 14px 24px 0; padding: 15px 16px; border: 1px solid #e1e9f5; border-radius: 12px; background: #f8fbff; }
+.birthday-days-before > span { display: grid; gap: 3px; }
+.birthday-days-before strong { color: #243550; font-size: 12px; }
+.birthday-days-before small { color: #718099; font-size: 11px; }
+.birthday-days-before > div { display: flex; align-items: center; flex: 0 0 auto; gap: 8px; color: #586980; }
+.birthday-days-before input { width: 70px; height: 38px; box-sizing: border-box; padding: 0 5px; border: 1px solid #ccd9eb; border-radius: 9px; background: #fff; color: #243550; text-align: center; font: inherit; }
+.birthday-days-before b { font-size: 11px; }
+.birthday-automation-card::after { content: ''; display: block; height: 24px; }
+@media (max-width: 680px) {
+  .birthday-automation-head { flex-wrap: wrap; padding: 18px; }
+  .birthday-automation-switch { margin-right: auto; }
+  .birthday-template-ready, .birthday-template-warning { margin: 16px 18px 0; }
+  .birthday-template-warning { flex-wrap: wrap; }
+  .birthday-template-warning button { width: 100%; }
+  .birthday-automation-card fieldset { margin: 20px 18px 0; }
+  .birthday-timing-options { grid-template-columns: 1fr; }
+  .birthday-timing-options label { min-height: 70px; }
+  .birthday-days-before { margin-right: 18px; margin-left: 18px; }
+}
+@media (max-width: 440px) { .birthday-days-before { align-items: flex-start; flex-direction: column; } }
 </style>

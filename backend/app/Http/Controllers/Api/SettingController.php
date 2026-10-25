@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 use App\Services\CustomerLevelService;
 use App\Support\ActivityLogger;
@@ -173,6 +174,10 @@ class SettingController extends Controller
         ], is_array($leadAlerts) ? $leadAlerts : []);
 
         $projectOwnerId = $this->projectOwnerId();
+        $birthdayTemplateEnabled = AppSetting::getByKey(
+            'birthday_sms_template_enabled',
+            AppSetting::getByKey('birthday_sms_enabled', '0')
+        ) === '1';
 
         return response()->json([
             // تنظیمات داخلی
@@ -192,12 +197,13 @@ class SettingController extends Controller
                 ],
                 'templates' => $smsTemplates,
                 'birthday' => [
-                    'enabled' => AppSetting::getByKey('birthday_sms_enabled', '0') === '1',
+                    'enabled' => $birthdayTemplateEnabled,
                     'content' => AppSetting::getByKey('birthday_sms_content', ''),
                     'guide_text' => AppSetting::getByKey('birthday_sms_guide_text', 'پارامتر ۱: نام کامل بیمار؛ پارامتر ۲: نام کوچک؛ پارامتر ۳: شماره پرونده؛ پارامتر ۴: تاریخ تولد؛ پارامتر ۵: نام کلینیک؛ پارامتر ۶: تاریخ ارسال'),
                 ],
                 'lead_alerts' => $leadAlerts,
             ],
+            'birthday_sms_automation' => $this->birthdaySmsAutomationSettings(),
             
             // ارسال دیتای کاملا آرایه‌ای و تمیز به فرانت
             'profile_fields' => $profileFieldsData, 
@@ -307,7 +313,7 @@ class SettingController extends Controller
     {
         $validatedUsers = $request->validate([
             'passwords' => ['sometimes', 'array'],
-            'passwords.*.id' => ['nullable', 'integer', 'exists:users,id'],
+            'passwords.*.id' => ['nullable', 'integer', 'distinct', 'exists:users,id'],
             'passwords.*.user' => ['nullable', 'string', 'max:255'],
             'passwords.*.nickname' => ['nullable', 'string', 'max:255'],
             'passwords.*.mobile' => ['nullable', 'string', 'max:20'],
@@ -348,6 +354,58 @@ class SettingController extends Controller
             'passwords.*.is_project_owner' => 'مالک پروژه',
             'passwords.*.role_ids' => 'نقش‌های کاربر',
         ]);
+        $licensedUserLimit = app(\App\Services\TenantSubscriptionService::class)
+            ->statusData(tenant())['licensed_users'];
+        $managesUsers = array_key_exists('passwords', $validatedUsers);
+        if ($managesUsers) {
+            $submittedIds = collect($validatedUsers['passwords'])
+                ->pluck('id')->filter()->map(fn ($id) => (int) $id)->values();
+            $existingUsers = User::query()->whereIn('id', $submittedIds)->get()->keyBy('id');
+            $unchangedActiveUsers = User::query()
+                ->whereNotIn('id', $submittedIds)
+                ->when(Schema::hasColumn('users', 'access_blocked'), fn ($query) =>
+                    $query->where(fn ($status) => $status->whereNull('access_blocked')->orWhere('access_blocked', false))
+                )
+                ->count();
+            $submittedActiveUsers = collect($validatedUsers['passwords'])->filter(function (array $item) use ($existingUsers): bool {
+                if (array_key_exists('access_blocked', $item)) return ! (bool) $item['access_blocked'];
+                $existing = isset($item['id']) ? $existingUsers->get((int) $item['id']) : null;
+                return ! (bool) ($existing?->access_blocked ?? false);
+            })->count();
+            $requestedActiveUsers = $unchangedActiveUsers + $submittedActiveUsers;
+            if ($requestedActiveUsers > $licensedUserLimit) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'passwords' => "ظرفیت اشتراک {$licensedUserLimit} کاربر فعال است. برای فعال‌سازی {$requestedActiveUsers} کاربر، ابتدا اشتراک را با ظرفیت بیشتر تمدید کنید.",
+                ]);
+            }
+        }
+
+        $birthdayAutomation = null;
+        if ($request->has('birthday_sms_automation')) {
+            $birthdayAutomation = $request->validate([
+                'birthday_sms_automation.enabled' => ['required', 'boolean'],
+                'birthday_sms_automation.timing' => ['required', Rule::in(['same_day', 'days_before'])],
+                'birthday_sms_automation.days_before' => ['exclude_unless:birthday_sms_automation.timing,days_before', 'required', 'integer', 'min:1', 'max:30'],
+            ], [
+                'birthday_sms_automation.days_before.required' => 'تعداد روز قبل از تولد را مشخص کنید.',
+                'birthday_sms_automation.days_before.min' => 'تعداد روز قبل از تولد باید حداقل ۱ روز باشد.',
+                'birthday_sms_automation.days_before.max' => 'تعداد روز قبل از تولد نمی‌تواند بیشتر از ۳۰ روز باشد.',
+            ])['birthday_sms_automation'];
+
+            $templateEnabled = AppSetting::getByKey(
+                'birthday_sms_template_enabled',
+                AppSetting::getByKey('birthday_sms_enabled', '0')
+            ) === '1';
+            $templateName = trim((string) AppSetting::getByKey('birthday_sms_content', ''));
+            if ($birthdayAutomation['enabled'] && (! $templateEnabled || $templateName === '')) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'birthday_sms_automation.enabled' => ['ابتدا الگوی «پیامک تبریک تولد» را در بخش پیامک فعال و نام الگوی SHSMS را ثبت کنید.'],
+                ]);
+            }
+            $birthdayAutomation['days_before'] = $birthdayAutomation['timing'] === 'days_before'
+                ? (int) $birthdayAutomation['days_before']
+                : 0;
+        }
 
         $educationOptions = null;
         if ($request->has('education_options')) {
@@ -387,6 +445,11 @@ class SettingController extends Controller
                 ['key' => 'customer_level_settings'],
                 ['value' => json_encode($levels, JSON_UNESCAPED_UNICODE)]
             );
+        }
+        if ($birthdayAutomation !== null) {
+            AppSetting::updateOrCreate(['key' => 'birthday_sms_automation'], [
+                'value' => json_encode($birthdayAutomation, JSON_UNESCAPED_UNICODE),
+            ]);
         }
         // ۱. متون ساده (بدون دستکاری به صورت مستقیم ذخیره می‌شوند)
         if ($request->has('appointment_columns')) {
@@ -516,7 +579,12 @@ class SettingController extends Controller
         AppSetting::updateOrCreate(['key' => 'appointment_file_number_locked'], ['value' => $request->boolean('appointment_file_number_locked', true) ? '1' : '0']);
 
         // ۳. مدیریت کاربران
-        DB::transaction(function () use ($validatedUsers) {
+        DB::transaction(function () use ($validatedUsers, $licensedUserLimit, $managesUsers) {
+        if ($managesUsers) {
+            // Serialize user-list edits so two simultaneous requests cannot both
+            // pass the capacity check and exceed the purchased seat count.
+            User::query()->lockForUpdate()->get(['id']);
+        }
         $projectOwnerId = $this->projectOwnerId();
         $firstSavedUserId = null;
         foreach ($validatedUsers['passwords'] ?? [] as $index => $userData) {
@@ -614,6 +682,19 @@ class SettingController extends Controller
                 ->values();
             $roles = Role::query()->where('guard_name', 'web')->whereIn('id', $roleIds)->get();
             $user->syncRoles($roles);
+        }
+
+        if ($managesUsers) {
+            $activeUsers = User::query()
+                ->when(Schema::hasColumn('users', 'access_blocked'), fn ($query) =>
+                    $query->where(fn ($status) => $status->whereNull('access_blocked')->orWhere('access_blocked', false))
+                )
+                ->count();
+            if ($activeUsers > $licensedUserLimit) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'passwords' => "ظرفیت اشتراک {$licensedUserLimit} کاربر فعال است. برای فعال‌سازی {$activeUsers} کاربر، ابتدا اشتراک را با ظرفیت بیشتر تمدید کنید.",
+                ]);
+            }
         }
 
         $ownerId = $projectOwnerId ?? $firstSavedUserId;
@@ -788,7 +869,7 @@ class SettingController extends Controller
             AppSetting::updateOrCreate(['key' => 'clinic_phone'], ['value' => trim((string) data_get($validated, 'clinic_info.phone', ''))]);
             AppSetting::updateOrCreate(['key' => 'clinic_location_url'], ['value' => trim((string) data_get($validated, 'clinic_info.location_url', ''))]);
         }
-        AppSetting::updateOrCreate(['key' => 'birthday_sms_enabled'], ['value' => $validated['birthday']['enabled'] ? '1' : '0']);
+        AppSetting::updateOrCreate(['key' => 'birthday_sms_template_enabled'], ['value' => $validated['birthday']['enabled'] ? '1' : '0']);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_content'], ['value' => trim((string) ($validated['birthday']['content'] ?? ''))]);
         AppSetting::updateOrCreate(['key' => 'birthday_sms_guide_text'], ['value' => trim((string) ($validated['birthday']['guide_text'] ?? ''))]);
         $leadAlerts = $validated['lead_alerts'];
@@ -902,5 +983,26 @@ class SettingController extends Controller
         // این متد لیست ماژول‌ها و پرسنل متصل به آن‌ها را از دیتابیس جمع‌آوری کرده و آرایه ست شده در فرانت را تحویل می‌دهد.
         // جهت جلوگیری از شلوغی کد، دیتای اولیه ساختار فرانت شما را تعذیه می‌کند.
         return []; 
+    }
+
+    private function birthdaySmsAutomationSettings(): array
+    {
+        $raw = AppSetting::getByKey('birthday_sms_automation');
+        $settings = is_string($raw) ? json_decode($raw, true) : $raw;
+        $legacyEnabled = AppSetting::getByKey('birthday_sms_enabled', '0') === '1';
+        $settings = array_merge([
+            'enabled' => $legacyEnabled,
+            'timing' => 'same_day',
+            'days_before' => 0,
+        ], is_array($settings) ? $settings : []);
+        $settings['enabled'] = (bool) $settings['enabled'];
+        $settings['timing'] = in_array($settings['timing'], ['same_day', 'days_before'], true)
+            ? $settings['timing']
+            : 'same_day';
+        $settings['days_before'] = $settings['timing'] === 'days_before'
+            ? max(1, min(30, (int) $settings['days_before']))
+            : 0;
+
+        return $settings;
     }
 }
