@@ -242,6 +242,37 @@ class AppointmentController extends Controller
             || array_intersect($candidateResources, $otherResources) !== [];
     }
 
+    /**
+     * Return active appointments whose clock range covers a transfer target.
+     * A transfer marker is an audit row, not a booking, and must not make the
+     * old slot look occupied. Transfers intentionally count every lane here:
+     * the user must explicitly confirm stacking appointments at one time.
+     */
+    private function rescheduleSlotOccupants(array $incoming, string $month, Appointment $previous)
+    {
+        $candidateStart = $this->appointmentTimeMinutes((string) ($incoming['time'] ?? ''));
+        if ($candidateStart === null) return collect();
+
+        $candidateEnd = $candidateStart + max(1, (int) ($previous->duration_minutes ?: 1));
+
+        return Appointment::query()
+            ->where('month', $month)
+            ->where('day_num', (int) ($incoming['day_num'] ?? 0))
+            ->whereKeyNot($previous->getKey())
+            ->where(fn ($query) => $query->whereNull('status')->orWhere('status', '<>', 'انتقال داده شده'))
+            ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
+            ->lockForUpdate()
+            ->get()
+            ->filter(function (Appointment $appointment) use ($candidateStart, $candidateEnd): bool {
+                $start = $this->appointmentTimeMinutes((string) $appointment->time);
+                if ($start === null) return false;
+                $end = $start + max(1, (int) ($appointment->duration_minutes ?: 1));
+
+                return $candidateStart < $end && $candidateEnd > $start;
+            })
+            ->values();
+    }
+
     private function appointmentNoteKey(Appointment $appointment): string
     {
         return implode('|', [
@@ -753,6 +784,7 @@ class AppointmentController extends Controller
                 ->where('month', $month)
                 ->where('day_num', $day)
                 ->when($previous, fn ($query) => $query->whereKeyNot($previous->getKey()))
+                ->where(fn ($query) => $query->whereNull('status')->orWhere('status', '<>', 'انتقال داده شده'))
                 ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
                 ->lockForUpdate()
                 ->get()
@@ -777,6 +809,7 @@ class AppointmentController extends Controller
                     ->where('sort_order', $sortOrder),
             )
             ->when($previous, fn ($query) => $query->whereKeyNot($previous->getKey()))
+            ->where(fn ($query) => $query->whereNull('status')->orWhere('status', '<>', 'انتقال داده شده'))
             // Old versions persisted every generated empty slot. Those rows
             // are not bookings and must not block a real patient appointment.
             ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
@@ -801,13 +834,23 @@ class AppointmentController extends Controller
             'month' => ['required', 'string', 'regex:/^1[34]\d{2}-(0[1-9]|1[0-2])$/'],
             'day_num' => ['required', 'integer', 'between:1,31'],
             'time' => ['required', 'date_format:H:i'],
+            'allow_occupied_slot' => ['sometimes', 'boolean'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
-        [$before, $sourceMarker, $updated] = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($appointment, $data) {
+        $result = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($appointment, $data) {
             return DB::transaction(function () use ($appointment, $data) {
                 $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
                 abort_if((int) $current->lock_version !== (int) $data['lock_version'], 409,
                     'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید و دوباره انتقال دهید.');
-                $this->assertAppointmentSlotAvailable($data, $data['month'], $current);
+                $occupants = $this->rescheduleSlotOccupants($data, $data['month'], $current);
+                if ($occupants->isNotEmpty() && ! ($data['allow_occupied_slot'] ?? false)) {
+                    return [
+                        'confirmation_required' => true,
+                        'occupied_count' => $occupants->count(),
+                    ];
+                }
+                if ($occupants->isEmpty()) {
+                    $this->assertAppointmentSlotAvailable($data, $data['month'], $current);
+                }
                 $before = clone $current;
 
                 // Keep an explicit, non-financial marker in the source slot.
@@ -869,6 +912,16 @@ class AppointmentController extends Controller
                 return [$before, $sourceMarker, $current];
             });
         });
+        if (($result['confirmation_required'] ?? false) === true) {
+            $count = (int) $result['occupied_count'];
+
+            return response()->json([
+                'message' => "در این ساعت {$count} نوبت ثبت شده است و این ساعت پر است.",
+                'code' => 'appointment_slot_occupied_confirmation_required',
+                'occupied_count' => $count,
+            ], 409);
+        }
+        [$before, $sourceMarker, $updated] = $result;
         // The source marker and destination booking are both authoritative
         // calendar rows and must refresh in every connected client.
         $this->broadcastAppointmentChange($sourceMarker, 'rescheduled');

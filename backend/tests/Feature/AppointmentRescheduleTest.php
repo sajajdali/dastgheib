@@ -45,11 +45,12 @@ class AppointmentRescheduleTest extends TestCase
         ]);
     }
 
-    private function move(Appointment $appointment, int $version = 1, string $month = '1405-07')
+    private function move(Appointment $appointment, int $version = 1, string $month = '1405-07', bool $allowOccupiedSlot = false)
     {
         return app(AppointmentController::class)->reschedule(
             Request::create('/', 'POST', [
                 'lock_version' => $version, 'month' => $month, 'day_num' => 2, 'time' => '11:30',
+                'allow_occupied_slot' => $allowOccupiedSlot,
                 'services' => [], 'payment_details' => [],
             ]), $appointment
         );
@@ -104,18 +105,16 @@ class AppointmentRescheduleTest extends TestCase
             'services' => [], 'payment_details' => [],
         ]);
 
-        try {
-            $this->move($appointment);
-            $this->fail('An occupied slot must reject another appointment.');
-        } catch (HttpException $exception) {
-            $this->assertSame(409, $exception->getStatusCode());
-        }
+        $response = $this->move($appointment);
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame('appointment_slot_occupied_confirmation_required', $response->getData(true)['code']);
+        $this->assertSame(1, $response->getData(true)['occupied_count']);
 
         $this->assertSame('1405-06', $appointment->fresh()->month);
         $this->assertSame('09:00', $appointment->fresh()->time);
     }
 
-    public function test_transfer_allows_same_time_for_a_different_doctor(): void
+    public function test_transfer_requires_confirmation_then_allows_same_time_for_a_different_doctor(): void
     {
         $appointment = $this->appointment();
         $appointment->update(['doctor' => 'دکتر الف']);
@@ -125,14 +124,18 @@ class AppointmentRescheduleTest extends TestCase
             'doctor' => 'دکتر ب', 'services' => [], 'payment_details' => [],
         ]);
 
-        $this->move($appointment, $appointment->fresh()->lock_version);
+        $warning = $this->move($appointment, $appointment->fresh()->lock_version);
+        $this->assertSame(409, $warning->getStatusCode());
+        $this->assertSame(1, $warning->getData(true)['occupied_count']);
+
+        $this->move($appointment, $appointment->fresh()->lock_version, '1405-07', true);
 
         $this->assertSame('1405-07', $appointment->fresh()->month);
         $this->assertSame(2, $appointment->fresh()->day_num);
         $this->assertSame('11:30', $appointment->fresh()->time);
     }
 
-    public function test_transfer_rejects_overlapping_time_for_the_same_doctor(): void
+    public function test_transfer_requires_confirmation_for_overlapping_time_for_the_same_doctor(): void
     {
         $appointment = $this->appointment();
         $appointment->update(['doctor' => 'دکتر الف']);
@@ -142,12 +145,45 @@ class AppointmentRescheduleTest extends TestCase
             'doctor' => 'دکتر الف', 'services' => [], 'payment_details' => [],
         ]);
 
-        try {
-            $this->move($appointment, $appointment->fresh()->lock_version);
-            $this->fail('The same doctor must not receive overlapping appointments.');
-        } catch (HttpException $exception) {
-            $this->assertSame(409, $exception->getStatusCode());
+        $warning = $this->move($appointment, $appointment->fresh()->lock_version);
+        $this->assertSame(409, $warning->getStatusCode());
+        $this->assertSame(1, $warning->getData(true)['occupied_count']);
+    }
+
+    public function test_confirmed_transfer_can_stack_with_multiple_appointments(): void
+    {
+        $appointment = $this->appointment();
+        foreach (['first booking', 'second booking'] as $name) {
+            Appointment::create([
+                'month' => '1405-07', 'day_num' => 2, 'time' => '11:30',
+                'lastname' => $name, 'status' => 'booked',
+                'services' => [], 'payment_details' => [],
+            ]);
         }
+
+        $warning = $this->move($appointment);
+        $this->assertSame(2, $warning->getData(true)['occupied_count']);
+
+        $this->move($appointment, $appointment->fresh()->lock_version, '1405-07', true);
+
+        $this->assertSame(3, Appointment::query()
+            ->where('month', '1405-07')->where('day_num', 2)->where('time', '11:30')->count());
+    }
+
+    public function test_transfer_marker_does_not_block_its_old_slot(): void
+    {
+        $appointment = $this->appointment();
+        Appointment::create([
+            'month' => '1405-07', 'day_num' => 2, 'time' => '11:30',
+            'lastname' => 'previously moved patient', 'status' => 'انتقال داده شده',
+            'services' => [], 'payment_details' => [],
+        ]);
+
+        $response = $this->move($appointment);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('1405-07', $appointment->fresh()->month);
+        $this->assertSame('11:30', $appointment->fresh()->time);
     }
 
     public function test_events_use_distinct_private_tenant_channels(): void

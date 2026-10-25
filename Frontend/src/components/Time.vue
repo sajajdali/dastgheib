@@ -5092,7 +5092,7 @@ export default {
       }
     },
 
-    async saveAppointmentTransfer() {
+    async saveAppointmentTransfer(allowOccupiedSlot = false) {
       if (this.timelineSaving || !this.activeTimelineRow) return;
       const date = moment(this.timelineTransferDate, 'YYYY-MM-DD', true);
       const time = this.activeTimelineDraft.time;
@@ -5115,6 +5115,7 @@ export default {
         const { data } = await axios.post(`/api/appointments/${row.appointmentId}/reschedule`, {
           lock_version: row.lockVersion, month: date.format('jYYYY-jMM'),
           day_num: Number(date.format('jD')), time,
+          allow_occupied_slot: Boolean(allowOccupiedSlot),
         });
         const targetMonth = date.format('jYYYY-jMM');
         this.timelineSaving = false;
@@ -5139,6 +5140,30 @@ export default {
         if (targetRow) this.flashRowHighlight(targetRow._rowId);
         await Swal.fire({ icon: 'success', title: 'نوبت منتقل شد', text: `زمان جدید: ${date.format('jYYYY/jMM/jDD')}، ساعت ${time}` });
       } catch (error) {
+        const conflict = error?.response?.data;
+        if (
+          !allowOccupiedSlot
+          && error?.response?.status === 409
+          && conflict?.code === 'appointment_slot_occupied_confirmation_required'
+        ) {
+          this.timelineSaving = false;
+          const count = Math.max(1, Number(conflict.occupied_count) || 1);
+          const confirmation = await Swal.fire({
+            icon: 'warning',
+            title: 'این ساعت پر است',
+            text: `در این ساعت ${count.toLocaleString('fa-IR')} نوبت ثبت شده است. آیا مطمئن هستید که می‌خواهید این نوبت هم به همین روز و ساعت منتقل شود؟`,
+            showCancelButton: true,
+            confirmButtonText: 'بله، منتقل شود',
+            cancelButtonText: 'انصراف',
+            confirmButtonColor: '#dc2626',
+            reverseButtons: true,
+            focusCancel: true,
+          });
+          if (confirmation.isConfirmed) {
+            return this.saveAppointmentTransfer(true);
+          }
+          return;
+        }
         this.timelineTransferError = this.saveErrorMessage(error);
       } finally {
         this.timelineSaving = false;
