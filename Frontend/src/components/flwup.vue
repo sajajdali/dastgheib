@@ -56,7 +56,7 @@
         <div v-for="item in missedFollowups" :key="`missed-${item.campaignId}-${item._localId}`" class="missed-followup-row">
           <span @dblclick.stop="openCampaign(item.campaignId, item._localId)">{{ item.fullName || 'بدون نام' }}</span><span>{{ displayPatientPhone(item.phone, item) || 'بدون شماره' }}</span>
           <span>{{ item.campaignTitle }}</span><span>{{ formatDateFa(item.followUpDate) }}</span>
-          <button type="button" @click.stop="openCampaign(item.campaignId)">باز کردن</button>
+          <button type="button" @click.stop="openCampaign(item.campaignId, item._localId)">باز کردن</button>
         </div>
       </div>
 
@@ -713,6 +713,7 @@
     display-format="jYYYY/jMM/jDD"
     input-class="table-date-input"
     placeholder="تاریخ"
+    clearable
     append-to="body"
     @open="raiseFollowupTableDatePicker"
   />
@@ -1147,6 +1148,7 @@
     display-format="jYYYY/jMM/jDD"
     input-class="table-date-input"
     placeholder="تاریخ"
+    clearable
     append-to="body"
     @open="raiseFollowupTableDatePicker"
   />
@@ -2669,6 +2671,9 @@ export default {
         interest: [],
         reason: [],
       };
+      if (this.highlightedFollowupRowId) {
+        this.$nextTick(() => this.scrollToHighlightedFollowupRow());
+      }
     },
 
     closeCampaignModal() {
