@@ -2,6 +2,10 @@
 
 return [
 
+    'voip' => [
+        'token' => env('VOIP_API_TOKEN', ''),
+    ],
+
     'shsms' => [
         'endpoint' => env('SHSMS_ENDPOINT', 'https://shsms.ir/api/v1/sendms'),
         'token' => env('SHSMS_API_TOKEN', env('SHSMS_TOKEN')),

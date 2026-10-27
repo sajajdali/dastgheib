@@ -845,10 +845,13 @@
 
                 <button
                   class="service-mini-btn"
-                  :class="{ 'service-active': hasService(row) }"
+                  :class="{ 'service-active': hasService(row), 'has-service-summary': serviceButtonLabels(row).length > 0 }"
+                  :title="serviceButtonTitle(row)"
+                  :aria-label="serviceButtonTitle(row)"
                   @click.stop="toggleServicePopup(row._rowId)"
                 >
-                  <span class="service-mini-icon">✦</span><span>خدمات</span>
+                  <span v-if="!serviceButtonLabels(row).length" class="service-mini-icon">✦</span>
+                  <span class="service-mini-summary">{{ serviceButtonLabels(row).join('، ') || 'خدمات' }}</span>
                 </button>
 
                 <div
@@ -2876,7 +2879,7 @@ export default {
         paymentMethod: 110,
         paymentAccount: 120,
         paymentLink: 96,
-        service: 68,
+        service: 145,
         serviceType: 120,
 
         newCustomer: 100,
@@ -8378,7 +8381,7 @@ this.calculateFinalAmount(row)
         paymentLink: 88,
         appointmentSms: 80,
         infoSms: 80,
-        service: 64
+        service: 100
       };
 
       const onMove = (moveEvent) => {
@@ -8422,7 +8425,7 @@ this.calculateFinalAmount(row)
       const context = canvas.getContext('2d');
       context.font = '12px Vazir, sans-serif';
       const contentWidth = Math.max(...values.map((value) => context.measureText(String(value).trim()).width));
-      const minimums = { lastname: 110, gender: 52, fileNumber: 70, time: 82, amount: 155, service: 64, appointmentSms: 80, infoSms: 80 };
+      const minimums = { lastname: 110, gender: 52, fileNumber: 70, time: 82, amount: 155, service: 100, appointmentSms: 80, infoSms: 80 };
       const extras = { lastname: 48, fileNumber: 14, amount: 62, description: 48, serviceType: 30 };
       this.columnWidths[column] = Math.ceil(
         Math.min(column === 'fileNumber' ? 160 : 280, Math.max(minimums[column] || 64, contentWidth + (extras[column] || 24)))
@@ -9678,6 +9681,20 @@ smsColor(val) {
 
     hasService(row) {
       return row.services?.some(s => s.name);
+    },
+
+    serviceButtonLabels(row) {
+      const labels = (row?.services || [])
+        .map(service => String(service?.name || '').trim())
+        .filter(Boolean);
+      return [...new Set(labels)];
+    },
+
+    serviceButtonTitle(row) {
+      const labels = this.serviceButtonLabels(row);
+      return labels.length
+        ? labels.join('، ')
+        : 'خدمات';
     },
 
     toggleServicePopup(id) {
@@ -12093,6 +12110,23 @@ td.row-action-col {
   border-color: #86efac;
   background: linear-gradient(135deg, #dcfce7, #bbf7d0);
   color: #15803d;
+}
+
+.service-mini-btn.has-service-summary {
+  width: auto;
+  max-width: calc(100% - 8px);
+  height: auto;
+  min-height: 28px;
+  margin: 3px 4px;
+  padding: 4px 8px;
+  line-height: 1.4;
+}
+
+.service-mini-summary {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .service-mini-icon{font-size:13px;line-height:1}.add-service-line-btn:disabled{opacity:.42;cursor:not-allowed;transform:none!important}.service-prerequisite{display:flex;align-items:flex-start;gap:11px;margin:8px 0 12px;padding:12px 14px;border:1px solid #bfdbfe;border-radius:12px;background:linear-gradient(135deg,#eff6ff,#f8fbff);text-align:right;direction:rtl}.service-prerequisite>span{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;background:#2563eb;color:#fff;font-size:13px;font-weight:1000;box-shadow:0 5px 12px rgba(37,99,235,.2)}.service-prerequisite div{display:grid;gap:4px}.service-prerequisite strong{color:#1e3a8a;font-size:12px}.service-prerequisite p{margin:0;color:#475569;font-size:11px;line-height:1.8}.service-main-row select:disabled{background:#f1f5f9!important;color:#94a3b8!important;cursor:not-allowed}.service-multiselect.multiselect--disabled{opacity:.58;background:#f8fafc}
