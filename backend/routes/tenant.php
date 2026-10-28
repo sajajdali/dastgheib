@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\SatisfactionIntegrationController;
 use App\Http\Controllers\Api\VoipPatientController;
+use App\Http\Middleware\InitializeTenancyByVoipToken;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
 use Illuminate\Support\Facades\Storage;
@@ -69,8 +70,9 @@ Route::middleware([
             Route::get('/{token}', [SatisfactionIntegrationController::class, 'show'])->middleware('throttle:60,1');
             Route::post('/{token}', [SatisfactionIntegrationController::class, 'submit'])->middleware('throttle:10,1');
         });
-
-    // Read-only patient card for the call-center panel (Bearer VOIP_API_TOKEN).
-    Route::get('external-api/voip/v1/patients/by-phone/{phone}', [VoipPatientController::class, 'show'])
-        ->middleware(['api', 'throttle:120,1']);
 });
+
+// Read-only patient card for the call-center panel. The Bearer token from Settings → «ارتباط با VoIP»
+// names the tenant, so this works on any host (an IP, a central or a tenant domain).
+Route::get('external-api/voip/v1/patients/by-phone/{phone}', [VoipPatientController::class, 'show'])
+    ->middleware(['api', InitializeTenancyByVoipToken::class, 'tenant.active', 'throttle:120,1']);

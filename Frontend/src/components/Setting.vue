@@ -55,6 +55,16 @@
         v-if="canViewSettings"
         type="button"
         class="tab-btn"
+        :class="{ active: activeSection === 'voip' }"
+        @click="toggleSection('voip')"
+      >
+        ارتباط با VoIP
+      </button>
+
+      <button
+        v-if="canViewSettings"
+        type="button"
+        class="tab-btn"
         :class="{ active: activeSection === 'roles' }"
         @click="toggleSection('roles')"
       >
@@ -900,22 +910,22 @@
 
     <div v-if="false && canViewSettings && activeSection === 'access'" class="content-wrapper">
       <div v-for="(section, sIndex) in accessSections" :key="sIndex" class="accordion">
-        
+
         <div class="accordion-header" @click="toggleAccordion(section.title)">
           {{ section.title }}
         </div>
 
         <div v-if="openAccordion === section.title" class="accordion-body">
           <div v-for="(person, pIndex) in section.people" :key="pIndex" class="permission-box">
-            
+
             <input class="green-input" type="text" placeholder="نام پرسنل" v-model="person.name" />
 
             <div class="compact-checks">
               <label v-for="(perm, permIndex) in section.permissions" :key="permIndex">
-                <input 
-                  type="checkbox" 
-                  :value="perm" 
-                  v-model="person.selected_permissions" 
+                <input
+                  type="checkbox"
+                  :value="perm"
+                  v-model="person.selected_permissions"
                 />
                 <span>{{ perm }}</span>
               </label>
@@ -932,6 +942,47 @@
       </div>
 
       <button class="save-all-btn" @click="saveAccessSettings">ذخیره سطوح دسترسی</button>
+    </div>
+
+    <div v-if="canViewSettings && activeSection === 'voip'" class="voip-settings-wrapper">
+      <section class="satisfaction-integration-card voip-card" :class="{ 'is-active': voip.enabled }">
+        <div class="satisfaction-integration-top">
+          <div class="satisfaction-integration-icon">☎</div>
+          <div class="satisfaction-integration-heading">
+            <span>مرکز تماس</span>
+            <h3>ارتباط با VoIP</h3>
+            <p>پنل مرکز تماس با این توکن، هنگام تماس پرونده بیمار همین مطب را از روی شماره تلفن می‌خواند.</p>
+          </div>
+          <label class="satisfaction-integration-switch">
+            <input type="checkbox" :checked="voip.enabled" :disabled="voipSaving" @change="setVoipEnabled($event.target.checked)">
+            <i></i>
+            <b>{{ voip.enabled ? 'فعال' : 'غیرفعال' }}</b>
+          </label>
+        </div>
+        <div v-if="voip.enabled || voip.token" class="satisfaction-integration-body">
+          <div v-if="voip.token" class="voip-token">
+            <label class="satisfaction-integration-url">توکن API این مطب
+              <div class="voip-token-row">
+                <input :value="voip.token" readonly dir="ltr" @focus="$event.target.select()">
+                <button type="button" @click="copyVoip(voip.token)">کپی</button>
+              </div>
+            </label>
+            <small v-if="voip.created_at">ساخته‌شده در {{ voipCreatedAt }}</small>
+          </div>
+          <p v-if="!voip.enabled" class="voip-off">ارتباط غیرفعال است؛ تا وقتی فعالش نکنید، پنل مرکز تماس با این توکن پاسخی نمی‌گیرد.</p>
+          <div class="satisfaction-integration-docs">
+            <div>
+              <strong>در پنل مرکز تماس ← سامانه بیماران ← دستغیب وارد کنید</strong>
+              <small>آدرس API: <b dir="ltr">{{ voipOrigin }}</b> — توکن: همین توکن بالا. مطب از روی توکن شناخته می‌شود و «دامنه مطب» لازم نیست.</small>
+            </div>
+            <a href="#" @click.prevent="copyVoip(voipOrigin)">کپی آدرس</a>
+          </div>
+          <div class="satisfaction-integration-actions">
+            <span v-if="voipMessage">{{ voipMessage }}</span>
+            <button v-if="voip.enabled" type="button" :disabled="voipSaving" @click="makeVoipToken">{{ voipSaving ? 'لطفاً صبر کنید…' : (voip.token ? 'ساخت توکن جدید' : 'ایجاد توکن') }}</button>
+          </div>
+        </div>
+      </section>
     </div>
 
     <StorageDashboard v-if="canViewSettings && activeSection === 'storage'" />
@@ -1370,6 +1421,67 @@ const saveSatisfactionIntegration = async () => {
   }
 };
 
+// «ارتباط با VoIP»: token the call-center panel uses to read this clinic's patient files
+const voip = ref({ enabled: false, token: "", created_at: "" });
+const voipSaving = ref(false);
+const voipMessage = ref("");
+const voipOrigin = window.location.origin;
+const voipCreatedAt = computed(() => voip.value.created_at ? new Date(voip.value.created_at).toLocaleString("fa-IR", { dateStyle: "medium", timeStyle: "short" }) : "");
+const loadVoip = async () => {
+  try {
+    const { data } = await axios.get('/api/settings/voip');
+    voip.value = data.voip;
+  } catch {
+    voipMessage.value = "تنظیمات ارتباط با VoIP خوانده نشد.";
+  }
+};
+const setVoipEnabled = async (enabled) => {
+  voipSaving.value = true;
+  voipMessage.value = "";
+  try {
+    const { data } = await axios.put('/api/settings/voip', { enabled });
+    voip.value = data.voip;
+    voipMessage.value = data.message;
+  } catch (error) {
+    voipMessage.value = error.response?.data?.message || "ذخیره انجام نشد.";
+  } finally {
+    voipSaving.value = false;
+  }
+};
+const makeVoipToken = async () => {
+  if (voip.value.token) {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "ساخت توکن جدید؟",
+      text: "توکن فعلی دیگر کار نمی‌کند و باید توکن جدید را در پنل مرکز تماس وارد کنید.",
+      showCancelButton: true,
+      confirmButtonText: "بله، بساز",
+      cancelButtonText: "انصراف"
+    });
+    if (!result.isConfirmed) return;
+  }
+  voipSaving.value = true;
+  voipMessage.value = "";
+  try {
+    const { data } = await axios.post('/api/settings/voip/token');
+    voip.value = data.voip;
+    voipMessage.value = data.message;
+  } catch (error) {
+    voipMessage.value = error.response?.data?.message || "ساخت توکن انجام نشد.";
+  } finally {
+    voipSaving.value = false;
+  }
+};
+const copyVoip = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    await Swal.fire({ icon: "success", title: "کپی شد", timer: 1100, showConfirmButton: false });
+  } catch {
+    await Swal.fire({ icon: "info", title: "کپی نشد", text: "متن را از کادر انتخاب و کپی کنید." });
+  }
+};
+watch(activeSection, (section) => { if (section === "voip") loadVoip(); }, { immediate: true });
+
 // بخش دسترسی‌ها
 const accessSections = ref([
   { title: "پرونده ها", permissions: ["کل پرونده", "تشکیل پرونده", "ثبت خدمات", "جستجو"], people: [{ name: "", selected_permissions: [] }] },
@@ -1641,7 +1753,7 @@ const fetchSettings = async () => {
     });
     if (!res.ok) throw new Error();
     const data = await res.json();
-    
+
     if (data.sms) sms.value = data.sms;
     if (data.sms_settings) {
       smsSettings.value.provider = data.sms_settings.provider || "shsms";
@@ -1791,7 +1903,7 @@ const saveInternalSettings = async (showMessage = true) => {
       },
       body: JSON.stringify(payload)
     });
-    
+
     const data = await res.json();
 
     if (res.ok) {
@@ -2535,6 +2647,14 @@ textarea{ min-height:120px; resize:none; }
 .satisfaction-integration-actions button,.satisfaction-integration-disable-save{margin-right:auto;padding:11px 16px;border:0;border-radius:11px;background:#2563eb;color:#fff;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
 .satisfaction-integration-disable-save{margin-top:14px;background:#64748b}
 .satisfaction-integration-actions button:disabled,.satisfaction-integration-disable-save:disabled{opacity:.6}
+.voip-settings-wrapper{max-width:900px;margin:0 auto}
+.voip-card{margin-top:0}
+.voip-token{display:grid;gap:6px}
+.voip-token small{color:#64748b;font-size:10.5px}
+.voip-token-row{display:flex;gap:8px;align-items:stretch}
+.voip-token-row input{flex:1;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;letter-spacing:.2px;background:#f8fafc!important}
+.voip-token-row button{flex:none;padding:0 16px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1d4ed8;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.voip-off{margin:0;padding:10px 12px;border-radius:12px;background:#fef3c7;color:#92400e;font-size:11.5px;line-height:1.8}
 @media(max-width:640px){.satisfaction-integration-card{padding:16px}.satisfaction-integration-top{align-items:flex-start;flex-wrap:wrap}.satisfaction-integration-icon{width:42px;height:42px}.satisfaction-integration-switch{width:100%;justify-content:flex-start;margin-top:5px}.satisfaction-integration-actions button{width:100%;margin-right:0}}
 .satisfaction-question-editor{cursor:grab}.satisfaction-question-editor.dragging{opacity:.55;border-color:#60a5fa;background:#eff6ff;cursor:grabbing}.drag-handle{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:16px;cursor:grab}.question-actions{display:flex;align-items:center;gap:6px}.question-actions button{background:#f1f5f9!important;color:#475569!important;font-size:14px!important}.question-actions button:last-child{background:#fee2e2!important;color:#dc2626!important;font-size:19px!important}
 .satisfaction-required-toggle{height:40px;align-self:end;justify-self:start;display:inline-flex!important;grid-template-columns:none!important;align-items:center;gap:8px;padding:0 10px!important;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:900;cursor:pointer;transition:border-color .18s ease,background-color .18s ease,color .18s ease,box-shadow .18s ease}.satisfaction-required-toggle input{position:absolute;opacity:0;pointer-events:none}.satisfaction-required-toggle .toggle-track{position:relative;width:30px;height:18px;flex:0 0 30px;border-radius:999px;background:#cbd5e1;transition:background-color .18s ease}.satisfaction-required-toggle .toggle-track i{position:absolute;top:3px;right:3px;width:12px;height:12px;border-radius:999px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.18);transition:transform .18s ease}.satisfaction-required-toggle b{line-height:1;color:inherit}.satisfaction-required-toggle.required{border-color:#bbf7d0;background:#f0fdf4;color:#15803d;box-shadow:0 8px 18px rgba(34,197,94,.08)}.satisfaction-required-toggle.required .toggle-track{background:#22c55e}.satisfaction-required-toggle.required .toggle-track i{transform:translateX(-12px)}.satisfaction-required-toggle:hover{border-color:#bfdbfe;background:#fff}

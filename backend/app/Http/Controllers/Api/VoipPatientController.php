@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use App\Models\Patient;
 use App\Services\CustomerLevelService;
+use App\Support\VoipIntegration;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Read-only patient card for the call-center panel (voip.s8n.ir).
  * Same numbers as the patient profile page (parvande.vue), looked up by phone.
- * Auth: "Authorization: Bearer <VOIP_API_TOKEN>"; no session, no writes.
+ * Auth: "Authorization: Bearer <token>" from Settings → «ارتباط با VoIP»; the token names the tenant. No session, no writes.
  */
 class VoipPatientController extends Controller
 {
@@ -37,11 +38,10 @@ class VoipPatientController extends Controller
 
     public function show(Request $request, string $phone, CustomerLevelService $levels, AppointmentController $appointments, SatisfactionController $satisfaction): JsonResponse
     {
-        $token = (string) config('services.voip.token');
-        $given = (string) $request->bearerToken();
-        if ($token === '' || ! hash_equals($token, $given)) {
+        if (! VoipIntegration::accepts((string) $request->bearerToken())) {
             \Log::warning('voip patient api: rejected token');
-            abort(401, 'توکن نامعتبر است');
+            $on = VoipIntegration::settings()['enabled'];
+            abort($on ? 401 : 403, $on ? 'توکن نامعتبر است' : 'ارتباط با VoIP در تنظیمات غیرفعال است');
         }
 
         $phone = preg_replace('/\D/', '', strtr($phone, self::DIGITS));
