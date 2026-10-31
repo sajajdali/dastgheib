@@ -17,10 +17,20 @@ class VoipIncomingCallServiceTest extends TestCase
             $table->string('first_name');
             $table->string('last_name');
             $table->string('phone');
+            $table->string('file_number');
             $table->softDeletes();
         });
+        Schema::create('appointments', function (Blueprint $table): void {
+            $table->id();
+            $table->string('file_number');
+            $table->string('month');
+            $table->unsignedInteger('day_num');
+            $table->string('time')->nullable();
+            $table->string('status')->nullable();
+        });
         (require database_path('migrations/tenant/2026_11_01_000000_create_voip_call_events_tables.php'))->up();
-        DB::table('patients')->insert(['id' => 7, 'first_name' => 'علی', 'last_name' => 'رضایی', 'phone' => '09121234567']);
+        DB::table('patients')->insert(['id' => 7, 'first_name' => 'علی', 'last_name' => 'رضایی', 'phone' => '09121234567', 'file_number' => '77']);
+        DB::table('appointments')->insert(['file_number' => '77', 'month' => '1405-08', 'day_num' => 10, 'time' => '10:00', 'status' => 'وقت داده شد']);
 
         $calls = app(VoipIncomingCallService::class);
         $started = $this->event('call.started', 1, ['direction' => 'inbound', 'phone' => '+989121234567']);
@@ -31,6 +41,10 @@ class VoipIncomingCallServiceTest extends TestCase
 
         $ringing = $this->event('call.ringing', 2, ['target' => 'extension', 'operator' => 'پذیرش']);
         $calls->record($ringing, json_encode($ringing));
+        $live = $calls->live();
+        $this->assertSame('queue', $live[0]['stage']);
+        $this->assertSame('77', $live[0]['patient']['fileNo']);
+        $this->assertSame(1, $live[0]['patient']['appointmentsCount']);
         $ended = $this->event('call.ended', 4, ['direction' => 'inbound', 'status' => 'answered', 'statusLabel' => 'پاسخ‌داده', 'phone' => '09121234567']);
         $calls->record($ended, json_encode($ended));
         $late = $this->event('call.answered', 3, ['operator' => 'اپراتور قدیمی']);
@@ -54,7 +68,7 @@ class VoipIncomingCallServiceTest extends TestCase
             'eventId' => sprintf('00000000-0000-4000-8000-%012d', crc32($name.$seq.$callId)),
             'callId' => $callId,
             'seq' => $seq,
-            'occurredAt' => '2026-10-31T07:20:10.000Z',
+            'occurredAt' => now('UTC')->toIso8601String(),
             'data' => $data,
         ];
     }

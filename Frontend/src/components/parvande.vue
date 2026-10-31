@@ -1815,7 +1815,7 @@ export default {
 
   data() {
     return {
-      openingRequestedProfile: Boolean(this.openPatientRequest),
+      openingRequestedProfile: Boolean(this.openPatientRequest && !this.openPatientRequest.create),
       // آبجکت فیلدهای انتخابی که از سمت دیتابیس ست می‌شود
       activeProfileFields: {
         national_id: false,
@@ -2507,7 +2507,12 @@ export default {
       immediate: true,
       deep: true,
       handler(request) {
-        if (request) this.openRequestedPatientProfile(request)
+        if (request?.create) {
+          this.profileViewOpen = false
+          this.openingRequestedProfile = false
+          this.form.phone = String(request.phone || '').trim()
+          this.$nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
+        } else if (request) this.openRequestedPatientProfile(request)
       }
     }
   },

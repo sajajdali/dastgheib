@@ -99,6 +99,7 @@ Route::put('/settings/voip', [VoipIntegrationController::class, 'update'])->midd
 Route::post('/settings/voip/token', [VoipIntegrationController::class, 'generate'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::put('/settings/voip/incoming-calls', [VoipIntegrationController::class, 'updateIncomingCalls'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/settings/voip/incoming-calls', [VoipCallEventController::class, 'index'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::get('/voip/incoming-calls/live', [VoipCallEventController::class, 'live'])->middleware('permission:patients.view');
 Route::get('/patients/{patient}/satisfaction', [SatisfactionController::class, 'patientResponses'])->middleware('permission:patients.view');
 Route::get('/calendar/events', [CalendarController::class, 'index']);
 Route::put('/calendar/overrides/{date}', [CalendarController::class, 'saveOverride'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');

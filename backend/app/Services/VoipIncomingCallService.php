@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Patient;
+use App\Reporting\DynamicReports\JalaliMonthWindow;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,76 @@ class VoipIncomingCallService
                 'ended_at' => $this->iso($call->ended_at),
                 'last_event_at' => $this->iso($call->last_event_at),
             ])->all();
+    }
+
+    public function live(): array
+    {
+        $calls = DB::table('voip_calls')
+            ->whereNull('ended_at')
+            ->where('last_event_at', '>=', now('UTC')->subHours(6)->format('Y-m-d H:i:s'))
+            ->orderByDesc('last_event_at')->limit(40)->get();
+        if ($calls->isEmpty()) return [];
+
+        $phones = $calls->pluck('phone')->filter()->unique()->values()->all();
+        $patientIds = $calls->pluck('patient_id')->filter()->unique()->values()->all();
+        $patients = Patient::query()->whereIn('id', $patientIds)
+            ->get(['id', 'file_number'])->keyBy('id');
+        $fileNumbers = $patients->pluck('file_number')->filter()->unique()->values()->all();
+        $appointments = $fileNumbers === [] ? collect() : DB::table('appointments')
+            ->whereIn('file_number', $fileNumbers)->get(['file_number', 'month', 'day_num', 'time', 'status'])
+            ->groupBy('file_number');
+        $today = (new JalaliMonthWindow)->endingToday(1, now('Asia/Tehran'))['to'];
+
+        $totalCounts = $phones === [] ? collect() : DB::table('voip_calls')
+            ->whereIn('phone', $phones)->select('phone', DB::raw('COUNT(*) as total'))
+            ->groupBy('phone')->pluck('total', 'phone');
+        $todayStart = now('Asia/Tehran')->startOfDay()->utc()->format('Y-m-d H:i:s');
+        $todayCounts = $phones === [] ? collect() : DB::table('voip_calls')
+            ->whereIn('phone', $phones)->where('started_at', '>=', $todayStart)
+            ->select('phone', DB::raw('COUNT(*) as total'))->groupBy('phone')->pluck('total', 'phone');
+        $milestones = DB::table('voip_call_events')->whereIn('call_id', $calls->pluck('call_id'))
+            ->whereIn('event', ['call.answered', 'survey.started', 'survey.completed', 'call.transferred'])
+            ->orderBy('seq')->get(['call_id', 'event', 'occurred_at', 'payload'])->groupBy('call_id');
+
+        return $calls->map(function ($call) use ($patients, $appointments, $today, $totalCounts, $todayCounts, $milestones): array {
+            $patient = $patients->get($call->patient_id);
+            $visits = $patient ? ($appointments->get($patient->file_number) ?? collect()) : collect();
+            $next = $visits->filter(function ($appointment) use ($today): bool {
+                $date = sprintf('%s-%02d', (string) $appointment->month, (int) $appointment->day_num);
+                return $date >= $today && ! preg_match('/کنسل|لغو|cancel/u', (string) $appointment->status);
+            })->sortBy(fn ($appointment) => sprintf('%s-%02d %s', $appointment->month, $appointment->day_num, $appointment->time))->first();
+            $events = $milestones->get($call->call_id) ?? collect();
+            $answered = $events->firstWhere('event', 'call.answered');
+            $survey = $events->first(fn ($event) => in_array($event->event, ['survey.started', 'survey.completed'], true));
+            $lastAnswer = $events->where('event', 'call.answered')->last();
+            $answerData = $lastAnswer ? json_decode($lastAnswer->payload, true)['data'] ?? [] : [];
+
+            return [
+                'id' => $call->call_id,
+                'phone' => $call->phone,
+                'stage' => match ($call->state) {
+                    'در حال مکالمه' => 'talking',
+                    'نظرسنجی', 'پیام صوتی' => 'survey',
+                    'در صف انتظار', 'در حال زنگ خوردن', 'منتقل‌شده' => 'queue',
+                    default => 'ivr',
+                },
+                'startedAt' => $this->iso($call->started_at ?: $call->last_event_at),
+                'connectedAt' => $answered ? $this->iso($answered->occurred_at) : null,
+                'talkEndedAt' => $survey ? $this->iso($survey->occurred_at) : null,
+                'queueName' => $call->queue,
+                'agentName' => $call->operator,
+                'extension' => $answerData['extension'] ?? null,
+                'patient' => $patient ? [
+                    'id' => $patient->id,
+                    'name' => $call->patient_name,
+                    'fileNo' => $patient->file_number,
+                    'appointmentsCount' => $visits->count(),
+                    'nextAppointment' => $next ? str_replace('-', '/', $next->month).'/'.sprintf('%02d', $next->day_num).($next->time ? ' · '.$next->time : '') : null,
+                ] : null,
+                'callsToday' => (int) ($todayCounts->get($call->phone) ?? 1),
+                'callsTotal' => (int) ($totalCounts->get($call->phone) ?? 1),
+            ];
+        })->all();
     }
 
     private function updateCall(array $event, ?string $eventPhone): void

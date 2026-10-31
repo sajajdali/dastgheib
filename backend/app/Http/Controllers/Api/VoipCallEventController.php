@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\VoipIncomingCallService;
 use App\Support\VoipIntegration;
+use App\Support\PatientPhoneVisibility;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -40,5 +41,14 @@ class VoipCallEventController extends Controller
     public function index(VoipIncomingCallService $calls): JsonResponse
     {
         return response()->json(['calls' => $calls->recent()]);
+    }
+
+    public function live(Request $request, VoipIncomingCallService $calls): JsonResponse
+    {
+        abort_unless($request->user()?->can('patients.view') && PatientPhoneVisibility::canView($request), 403);
+        $settings = VoipIntegration::settings();
+        $enabled = $settings['enabled'] && $settings['incoming_calls_enabled'];
+
+        return response()->json(['enabled' => $enabled, 'calls' => $enabled ? $calls->live() : []]);
     }
 }

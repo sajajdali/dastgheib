@@ -413,6 +413,12 @@
     </div>
 
     <AiAssistant :dark="isDark" :user="user" @navigate="openAssistantPage" />
+    <IncomingCallStack
+      v-if="user?.permissions?.includes('patients.view') && user?.permissions?.includes('patients.view_phone') && !user?.permissions?.includes('patients.hide_phone') && featureEnabledForTenant('patients')"
+      :can-create="user?.permissions?.includes('patients.create')"
+      @open-file="openIncomingCallPatient"
+      @create-file="createIncomingCallPatient"
+    />
 
   </div>
 </template>
@@ -465,6 +471,7 @@ import SubscriptionRenewal from "./components/SubscriptionRenewal.vue";
 import HRtimes from "./components/HRtimes.vue";
 import PayrollSettlement from "./components/PayrollSettlement.vue";
 import AiAssistant from "./components/AiAssistant.vue";
+import IncomingCallStack from "./components/incoming-call/IncomingCallStack.vue";
 import { startPresence, stopPresence } from "./services/presence";
 
 const centralDomains = (import.meta.env.VITE_CENTRAL_DOMAINS || "localhost,127.0.0.1,admin.s8n.ir")
@@ -520,7 +527,8 @@ export default {
 
     HRtimes,
     PayrollSettlement,
-    AiAssistant
+    AiAssistant,
+    IncomingCallStack
 
   },
 
@@ -1497,6 +1505,28 @@ export default {
         requestedAt: Date.now()
       };
       this.currentPage = "Parvande";
+    },
+
+    openIncomingCallPatient(call) {
+      if (!call?.patient || (!call.patient.fileNo && !call.phone)) return;
+      this.changePage('Parvande').then(() => {
+        if (this.currentPage === 'Parvande') {
+          this.pendingPatientProfileRequest = {
+            file_number: String(call.patient.fileNo || ''),
+            phone: call.phone || '',
+            requestedAt: Date.now(),
+          };
+        }
+      });
+    },
+
+    createIncomingCallPatient(call) {
+      if (!this.user?.permissions?.includes('patients.create')) return;
+      this.changePage('Parvande').then(() => {
+        if (this.currentPage === 'Parvande') {
+          this.pendingPatientProfileRequest = { create: true, phone: call.phone || '', requestedAt: Date.now() };
+        }
+      });
     },
 
     openBeautyRecordFromPatient(patient) {
