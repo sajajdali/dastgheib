@@ -1001,7 +1001,7 @@
           <p v-if="!voip.enabled" class="voip-off">ابتدا «ارتباط با VoIP» را فعال کنید.</p>
           <p v-if="voipMessage" class="voip-incoming-feedback">{{ voipMessage }}</p>
           <template v-if="voip.enabled && voip.incoming_calls_enabled">
-            <div class="voip-incoming-endpoint">
+            <div v-if="voip.tenant_id" class="voip-incoming-endpoint">
               <label class="satisfaction-integration-url">آدرس دریافت رویدادهای تماس در مرکز تماس
                 <div class="voip-token-row">
                   <input :value="voipIncomingUrl" readonly dir="ltr" @focus="$event.target.select()">
@@ -1009,8 +1009,7 @@
                 </div>
               </label>
               <p v-if="voipIncomingIsLocal" class="voip-off">این آدرس محلی است و مرکز تماس روی سرور دیگر به آن دسترسی ندارد. تنظیمات را از دامنهٔ عمومی سایت باز کنید و آدرس وب‌هوک همان‌جا را در مرکز تماس ثبت کنید.</p>
-              <p v-if="!voip.token" class="voip-off">آدرس آماده است. برای دریافت رویدادها، در بخش «ارتباط با VoIP» توکن API بسازید و آن را هم در مرکز تماس ثبت کنید.</p>
-              <small>متد POST · بدنه JSON · هدر Authorization: Bearer با توکن همین مطب که در بخش بالا نمایش داده شده است.</small>
+              <small>متد POST · بدنه JSON · برای این وب‌هوک توکن یا هدر Authorization لازم نیست. شناسهٔ مطب در آدرس قرار دارد.</small>
               <small>در مرکز تماس دست‌کم رویدادهای call.started و call.ended را فعال کنید؛ برای نمایش وضعیت لحظه‌ای، call.queued، call.ringing و call.answered را هم روشن کنید. رویداد آزمایشی پاسخ ۲۰۰ می‌گیرد و وارد فهرست تماس‌های واقعی نمی‌شود.</small>
             </div>
             <div class="voip-incoming-list-head">
@@ -1467,11 +1466,13 @@ const saveSatisfactionIntegration = async () => {
 };
 
 // «ارتباط با VoIP»: token the call-center panel uses to read this clinic's patient files
-const voip = ref({ enabled: false, incoming_calls_enabled: false, token: "", created_at: "" });
+const voip = ref({ tenant_id: "", enabled: false, incoming_calls_enabled: false, token: "", created_at: "" });
 const voipSaving = ref(false);
 const voipMessage = ref("");
 const voipOrigin = window.location.origin;
-const voipIncomingUrl = `${voipOrigin}/external-api/voip/v1/call-events`;
+const voipIncomingUrl = computed(() => voip.value.tenant_id
+  ? `${voipOrigin}/external-api/voip/v1/call-events/${encodeURIComponent(voip.value.tenant_id)}`
+  : '');
 const voipIncomingIsLocal = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname) || window.location.hostname.endsWith('.localhost');
 const voipCalls = ref([]);
 const voipCallsLoading = ref(false);

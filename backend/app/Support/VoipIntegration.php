@@ -22,6 +22,7 @@ class VoipIntegration
         $saved = is_array($saved) ? $saved : [];
 
         return [
+            'tenant_id' => (string) tenant('id'),
             'enabled' => (bool) ($saved['enabled'] ?? false),
             'incoming_calls_enabled' => (bool) ($saved['incoming_calls_enabled'] ?? false),
             'token' => self::decrypt($saved['token'] ?? ''),

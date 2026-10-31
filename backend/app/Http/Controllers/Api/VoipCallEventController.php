@@ -14,7 +14,8 @@ class VoipCallEventController extends Controller
 {
     public function receive(Request $request, VoipIncomingCallService $calls): JsonResponse
     {
-        abort_unless(VoipIntegration::acceptsIncomingCalls((string) $request->bearerToken()), 401, 'توکن نامعتبر است یا نمایش تماس‌های ورودی غیرفعال است.');
+        $settings = VoipIntegration::settings();
+        abort_unless($settings['enabled'] && $settings['incoming_calls_enabled'], 403, 'نمایش تماس‌های ورودی برای این مطب غیرفعال است.');
 
         $raw = $request->getContent();
         abort_if(strlen($raw) > 65536, 413, 'بدنهٔ رویداد بیش از حد بزرگ است.');

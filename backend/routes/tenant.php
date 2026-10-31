@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\SatisfactionIntegrationController;
 use App\Http\Controllers\Api\VoipPatientController;
 use App\Http\Controllers\Api\VoipCallEventController;
 use App\Http\Middleware\InitializeTenancyByVoipToken;
+use App\Http\Middleware\InitializeTenancyByVoipWebhook;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
 use Illuminate\Support\Facades\Storage;
@@ -78,4 +79,6 @@ Route::middleware([
 Route::get('external-api/voip/v1/patients/by-phone/{phone}', [VoipPatientController::class, 'show'])
     ->middleware(['api', InitializeTenancyByVoipToken::class, 'tenant.active', 'throttle:120,1']);
 Route::post('external-api/voip/v1/call-events', [VoipCallEventController::class, 'receive'])
-    ->middleware(['api', InitializeTenancyByVoipToken::class, 'tenant.active', 'throttle:300,1']);
+    ->middleware(['api', InitializeTenancyByDomain::class, PreventAccessFromCentralDomains::class, 'tenant.active', 'throttle:300,1']);
+Route::post('external-api/voip/v1/call-events/{tenantId}', [VoipCallEventController::class, 'receive'])
+    ->middleware(['api', InitializeTenancyByVoipWebhook::class, 'tenant.active', 'throttle:300,1']);
