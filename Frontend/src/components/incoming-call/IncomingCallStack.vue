@@ -36,7 +36,10 @@
               <span class="icp-ring icp-ring2" :style="{ background: c.s.color }"></span>
             </template>
             <span v-else class="icp-ring-static" :style="{ borderColor: c.s.color }"></span>
-            <div class="icp-avatar" :class="{ unknown: !c.patient }">{{ c.patient ? (String(c.patient.name || '').charAt(0) || '؟') : '؟' }}</div>
+            <div class="icp-avatar" :class="{ unknown: !c.patient }">
+              <img v-if="avatarSource(c.patient)" :src="avatarSource(c.patient)" :alt="`عکس ${c.patient.name || 'بیمار'}`" @error="failedAvatars.add($event.target.src)">
+              <template v-else>{{ c.patient ? (String(c.patient.name || '').charAt(0) || '؟') : '؟' }}</template>
+            </div>
           </div>
           <div class="icp-info">
             <div class="icp-name">{{ c.patient ? c.patient.name : 'شماره ناشناس' }}</div>
@@ -99,7 +102,7 @@
 
 <script setup>
 import axios from 'axios'
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useIncomingCalls } from './useIncomingCalls'
 
 defineProps({
@@ -108,6 +111,9 @@ defineProps({
 const emit = defineEmits(['open-file', 'create-file'])
 
 const { calls, now, upsertCall, removeCall, clearAll, dispose } = useIncomingCalls()
+const failedAvatars = ref(new Set())
+const avatarSource = patient => [patient?.avatarUrl, patient?.photoUrl]
+  .find(url => url && !failedAvatars.value.has(new URL(url, window.location.href).href)) || null
 const dismissed = new Set()
 let pollTimer
 let polling = false
@@ -220,6 +226,7 @@ function onOpen(c) {
 .icp-ring2{animation-delay:.9s}
 .icp-ring-static{position:absolute;inset:-3px;border-radius:50%;border:2px solid}
 .icp-avatar{position:relative;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:800}
+.icp-avatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:50%}
 .icp-avatar.unknown{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
 .icp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-right:6px}
 .icp-name{font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

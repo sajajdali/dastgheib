@@ -77,7 +77,7 @@ class VoipIncomingCallService
         $phones = $calls->pluck('phone')->filter()->unique()->values()->all();
         $patientIds = $calls->pluck('patient_id')->filter()->unique()->values()->all();
         $patients = Patient::query()->whereIn('id', $patientIds)
-            ->get(['id', 'file_number'])->keyBy('id');
+            ->get(['id', 'file_number', 'profile_photo_path', 'profile_thumbnail_path'])->keyBy('id');
         $fileNumbers = $patients->pluck('file_number')->filter()->unique()->values()->all();
         $appointments = $fileNumbers === [] ? collect() : DB::table('appointments')
             ->whereIn('file_number', $fileNumbers)->get(['file_number', 'month', 'day_num', 'time', 'status'])
@@ -126,6 +126,8 @@ class VoipIncomingCallService
                 'patient' => $patient ? [
                     'id' => $patient->id,
                     'name' => $call->patient_name,
+                    'avatarUrl' => $patient->avatar_url,
+                    'photoUrl' => $patient->profile_photo_url,
                     'fileNo' => $patient->file_number,
                     'appointmentsCount' => $visits->count(),
                     'nextAppointment' => $next ? str_replace('-', '/', $next->month).'/'.sprintf('%02d', $next->day_num).($next->time ? ' · '.$next->time : '') : null,

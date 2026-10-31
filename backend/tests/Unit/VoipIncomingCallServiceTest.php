@@ -18,6 +18,8 @@ class VoipIncomingCallServiceTest extends TestCase
             $table->string('last_name');
             $table->string('phone');
             $table->string('file_number');
+            $table->string('profile_photo_path')->nullable();
+            $table->string('profile_thumbnail_path')->nullable();
             $table->softDeletes();
         });
         Schema::create('appointments', function (Blueprint $table): void {
@@ -29,7 +31,7 @@ class VoipIncomingCallServiceTest extends TestCase
             $table->string('status')->nullable();
         });
         (require database_path('migrations/tenant/2026_11_01_000000_create_voip_call_events_tables.php'))->up();
-        DB::table('patients')->insert(['id' => 7, 'first_name' => 'علی', 'last_name' => 'رضایی', 'phone' => '09121234567', 'file_number' => '77']);
+        DB::table('patients')->insert(['id' => 7, 'first_name' => 'علی', 'last_name' => 'رضایی', 'phone' => '09121234567', 'file_number' => '77', 'profile_photo_path' => 'patients/7/profile/photo.webp', 'profile_thumbnail_path' => 'patients/7/profile/thumb.webp']);
         DB::table('appointments')->insert(['file_number' => '77', 'month' => '1405-08', 'day_num' => 10, 'time' => '10:00', 'status' => 'وقت داده شد']);
 
         $calls = app(VoipIncomingCallService::class);
@@ -44,6 +46,8 @@ class VoipIncomingCallServiceTest extends TestCase
         $live = $calls->live();
         $this->assertSame('queue', $live[0]['stage']);
         $this->assertSame('77', $live[0]['patient']['fileNo']);
+        $this->assertStringContainsString('patients/7/profile/thumb.webp', $live[0]['patient']['avatarUrl']);
+        $this->assertStringContainsString('patients/7/profile/photo.webp', $live[0]['patient']['photoUrl']);
         $this->assertSame(1, $live[0]['patient']['appointmentsCount']);
         $answered = $this->event('call.answered', 3, ['target' => 'extension', 'operator' => 'پذیرش']);
         $calls->record($answered, json_encode($answered));
