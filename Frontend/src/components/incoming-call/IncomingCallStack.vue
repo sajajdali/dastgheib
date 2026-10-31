@@ -8,7 +8,12 @@
     </transition>
 
     <transition-group name="icp-pop" tag="div" class="icp-list">
-      <div v-for="c in viewCalls" :key="c.id" class="icp-card">
+      <div v-for="c in viewCalls" :key="c.id" class="icp-card" :class="{ 'is-minimized': minimized.has(c.id) }">
+        <button v-if="minimized.has(c.id)" type="button" class="icp-mini-btn" :aria-label="`باز کردن تماس ${c.patient?.name || c.phone || ''}`" title="باز کردن تماس" @click="restoreCall(c.id)">
+          <span class="icp-mini-time" dir="ltr">{{ c.talk === '—' ? '۰۰:۰۰' : c.talk }}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+        </button>
+        <template v-else>
         <!-- Stage + timers -->
         <div class="icp-top">
           <div class="icp-stage" :style="{ color: c.s.color, background: c.s.bg }">
@@ -26,6 +31,7 @@
               <span class="icp-timer-val" dir="ltr" :style="{ color: c.talkColor }">{{ c.talk }}</span>
             </div>
           </div>
+          <button type="button" class="icp-minimize" :aria-label="`کوچک کردن تماس ${c.patient?.name || c.phone || ''}`" title="کوچک کردن تماس" @click="minimizeCall(c.id)">−</button>
         </div>
 
         <!-- Caller -->
@@ -95,6 +101,7 @@
             {{ c.patient ? 'مشاهده پرونده' : 'ایجاد پرونده' }}
           </button>
         </div>
+        </template>
       </div>
     </transition-group>
   </div>
@@ -112,6 +119,7 @@ const emit = defineEmits(['open-file', 'create-file'])
 
 const { calls, now, upsertCall, removeCall, clearAll, dispose } = useIncomingCalls()
 const failedAvatars = ref(new Set())
+const minimized = ref(new Set())
 const avatarSource = patient => [patient?.avatarUrl, patient?.photoUrl]
   .find(url => url && !failedAvatars.value.has(new URL(url, window.location.href).href)) || null
 const dismissed = new Set()
@@ -140,6 +148,7 @@ async function pollCalls() {
     }
     for (const call of calls.value) if (!active.has(String(call.id))) removeCall(call.id)
     for (const id of dismissed) if (!active.has(id)) dismissed.delete(id)
+    for (const id of minimized.value) if (!active.has(id)) minimized.value.delete(id)
     if (!data.enabled) clearAll()
   } catch {
     // Temporary network failures must not hide a call already on screen.
@@ -150,12 +159,22 @@ async function pollCalls() {
 
 function dismissCall(id) {
   dismissed.add(String(id))
+  minimized.value.delete(String(id))
   removeCall(id)
 }
 
 function dismissAll() {
   for (const call of calls.value) dismissed.add(String(call.id))
+  minimized.value.clear()
   clearAll()
+}
+
+function minimizeCall(id) {
+  minimized.value.add(String(id))
+}
+
+function restoreCall(id) {
+  minimized.value.delete(String(id))
 }
 
 onMounted(() => {
@@ -212,6 +231,13 @@ function onOpen(c) {
 .icp-head-btn{font-family:inherit;border:0;background:#f1f5f9;color:#475569;border-radius:10px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
 .icp-head-btn:hover{background:#e2e8f0}
 .icp-card{flex-shrink:0;background:#fff;border-radius:22px;border:1px solid #e6ebf3;box-shadow:0 24px 48px -12px rgba(15,23,42,.22),0 4px 12px rgba(15,23,42,.06);overflow:hidden}
+.icp-card.is-minimized{width:148px;align-self:flex-end;border-radius:16px;border-color:#cfe0f6;box-shadow:0 12px 28px -12px rgba(15,23,42,.32)}
+.icp-mini-btn{width:100%;height:52px;display:flex;align-items:center;justify-content:center;gap:12px;border:0;background:linear-gradient(135deg,#eff6ff,#fff);color:#1d4ed8;cursor:pointer;font-family:inherit}
+.icp-mini-btn:hover{background:#dbeafe}
+.icp-mini-btn:focus-visible,.icp-minimize:focus-visible{outline:3px solid #60a5fa;outline-offset:-3px}
+.icp-mini-time{font-size:19px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+.icp-minimize{width:30px;height:30px;flex:none;display:grid;place-items:center;border:1px solid #dbe5f0;border-radius:10px;background:#f8fafc;color:#475569;font-family:inherit;font-size:22px;font-weight:700;line-height:1;cursor:pointer;padding:0 0 3px}
+.icp-minimize:hover{background:#eaf2ff;color:#1d4ed8}
 .icp-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 0}
 .icp-stage{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;white-space:nowrap}
 .icp-dot{width:7px;height:7px;border-radius:50%;animation:icpBlink 1.2s infinite}
