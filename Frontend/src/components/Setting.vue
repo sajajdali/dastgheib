@@ -1000,15 +1000,15 @@
         <div class="satisfaction-integration-body">
           <p v-if="!voip.enabled" class="voip-off">ابتدا «ارتباط با VoIP» را فعال کنید.</p>
           <p v-if="voipMessage" class="voip-incoming-feedback">{{ voipMessage }}</p>
-          <template v-else-if="voip.incoming_calls_enabled">
-            <p v-if="!voip.token" class="voip-off">ابتدا در بخش بالا توکن API بسازید.</p>
-            <div v-else class="voip-incoming-endpoint">
-              <label class="satisfaction-integration-url">آدرس وب‌هوک برای ثبت در مرکز تماس
+          <template v-if="voip.enabled && voip.incoming_calls_enabled">
+            <div class="voip-incoming-endpoint">
+              <label class="satisfaction-integration-url">آدرس دریافت رویدادهای تماس در مرکز تماس
                 <div class="voip-token-row">
                   <input :value="voipIncomingUrl" readonly dir="ltr" @focus="$event.target.select()">
                   <button type="button" @click="copyVoip(voipIncomingUrl)">کپی</button>
                 </div>
               </label>
+              <p v-if="!voip.token" class="voip-off">آدرس آماده است. برای دریافت رویدادها، در بخش «ارتباط با VoIP» توکن API بسازید و آن را هم در مرکز تماس ثبت کنید.</p>
               <small>متد POST · بدنه JSON · هدر Authorization: Bearer با توکن همین مطب که در بخش بالا نمایش داده شده است.</small>
               <small>در مرکز تماس دست‌کم رویدادهای call.started و call.ended را فعال کنید؛ برای نمایش وضعیت لحظه‌ای، call.queued، call.ringing و call.answered را هم روشن کنید. رویداد آزمایشی پاسخ ۲۰۰ می‌گیرد و وارد فهرست تماس‌های واقعی نمی‌شود.</small>
             </div>
