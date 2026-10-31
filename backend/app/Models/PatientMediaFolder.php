@@ -19,7 +19,19 @@ class PatientMediaFolder extends Model
         'folder_date',
         'inventory_id',
         'inventory_section_id',
+        'services',
+        'upload_description',
+        'upload_usage_consent',
+        'upload_is_featured',
+        'photo_processing_settings',
         'sort_order',
+    ];
+
+    protected $casts = [
+        'services' => 'array',
+        'upload_usage_consent' => 'boolean',
+        'upload_is_featured' => 'boolean',
+        'photo_processing_settings' => 'array',
     ];
 
     public function patient()

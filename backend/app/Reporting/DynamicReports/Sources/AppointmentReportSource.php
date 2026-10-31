@@ -29,6 +29,7 @@ final class AppointmentReportSource implements ReportSource
             $values = $this->selected($filters, $key);
             if ($values) $query->whereIn('appointments.'.$column, $values);
         }
+        if ($doctors = $this->selected($filters, 'doctor')) $query->whereIn('appointments.doctor', $doctors);
         foreach (['section2' => '$[*].section', 'subsection' => '$[*].subsection', 'areas' => '$[*].tags[*]', 'extra' => '$[*].addons[*].name'] as $key => $path) {
             $values = $this->selected($filters, $key);
             if ($values) $query->where(function (Builder $match) use ($values, $path) {

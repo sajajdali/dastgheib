@@ -986,7 +986,7 @@
     </div>
 
     <StorageDashboard v-if="canViewSettings && activeSection === 'storage'" />
-    <Manabe v-if="canViewResources && activeSection === 'resources'" />
+    <Manabe v-if="canViewResources && activeSection === 'resources'" :initial-tab="initialResourceTab" />
 
   </div>
 </template>
@@ -1006,7 +1006,8 @@ const props = defineProps({
   currentUser: { type: Object, default: null },
   enabledFeatures: { type: Array, default: null },
   initialSection: { type: String, default: "internal" },
-  initialAccordion: { type: String, default: "" }
+  initialAccordion: { type: String, default: "" },
+  initialResourceTab: { type: String, default: "doctor" }
 });
 const isSuperAdmin = computed(() => (props.currentUser?.roles || []).some(role => ['مدیر کل', 'مدیر سیستم', 'super admin', 'super-admin'].includes(String(role).trim().toLowerCase())));
 const canViewSettings = computed(() => isSuperAdmin.value);
@@ -1028,12 +1029,10 @@ const openAccordion = ref("");
 watch(() => props.initialSection, (section) => {
   if (section === "satisfaction" && featureEnabled("satisfaction") && canViewSettings.value) {
     activeSection.value = "satisfaction";
-  } else if (section === "sms" && canViewSettings.value) {
-    activeSection.value = "sms";
-  } else if (section === "storage" && canViewSettings.value) {
-    activeSection.value = "storage";
-  } else if (section === "internal" && canViewSettings.value) {
-    activeSection.value = "internal";
+  } else if (section === "resources" && canViewResources.value) {
+    activeSection.value = "resources";
+  } else if (["internal", "sms", "payments", "voip", "roles", "storage"].includes(section) && canViewSettings.value) {
+    activeSection.value = section;
   }
 }, { immediate: true });
 watch(() => props.initialAccordion, (accordion) => {

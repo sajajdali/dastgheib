@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Services\AppointmentAutomaticSmsService;
 
 class AutomaticSmsScenarioController extends Controller
 {
@@ -28,6 +29,7 @@ class AutomaticSmsScenarioController extends Controller
             if ($data['is_active']) AutomaticSmsProject::query()->where('is_active', true)->update(['is_active' => false]);
             return AutomaticSmsProject::create($data);
         });
+        app(AppointmentAutomaticSmsService::class)->resyncAllAppointments();
         return response()->json(['project' => $project->load('scenarios.steps')], 201);
     }
 
@@ -40,12 +42,14 @@ class AutomaticSmsScenarioController extends Controller
             $automaticSmsProject->update($data);
             return $automaticSmsProject->fresh()->load('scenarios.steps');
         });
+        app(AppointmentAutomaticSmsService::class)->resyncAllAppointments();
         return response()->json(['project' => $project]);
     }
 
     public function destroyProject(AutomaticSmsProject $automaticSmsProject): JsonResponse
     {
         $automaticSmsProject->delete();
+        app(AppointmentAutomaticSmsService::class)->resyncAllAppointments();
         return response()->json([], 204);
     }
 
@@ -57,6 +61,7 @@ class AutomaticSmsScenarioController extends Controller
             $this->syncSteps($scenario, $data['steps']);
             return $scenario->fresh()->load('steps');
         });
+        app(AppointmentAutomaticSmsService::class)->resyncAllAppointments();
         return response()->json(['scenario' => $scenario], 201);
     }
 
@@ -72,12 +77,14 @@ class AutomaticSmsScenarioController extends Controller
             $automaticSmsScenario->touch();
             return $automaticSmsScenario->fresh()->load('steps');
         });
+        app(AppointmentAutomaticSmsService::class)->resyncAllAppointments();
         return response()->json(['scenario' => $scenario]);
     }
 
     public function destroy(AutomaticSmsScenario $automaticSmsScenario): JsonResponse
     {
         $automaticSmsScenario->delete();
+        app(AppointmentAutomaticSmsService::class)->resyncAllAppointments();
         return response()->json([], 204);
     }
 

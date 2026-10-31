@@ -497,6 +497,48 @@
           </div>
         </section>
 
+        <section ref="profileAutomaticSmsCard" class="profile-automatic-sms-card" :class="{ 'is-collapsed': !profileAutomaticSmsExpanded }" @click="profileAutomaticSmsExpanded || (profileAutomaticSmsExpanded = true)">
+          <div class="profile-auto-sms-head" :class="{ expanded: profileAutomaticSmsExpanded }">
+            <div class="profile-auto-sms-heading">
+              <h3>پیامک اتوماتیک این مراجعه‌کننده</h3>
+              <p>{{ profileAutomaticSmsItems.length.toLocaleString('fa-IR') }} پیامک در {{ profileAutomaticSmsGroups.length.toLocaleString('fa-IR') }} سناریو · {{ profileAutomaticSmsStats.active.toLocaleString('fa-IR') }} پیامک فعال</p>
+            </div>
+            <button type="button" class="profile-auto-sms-toggle" :aria-expanded="profileAutomaticSmsExpanded" :aria-label="profileAutomaticSmsExpanded ? 'بستن پیامک‌های اتوماتیک' : 'نمایش پیامک‌های اتوماتیک'" @click.stop="profileAutomaticSmsExpanded = !profileAutomaticSmsExpanded">
+              <svg class="profile-auto-sms-chevron" :class="{ expanded: profileAutomaticSmsExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            <div v-if="profileAutomaticSmsExpanded" class="profile-auto-sms-tools">
+              <div class="profile-auto-sms-legend"><span class="sent"><i></i>ارسال شده</span><span class="queued"><i></i>در صف</span><span class="cancelled"><i></i>لغو شده</span><span class="skipped"><i></i>ارسال نشده</span></div>
+              <select v-model="profileAutomaticSmsFilter"><option value="all">همه سناریوها</option><option value="running">در جریان</option><option value="done">تمام‌شده</option><option value="cancelled">لغو شده</option></select>
+              <button v-if="profileAutomaticSmsStats.active" type="button" class="profile-auto-sms-cancel-all" @click="disableAllProfileAutomaticSms">لغو همه پیامک‌ها</button>
+            </div>
+          </div>
+
+          <div v-if="profileAutomaticSmsExpanded && filteredProfileAutomaticSmsGroups.length" class="profile-automatic-sms-scenarios">
+            <article v-for="group in filteredProfileAutomaticSmsGroups" :key="group.key" class="profile-auto-sms-scenario" :class="'scenario-' + group.kind">
+              <header>
+                <div class="profile-auto-sms-scenario-title"><strong>{{ group.title }}</strong><span>{{ group.service }}</span><i></i><small>شروع: {{ group.startDate }}</small><em :class="group.kind">{{ profileAutomaticSmsGroupStatus(group) }}</em><b>{{ group.sentCount.toLocaleString('fa-IR') }} از {{ group.items.length.toLocaleString('fa-IR') }} ارسال شده</b></div>
+                <div class="profile-auto-sms-scenario-action"><span>{{ profileAutomaticSmsNextLabel(group) }}</span><button v-if="group.activeCount" type="button" @click="disableProfileAutomaticSmsGroup(group)">لغو کل سناریو</button></div>
+              </header>
+              <div class="profile-auto-sms-progress"><i :style="{ width: group.progress + '%' }"></i></div>
+              <div class="profile-auto-sms-steps">
+                <template v-for="(entry, stepIndex) in group.items" :key="entry.item.id">
+                  <div class="profile-auto-sms-step" :class="'step-' + automaticSmsVisualStatus(entry.item)">
+                    <div class="profile-auto-sms-step-tabs"><span>{{ automaticSmsStepDate(entry.item, entry.appointment) }}</span><time>{{ automaticSmsStepTime(entry.item) }}</time></div>
+                    <div class="profile-auto-sms-step-body">
+                      <span class="profile-auto-sms-step-number">{{ (stepIndex + 1).toLocaleString('fa-IR') }}</span>
+                      <div class="profile-auto-sms-step-status"><span><i></i>{{ automaticSmsStatusLabel(entry.item.status) }}</span><button v-if="entry.item.status !== 'sent'" type="button" :class="entry.item.is_enabled ? 'cancel' : 'restore'" :disabled="automaticSmsSavingIds.includes(entry.item.id)" :title="entry.item.is_enabled ? 'لغو این پیامک' : 'فعال‌سازی مجدد این پیامک'" :aria-label="entry.item.is_enabled ? 'لغو این پیامک' : 'فعال‌سازی مجدد این پیامک'" @click.stop="toggleProfileAutomaticSms(entry.appointment, entry.item, !entry.item.is_enabled)">{{ automaticSmsSavingIds.includes(entry.item.id) ? '…' : (entry.item.is_enabled ? '×' : '↺') }}</button></div>
+                      <strong dir="ltr">{{ entry.item.sms_template || entry.item.inventory_tag }}</strong>
+                      <div class="profile-auto-sms-step-delay"><b>{{ Number(entry.item.days_after || 0).toLocaleString('fa-IR') }} روز بعد</b><span>از انجام خدمت</span></div>
+                    </div>
+                  </div>
+                  <span v-if="stepIndex < group.items.length - 1" class="profile-auto-sms-arrow">←</span>
+                </template>
+              </div>
+            </article>
+          </div>
+          <div v-else-if="profileAutomaticSmsExpanded" class="profile-empty-history">{{ profileAutomaticSmsItems.length ? 'سناریویی با این فیلتر وجود ندارد.' : 'برای نوبت‌های این پرونده پیامک خودکاری ثبت نشده است.' }}</div>
+        </section>
+
         <section class="profile-history-card">
           <div class="profile-card-title">
             <h3>سوابق خدمات</h3>
@@ -573,6 +615,7 @@
                   <td>{{ formatAppointmentTrackingTime(item.arrived_at) }}</td>
                   <td>{{ formatDoneWork(item) }}</td>
                   <td>{{ formatAppointmentTrackingTime(item.completed_at) }}</td>
+                  <td><button v-if="item.automatic_sms?.total_count" type="button" class="profile-auto-sms-badge" @click="scrollToProfileAutomaticSms">{{ Number(item.automatic_sms.active_count || 0).toLocaleString('fa-IR') }} فعال / {{ Number(item.automatic_sms.sent_count || 0).toLocaleString('fa-IR') }} ارسال</button><span v-else>-</span></td>
                   <td>{{ formatDebtValue(item.debt) }}</td>
                 </tr>
                 <tr v-if="!filteredAppointmentResults.length">
@@ -998,7 +1041,7 @@
             <span class="angle-photo-adjust-frame" aria-hidden="true"></span>
           </div>
 
-          <p class="profile-crop-help">عکس را با دست یا ماوس بکشید، یا از کلیدهای جهت استفاده کنید.</p>
+          <p class="profile-crop-help">عکس ابتدا به‌صورت کامل داخل کادر قرار می‌گیرد؛ در صورت نیاز آن را جابه‌جا یا بزرگ‌نمایی کنید.</p>
           <div class="angle-photo-nudge" aria-label="جابه‌جایی عکس">
             <button type="button" title="حرکت به بالا" @click="nudgeAnglePhoto(0, -12)">↑</button>
             <button type="button" title="حرکت به راست" @click="nudgeAnglePhoto(12, 0)">→</button>
@@ -1015,6 +1058,30 @@
             <button type="button" class="primary-btn" :disabled="angleUploadLoading" @click="confirmAnglePhotoAdjust">
               {{ angleUploadLoading ? 'در حال ذخیره...' : 'تأیید و ذخیره عکس' }}
             </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div
+        v-if="mediaViewerItem"
+        class="media-viewer-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="نمایش کامل عکس"
+        @click.self="closeMediaViewer"
+      >
+        <section class="media-viewer-modal" dir="rtl">
+          <header>
+            <strong>{{ mediaViewerItem.original_name || mediaViewerItem.file_name || 'تصویر پرونده' }}</strong>
+            <button type="button" title="بستن" aria-label="بستن" @click="closeMediaViewer">×</button>
+          </header>
+          <div class="media-viewer-stage">
+            <img
+              :src="mediaViewerItem.url"
+              :alt="mediaViewerItem.original_name || mediaViewerItem.file_name || 'تصویر پرونده'"
+              decoding="async"
+            >
           </div>
         </section>
       </div>
@@ -1443,8 +1510,16 @@
 
             <div class="media-grid">
               <div v-for="item in filteredMediaItems" :key="item.id" class="media-item" :class="{ 'no-consent-media': item.usage_consent === false }">
-                <div class="media-preview">
-                  <img v-if="item.media_type === 'image'" :src="item.url" :alt="item.original_name">
+                <div class="media-preview" :class="{ 'is-image': item.media_type === 'image' }">
+                  <img
+                    v-if="item.media_type === 'image'"
+                    :src="item.url"
+                    :alt="item.original_name"
+                    loading="lazy"
+                    decoding="async"
+                    title="برای نمایش کامل کلیک کنید"
+                    @click="openMediaViewer(item)"
+                  >
                   <span v-if="item.usage_consent === false" class="no-consent-badge">عدم رضایت استفاده از تصاویر</span>
                   <video v-else :src="item.url" controls></video>
                   <button
@@ -1855,6 +1930,9 @@ export default {
       ],
       appointmentResults: [],
       appointmentLoading: false,
+      automaticSmsSavingIds: [],
+      profileAutomaticSmsFilter: 'all',
+      profileAutomaticSmsExpanded: false,
       satisfactionResponses: [],
       satisfactionLoading: false,
       satisfactionError: '',
@@ -1870,6 +1948,7 @@ export default {
         arrived_at: [],
         done: [],
         completed_at: [],
+        automatic_sms: [],
         debt: [],
       },
       profileViewOpen: false,
@@ -1886,6 +1965,7 @@ export default {
       walletReferralRewards: [],
 
       showMediaModal: false,
+      mediaViewerItem: null,
       activeMediaPatient: {},
       currentMediaFolderId: null,
       mediaBreadcrumbs: [],
@@ -1896,6 +1976,7 @@ export default {
       folderContextMenu: { visible: false, x: 0, y: 0, folder: null },
       mediaSections: [],
       mediaServiceGroups: [],
+      mediaPhotoSettings: { max_side: 2400, quality: 88, target_kb: 1024 },
       expandedMediaSectionKeys: [],
       selectedMediaTreeKey: '',
       mediaLoading: false,
@@ -2191,6 +2272,54 @@ export default {
       }, 0)
     },
 
+    profileAutomaticSmsItems() {
+      return (this.appointmentResults || []).flatMap(appointment =>
+        (Array.isArray(appointment?.automatic_sms?.items) ? appointment.automatic_sms.items : [])
+          .map(item => ({ appointment, item }))
+      )
+    },
+
+    profileAutomaticSmsStats() {
+      return this.profileAutomaticSmsItems.reduce((stats, entry) => {
+        if (entry.item.effective_enabled && !['sent', 'skipped_returned'].includes(entry.item.status)) stats.active++
+        if (entry.item.status === 'sent') stats.sent++
+        if (entry.item.status === 'failed') stats.failed++
+        return stats
+      }, { active: 0, sent: 0, failed: 0 })
+    },
+
+    profileAutomaticSmsGroups() {
+      const groups = new Map()
+      this.profileAutomaticSmsItems.forEach(entry => {
+        const scenarioKey = entry.item.scenario_id || entry.item.inventory_tag || 'sms'
+        const key = `${entry.appointment.id || 'appointment'}-${scenarioKey}`
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            appointment: entry.appointment,
+            title: entry.item.inventory_tag || 'پیامک اتوماتیک',
+            service: entry.item.service_name || this.formatServices(entry.appointment.services),
+            startDate: this.formatAppointmentServiceDate(entry.appointment),
+            items: []
+          })
+        }
+        groups.get(key).items.push(entry)
+      })
+
+      return [...groups.values()].map(group => {
+        group.items.sort((a, b) => Number(a.item.days_after || 0) - Number(b.item.days_after || 0))
+        group.sentCount = group.items.filter(entry => entry.item.status === 'sent').length
+        group.activeCount = group.items.filter(entry => entry.item.effective_enabled && !['sent', 'skipped_returned'].includes(entry.item.status)).length
+        group.kind = group.activeCount ? 'running' : (group.items.every(entry => ['disabled', 'cancelled'].includes(entry.item.status)) ? 'cancelled' : 'done')
+        group.progress = group.items.length ? Math.round((group.sentCount / group.items.length) * 100) : 0
+        return group
+      })
+    },
+
+    filteredProfileAutomaticSmsGroups() {
+      return this.profileAutomaticSmsGroups.filter(group => this.profileAutomaticSmsFilter === 'all' || group.kind === this.profileAutomaticSmsFilter)
+    },
+
     appointmentFilterColumns() {
       return [
         { key: 'services', label: 'خدمات' },
@@ -2204,6 +2333,7 @@ export default {
         { key: 'arrived_at', label: 'زمان آمدن' },
         { key: 'done', label: 'کار انجام‌شده' },
         { key: 'completed_at', label: 'زمان انجام' },
+        { key: 'automatic_sms', label: 'پیامک خودکار' },
         { key: 'debt', label: 'بدهکاری' },
       ]
     },
@@ -2645,6 +2775,8 @@ export default {
       this.activePatientProfile = patient
       this.profileViewOpen = true
       this.satisfactionExpanded = false
+      this.profileAutomaticSmsExpanded = false
+      this.profileAutomaticSmsFilter = 'all'
       this.$nextTick(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
@@ -2682,6 +2814,15 @@ export default {
           if (request?.open_media) {
             await this.$nextTick()
             await this.openMediaModal(rows[0])
+            if (this.showMediaModal && request?.media_id) {
+              const mediaResponse = await fetch(`/api/patients/${rows[0].id}/media?all=1`)
+              if (mediaResponse.ok) {
+                const mediaData = await mediaResponse.json()
+                const selectedPhoto = (mediaData.media || []).find(item => Number(item.id) === Number(request.media_id))
+                if (selectedPhoto) this.openMediaViewer(selectedPhoto)
+                else Swal.fire({ icon: 'warning', title: 'عکس پیدا نشد', text: 'ممکن است عکس حذف یا جابه‌جا شده باشد.' })
+              }
+            }
           }
         } else {
           Swal.fire({
@@ -2979,9 +3120,19 @@ export default {
 
     closeMediaModal() {
       this.closeFolderContextMenu()
+      this.closeMediaViewer()
       this.showMediaModal = false
       this.activeMediaPatient = {}
       this.closeMediaEdit()
+    },
+
+    openMediaViewer(item) {
+      if (!item?.url || item.media_type !== 'image') return
+      this.mediaViewerItem = item
+    },
+
+    closeMediaViewer() {
+      this.mediaViewerItem = null
     },
 
     removeDetachedDatePickers() {
@@ -3271,6 +3422,7 @@ export default {
         this.mediaItems = data.media || []
         this.mediaSections = data.sections || []
         this.mediaServiceGroups = data.service_groups || []
+        this.mediaPhotoSettings = data.photo_processing_settings || { max_side: 2400, quality: 88, target_kb: 1024 }
         const sharedUploadMetadata = data.shared_upload_metadata
         if (!this.mediaUpload.services.length && sharedUploadMetadata?.services?.length) {
           this.mediaUpload = {
@@ -3517,7 +3669,11 @@ export default {
           body: JSON.stringify({
             type: 'service',
             parent_id: this.currentMediaFolderId,
-            section_id: this.selectedMediaFolderService.id
+            section_id: this.selectedMediaFolderService.id,
+            services: this.mediaUpload.services,
+            description: this.mediaUpload.description || '',
+            usage_consent: !this.mediaUpload.no_usage_consent,
+            is_featured: this.mediaUpload.is_featured
           })
         })
 
@@ -3653,12 +3809,15 @@ export default {
           body: formData
         })
 
-        if (!res.ok) throw new Error()
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.message || 'آپلود انجام نشد')
+        }
         this.selectedMediaFiles = []
         await this.loadPatientMedia(this.currentMediaFolderId, false)
       } catch (error) {
         console.error(error)
-        Swal.fire({ icon: 'error', title: 'خطا', text: 'آپلود انجام نشد' })
+        Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'آپلود انجام نشد' })
       } finally {
         this.mediaLoading = false
       }
@@ -3678,7 +3837,8 @@ export default {
 
     async openAnglePhotoAdjust(file, angle) {
       if (!file || !angle?.key) return
-      if (!String(file.type || '').startsWith('image/')) {
+      const isHeic = /\.(heic|heif)$/i.test(file.name || '')
+      if (!String(file.type || '').startsWith('image/') && !isHeic) {
         Swal.fire({ icon: 'warning', title: 'فایل نامعتبر', text: 'برای این زاویه فقط فایل تصویری انتخاب کنید.' })
         return
       }
@@ -3706,6 +3866,18 @@ export default {
         }
       } catch (error) {
         URL.revokeObjectURL(sourceUrl)
+        if (isHeic) {
+          const result = await Swal.fire({
+            icon: 'info',
+            title: 'پیش‌نمایش این عکس در مرورگر ممکن نیست',
+            text: 'می‌توانید فایل HEIC را بدون تنظیم دستی کادر بفرستید تا سرور آن را به WebP تبدیل کند.',
+            showCancelButton: true,
+            confirmButtonText: 'آپلود عکس',
+            cancelButtonText: 'انصراف'
+          })
+          if (result.isConfirmed) await this.saveAnglePhoto(file, angle)
+          return
+        }
         Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'پیش‌نمایش عکس ممکن نیست.' })
       }
     },
@@ -3752,7 +3924,9 @@ export default {
       if (!image || !stage) return null
       const width = stage.clientWidth || 360
       const height = stage.clientHeight || 450
-      const baseScale = Math.max(width / image.naturalWidth, height / image.naturalHeight)
+      // Start with the whole photo visible. Using cover here cropped large photos
+      // to a tiny facial area (for example only the nose) before the user zoomed.
+      const baseScale = Math.min(width / image.naturalWidth, height / image.naturalHeight)
       const scale = baseScale * Number(this.anglePhotoAdjust.zoom || 1)
       return { image, width, height, scale }
     },
@@ -3770,22 +3944,25 @@ export default {
       const metrics = this.anglePhotoAdjustMetrics()
       if (!metrics) throw new Error('تصویری برای تنظیم انتخاب نشده است.')
 
-      const outputWidth = 1200
-      const outputHeight = 1500
-      const outputScale = outputWidth / metrics.width
+      const imageWidth = metrics.image.naturalWidth
+      const imageHeight = metrics.image.naturalHeight
+      const left = Math.max(0, Math.min(imageWidth, imageWidth / 2 + (-metrics.width / 2 - this.anglePhotoAdjust.x) / metrics.scale))
+      const right = Math.max(0, Math.min(imageWidth, imageWidth / 2 + (metrics.width / 2 - this.anglePhotoAdjust.x) / metrics.scale))
+      const top = Math.max(0, Math.min(imageHeight, imageHeight / 2 + (-metrics.height / 2 - this.anglePhotoAdjust.y) / metrics.scale))
+      const bottom = Math.max(0, Math.min(imageHeight, imageHeight / 2 + (metrics.height / 2 - this.anglePhotoAdjust.y) / metrics.scale))
+      const cropWidth = right - left
+      const cropHeight = bottom - top
+      if (cropWidth <= 0 || cropHeight <= 0) throw new Error('کادر عکس معتبر نیست.')
+      const maxSide = Number(this.mediaPhotoSettings.max_side) || 2400
+      const scale = Math.min(1, maxSide / Math.max(cropWidth, cropHeight))
       const canvas = document.createElement('canvas')
-      canvas.width = outputWidth
-      canvas.height = outputHeight
+      canvas.width = Math.max(1, Math.round(cropWidth * scale))
+      canvas.height = Math.max(1, Math.round(cropHeight * scale))
       const context = canvas.getContext('2d')
       context.imageSmoothingEnabled = true
       context.imageSmoothingQuality = 'high'
-      context.setTransform(
-        metrics.scale * outputScale, 0, 0, metrics.scale * outputScale,
-        outputWidth / 2 + this.anglePhotoAdjust.x * outputScale,
-        outputHeight / 2 + this.anglePhotoAdjust.y * outputScale
-      )
-      context.drawImage(metrics.image, -metrics.image.naturalWidth / 2, -metrics.image.naturalHeight / 2)
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9))
+      context.drawImage(metrics.image, left, top, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height)
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', (Number(this.mediaPhotoSettings.quality) || 88) / 100))
       if (!blob) throw new Error('ساخت عکس تنظیم‌شده ممکن نیست.')
       return new File([blob], 'patient-angle.webp', { type: 'image/webp' })
     },
@@ -3812,7 +3989,7 @@ export default {
         return false
       }
 
-      if (!String(file.type || '').startsWith('image/')) {
+      if (!String(file.type || '').startsWith('image/') && !/\.(heic|heif)$/i.test(file.name || '')) {
         Swal.fire({ icon: 'warning', title: 'فایل نامعتبر', text: 'برای این زاویه فقط فایل تصویری انتخاب کنید.' })
         return false
       }
@@ -3936,7 +4113,10 @@ export default {
           method: 'POST',
           body: formData
         })
-        if (!res.ok) throw new Error()
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.message || 'ویرایش فایل ذخیره نشد')
+        }
 
         const updated = await res.json()
         const target = this.mediaItems.find(item => item.id === updated.id)
@@ -3950,7 +4130,7 @@ export default {
         Swal.fire({ icon: 'success', title: 'ذخیره شد', text: 'اطلاعات فایل بروزرسانی شد', timer: 1800, showConfirmButton: false })
       } catch (error) {
         console.error(error)
-        Swal.fire({ icon: 'error', title: 'خطا', text: 'ویرایش فایل ذخیره نشد' })
+        Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'ویرایش فایل ذخیره نشد' })
       } finally {
         this.mediaEditLoading = false
       }
@@ -4139,6 +4319,111 @@ export default {
       }
     },
 
+    automaticSmsStatusLabel(status) {
+      return ({
+        waiting_completion: 'منتظر انجام کار', scheduled: 'زمان‌بندی‌شده', sending: 'در حال ارسال',
+        sent: 'ارسال شد', disabled: 'غیرفعال', cancelled: 'لغوشده', failed: 'خطای ارسال',
+        skipped_returned: 'به‌علت مراجعه مجدد ارسال نشد'
+      })[status] || status || 'نامشخص'
+    },
+
+    automaticSmsScheduleLabel(item) {
+      if (item?.sent_at) return `ارسال: ${this.formatMediaDate(item.sent_at)}`
+      if (item?.scheduled_at) return `${Number(item.days_after || 0).toLocaleString('fa-IR')} روز بعد، ساعت ${String(item.send_at || '').slice(0, 5)}`
+      return `پس از انجام کار، ${Number(item?.days_after || 0).toLocaleString('fa-IR')} روز بعد`
+    },
+
+    automaticSmsVisualStatus(item) {
+      if (item?.status === 'sent') return 'sent'
+      if (['disabled', 'cancelled'].includes(item?.status) || !item?.is_enabled) return 'cancelled'
+      if (['scheduled', 'sending', 'waiting_completion'].includes(item?.status)) return 'queued'
+      return 'skipped'
+    },
+
+    formatAppointmentServiceDate(appointment) {
+      const month = String(appointment?.month || '').replaceAll('-', '/')
+      const day = Number(appointment?.day_num || 0)
+      return month && day ? `${month}/${String(day).padStart(2, '0')}` : this.formatAppointmentDate(appointment)
+    },
+
+    automaticSmsStepDate(item, appointment) {
+      if (item?.sent_at) return this.formatMediaDate(item.sent_at).split(' ')[0]
+      if (item?.scheduled_at) return this.formatMediaDate(item.scheduled_at).split(' ')[0]
+      return this.formatAppointmentServiceDate(appointment)
+    },
+
+    automaticSmsStepTime(item) {
+      if (item?.sent_at) return this.formatMediaDate(item.sent_at).split(' ')[1] || '-'
+      return String(item?.send_at || '').slice(0, 5) || '-'
+    },
+
+    profileAutomaticSmsGroupStatus(group) {
+      return ({ running: 'در جریان', done: 'تمام‌شده', cancelled: 'لغو شده' })[group?.kind] || 'نامشخص'
+    },
+
+    profileAutomaticSmsNextLabel(group) {
+      const next = group?.items?.find(entry => entry.item.effective_enabled && !['sent', 'skipped_returned'].includes(entry.item.status))
+      return next ? `پیامک بعدی: ${this.automaticSmsScheduleLabel(next.item)}` : 'پیامک فعالی باقی نمانده'
+    },
+
+    async disableProfileAutomaticSmsGroup(group) {
+      for (const entry of group?.items || []) {
+        if (entry.item.effective_enabled && entry.item.status !== 'sent') {
+          await this.toggleProfileAutomaticSms(entry.appointment, entry.item, false)
+        }
+      }
+    },
+
+    async disableAllProfileAutomaticSms() {
+      for (const entry of this.profileAutomaticSmsItems) {
+        if (entry.item.effective_enabled && entry.item.status !== 'sent') {
+          await this.toggleProfileAutomaticSms(entry.appointment, entry.item, false)
+        }
+      }
+    },
+
+    async toggleProfileAutomaticSms(appointment, item, enabled) {
+      const appointmentId = Number(appointment?.id || 0)
+      const itemId = Number(item?.id || 0)
+      if (!appointmentId || !itemId || this.automaticSmsSavingIds.includes(itemId)) return
+
+      const currentAppointment = this.appointmentResults.find(row => Number(row.id) === appointmentId) || appointment
+      const currentItems = Array.isArray(currentAppointment?.automatic_sms?.items) ? currentAppointment.automatic_sms.items : []
+      const currentItem = currentItems.find(row => Number(row.id) === itemId) || item
+      const previousAutomaticSms = currentAppointment.automatic_sms
+
+      this.automaticSmsSavingIds.push(itemId)
+      currentAppointment.automatic_sms = {
+        ...(currentAppointment.automatic_sms || {}),
+        items: currentItems.map(row => Number(row.id) === itemId ? {
+          ...row,
+          is_enabled: enabled,
+          effective_enabled: enabled,
+          status: enabled ? (row.scheduled_at ? 'scheduled' : 'waiting_completion') : 'disabled'
+        } : row)
+      }
+      try {
+        const response = await fetch(`/api/appointments/${appointmentId}/automatic-sms/${itemId}`, {
+          method: 'PATCH',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_enabled: enabled })
+        })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.message || 'تغییر وضعیت پیامک انجام نشد.')
+        currentAppointment.automatic_sms = data.automatic_sms
+      } catch (error) {
+        currentAppointment.automatic_sms = previousAutomaticSms
+        await Swal.fire({ icon: 'error', title: 'خطا', text: error.message || 'تغییر وضعیت پیامک انجام نشد.' })
+      } finally {
+        this.automaticSmsSavingIds = this.automaticSmsSavingIds.filter(id => id !== itemId)
+      }
+    },
+
+    scrollToProfileAutomaticSms() {
+      this.profileAutomaticSmsExpanded = true
+      this.$nextTick(() => this.$refs.profileAutomaticSmsCard?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    },
+
     formatServices(services) {
       if (!services) return '-'
       if (typeof services === 'string') {
@@ -4180,6 +4465,9 @@ export default {
         arrived_at: this.formatAppointmentTrackingTime(item.arrived_at),
         done: this.formatDoneWork(item),
         completed_at: this.formatAppointmentTrackingTime(item.completed_at),
+        automatic_sms: item.automatic_sms?.total_count
+          ? `${Number(item.automatic_sms.active_count || 0).toLocaleString('fa-IR')} فعال / ${Number(item.automatic_sms.sent_count || 0).toLocaleString('fa-IR')} ارسال`
+          : '-',
         debt: this.formatDebtValue(item.debt),
       }
       return map[key] || '-'
@@ -6662,7 +6950,11 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   position: absolute;
   top: 50%;
   left: 50%;
+  width: 100%;
+  height: 100%;
   max-width: none;
+  object-fit: contain;
+  object-position: center;
   transform-origin: center;
   pointer-events: none;
 }
@@ -8232,7 +8524,8 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   width: 100%;
   height: 100%;
   min-height: 310px;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
 }
 
@@ -8774,15 +9067,21 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 .media-preview {
   position: relative;
   aspect-ratio: 4 / 3;
-  background: #e2e8f0;
+  overflow: hidden;
+  background: #0f172a;
 }
 
 .media-preview img,
 .media-preview video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
+}
+
+.media-preview.is-image img {
+  cursor: zoom-in;
 }
 
 .star-btn {
@@ -8952,7 +9251,7 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   overflow: hidden;
-  background: #e2e8f0;
+  background: #0f172a;
   aspect-ratio: 4 / 3;
   align-self: start;
 }
@@ -8961,8 +9260,82 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 .media-edit-preview video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
+}
+
+.media-viewer-overlay {
+  position: fixed;
+  z-index: 2147483647;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 6, 23, .94);
+  backdrop-filter: blur(8px);
+}
+
+.media-viewer-modal {
+  width: min(1280px, 100%);
+  height: min(92vh, 940px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 18px;
+  background: #020617;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .55);
+}
+
+.media-viewer-modal > header {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+  color: #f8fafc;
+}
+
+.media-viewer-modal > header strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-viewer-modal > header button {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 25px;
+}
+
+.media-viewer-stage {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  overflow: auto;
+}
+
+.media-viewer-stage img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 .media-edit-form {
@@ -9143,4 +9516,39 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 .withdraw-btn:hover { background-color: #b91c1c; }
 .wallet-modal{max-height:min(92vh,940px);overflow:auto}.wallet-expiry-banner{border:1px solid #fde68a;color:#92400e}.wallet-report-in-modal{margin:0;padding:17px;border:1px solid #e2e8f0;border-radius:18px;background:#fff}.wallet-reward-delete{justify-self:start;border:1px solid #fecaca;border-radius:8px;padding:7px 10px;background:#fff1f2;color:#be123c;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}.wallet-reward-delete:hover{background:#ffe4e6}
 @media(max-width:760px){.wallet-modal{padding:16px;border-radius:18px}.wallet-modal .wallet-content{grid-template-columns:1fr}.wallet-modal .patient-name,.wallet-modal .wallet-input-group{grid-column:auto}.wallet-modal .balance-box,.wallet-modal .wallet-expiry-banner,.wallet-modal .wallet-reward-total{min-height:66px}.wallet-actions{display:grid;grid-template-columns:1fr 1fr}.wallet-actions button{width:100%;padding:11px 8px}.wallet-reward-report,.wallet-report-in-modal{padding:12px}.wallet-reward-report>header{align-items:flex-start;flex-direction:column}}
+.profile-automatic-sms-card{padding:22px 24px;border:1px solid #e2e8f0;border-radius:26px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.06);scroll-margin-top:120px}.profile-auto-sms-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid #f1f5f9}.profile-auto-sms-heading h3{margin:0;color:#0f172a;font-size:19px;font-weight:900}.profile-auto-sms-heading p{margin:6px 0 0;color:#64748b;font-size:11px}.profile-auto-sms-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.profile-auto-sms-legend{display:flex;align-items:center;gap:14px;padding:10px 14px;border-radius:14px;background:#f8fafc}.profile-auto-sms-legend span{display:flex;align-items:center;gap:6px;color:#475569;font-size:9px;font-weight:800}.profile-auto-sms-legend i{width:8px;height:8px;border-radius:50%;background:#cbd5e1}.profile-auto-sms-legend .sent i{background:#22c55e}.profile-auto-sms-legend .queued i{background:#2563eb}.profile-auto-sms-legend .cancelled i{background:#ef4444}.profile-auto-sms-tools select{height:39px;padding:0 12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;color:#0f172a;font-family:inherit;font-size:10px;font-weight:800;outline:none}.profile-auto-sms-cancel-all{height:39px;padding:0 13px;border:1px solid #fecaca;border-radius:12px;background:#fff;color:#dc2626;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.profile-auto-sms-cancel-all:hover{background:#fef2f2}.profile-automatic-sms-scenarios{display:grid;gap:16px;padding-top:18px}.profile-auto-sms-scenario{padding:16px 17px 18px;border:1px solid #e2e8f0;border-radius:18px;background:#fff}.profile-auto-sms-scenario.scenario-running{border-color:#bfdbfe;background:linear-gradient(135deg,#fff,#f8fbff)}.profile-auto-sms-scenario.scenario-cancelled{background:#fafafa}.profile-auto-sms-scenario>header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.profile-auto-sms-scenario-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.profile-auto-sms-scenario-title>strong{color:#0f172a;font-size:14px}.profile-auto-sms-scenario-title>span{color:#64748b;font-size:10px}.profile-auto-sms-scenario-title>i{width:1px;height:15px;background:#e2e8f0}.profile-auto-sms-scenario-title>small{color:#94a3b8;font-size:9px}.profile-auto-sms-scenario-title>em{padding:4px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:8px;font-style:normal;font-weight:900}.profile-auto-sms-scenario-title>em.done{background:#f0fdf4;color:#15803d}.profile-auto-sms-scenario-title>em.cancelled{background:#fef2f2;color:#dc2626}.profile-auto-sms-scenario-title>b{color:#64748b;font-size:9px}.profile-auto-sms-scenario-action{display:flex;align-items:center;gap:10px}.profile-auto-sms-scenario-action>span{color:#64748b;font-size:9px}.profile-auto-sms-scenario-action>button{padding:7px 10px;border:1px solid #fecaca;border-radius:9px;background:#fff;color:#dc2626;font-family:inherit;font-size:8px;font-weight:900;cursor:pointer}.profile-auto-sms-progress{height:6px;margin:14px 0 16px;overflow:hidden;border-radius:4px;background:#eef2f7}.profile-auto-sms-progress i{display:block;height:100%;border-radius:inherit;background:#22c55e;transition:width .2s ease}.profile-auto-sms-steps{display:flex;align-items:stretch;gap:10px;overflow-x:auto;padding:2px 2px 8px}.profile-auto-sms-step{min-width:216px;max-width:216px;display:flex;flex-direction:column}.profile-auto-sms-step-tabs{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:-1px}.profile-auto-sms-step-tabs span,.profile-auto-sms-step-tabs time{padding:5px 9px;border:1px solid #bfdbfe;border-bottom:0;border-radius:9px 9px 0 0;background:#eff6ff;color:#1d4ed8;font-size:8px;font-weight:900}.profile-auto-sms-step-body{position:relative;min-height:112px;padding:12px;border:1px solid #bfdbfe;border-radius:0 12px 12px 12px;background:#eff6ff;overflow:hidden}.profile-auto-sms-step-number{position:absolute;left:8px;top:0;color:rgba(37,99,235,.14);font-size:55px;font-weight:1000;line-height:1}.profile-auto-sms-step-status{position:relative;display:flex;align-items:center;justify-content:space-between}.profile-auto-sms-step-status>span{display:flex;align-items:center;gap:6px;color:#1d4ed8;font-size:9px;font-weight:900}.profile-auto-sms-step-status>span i{width:8px;height:8px;border-radius:50%;background:#2563eb}.profile-auto-sms-step-status button{width:20px;height:20px;display:grid;place-items:center;padding:0;border:0;border-radius:6px;background:transparent;color:#94a3b8;font-family:inherit;font-size:13px;cursor:pointer}.profile-auto-sms-step-status button:hover{background:#fee2e2;color:#dc2626}.profile-auto-sms-step-body>strong{position:relative;display:block;margin-top:12px;overflow:hidden;color:#334155;font-size:9px;text-overflow:ellipsis;white-space:nowrap;text-align:left}.profile-auto-sms-step-delay{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;padding-top:9px;border-top:1px dashed #cbd5e1}.profile-auto-sms-step-delay b{color:#0f172a;font-size:9px}.profile-auto-sms-step-delay span{color:#64748b;font-size:8px}.profile-auto-sms-arrow{display:grid;place-items:center;padding-top:27px;color:#cbd5e1;font-size:20px}.profile-auto-sms-step.step-sent .profile-auto-sms-step-tabs span,.profile-auto-sms-step.step-sent .profile-auto-sms-step-tabs time{border-color:#bbf7d0;background:#f0fdf4;color:#15803d}.profile-auto-sms-step.step-sent .profile-auto-sms-step-body{border-color:#bbf7d0;background:#f0fdf4}.profile-auto-sms-step.step-sent .profile-auto-sms-step-number{color:rgba(22,163,74,.13)}.profile-auto-sms-step.step-sent .profile-auto-sms-step-status>span{color:#15803d}.profile-auto-sms-step.step-sent .profile-auto-sms-step-status>span i{background:#22c55e}.profile-auto-sms-step.step-cancelled .profile-auto-sms-step-tabs span,.profile-auto-sms-step.step-cancelled .profile-auto-sms-step-tabs time{border-color:#fecaca;background:#fef2f2;color:#dc2626}.profile-auto-sms-step.step-cancelled .profile-auto-sms-step-body{border-color:#fecaca;background:#fef2f2}.profile-auto-sms-step.step-cancelled .profile-auto-sms-step-number{color:rgba(220,38,38,.12)}.profile-auto-sms-step.step-cancelled .profile-auto-sms-step-status>span{color:#dc2626}.profile-auto-sms-step.step-cancelled .profile-auto-sms-step-status>span i{background:#ef4444}.profile-auto-sms-step.step-skipped .profile-auto-sms-step-tabs span,.profile-auto-sms-step.step-skipped .profile-auto-sms-step-tabs time{border-color:#e2e8f0;background:#f8fafc;color:#94a3b8}.profile-auto-sms-step.step-skipped .profile-auto-sms-step-body{border-color:#e2e8f0;background:#f8fafc}.profile-auto-sms-step.step-skipped .profile-auto-sms-step-status>span{color:#94a3b8}.profile-auto-sms-step.step-skipped .profile-auto-sms-step-status>span i{background:#cbd5e1}.profile-auto-sms-badge{padding:5px 8px;border:1px solid #86efac;border-radius:8px;background:#dcfce7;color:#15803d;font-family:inherit;font-size:9px;font-weight:900;cursor:pointer}@media(max-width:760px){.profile-automatic-sms-card{padding:16px}.profile-auto-sms-head,.profile-auto-sms-scenario>header{align-items:stretch;flex-direction:column}.profile-auto-sms-tools{align-items:stretch;display:grid}.profile-auto-sms-legend{justify-content:space-between;overflow-x:auto}.profile-auto-sms-tools select,.profile-auto-sms-cancel-all{width:100%}.profile-auto-sms-scenario-action{justify-content:space-between}}
+/* Keep the two date tabs attached to a straight card edge, matching the reference mockup. */
+.profile-auto-sms-step-tabs span,.profile-auto-sms-step-tabs time{padding:5px 10px 6px;border-radius:14px 14px 0 0}
+.profile-auto-sms-step-body{border-radius:0 0 16px 16px}
+/* The main title stays unchanged; supporting copy is slightly larger for readability. */
+.profile-auto-sms-heading p{font-size:13px}
+.profile-auto-sms-legend span{font-size:11px}
+.profile-auto-sms-tools select,.profile-auto-sms-cancel-all{font-size:12px}
+.profile-auto-sms-scenario-title>strong{font-size:15px}
+.profile-auto-sms-scenario-title>span{font-size:12px}
+.profile-auto-sms-scenario-title>small{font-size:11px}
+.profile-auto-sms-scenario-title>em{font-size:10px}
+.profile-auto-sms-scenario-title>b{font-size:11px}
+.profile-auto-sms-scenario-action>span{font-size:11px}
+.profile-auto-sms-scenario-action>button{font-size:10px}
+.profile-auto-sms-step-tabs span,.profile-auto-sms-step-tabs time{font-size:10px}
+.profile-auto-sms-step-status>span{font-size:11px}
+.profile-auto-sms-step-body>strong{font-size:11px}
+.profile-auto-sms-step-delay b{font-size:11px}
+.profile-auto-sms-step-delay span{font-size:10px}
+.profile-auto-sms-step-status button.restore{width:20px;min-width:20px;height:20px;padding:0;border:0;border-radius:6px;background:transparent;color:#94a3b8;font-size:13px;font-weight:900;line-height:1;box-shadow:none;transform:rotate(45deg)}
+.profile-auto-sms-step-status button.restore:hover{background:#e2e8f0;color:#64748b}
+.profile-auto-sms-step-status button.restore:disabled{cursor:wait;opacity:.65}
+.profile-auto-sms-head{display:flex;align-items:center;justify-content:space-between;flex-direction:row;gap:12px;flex-wrap:wrap}
+.profile-auto-sms-head:not(.expanded){padding-bottom:0;border-bottom:0}
+.profile-auto-sms-heading{display:block;flex:1;min-width:0;direction:rtl;text-align:right}
+.profile-auto-sms-heading h3{margin:0;color:#0f172a;font-size:17px;font-weight:900;line-height:1.5}
+.profile-auto-sms-heading p{margin:5px 0 0;color:#64748b;font-size:11px;font-weight:500;line-height:1.7}
+.profile-automatic-sms-card.is-collapsed{cursor:pointer}
+.profile-auto-sms-tools{width:100%;margin-top:4px}
+.profile-auto-sms-toggle{display:flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;margin:0;padding:0;border:1px solid #dbeafe;border-radius:50%;background:#eff6ff;color:#2563eb;cursor:pointer}
+.profile-auto-sms-toggle:hover{background:#dbeafe}
+.profile-auto-sms-toggle:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+.profile-auto-sms-chevron{display:block;width:22px;height:22px;flex:none;transition:transform .2s ease}
+.profile-auto-sms-chevron.expanded{transform:rotate(180deg)}
 </style>

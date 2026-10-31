@@ -3,6 +3,14 @@
 return [
     'groups' => [
         [
+            'key' => 'assistant',
+            'label' => 'دستیار هوش مصنوعی',
+            'permissions' => [
+                ['name' => 'assistant.use', 'label' => 'استفاده از دستیار'],
+                ['name' => 'assistant.manage', 'label' => 'تنظیم مدل و محدودیت دستیار'],
+            ],
+        ],
+        [
             'key' => 'patients',
             'label' => 'پرونده‌ها',
             'permissions' => [

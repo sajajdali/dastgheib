@@ -27,6 +27,8 @@ use App\Models\AppSetting;
 use Illuminate\Support\Facades\DB;
 use App\Services\CustomerLevelService;
 use App\Services\ShsmsService;
+use App\Services\AppointmentAutomaticSmsService;
+use App\Services\FinancialCheckoutBalanceService;
 use App\Support\PatientPhoneVisibility;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -56,6 +58,8 @@ class AppointmentController extends Controller
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+
+        app(AppointmentAutomaticSmsService::class)->decorateAppointments($appointments);
 
         if ($appointments->isEmpty()) {
             return response()->json($this->hideAppointmentPhones($appointments, $request));
@@ -533,6 +537,7 @@ class AppointmentController extends Controller
             'appointments' => ['required', 'array', 'min:1'],
             'appointments.*.appointment_id' => ['nullable', 'integer'],
             'appointments.*.lock_version' => ['nullable', 'integer', 'min:1'],
+            'appointments.*.description' => ['nullable', 'string', 'max:20000'],
         ]);
         // Laravel returns only nested keys which have explicit validation
         // rules. Using that result directly used to discard every appointment
@@ -623,13 +628,19 @@ class AppointmentController extends Controller
                     $incoming['phone'] = $previous->phone;
                     $incoming['referrer_phone'] = $previous->referrer_phone;
                 }
+                if ($previous && array_key_exists('payment_details', $incoming)) {
+                    $submittedDetails = is_array($incoming['payment_details']) ? $incoming['payment_details'] : [];
+                    $storedDetails = is_array($previous->payment_details) ? $previous->payment_details : [];
+                    $incoming['payment_details'] = array_replace($storedDetails, $submittedDetails);
+                }
                 $financial = $this->normalizeServiceDiscounts($incoming['services'] ?? []);
                 $incoming['services'] = $financial['services'];
                 if ($financial['calculated']) {
+                    $manualOverage = max(0, $this->signedMoneyToInteger(data_get($incoming, 'payment_details.manual_overage', 0)));
                     $incoming['original_amount'] = $financial['original_amount'];
                     $incoming['discount'] = $financial['discount'];
-                    $incoming['wallet_applied'] = min(max(0, $this->signedMoneyToInteger($incoming['wallet_applied'] ?? 0)), max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount']));
-                    $incoming['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount'] - $incoming['wallet_applied']);
+                    $incoming['wallet_applied'] = min(max(0, $this->signedMoneyToInteger($incoming['wallet_applied'] ?? 0)), max(0, $financial['original_amount'] + $financial['surcharge'] + $manualOverage - $financial['discount']));
+                    $incoming['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] + $manualOverage - $financial['discount'] - $incoming['wallet_applied']);
                 }
                 $incoming = $this->normalizeAppointmentTracking($incoming, $previous);
                 $reward = $this->calculateReferralReward($incoming);
@@ -673,6 +684,7 @@ class AppointmentController extends Controller
         }
 
         $saved = $this->withPatientHistoryRegistrationMeta($saved);
+        app(AppointmentAutomaticSmsService::class)->decorateAppointments(collect($saved));
 
         return response()->json(['message' => 'نوبت‌های تغییرکرده ثبت شدند.', 'appointments' => $saved]);
     }
@@ -1047,6 +1059,7 @@ class AppointmentController extends Controller
             'lastname' => ['nullable', 'string', 'max:255'],
             'time' => ['nullable', 'date_format:H:i'],
             'duration_minutes' => ['nullable', 'integer', 'between:1,1440'],
+            'description' => ['nullable', 'string', 'max:20000'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
         $row = $request->except('appointments');
@@ -1378,7 +1391,7 @@ class AppointmentController extends Controller
             'doctor' => ['nullable', 'string', 'max:255'],
             'consultant' => ['nullable', 'string', 'max:255'],
             'source' => ['nullable', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
+            'description' => ['nullable', 'string', 'max:20000'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
 
         $appointment = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($data) {
@@ -1405,6 +1418,7 @@ class AppointmentController extends Controller
         });
 
         $this->broadcastAppointmentChange($appointment, 'created');
+        app(AppointmentAutomaticSmsService::class)->decorateAppointments(collect([$appointment]));
 
         return response()->json(['appointment' => $appointment], 201);
     }
@@ -1577,7 +1591,7 @@ class AppointmentController extends Controller
         ]);
     }
 
-    public function financialCheckout(Request $request, Appointment $appointment)
+    public function financialCheckout(Request $request, Appointment $appointment, FinancialCheckoutBalanceService $balanceService)
     {
         $data = $request->validate([
             'payments' => ['array', 'max:10'], 'payments.*.method' => ['required', 'string', 'max:100'],
@@ -1596,9 +1610,11 @@ class AppointmentController extends Controller
             'service_lines.*.subsection' => ['nullable', 'string', 'max:255'], 'service_lines.*.parent_service' => ['nullable', 'string', 'max:255'],
             'service_lines.*.is_addon' => ['boolean'], 'service_lines.*.quantity' => ['numeric', 'min:0'],
             'service_lines.*.gross_amount' => ['integer', 'min:0'], 'service_lines.*.discount_amount' => ['integer', 'min:0'],
+            'confirm_debt_overage' => ['nullable', 'boolean'],
+            'confirm_overpayment' => ['nullable', 'boolean'],
         ]);
 
-        $result = DB::transaction(function () use ($request, $appointment, $data) {
+        $result = DB::transaction(function () use ($request, $appointment, $data, $balanceService) {
             $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
             $patient = $this->appointmentPatient($appointment);
             $lines = collect($data['service_lines'] ?? [])->keyBy('key');
@@ -1615,17 +1631,29 @@ class AppointmentController extends Controller
                 ->where('type', 'payment')
                 ->whereNull('voided_at')
                 ->sum('amount');
-            if ($existingPaymentTotal + $totalPayment > $payable) abort(422, 'جمع پرداخت‌های قبلی و پرداخت جدید از مبلغ قابل پرداخت بیشتر است.');
             if ($walletPaymentAmount > 0) {
                 if (! $patient) abort(422, 'برای استفاده از بیعانه، پرونده بیمار باید مشخص باشد.');
                 if ($walletPaymentAmount > (int) $patient->fresh()->wallet_balance) abort(422, 'مبلغ بیعانه از اعتبار موجود بیمار بیشتر است.');
                 if ((int) collect($walletPayment->get('allocations', []))->sum('amount') !== $walletPaymentAmount) abort(422, 'جمع تخصیص بیعانه به خدمات صحیح نیست.');
             }
-            // Debt is derived from the invoice and persisted payments. Never trust a
-            // client-entered remainder, otherwise part of an underpayment can vanish.
-            $totalDebt = max(0, $payable - $existingPaymentTotal - $totalPayment);
+            $receivedTotal = $existingPaymentTotal + $totalPayment;
+            $submittedDebt = (int) $debtRows->sum('amount');
+            $storedDetails = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+            $previouslyConfirmedOverpayment = max(0, (int) ($storedDetails['overpayment_amount'] ?? 0));
+            $balance = $balanceService->reconcile(
+                $payable,
+                $receivedTotal,
+                $submittedDebt,
+                filter_var($data['confirm_debt_overage'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                filter_var($data['confirm_overpayment'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                    || $previouslyConfirmedOverpayment >= max(0, $receivedTotal - $payable),
+            );
+            $payable = $balance['payable'];
+            $totalDebt = $balance['total_debt'];
+            $confirmedDebtOverage = $balance['confirmed_debt_overage'];
+            $payableIncrease = $balance['payable_increase'];
+            $overpayment = $balance['overpayment'];
             $debtReason = (string) ($debtRows->pluck('reason')->filter()->first() ?: 'مانده پرداخت این نوبت');
-            if ((int) $debtRows->sum('amount') !== $totalDebt) abort(422, 'جمع بدهی خدمات باید با مانده قابل پرداخت برابر باشد.');
             if ($totalDeposit > 0 && ! $patient) abort(422, 'برای ثبت بیعانه، پرونده بیمار باید مشخص باشد.');
 
             $create = function (string $type, int $amount, array $extra = [], array $allocations = []) use ($request, $appointment, $patient, $lines) {
@@ -1691,6 +1719,22 @@ class AppointmentController extends Controller
 
             $before = clone $appointment;
             $details = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+            if ($confirmedDebtOverage > 0) {
+                $details['manual_overage'] = max(0, (int) ($details['manual_overage'] ?? 0)) + $payableIncrease;
+                $details['manual_overage_confirmations'] = array_values(array_merge($details['manual_overage_confirmations'] ?? [], [[
+                    'amount' => $payableIncrease,
+                    'debt_overage' => $confirmedDebtOverage,
+                    'confirmed_by_id' => $request->user()?->id,
+                    'confirmed_by_name' => $request->user()?->name ?: 'سیستم',
+                    'confirmed_at' => now()->toISOString(),
+                ]]));
+            }
+            $details['overpayment_amount'] = $overpayment;
+            if ($overpayment > 0) {
+                $details['overpayment_confirmed_by_id'] = $request->user()?->id;
+                $details['overpayment_confirmed_by_name'] = $request->user()?->name ?: 'سیستم';
+                $details['overpayment_confirmed_at'] = now()->toISOString();
+            }
             $paymentLedger = AppointmentFinancialTransaction::query()
                 ->where('appointment_id', $appointment->id)
                 ->where('type', 'payment')
@@ -1709,7 +1753,8 @@ class AppointmentController extends Controller
             $check = $paymentLedger->firstWhere('payment_method', 'چک');
             $details['check'] = ['amount' => (int) ($check['amount'] ?? 0), 'number' => $check['reference_number'] ?? '', 'dueDate' => $check['due_date'] ?? ''];
             $appointment->update([
-                'debt' => $totalDebt, 'payment_method' => $firstPayment['method'] ?? $appointment->payment_method,
+                'amount' => $payable, 'debt' => $balance['balance'],
+                'payment_method' => $firstPayment['method'] ?? $appointment->payment_method,
                 'payment_account' => $firstPayment['account'] ?? $appointment->payment_account,
                 'payment_details' => $details, 'lock_version' => max(1, (int) $appointment->lock_version) + 1,
             ]);
@@ -2810,6 +2855,7 @@ class AppointmentController extends Controller
 
             $items = $this->withPatientHistorySections($items);
             $items = $this->withPatientHistoryRegistrationMeta($items);
+            app(AppointmentAutomaticSmsService::class)->decorateAppointments($items);
 
             return response()->json([
                 'data' => $this->hideAppointmentPhones($items, $request),
@@ -2826,6 +2872,7 @@ class AppointmentController extends Controller
 
         $items = $this->withPatientHistorySections($items);
         $items = $this->withPatientHistoryRegistrationMeta($items);
+        app(AppointmentAutomaticSmsService::class)->decorateAppointments($items);
 
         return response()->json($this->hideAppointmentPhones($items, $request));
     }

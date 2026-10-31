@@ -54,6 +54,8 @@ class StoreDynamicReportRequest extends FormRequest
             'filters.multi.custseg.*' => ['required', 'string', 'distinct', Rule::in(['آبی', 'نقره‌ای', 'طلایی', 'blue', 'silver', 'gold'])],
             'filters.multi.status' => ['sometimes', 'array', 'max:6'],
             'filters.multi.status.*' => ['required', 'string', 'distinct', Rule::in(config('dynamic_reports.appointment_statuses', []))],
+            'filters.multi.doctor' => ['sometimes', 'array', 'max:20'],
+            'filters.multi.doctor.*' => ['required', 'string', 'distinct', 'max:100'],
             'filters.multi.source' => ['sometimes', 'array', 'max:20'],
             'filters.multi.source.*' => ['required', 'string', 'distinct', 'max:100'],
             'filters.multi.work' => ['sometimes', 'array', 'max:4'],
@@ -116,6 +118,7 @@ class StoreDynamicReportRequest extends FormRequest
                     ->map(fn ($level) => ['آبی' => 'blue', 'نقره‌ای' => 'silver', 'طلایی' => 'gold'][$level] ?? $level)
                     ->unique()->values()->all(),
                 'status' => collect(data_get($data, 'filters.multi.status', []))->filter()->unique()->values()->all(),
+                'doctor' => collect(data_get($data, 'filters.multi.doctor', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'source' => collect(data_get($data, 'filters.multi.source', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'work' => collect(data_get($data, 'filters.multi.work', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'section2' => collect(data_get($data, 'filters.multi.section2', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),

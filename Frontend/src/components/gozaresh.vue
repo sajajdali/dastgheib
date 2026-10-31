@@ -6,7 +6,7 @@
         <button type="button" @click="activeView = 'reports'">داشبورد</button>
         <button type="button" class="active">گزارش‌ساز</button>
       </div>
-      <ReportBuilder :permissions="permissions" />
+      <ReportBuilder :permissions="permissions" :assistant-request="assistantReport" />
     </template>
   </section>
 </template>
@@ -19,11 +19,14 @@ export default {
   name: 'Gozaresh',
   components: { NativeStaticReports, ReportBuilder },
   props: {
-    permissions: { type: Array, default: () => [] }
+    permissions: { type: Array, default: () => [] },
+    initialView: { type: String, default: 'reports' },
+    assistantReport: { type: Object, default: null }
   },
   data() {
-    return { activeView: 'reports' }
-  }
+    return { activeView: this.initialView }
+  },
+  watch: { initialView(value) { this.activeView = value } }
 }
 </script>
 

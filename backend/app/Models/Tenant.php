@@ -23,6 +23,12 @@ class Tenant extends BaseTenant implements TenantWithDatabase
         'settings',
     ];
 
+    public function assistantEnabled(): bool
+    {
+        return in_array('ai_assistant', $this->module_ids ?? [], true)
+            || (bool) ($this->ai_assistant_enabled ?? false);
+    }
+
     protected static function booted(): void
     {
         static::saving(function (Tenant $tenant): void {

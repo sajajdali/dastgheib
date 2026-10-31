@@ -22,6 +22,8 @@ class SafeCollectionPersistenceTest extends TestCase
             \Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains::class,
             \Stancl\Tenancy\Middleware\InitializeTenancyByDomain::class,
             \App\Http\Middleware\EnsureTenantIsActive::class,
+            \App\Http\Middleware\EnsureTenantSubscriptionActive::class,
+            \App\Http\Middleware\EnforceTenantStorageQuota::class,
             \Illuminate\Auth\Middleware\Authenticate::class,
             \Spatie\Permission\Middleware\RoleMiddleware::class,
             \Spatie\Permission\Middleware\PermissionMiddleware::class,

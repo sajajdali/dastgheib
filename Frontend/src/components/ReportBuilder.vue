@@ -552,7 +552,8 @@ export default {
   name: 'ReportBuilder',
   components: { PatientAvatar },
   props: {
-    permissions: { type: Array, default: () => [] }
+    permissions: { type: Array, default: () => [] },
+    assistantRequest: { type: Object, default: null }
   },
   data() {
     const vals = {};
@@ -671,6 +672,16 @@ export default {
     }
   },
   methods: {
+    applyAssistantRequest(request) {
+      if (!request?.doctor || !/^1[34]\d{2}-\d{2}-\d{2}$/.test(request.from || '') || !/^1[34]\d{2}-\d{2}-\d{2}$/.test(request.to || '')) return;
+      const parts = value => value.split('-').map(Number);
+      this.reportScope = 'patients';
+      this.show = { name: true, family: true, fileNo: true };
+      this.multi = { ...this.multi, doctor: [request.doctor] };
+      this.reportDate = { from: parts(request.from), to: parts(request.to) };
+      this.filtersOpen = true;
+      this.$nextTick(() => this.buildReport());
+    },
     pd,
     patientDisplayName(patient) {
       return [patient?.first_name, patient?.last_name].map(value => String(value || '').trim()).filter(Boolean).join(' ') || 'مشتری';
@@ -966,7 +977,8 @@ export default {
       };
     }
   },
-  mounted() { this.restorePresets(); this.loadReportOptions(); },
+  watch: { assistantRequest: { handler(value) { this.applyAssistantRequest(value); }, deep: false } },
+  mounted() { this.restorePresets(); this.loadReportOptions(); this.applyAssistantRequest(this.assistantRequest); },
   beforeUnmount() { clearTimeout(this.timer); this.unsubscribeReport?.(); },
   beforeDestroy() { clearTimeout(this.timer); this.unsubscribeReport?.(); }
 };

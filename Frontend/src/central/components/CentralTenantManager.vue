@@ -106,6 +106,7 @@
             <div v-if="tenant.subscription?.managed" class="central-small">
               {{ tenant.subscription?.is_expired ? 'منقضی شده' : `${formatNumber(tenant.subscription?.days_remaining || 0)} روز مانده` }}
             </div>
+            <div class="central-small">دستیار هوش مصنوعی: {{ tenant.ai_assistant_enabled ? 'فعال' : 'غیرفعال' }}</div>
             <div v-if="tenant.subscription?.pending_renewal" class="central-pending-renewal">
               <strong>درخواست تمدید:</strong>
               {{ tenant.subscription.pending_renewal.plan_name }} ·
@@ -279,7 +280,7 @@ watch(
   enabledModules,
   (modules) => {
     if (!selectedModulesInitialized.value) {
-      selectedModules.value = modules.map((module) => module.id);
+      selectedModules.value = modules.filter((module) => module.id !== "ai_assistant").map((module) => module.id);
       selectedModulesInitialized.value = true;
     }
   },
@@ -316,7 +317,10 @@ function startEditTenant(tenant) {
   tenantEditor.storageQuotaGb = Number(tenant.storage?.base_quota_bytes || 0) / 1073741824;
   tenantEditor.moduleIds = Array.isArray(tenant.module_ids)
     ? [...tenant.module_ids]
-    : enabledModules.value.map((module) => module.id);
+    : enabledModules.value.filter((module) => module.id !== "ai_assistant").map((module) => module.id);
+  if (tenant.ai_assistant_enabled === true && !tenantEditor.moduleIds.includes("ai_assistant")) {
+    tenantEditor.moduleIds.push("ai_assistant");
+  }
 }
 
 function resetTenantEditor() {

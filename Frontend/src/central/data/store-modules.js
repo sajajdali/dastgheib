@@ -65,10 +65,16 @@ export const STORE_MODULES = STORE_MODULES_RAW.map((module) => ({
     : (module.image || moduleImage(module.icon, module.color)),
 }));
 
-export const CENTRAL_MODULES = STORE_MODULES.map(({ key, title, price, periods, comingSoon }) => ({
+export const CENTRAL_MODULES = [...STORE_MODULES.map(({ key, title, price, periods, comingSoon }) => ({
   id: key,
   name: title,
   price,
   periods,
   enabled: !comingSoon,
-}));
+})), {
+  id: "ai_assistant",
+  name: "دستیار هوش مصنوعی",
+  price: 0,
+  periods: oneTime(0),
+  enabled: true,
+}];

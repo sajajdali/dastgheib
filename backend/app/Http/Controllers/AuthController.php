@@ -198,7 +198,12 @@ class AuthController extends Controller
                 'id' => tenant('id'),
                 'name' => $tenant->name ?? tenant('id'),
                 'status' => $tenant->status ?? 'active',
-                'module_ids' => Tenant::withBaseModules([...$legacyModules, ...$subscriptionModules]),
+                'ai_assistant_enabled' => $tenant->assistantEnabled(),
+                'module_ids' => Tenant::withBaseModules([
+                    ...$legacyModules,
+                    ...$subscriptionModules,
+                    ...($tenant->assistantEnabled() ? ['ai_assistant'] : []),
+                ]),
                 'plan_id' => $subscription['plan_id'],
                 'plan' => $subscription['managed'] ? [
                     'id' => $subscription['plan_id'],

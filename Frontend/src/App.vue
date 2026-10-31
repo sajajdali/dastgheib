@@ -268,7 +268,7 @@
         @open-photos="openPhotosFromNotification"
       />
 
-      <Gozaresh v-if="currentPage === 'Gozaresh'" :permissions="user.permissions || []" />
+      <Gozaresh v-if="currentPage === 'Gozaresh'" :permissions="user.permissions || []" :initial-view="reportInitialView" :assistant-report="pendingAssistantReport" />
       <ActivityLogs v-if="currentPage === 'ActivityLogs'" :permissions="user.permissions || []" />
 
       <Anbar ref="inventory" v-if="currentPage === 'Anbar'" />
@@ -300,7 +300,7 @@
       <PayrollSettlement v-if="currentPage === 'Payroll' && user.permissions?.includes('payroll.view')" />
 
       <!-- تنظیمات -->
-      <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : settingsInitialSection" :initial-accordion="settingsInitialAccordion" />
+      <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : settingsInitialSection" :initial-accordion="settingsInitialAccordion" :initial-resource-tab="settingsInitialResourceTab" />
       <Store
         v-if="currentPage === 'Store'"
         :enabled-features="tenantEnabledFeatures"
@@ -412,6 +412,8 @@
 
     </div>
 
+    <AiAssistant :dark="isDark" :user="user" @navigate="openAssistantPage" />
+
   </div>
 </template>
 
@@ -462,6 +464,7 @@ import SubscriptionRenewal from "./components/SubscriptionRenewal.vue";
 
 import HRtimes from "./components/HRtimes.vue";
 import PayrollSettlement from "./components/PayrollSettlement.vue";
+import AiAssistant from "./components/AiAssistant.vue";
 import { startPresence, stopPresence } from "./services/presence";
 
 const centralDomains = (import.meta.env.VITE_CENTRAL_DOMAINS || "localhost,127.0.0.1,admin.s8n.ir")
@@ -516,7 +519,8 @@ export default {
     SubscriptionRenewal,
 
     HRtimes,
-    PayrollSettlement
+    PayrollSettlement,
+    AiAssistant
 
   },
 
@@ -537,6 +541,8 @@ export default {
       pendingPatientProfileRequest: null
       ,pendingBeautyRecordRequest: null
       ,pendingAppointmentViewRequest: null
+      ,reportInitialView: 'reports'
+      ,pendingAssistantReport: null
       ,pendingFollowupAppointmentResult: null
       ,pendingFollowupOpenRequest: null
       ,authNoticeOpen: false
@@ -551,6 +557,7 @@ export default {
       ,pendingStoreModuleKey: ""
       ,settingsInitialAccordion: ""
       ,settingsInitialSection: "internal"
+      ,settingsInitialResourceTab: "doctor"
       // حضور و غیاب فقط بر اساس ماژول اشتراک مجموعه کنترل می‌شود.
       ,attendanceEnabled: true
       ,uiMenuOpen: false
@@ -1358,6 +1365,44 @@ export default {
         cancelButtonColor: '#0f766e'
       });
       return result.isConfirmed;
+    },
+
+    openAssistantPage({ page, date, file_number, media_id, report }) {
+      if ((page === 'patient_profile' || page === 'patient_photo') && file_number) {
+        this.changePage('Parvande').then(() => {
+          if (this.currentPage === 'Parvande') this.pendingPatientProfileRequest = { file_number, open_media: page === 'patient_photo', media_id: page === 'patient_photo' ? media_id : null, requestedAt: Date.now() };
+        });
+        return;
+      }
+      const internalAccordions = {
+        settings_profile: 'profile', settings_company: 'company',
+        settings_appointment_columns: 'appointmentColumns', settings_birthday_sms: 'birthdaySmsAutomation',
+        settings_wallet: 'customerWallet', settings_report_target: 'reportTarget',
+        settings_clinic_schedule: 'clinicSchedule', settings_password: 'password',
+        settings_customer_levels: 'customerLevels',
+      };
+      const settingsSections = {
+        settings_sms: 'sms', settings_payments: 'payments', settings_voip: 'voip',
+        settings_roles: 'roles', settings_storage: 'storage',
+        settings_resources: 'resources', settings_doctors: 'resources',
+        settings_staff: 'resources', settings_channels: 'resources',
+      };
+      if (internalAccordions[page] || settingsSections[page]) {
+        const section = settingsSections[page] || 'internal';
+        this.settingsInitialResourceTab = page === 'settings_staff' ? 'staff' : page === 'settings_channels' ? 'channels' : 'doctor';
+        this.changePage('Setting', section).then(() => {
+          if (this.currentPage === 'Setting') this.settingsInitialAccordion = internalAccordions[page] || '';
+        });
+        return;
+      }
+      const pages = { appointments: 'Vaghtdahi', followups: 'Peygiri', service_followups: 'ServiceFollowups', reports: 'Gozaresh', report_builder: 'Gozaresh', activity_logs: 'ActivityLogs', patients: 'Parvande', inventory: 'Anbar', expenses: 'Bills', photos: 'Photos', beauty: 'dermatracker', services: 'Products', tickets: 'Ticket', attendance: 'HRtimes', payroll: 'Payroll', settings: 'Setting', satisfaction: 'Satisfaction', automation: 'Automation', automatic_sms: 'AutomaticSms', store: 'Store' };
+      if (page === 'reports' || page === 'report_builder') this.reportInitialView = page === 'report_builder' ? 'builder' : 'reports';
+      if (page === 'report_builder' && report) this.pendingAssistantReport = { ...report, requestedAt: Date.now() };
+      if (pages[page]) this.changePage(pages[page]).then(() => {
+        if (page === 'appointments' && date && this.currentPage === 'Vaghtdahi') {
+          this.pendingAppointmentViewRequest = { view: 'timeline', date, requestedAt: Date.now() };
+        }
+      });
     },
 
     async changePage(menuValue, settingsSection = 'internal') {

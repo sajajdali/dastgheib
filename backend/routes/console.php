@@ -23,6 +23,7 @@ Schedule::call(fn () => (new SendLeadAlertSms('night'))->handle(app(ShsmsService
 Schedule::command('modules:expire-subscriptions')->hourly()->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('subscriptions:expire')->hourly()->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('storage:reconcile')->dailyAt('03:00')->timezone('Asia/Tehran')->withoutOverlapping();
+Schedule::command('automatic-sms:send-due')->everyMinute()->timezone('Asia/Tehran')->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

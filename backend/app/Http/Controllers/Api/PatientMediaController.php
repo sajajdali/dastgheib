@@ -8,6 +8,8 @@ use App\Models\InventorySection;
 use App\Models\Patient;
 use App\Models\PatientMedia;
 use App\Models\PatientMediaFolder;
+use App\Services\PatientImageOptimizer;
+use App\Services\PatientPhotoSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +17,11 @@ use Illuminate\Support\Str;
 
 class PatientMediaController extends Controller
 {
+    public function __construct(
+        private readonly PatientPhotoSettings $photoSettings,
+        private readonly PatientImageOptimizer $imageOptimizer,
+    ) {}
+
     private const PHOTO_ANGLES = [
         'right_profile' => ['label' => 'نیم‌رخ راست', 'degrees' => 90],
         'right_three_quarter_60' => ['label' => 'سه‌رخ اول راست', 'degrees' => 60],
@@ -72,6 +79,9 @@ class PatientMediaController extends Controller
             'shared_upload_metadata' => $this->sharedUploadMetadata($patient, $folderId),
             'sections' => $this->mediaSections(),
             'service_groups' => $this->serviceGroups(),
+            'photo_processing_settings' => $this->photoSettings->forFolder(
+                $folderId ? PatientMediaFolder::query()->where('patient_id', $patient->id)->find($folderId) : null
+            ),
         ]);
     }
 
@@ -110,16 +120,16 @@ class PatientMediaController extends Controller
             ->get()
             ->first(fn (PatientMedia $item) => ! empty($item->services));
 
-        if (! $media) {
-            return null;
-        }
-
         return [
             'service_folder_id' => $folder->id,
-            'description' => $media->description ?: '',
-            'usage_consent' => (bool) $media->usage_consent,
-            'is_featured' => (bool) $media->is_featured,
-            'services' => $media->services ?: [],
+            'description' => $media?->description ?: $folder->upload_description ?: '',
+            'usage_consent' => $media
+                ? (bool) $media->usage_consent
+                : (bool) $folder->upload_usage_consent,
+            'is_featured' => $media
+                ? (bool) $media->is_featured
+                : (bool) $folder->upload_is_featured,
+            'services' => $media?->services ?: $folder->services ?: [],
         ];
     }
 
@@ -130,6 +140,10 @@ class PatientMediaController extends Controller
             'date' => 'required_if:type,date|nullable|string|max:20|regex:/^[0-9۰-۹٠-٩]{4}[-\/][0-9۰-۹٠-٩]{2}[-\/][0-9۰-۹٠-٩]{2}$/u',
             'section_id' => 'nullable|integer|exists:inventory_sections,id',
             'parent_id' => 'nullable|integer|exists:patient_media_folders,id',
+            'services' => 'nullable|array',
+            'description' => 'nullable|string',
+            'usage_consent' => 'nullable|boolean',
+            'is_featured' => 'nullable|boolean',
         ]);
 
         if ($data['type'] === 'date') {
@@ -195,6 +209,22 @@ class PatientMediaController extends Controller
         }
 
         $folderName = $section->name;
+        $services = $this->normalizeServiceTags($data['services'] ?? []);
+
+        if (! count($services)) {
+            return response()->json([
+                'message' => 'برای ساخت فولدر انتخاب حداقل یک ناحیه الزامی است.',
+                'errors' => ['services' => ['حداقل یک ناحیه را انتخاب کنید.']],
+            ], 422);
+        }
+
+        $uploadMetadata = [
+            'services' => $services,
+            'upload_description' => $data['description'] ?? null,
+            'upload_usage_consent' => $data['usage_consent'] ?? true,
+            'upload_is_featured' => $data['is_featured'] ?? false,
+            'photo_processing_settings' => $this->photoSettings->current(),
+        ];
 
         $existingFolder = PatientMediaFolder::query()
             ->where('patient_id', $patient->id)
@@ -203,6 +233,9 @@ class PatientMediaController extends Controller
             ->first();
 
         if ($existingFolder) {
+            if (empty($existingFolder->services)) {
+                $existingFolder->update($uploadMetadata);
+            }
             $existingFolder->load('children');
 
             return response()->json([
@@ -220,6 +253,7 @@ class PatientMediaController extends Controller
             'folder_type' => 'service',
             'folder_date' => $parent->folder_date,
             'inventory_section_id' => $section?->id,
+            ...$uploadMetadata,
         ]);
 
         foreach ([
@@ -285,31 +319,42 @@ class PatientMediaController extends Controller
         $services = $this->normalizeServiceTags($services);
 
         $created = [];
-        foreach ($request->file('files', []) as $file) {
-            $type = Str::startsWith((string) $file->getMimeType(), 'video/') ? 'video' : 'image';
-            $path = $file->store("patients/{$patient->id}/media", 'public');
+        $storedPaths = [];
+        try {
+            DB::transaction(function () use ($request, $patient, $folder, $folderId, $services, $comparisonStage, $angle, $data, &$created, &$storedPaths): void {
+                $settings = $this->photoSettings->forFolder($folder);
+                foreach ($request->file('files', []) as $file) {
+                    $type = Str::startsWith((string) $file->getMimeType(), 'video/') ? 'video' : 'image';
+                    $stored = $this->imageOptimizer->store($file, "patients/{$patient->id}/media", $settings);
+                    $path = $stored['path'];
+                    $storedPaths[] = $path;
 
-            $created[] = PatientMedia::create([
-                'patient_id' => $patient->id,
-                'uploaded_by' => $request->user()?->id,
-                'folder_id' => $folderId,
-                'file_name' => basename($path),
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType(),
-                'media_type' => $type,
-                'path' => $path,
-                'size' => $file->getSize() ?: 0,
-                'is_featured' => $request->boolean('is_featured'),
-                'usage_consent' => ! $request->has('usage_consent') || $request->boolean('usage_consent'),
-                'gender' => null,
-                'age_group' => null,
-                'description' => $data['description'] ?? null,
-                'services' => $services,
-                'comparison_stage' => $comparisonStage,
-                'photo_angle_key' => $angle ? $data['photo_angle_key'] : null,
-                'photo_angle_label' => $angle['label'] ?? null,
-                'photo_angle_degrees' => $angle['degrees'] ?? null,
-            ]);
+                    $created[] = PatientMedia::create([
+                        'patient_id' => $patient->id,
+                        'uploaded_by' => $request->user()?->id,
+                        'folder_id' => $folderId,
+                        'file_name' => basename($path),
+                        'original_name' => $file->getClientOriginalName(),
+                        'mime_type' => $stored['mime_type'],
+                        'media_type' => $type,
+                        'path' => $path,
+                        'size' => $stored['size'],
+                        'is_featured' => $request->boolean('is_featured'),
+                        'usage_consent' => ! $request->has('usage_consent') || $request->boolean('usage_consent'),
+                        'gender' => null,
+                        'age_group' => null,
+                        'description' => $data['description'] ?? null,
+                        'services' => $services,
+                        'comparison_stage' => $comparisonStage,
+                        'photo_angle_key' => $angle ? $data['photo_angle_key'] : null,
+                        'photo_angle_label' => $angle['label'] ?? null,
+                        'photo_angle_degrees' => $angle['degrees'] ?? null,
+                    ]);
+                }
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($storedPaths);
+            throw $exception;
         }
 
         return response()->json($created, 201);
@@ -357,23 +402,36 @@ class PatientMediaController extends Controller
             $data['services'] = $this->normalizeServiceTags($services);
         }
 
-        if ($request->hasFile('file')) {
-            if ($media->path) {
-                Storage::disk('public')->delete($media->path);
+        $previousPath = $media->path;
+        $newPath = null;
+        try {
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $stored = $this->imageOptimizer->store(
+                    $file,
+                    "patients/{$patient->id}/media",
+                    $this->photoSettings->forFolder($folder)
+                );
+                $newPath = $stored['path'];
+
+                $data['file_name'] = basename($newPath);
+                $data['original_name'] = $file->getClientOriginalName();
+                $data['mime_type'] = $stored['mime_type'];
+                $data['media_type'] = Str::startsWith((string) $file->getMimeType(), 'video/') ? 'video' : 'image';
+                $data['path'] = $newPath;
+                $data['size'] = $stored['size'];
             }
 
-            $file = $request->file('file');
-            $path = $file->store("patients/{$patient->id}/media", 'public');
-
-            $data['file_name'] = basename($path);
-            $data['original_name'] = $file->getClientOriginalName();
-            $data['mime_type'] = $file->getMimeType();
-            $data['media_type'] = Str::startsWith((string) $file->getMimeType(), 'video/') ? 'video' : 'image';
-            $data['path'] = $path;
-            $data['size'] = $file->getSize() ?: 0;
+            $media->update($data);
+        } catch (\Throwable $exception) {
+            if ($newPath) {
+                Storage::disk('public')->delete($newPath);
+            }
+            throw $exception;
         }
-
-        $media->update($data);
+        if (isset($data['path']) && $previousPath && $previousPath !== $data['path']) {
+            Storage::disk('public')->delete($previousPath);
+        }
 
         $fresh = $media->fresh()->load('uploader:id,name');
         $fresh->folder_path = $this->folderPath($patient, $fresh->folder_id);
@@ -388,6 +446,9 @@ class PatientMediaController extends Controller
         abort_unless($media->path && Storage::disk('public')->exists($media->path), 404);
 
         $downloadName = basename($media->original_name ?: $media->file_name ?: 'patient-photo');
+        if ($media->mime_type === 'image/webp') {
+            $downloadName = pathinfo($downloadName, PATHINFO_FILENAME).'.webp';
+        }
 
         return Storage::disk('public')->download($media->path, $downloadName, [
             'Content-Type' => $media->mime_type ?: 'application/octet-stream',

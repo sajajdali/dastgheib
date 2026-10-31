@@ -294,9 +294,12 @@ const staffSaves = new WeakMap();
 
 export default {
   components: { CommissionRules },
+  props: {
+    initialTab: { type: String, default: 'doctor' },
+  },
   data() {
   return {
-    activeTab: null,
+    activeTab: ['doctor', 'staff', 'channels'].includes(this.initialTab) ? this.initialTab : 'doctor',
     activeDoctorIndex: null,
     activeStaffIndex: null,
     activeChannelIndex: null,
@@ -384,6 +387,9 @@ export default {
   },
 
   watch: {
+    initialTab(tab) {
+      if (['doctor', 'staff', 'channels'].includes(tab)) this.activeTab = tab;
+    },
     doctorRows: {
       handler() {
         if (this.isSyncingResourceRows) return;

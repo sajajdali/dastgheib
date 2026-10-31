@@ -45,6 +45,7 @@ class ModuleSubscriptionService
         return Tenant::withBaseModules([
             ...$storedModuleIds,
             ...$this->activeModuleIds($tenantId),
+            ...($tenant?->assistantEnabled() ? ['ai_assistant'] : []),
         ]);
     }
 

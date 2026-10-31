@@ -51,6 +51,7 @@ class CentralTenantController extends Controller
             'storage_quota_gb' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'module_ids' => ['sometimes', 'array'],
             'module_ids.*' => ['string', 'max:120'],
+            'ai_assistant_enabled' => ['sometimes', 'boolean'],
         ]);
 
         $tenant = Tenant::create([
@@ -60,6 +61,7 @@ class CentralTenantController extends Controller
             'plan_id' => $data['plan_id'] ?? null,
             'user_count' => $data['user_count'] ?? 1,
             'module_ids' => Tenant::withBaseModules($data['module_ids'] ?? []),
+            'ai_assistant_enabled' => in_array('ai_assistant', $data['module_ids'] ?? [], true),
         ]);
 
         $tenant->domains()->create(['domain' => Str::lower($data['domain'])]);
@@ -98,10 +100,17 @@ class CentralTenantController extends Controller
             'storage_quota_gb' => ['sometimes', 'integer', 'min:0', 'max:10000'],
             'module_ids' => ['sometimes', 'array'],
             'module_ids.*' => ['string', 'max:120'],
+            'ai_assistant_enabled' => ['sometimes', 'boolean'],
         ]);
 
         if (array_key_exists('module_ids', $data)) {
             $data['module_ids'] = Tenant::withBaseModules($data['module_ids']);
+            $data['ai_assistant_enabled'] = in_array('ai_assistant', $data['module_ids'], true);
+        } elseif (array_key_exists('ai_assistant_enabled', $data)) {
+            $modules = $tenant->module_ids ?? [];
+            $data['module_ids'] = Tenant::withBaseModules($data['ai_assistant_enabled']
+                ? [...$modules, 'ai_assistant']
+                : array_values(array_diff($modules, ['ai_assistant'])));
         }
 
         if (array_key_exists('user_count', $data)) {
@@ -235,6 +244,7 @@ class CentralTenantController extends Controller
             'user_count' => $tenant->user_count ?? 1,
             'storage' => $storage,
             'module_ids' => $this->subscriptions->enabledModuleIds($tenant->getTenantKey()),
+            'ai_assistant_enabled' => $tenant->assistantEnabled(),
             'module_subscriptions' => $this->moduleSubscriptions($tenant),
             'subscription' => $this->tenantSubscriptions->statusData($tenant),
             'domains' => $tenant->domains

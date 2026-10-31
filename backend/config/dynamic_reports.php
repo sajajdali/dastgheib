@@ -2,6 +2,7 @@
 
 use App\Reporting\DynamicReports\Filters\BirthDateFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentStatusFilter;
+use App\Reporting\DynamicReports\Filters\AppointmentDoctorFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentSourceFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentWorkFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentSectionFilter;
@@ -61,6 +62,7 @@ return [
         ReferrerFilter::class,
         NoReturnFilter::class,
         AppointmentStatusFilter::class,
+        AppointmentDoctorFilter::class,
         AppointmentSourceFilter::class,
         AppointmentWorkFilter::class,
         AppointmentSectionFilter::class,

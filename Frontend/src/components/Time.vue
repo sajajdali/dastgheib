@@ -1237,7 +1237,7 @@
                 <button
                   type="button"
                   class="row-actions-trigger"
-                  :class="{ active: activeRowActionMenu === row._rowId }"
+                  :class="{ active: activeRowActionMenu === row._rowId, 'automatic-sms-alert': automaticSmsSummary(row).active_count > 0 }"
                   title="نمایش عملیات این ردیف"
                   aria-label="نمایش عملیات این ردیف"
                   :aria-expanded="activeRowActionMenu === row._rowId"
@@ -1249,6 +1249,7 @@
 
                 <div v-if="activeRowActionMenu === row._rowId" class="row-actions-menu" role="menu" @click.stop>
                   <header><strong>عملیات نوبت</strong><small>{{ row.lastname || row.time || 'ردیف خالی' }}</small></header>
+                  <button v-if="automaticSmsSummary(row).total_count" type="button" role="menuitem" class="automatic-sms-menu-action" @click="openAutomaticSmsModal(row)"><i class="action-icon sms">✦</i><span><b>{{ automaticSmsSummary(row).total_count.toLocaleString('fa-IR') }} پیامک اتوماتیک · {{ automaticSmsSummary(row).active_count.toLocaleString('fa-IR') }} فعال</b><small>افزودن یا حذف پیامک‌های این نوبت</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('insert', day, row)"><i class="action-icon add">+</i><span><b>افزودن وقت</b><small>ساخت ردیف بعد از این ساعت</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('tracking', day, row)"><i class="action-icon clock">◷</i><span><b>گزارش زمان</b><small>ورود، انتظار و پایان نوبت</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('history', day, row)"><i class="action-icon history">≡</i><span><b>تاریخچه فعالیت</b><small>مشاهده کاربر و زمان تغییرات</small></span></button>
@@ -1263,6 +1264,47 @@
         </tbody>
 
       </table>
+    </div>
+
+    <div v-if="automaticSmsModalRow" class="automatic-sms-modal-overlay" @click.self="closeAutomaticSmsModal">
+      <section class="automatic-sms-modal" role="dialog" aria-modal="true" aria-labelledby="automatic-sms-modal-title" @click.stop>
+        <header>
+          <div class="automatic-sms-modal-heading">
+            <span class="automatic-sms-modal-icon">✦</span>
+            <div><small>پیامک‌های متصل به نوبت</small><h3 id="automatic-sms-modal-title">پیامک اتوماتیک</h3><p>{{ automaticSmsModalRow.lastname || 'مراجعه‌کننده' }} · {{ automaticSmsModalRow.time || 'بدون ساعت' }}</p></div>
+          </div>
+          <button type="button" class="automatic-sms-modal-close" title="بستن" aria-label="بستن" @click="closeAutomaticSmsModal">×</button>
+        </header>
+
+        <div class="automatic-sms-modal-summary">
+          <article class="active"><strong>{{ automaticSmsSummary(automaticSmsModalRow).active_count.toLocaleString('fa-IR') }}</strong><span>فعال</span></article>
+          <article><strong>{{ automaticSmsSummary(automaticSmsModalRow).sent_count.toLocaleString('fa-IR') }}</strong><span>ارسال‌شده</span></article>
+          <article :class="{ failed: automaticSmsSummary(automaticSmsModalRow).failed_count }"><strong>{{ automaticSmsSummary(automaticSmsModalRow).failed_count.toLocaleString('fa-IR') }}</strong><span>خطا</span></article>
+        </div>
+
+        <div class="automatic-sms-modal-list">
+          <article
+            v-for="item in automaticSmsItems(automaticSmsModalRow)"
+            :key="item.id"
+            :class="[`sms-${item.status}`, { disabled: !item.is_enabled, saving: automaticSmsSavingIds.includes(item.id) }]"
+          >
+            <div class="automatic-sms-item-copy">
+              <span class="automatic-sms-item-dot"></span>
+              <div><strong>{{ item.inventory_tag }}</strong><small>{{ automaticSmsItemCaption(item) }}</small></div>
+            </div>
+            <div class="automatic-sms-item-side">
+              <i>{{ automaticSmsStatusLabel(item.status) }}</i>
+              <label class="automatic-sms-switch" :title="item.status === 'sent' ? 'پیامک ارسال‌شده قابل تغییر نیست' : (item.is_enabled ? 'حذف از پیامک‌های فعال' : 'افزودن به پیامک‌های فعال')">
+                <input type="checkbox" :checked="item.is_enabled" :disabled="item.status === 'sent' || automaticSmsSavingIds.includes(item.id)" @change="toggleAppointmentAutomaticSms(automaticSmsModalRow, item, $event.target.checked)">
+                <span></span><b>{{ item.status === 'sent' ? 'ارسال شده' : (item.is_enabled ? 'فعال' : 'افزودن') }}</b>
+              </label>
+            </div>
+          </article>
+          <div v-if="!automaticSmsItems(automaticSmsModalRow).length" class="automatic-sms-modal-empty">برای این نوبت پیامک اتوماتیکی تعریف نشده است.</div>
+        </div>
+
+        <footer><p>با خاموش‌کردن هر مورد، آن پیامک از ارسال‌های فعال این نوبت حذف می‌شود.</p><button type="button" @click="closeAutomaticSmsModal">بستن</button></footer>
+      </section>
     </div>
 
     <div v-if="appointmentHistoryOpen" class="appointment-history-overlay" @click.self="closeAppointmentHistory">
@@ -2070,6 +2112,12 @@
           </div>
           <button type="button" @click="$emit('open-sms-settings')">تنظیم پیامک‌ها <span>←</span></button>
         </section>
+        <button v-if="automaticSmsSummary(activeCompletionSmsRow).total_count" type="button" class="completion-automatic-sms-button" @click="openAutomaticSmsModal(activeCompletionSmsRow)">
+          <span>✦</span>
+          <strong>پیامک‌های اتوماتیک</strong>
+          <small>{{ automaticSmsSummary(activeCompletionSmsRow).active_count.toLocaleString('fa-IR') }} فعال از {{ automaticSmsSummary(activeCompletionSmsRow).total_count.toLocaleString('fa-IR') }} پیامک</small>
+          <b aria-hidden="true">←</b>
+        </button>
         <div v-if="activeCompletionSmsRow?.referrerPhone" class="completion-referral-info">معرف: {{ displayPatientPhone(activeCompletionSmsRow.referrerPhone) }} — مبلغ: {{ formatDisplayMoney(activeCompletionSmsRow.referralScore || 0) }} تومان</div>
         <section v-if="sentCompletionSmsOptions.length" class="completion-sms-history">
           <strong>پیامک‌های ارسال‌شده</strong>
@@ -2371,7 +2419,7 @@
         <div v-if="!activeFinancialRow?.patientId" class="financial-patient-warning">برای ثبت بیعانه، ابتدا بیمار را از پرونده‌های موجود انتخاب کنید.</div>
         <footer>
           <button type="button" class="financial-cancel" @click="closeFinancialPanel">انصراف</button>
-          <button type="button" class="financial-save" :disabled="financialSaving" @click="saveFinancialPanel">{{ financialSaving ? 'در حال ثبت...' : 'ثبت وضعیت مالی' }}</button>
+          <button type="button" class="financial-save" :disabled="financialSaving || financialContextLoading" @click="saveFinancialPanel">{{ financialContextLoading ? 'در حال دریافت اطلاعات مالی...' : (financialSaving ? 'در حال ثبت...' : 'ثبت وضعیت مالی') }}</button>
         </footer>
       </section>
     </div>
@@ -2620,6 +2668,8 @@ export default {
       allCollapsed: false,
       activeServicePopup: null,
       activeRowActionMenu: null,
+      automaticSmsModalRow: null,
+      automaticSmsSavingIds: [],
       highlightedRowId: null,
       highlightedRowTimer: null,
       timelineModalOpen: false,
@@ -2773,6 +2823,7 @@ export default {
       financialCheckNumberDraft: "",
       financialCheckDueDateDraft: "",
       financialSaving: false,
+      financialContextLoading: false,
       dailyReportModalOpen: false,
       activeDailyReport: null,
       completionSmsOptions: [
@@ -3691,6 +3742,7 @@ export default {
         discount: item.discount ? this.formatDisplayMoney(item.discount) : '', newCustomer: Boolean(item.new_customer),
         appointmentSms: this.emptyScheduleCellValue(item.appointment_sms),
         infoSms: this.emptyScheduleCellValue(item.info_sms), completionSmsStatuses: item.completion_sms_statuses || {},
+        automaticSms: item.automatic_sms || { items: [], total_count: 0, active_count: 0, sent_count: 0, failed_count: 0, has_active: false },
         serviceTypes: this.normalizeServiceSectionIds(item.service_types), services
       };
     },
@@ -3744,6 +3796,10 @@ export default {
         cash: 0,
         card: 0,
         payment_breakdown: {},
+        ledger_total: null,
+        manual_overage: 0,
+        manual_overage_confirmations: [],
+        overpayment_amount: 0,
         check: {
           amount: 0,
           number: "",
@@ -3760,6 +3816,13 @@ export default {
         payment_breakdown: details?.payment_breakdown && typeof details.payment_breakdown === 'object'
           ? Object.fromEntries(Object.entries(details.payment_breakdown).map(([method, amount]) => [method, Math.max(0, this.moneyToNumber(amount))]))
           : {},
+        ledger_total: details?.ledger_total == null ? null : Math.max(0, this.moneyToNumber(details.ledger_total)),
+        manual_overage: Math.max(0, this.moneyToNumber(details?.manual_overage || 0)),
+        manual_overage_confirmations: Array.isArray(details?.manual_overage_confirmations) ? details.manual_overage_confirmations : [],
+        overpayment_amount: Math.max(0, this.moneyToNumber(details?.overpayment_amount || 0)),
+        overpayment_confirmed_by_id: details?.overpayment_confirmed_by_id || null,
+        overpayment_confirmed_by_name: String(details?.overpayment_confirmed_by_name || ''),
+        overpayment_confirmed_at: details?.overpayment_confirmed_at || null,
         check: {
           amount: Math.max(0, this.moneyToNumber(check.amount || 0)),
           number: String(check.number || ""),
@@ -6122,6 +6185,7 @@ export default {
             appointmentSms: this.emptyScheduleCellValue(item.appointment_sms),
             infoSms: this.emptyScheduleCellValue(item.info_sms),
             completionSmsStatuses: item.completion_sms_statuses || {},
+            automaticSms: item.automatic_sms || { items: [], total_count: 0, active_count: 0, sent_count: 0, failed_count: 0, has_active: false },
             serviceTypes: this.normalizeServiceSectionIds(item.service_types),
             services
           });
@@ -6215,17 +6279,18 @@ export default {
 
       const discount = this.totalServiceDiscount(row);
       const surcharge = this.totalServiceSurcharge(row);
+      const manualOverage = Math.max(0, this.moneyToNumber(row?.paymentDetails?.manual_overage || 0));
       row.discount = discount ? this.formatDisplayMoney(discount) : "";
 
       const walletApplied = Math.min(
         this.moneyToNumber(row.walletApplied),
-        Math.max(0, original + surcharge - discount)
+        Math.max(0, original + surcharge + manualOverage - discount)
       );
       row.walletApplied = walletApplied ? this.formatDisplayMoney(walletApplied) : "";
 
       const finalAmount =
         Math.max(
-          original + surcharge - discount - walletApplied,
+          original + surcharge + manualOverage - discount - walletApplied,
           0
         );
 
@@ -6459,6 +6524,10 @@ export default {
         const messages = [...new Set(Object.values(validationErrors).flat())]
           .filter(message => typeof message === 'string' && message.trim());
         if (messages.length) return messages.join('\n');
+      }
+      const status = Number(error?.response?.status || 0);
+      if (status >= 500) {
+        return 'ذخیره نوبت‌ها با خطای غیرمنتظره روبه‌رو شد. تغییرات شما روی این دستگاه حفظ شده است.';
       }
       const message = String(error?.response?.data?.message || '').trim();
       if (message) return message;
@@ -6764,6 +6833,7 @@ this.calculateFinalAmount(row)
               row.registeredAt = appointment.registered_at || row.registeredAt || appointment.created_at || '';
               row.lastEditedBy = appointment.last_edited_by || row.lastEditedBy || '';
               row.lastEditedAt = appointment.last_edited_at || row.lastEditedAt || '';
+              row.automaticSms = appointment.automatic_sms || row.automaticSms || { items: [], total_count: 0, active_count: 0, sent_count: 0, failed_count: 0, has_active: false };
               const rowDay = scheduledDays.find(day => (day.rows || []).includes(row));
               const rowIndex = rowDay?.rows.indexOf(row) ?? -1;
               const unchangedSinceRequest = rowDay && rowIndex >= 0
@@ -6873,6 +6943,7 @@ this.calculateFinalAmount(row)
         appointmentSms: "",
         infoSms: "",
         completionSmsStatuses: {},
+        automaticSms: { items: [], total_count: 0, active_count: 0, sent_count: 0, failed_count: 0, has_active: false },
         serviceTypes: [],
 
         referrerPhone: "",
@@ -7153,6 +7224,7 @@ this.calculateFinalAmount(row)
     async openFinancialPanel(row) {
       await this.fetchPaymentOptions();
       this.activeFinancialRow = row;
+      this.financialContextLoading = true;
       this.financialOpeningDebt = this.appointmentDebtAmount(row);
       this.financialDebtDraft = "";
       this.financialDebtDescriptionDraft = this.appointmentDebtDescription(row);
@@ -7167,7 +7239,6 @@ this.calculateFinalAmount(row)
       this.financialDebtOpen = false;
       this.financialDepositOpen = false;
       this.financialDepositHistory = [];
-      this.loadFinancialDepositHistory();
       const details = this.normalizePaymentDetails(row?.paymentDetails || {});
       this.financialOriginalRecordedPayment = this.recordedPaymentAmount(row);
       this.financialCashDraft = "";
@@ -7186,11 +7257,16 @@ this.calculateFinalAmount(row)
         ? [{ method: this.paymentOptions.methods[0], amount: this.formatDisplayMoney(initialPaymentAmount), account: '', reference_number: '', due_date: '' }]
         : [];
       this.financialPanelOpen = true;
-      this.loadFinancialContext();
+      try {
+        await Promise.all([this.loadFinancialContext(), this.loadFinancialDepositHistory()]);
+      } finally {
+        if (this.activeFinancialRow === row) this.financialContextLoading = false;
+      }
     },
 
     closeFinancialPanel() {
       this.financialPanelOpen = false;
+      this.financialContextLoading = false;
       this.activeFinancialRow = null;
       this.financialDebtDraft = "";
       this.financialDebtDescriptionDraft = "";
@@ -7524,7 +7600,7 @@ this.calculateFinalAmount(row)
 
     async saveFinancialPanel() {
       const row = this.activeFinancialRow;
-      if (!row) return;
+      if (!row || this.financialContextLoading) return;
       // ممکن است ذخیرهٔ خودکار هنوز در حال انجام نباشد و ردیف شناسهٔ سرور نداشته باشد.
       // قبل از ثبت خدمات/تسویه، خود ردیف را ذخیره می‌کنیم تا کاربر با هشدار اشتباه مواجه نشود.
       if (!row.appointmentId) {
@@ -7537,9 +7613,34 @@ this.calculateFinalAmount(row)
 
       const newDebt = this.financialRemainingDebtPreview();
       const debtLines = this.financialDebtLines.map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)), reason: String(line.reason || '').trim() })).filter(line => line.amount > 0);
-      if (debtLines.reduce((total, line) => total + line.amount, 0) !== newDebt) {
-        await Swal.fire({ icon: 'warning', title: 'جمع بدهی خدمات صحیح نیست', text: `جمع بدهی خدمات باید دقیقاً ${this.formatDisplayMoney(newDebt)} تومان باشد.` });
+      const debtTotal = debtLines.reduce((total, line) => total + line.amount, 0);
+      if (debtTotal < newDebt) {
+        const difference = newDebt - debtTotal;
+        await Swal.fire({
+          icon: 'warning',
+          title: 'جمع بدهی خدمات کمتر از مانده است',
+          html: `جمع بدهی خدمات <b>${this.formatDisplayMoney(debtTotal)} تومان</b> است، اما مانده قابل پرداخت <b>${this.formatDisplayMoney(newDebt)} تومان</b> است.<br>برای ثبت، باید <b>${this.formatDisplayMoney(difference)} تومان</b> به بدهی خدمات اضافه شود.`,
+          confirmButtonText: 'متوجه شدم'
+        });
         return;
+      }
+      let confirmDebtOverage = false;
+      if (debtTotal > newDebt) {
+        const difference = debtTotal - newDebt;
+        const resultingPayable = this.financialDraftPaymentTotal() + debtTotal;
+        const payableIncrease = Math.max(0, resultingPayable - this.moneyToNumber(row.amount));
+        const confirmation = await Swal.fire({
+          icon: 'warning',
+          title: 'بدهی بیشتر از مانده قابل پرداخت است',
+          html: `جمع بدهی خدمات <b>${this.formatDisplayMoney(debtTotal)} تومان</b> است؛ یعنی <b>${this.formatDisplayMoney(difference)} تومان</b> بیشتر از مانده محاسبه‌شده <b>${this.formatDisplayMoney(newDebt)} تومان</b>.<br><br>با تأیید شما، مبلغ قابل پرداخت نوبت <b>${this.formatDisplayMoney(payableIncrease)} تومان</b> افزایش می‌یابد و به <b>${this.formatDisplayMoney(resultingPayable)} تومان</b> می‌رسد. این افزایش به‌عنوان «مازاد تأییدشده» ثبت می‌شود.`,
+          showCancelButton: true,
+          confirmButtonText: 'تأیید و ثبت مبلغ بیشتر',
+          cancelButtonText: 'بازگشت و اصلاح',
+          confirmButtonColor: '#d97706',
+          reverseButtons: true,
+        });
+        if (!confirmation.isConfirmed) return;
+        confirmDebtOverage = true;
       }
       if (debtLines.some(line => !line.reason)) {
         await Swal.fire({ icon: 'warning', title: 'توضیحات بدهی ناقص است', text: 'برای هر خدمتی که بدهی دارد، توضیحات همان خدمت را وارد کنید.' });
@@ -7559,6 +7660,28 @@ this.calculateFinalAmount(row)
         return;
       }
 
+      let confirmOverpayment = false;
+      const payable = Math.max(0, this.moneyToNumber(row.amount));
+      const receivedTotal = this.financialDraftPaymentTotal();
+      const overpayment = debtTotal > newDebt ? 0 : Math.max(0, receivedTotal - payable);
+      const previouslyConfirmedOverpayment = Math.max(0, this.moneyToNumber(row?.paymentDetails?.overpayment_amount || 0));
+      if (overpayment > 0 && previouslyConfirmedOverpayment >= overpayment) {
+        confirmOverpayment = true;
+      } else if (overpayment > 0) {
+        const confirmation = await Swal.fire({
+          icon: 'warning',
+          title: 'مبلغ پرداختی بیشتر از مبلغ نوبت است',
+          html: `مبلغ قابل پرداخت نوبت <b>${this.formatDisplayMoney(payable)} تومان</b> است، اما جمع پرداخت‌ها <b>${this.formatDisplayMoney(receivedTotal)} تومان</b> شده است.<br>مبلغ <b>${this.formatDisplayMoney(overpayment)} تومان</b> به‌عنوان اضافه‌پرداخت ثبت خواهد شد.`,
+          showCancelButton: true,
+          confirmButtonText: 'تأیید و ثبت اضافه‌پرداخت',
+          cancelButtonText: 'بازگشت و اصلاح',
+          confirmButtonColor: '#d97706',
+          reverseButtons: true,
+        });
+        if (!confirmation.isConfirmed) return;
+        confirmOverpayment = true;
+      }
+
       this.financialSaving = true;
       try {
         let allocationOffset = Number(this.financialWalletApplied || 0);
@@ -7573,11 +7696,16 @@ this.calculateFinalAmount(row)
           wallet_payment: this.financialWalletApplied > 0 ? { amount: this.financialWalletApplied, allocations: this.allocateFinancialAmount(this.financialWalletApplied, 0) } : null,
           deposit_allocations: depositLines.map(line => ({ key: line.key, amount: line.amount })),
           service_lines: this.financialInvoiceLines.map(line => ({ key: line.key, service: line.service, section: line.section, subsection: line.subsection, parent_service: line.parent_service, is_addon: line.is_addon, quantity: line.quantity, gross_amount: line.grossAmount, discount_amount: line.discountAmount })),
+          confirm_debt_overage: confirmDebtOverage,
+          confirm_overpayment: confirmOverpayment,
         });
-        const previousDebt = Number(row.originalDebt || 0);
-        row.debt = newDebt ? this.formatDisplayMoney(newDebt) : "";
-        row.patientOutstandingDebt = Math.max(0, Number(row.patientOutstandingDebt || 0) - previousDebt + newDebt);
-        row.originalDebt = newDebt;
+        const previousDebt = Math.max(0, Number(row.originalDebt || 0));
+        const savedDebt = Number(data.appointment?.debt ?? debtTotal);
+        const savedPositiveDebt = Math.max(0, savedDebt);
+        row.amount = this.formatDisplayMoney(Number(data.appointment?.amount ?? payable));
+        row.debt = savedDebt ? this.formatDisplayMoney(savedDebt) : "";
+        row.patientOutstandingDebt = Math.max(0, Number(row.patientOutstandingDebt || 0) - previousDebt + savedPositiveDebt);
+        row.originalDebt = savedPositiveDebt;
         row.paymentMethod = payments[0]?.method || row.paymentMethod || '';
         row.paymentAccount = payments[0]?.account || row.paymentAccount || '';
         row.paymentDetails = this.normalizePaymentDetails({
@@ -8144,6 +8272,52 @@ this.calculateFinalAmount(row)
       this.activeRowActionMenu = shouldOpen ? row._rowId : null;
     },
 
+    openAutomaticSmsModal(row) {
+      if (!row || !this.automaticSmsSummary(row).total_count) return;
+      this.closeAllPopupsAndFilters();
+      this.activeRowActionMenu = null;
+      this.automaticSmsModalRow = row;
+    },
+
+    closeAutomaticSmsModal() {
+      this.automaticSmsModalRow = null;
+    },
+
+    automaticSmsSummary(row) {
+      return row?.automaticSms || { items: [], total_count: 0, active_count: 0, sent_count: 0, failed_count: 0, has_active: false };
+    },
+
+    automaticSmsItems(row) {
+      return Array.isArray(this.automaticSmsSummary(row).items) ? this.automaticSmsSummary(row).items : [];
+    },
+
+    automaticSmsStatusLabel(status) {
+      return ({
+        waiting_completion: 'منتظر انجام', scheduled: 'زمان‌بندی', sending: 'در حال ارسال',
+        sent: 'ارسال شد', disabled: 'خاموش', cancelled: 'لغو', failed: 'خطا',
+        skipped_returned: 'مراجعه مجدد'
+      })[status] || status || 'نامشخص';
+    },
+
+    automaticSmsItemCaption(item) {
+      if (item.status === 'sent' && item.sent_at) return `ارسال‌شده ${this.formatAuditDate(item.sent_at)}`;
+      if (item.scheduled_at) return `${Number(item.days_after || 0).toLocaleString('fa-IR')} روز بعد · ${String(item.send_at || '').slice(0, 5)}`;
+      return `پس از انجام کار · ${Number(item.days_after || 0).toLocaleString('fa-IR')} روز بعد`;
+    },
+
+    async toggleAppointmentAutomaticSms(row, item, enabled) {
+      if (!row?.appointmentId || !item?.id || this.automaticSmsSavingIds.includes(item.id)) return;
+      this.automaticSmsSavingIds.push(item.id);
+      try {
+        const { data } = await axios.patch(`/api/appointments/${row.appointmentId}/automatic-sms/${item.id}`, { is_enabled: enabled });
+        row.automaticSms = data?.automatic_sms || row.automaticSms;
+      } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'تغییر پیامک انجام نشد', text: error?.response?.data?.message || 'دوباره تلاش کنید.', confirmButtonText: 'باشه' });
+      } finally {
+        this.automaticSmsSavingIds = this.automaticSmsSavingIds.filter(id => id !== item.id);
+      }
+    },
+
     async handleRowAction(action, day, row) {
       this.activeRowActionMenu = null;
       if (action === 'insert') return this.insertRowAfter(day, row);
@@ -8569,6 +8743,9 @@ this.calculateFinalAmount(row)
         (total, payment) => total + Math.max(0, this.moneyToNumber(payment?.amount)),
         0
       );
+      if (details.ledger_total != null) return Number(details.ledger_total || 0) + settledDebt;
+      const breakdownTotal = Object.values(details.payment_breakdown || {}).reduce((total, amount) => total + Math.max(0, Number(amount || 0)), 0);
+      if (breakdownTotal > 0) return breakdownTotal + settledDebt;
       return Number(details.cash || 0) + Number(details.card || 0) + Number(details.check?.amount || 0) + settledDebt;
     },
 
@@ -13657,4 +13834,15 @@ td.st-arrived select {
   .service-choice-row .service-path-selectors .service-name-multiselect{grid-column:1/-1!important}
 }
 @media(max-width:700px){.service-path-selectors,.service-filter-groups{grid-template-columns:1fr!important}.service-choice-row .service-path-selectors .service-name-multiselect{grid-column:auto!important}}
+.automatic-sms-count{width:100%;margin-top:4px;padding:3px 5px!important;border:1px solid #cbd5e1!important;border-radius:7px!important;background:#f8fafc!important;color:#64748b!important;font-family:inherit;font-size:8px!important;font-weight:900;cursor:pointer}.automatic-sms-count span{margin-right:2px;font-size:10px}.automatic-sms-count.active{border-color:#86efac!important;background:#dcfce7!important;color:#15803d!important}.automatic-sms-count.failed{border-color:#fecaca!important;background:#fee2e2!important;color:#b91c1c!important}.row-actions-trigger.automatic-sms-alert{border-color:#f59e0b;background:#fffbeb;color:#b45309;animation:automaticSmsActionPulse 1.15s ease-in-out infinite}.automatic-sms-menu-action{background:linear-gradient(135deg,#f0fdf4,#fff)!important}.automatic-sms-menu-action .action-icon.sms{background:#dcfce7;color:#15803d}@keyframes automaticSmsActionPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.22)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}@media(prefers-reduced-motion:reduce){.row-actions-trigger.automatic-sms-alert{animation:none}}
+.automatic-sms-modal-overlay{position:fixed;inset:0;z-index:2147483600;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.automatic-sms-modal{width:min(650px,96vw);max-height:min(760px,92vh);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.7);border-radius:24px;background:#f8fafc;box-shadow:0 28px 80px rgba(15,23,42,.32);direction:rtl}.automatic-sms-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:22px 24px 18px;border-bottom:1px solid #dcfce7;background:linear-gradient(135deg,#ecfdf5,#fff 62%,#f0f9ff)}.automatic-sms-modal-heading{display:flex;align-items:center;gap:13px}.automatic-sms-modal-icon{width:44px;height:44px;display:grid;place-items:center;flex:0 0 auto;border-radius:14px;background:#16a34a;color:#fff;font-size:21px;box-shadow:0 8px 20px rgba(22,163,74,.22)}.automatic-sms-modal-heading div{display:grid;gap:3px}.automatic-sms-modal-heading small{color:#16a34a;font-size:9px;font-weight:900}.automatic-sms-modal-heading h3{margin:0;color:#0f172a;font-size:19px}.automatic-sms-modal-heading p{margin:0;color:#64748b;font-size:10px}.automatic-sms-modal-close{width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:10px;background:#e2e8f0;color:#475569;font:700 21px/1 inherit;cursor:pointer}.automatic-sms-modal-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:16px 24px 4px}.automatic-sms-modal-summary article{display:flex;align-items:center;justify-content:center;gap:7px;min-height:48px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;color:#64748b}.automatic-sms-modal-summary article strong{font-size:19px;color:#334155}.automatic-sms-modal-summary article span{font-size:9px;font-weight:900}.automatic-sms-modal-summary article.active{border-color:#bbf7d0;background:#f0fdf4;color:#15803d}.automatic-sms-modal-summary article.active strong{color:#15803d}.automatic-sms-modal-summary article.failed{border-color:#fecaca;background:#fff1f2;color:#b91c1c}.automatic-sms-modal-summary article.failed strong{color:#b91c1c}.automatic-sms-modal-list{display:grid;gap:9px;min-height:120px;padding:14px 24px 22px;overflow:auto}.automatic-sms-modal-list>article{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:13px 14px;border:1px solid #dbe4ee;border-radius:15px;background:#fff;box-shadow:0 3px 12px rgba(15,23,42,.035);transition:.18s ease}.automatic-sms-modal-list>article:hover{border-color:#86efac;transform:translateY(-1px)}.automatic-sms-modal-list>article.disabled{background:#f8fafc;opacity:.7}.automatic-sms-modal-list>article.saving{cursor:wait;opacity:.55}.automatic-sms-item-copy{min-width:0;display:flex;align-items:center;gap:10px}.automatic-sms-item-dot{width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:#22c55e;box-shadow:0 0 0 5px #dcfce7}.automatic-sms-modal-list>article.disabled .automatic-sms-item-dot{background:#94a3b8;box-shadow:0 0 0 5px #e2e8f0}.automatic-sms-item-copy>div{min-width:0;display:grid;gap:5px}.automatic-sms-item-copy strong{overflow:hidden;color:#0f172a;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.automatic-sms-item-copy small{color:#64748b;font-size:9px}.automatic-sms-item-side{display:flex;align-items:center;gap:11px;flex:0 0 auto}.automatic-sms-item-side>i{padding:5px 8px;border-radius:8px;background:#f1f5f9;color:#475569;font-size:8px;font-style:normal;font-weight:900;white-space:nowrap}.sms-sent .automatic-sms-item-side>i{background:#dcfce7;color:#15803d}.sms-failed .automatic-sms-item-side>i{background:#fee2e2;color:#b91c1c}.automatic-sms-switch{display:grid;grid-template-columns:34px;justify-items:center;gap:4px;cursor:pointer}.automatic-sms-switch input{position:absolute;opacity:0;pointer-events:none}.automatic-sms-switch span{position:relative;width:34px;height:19px;border-radius:999px;background:#cbd5e1;transition:.18s ease}.automatic-sms-switch span:after{content:'';position:absolute;top:3px;right:3px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.25);transition:.18s ease}.automatic-sms-switch input:checked+span{background:#16a34a}.automatic-sms-switch input:checked+span:after{transform:translateX(-15px)}.automatic-sms-switch input:disabled+span{cursor:not-allowed;opacity:.55}.automatic-sms-switch b{color:#64748b;font-size:7px}.automatic-sms-modal-empty{padding:35px;text-align:center;color:#64748b;font-size:11px}.automatic-sms-modal>footer{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px 24px;border-top:1px solid #e2e8f0;background:#fff}.automatic-sms-modal>footer p{margin:0;color:#64748b;font-size:9px}.automatic-sms-modal>footer button{min-width:90px;height:36px;border:0;border-radius:10px;background:#0f172a;color:#fff;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}@media(max-width:600px){.automatic-sms-modal-overlay{padding:8px}.automatic-sms-modal{max-height:calc(100vh - 16px);border-radius:18px}.automatic-sms-modal>header,.automatic-sms-modal-summary,.automatic-sms-modal-list,.automatic-sms-modal>footer{padding-left:14px;padding-right:14px}.automatic-sms-modal-list>article{align-items:flex-start;flex-direction:column}.automatic-sms-item-side{width:100%;justify-content:space-between}.automatic-sms-modal>footer{align-items:stretch;flex-direction:column}.automatic-sms-modal>footer button{width:100%}}
+.completion-automatic-sms-button{display:flex;align-items:center;gap:10px;width:calc(100% - 36px);margin:0 18px 18px;padding:12px 14px;border:1px solid #86efac;border-radius:14px;background:#f0fdf4;color:#166534;font-family:inherit;text-align:right;cursor:pointer}
+.completion-automatic-sms-button:hover{background:#dcfce7}
+.completion-automatic-sms-button>span{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:9px;background:#dcfce7;color:#15803d;font-size:17px}
+.completion-automatic-sms-button strong{font-size:12px}
+.completion-automatic-sms-button small{color:#15803d;font-size:10px;font-weight:800}
+.completion-automatic-sms-button b{margin-right:auto;font-size:17px}
+.row-actions-trigger.automatic-sms-alert{border-color:#4ade80;background:#dcfce7;color:#14532d;animation:automaticSmsActionBlink 1.8s ease-in-out infinite}
+@keyframes automaticSmsActionBlink{0%,100%{background:#dcfce7;border-color:#4ade80;box-shadow:0 2px 8px rgba(22,163,74,.12)}50%{background:#86efac;border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.22)}}
+@media(prefers-reduced-motion:reduce){.row-actions-trigger.automatic-sms-alert{animation:none}}
 </style>

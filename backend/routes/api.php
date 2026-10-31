@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\PatientMediaController;
+use App\Http\Controllers\Api\PatientPhotoSettingsController;
 use App\Http\Controllers\StorageQuotaController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\HumanResourceController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\Api\PersonalReportController;
 use App\Http\Controllers\Api\PayrollReportController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AutomaticSmsScenarioController;
+use App\Http\Controllers\Api\AppointmentAutomaticSmsController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ClinicReportController;
 use App\Http\Controllers\Api\DynamicReportController;
@@ -46,6 +48,7 @@ use App\Http\Controllers\Api\CampaignController;
 use App\Http\Controllers\Api\AppointmentScheduleMonthController;
 use App\Http\Controllers\Api\SatisfactionController;
 use App\Http\Controllers\Api\SatisfactionDocumentationController;
+use App\Http\Controllers\Api\AiAssistantController;
 
 
 
@@ -62,6 +65,15 @@ Route::get('/public/satisfaction/integration/swagger', [SatisfactionDocumentatio
 Route::get('/public/satisfaction/integration/openapi.json', [SatisfactionDocumentationController::class, 'spec'])->middleware('throttle:60,1');
 Route::get('/connectivity', fn () => response()->json(['online' => true]))->middleware('throttle:120,1');
 Route::middleware(['auth', 'tenant.subscription', \App\Http\Middleware\EnforceTenantStorageQuota::class])->group(function () {
+Route::middleware(['permission:assistant.use', \App\Http\Middleware\EnsureTenantAssistantEnabled::class])->prefix('assistant')->group(function () {
+    Route::get('/settings', [AiAssistantController::class, 'settings']);
+    Route::put('/settings', [AiAssistantController::class, 'updateSettings'])->middleware('permission:assistant.manage');
+    Route::get('/conversations', [AiAssistantController::class, 'conversations']);
+    Route::get('/conversations/{conversation}', [AiAssistantController::class, 'show']);
+    Route::delete('/conversations/{conversation}', [AiAssistantController::class, 'destroy']);
+    Route::post('/messages', [AiAssistantController::class, 'message'])->middleware('throttle:20,1');
+    Route::post('/transcriptions', [AiAssistantController::class, 'transcribe'])->middleware('throttle:12,1');
+});
 Route::get('/storage/status', [StorageQuotaController::class, 'status']);
 Route::get('/storage', [StorageQuotaController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/storage/database', [StorageQuotaController::class, 'database'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
@@ -77,6 +89,8 @@ Route::post('/store/checkout', [StoreCheckoutController::class, 'checkout']);
 Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIndex']);
 Route::post('/service-tickets', [CentralServiceTicketController::class, 'tenantStore'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/settings', [SettingController::class, 'index']);
+Route::get('/settings/patient-photos', [PatientPhotoSettingsController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::put('/settings/patient-photos', [PatientPhotoSettingsController::class, 'update'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::put('/settings/satisfaction', [SatisfactionController::class, 'updateSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::put('/settings/satisfaction/integration', [SatisfactionController::class, 'updateIntegration'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/settings/voip', [VoipIntegrationController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
@@ -98,6 +112,7 @@ Route::delete('/automatic-sms-projects/{automaticSmsProject}', [AutomaticSmsScen
 Route::post('/automatic-sms-scenarios', [AutomaticSmsScenarioController::class, 'store'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::put('/automatic-sms-scenarios/{automaticSmsScenario}', [AutomaticSmsScenarioController::class, 'update'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::delete('/automatic-sms-scenarios/{automaticSmsScenario}', [AutomaticSmsScenarioController::class, 'destroy'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::patch('/appointments/{appointment}/automatic-sms/{automaticSms}', [AppointmentAutomaticSmsController::class, 'update'])->middleware('permission:appointments.update');
 Route::post('/sms/completion', [CompletionSmsController::class, 'send']);
 Route::post('/sms/payment-link', [CompletionSmsController::class, 'sendPaymentLink']);
 Route::post('/sms/appointment', [CompletionSmsController::class, 'sendAppointment']);
