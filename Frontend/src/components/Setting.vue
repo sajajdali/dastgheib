@@ -1008,6 +1008,7 @@
                   <button type="button" @click="copyVoip(voipIncomingUrl)">کپی</button>
                 </div>
               </label>
+              <p v-if="voipIncomingIsLocal" class="voip-off">این آدرس محلی است و مرکز تماس روی سرور دیگر به آن دسترسی ندارد. تنظیمات را از دامنهٔ عمومی سایت باز کنید و آدرس وب‌هوک همان‌جا را در مرکز تماس ثبت کنید.</p>
               <p v-if="!voip.token" class="voip-off">آدرس آماده است. برای دریافت رویدادها، در بخش «ارتباط با VoIP» توکن API بسازید و آن را هم در مرکز تماس ثبت کنید.</p>
               <small>متد POST · بدنه JSON · هدر Authorization: Bearer با توکن همین مطب که در بخش بالا نمایش داده شده است.</small>
               <small>در مرکز تماس دست‌کم رویدادهای call.started و call.ended را فعال کنید؛ برای نمایش وضعیت لحظه‌ای، call.queued، call.ringing و call.answered را هم روشن کنید. رویداد آزمایشی پاسخ ۲۰۰ می‌گیرد و وارد فهرست تماس‌های واقعی نمی‌شود.</small>
@@ -1471,6 +1472,7 @@ const voipSaving = ref(false);
 const voipMessage = ref("");
 const voipOrigin = window.location.origin;
 const voipIncomingUrl = `${voipOrigin}/external-api/voip/v1/call-events`;
+const voipIncomingIsLocal = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname) || window.location.hostname.endsWith('.localhost');
 const voipCalls = ref([]);
 const voipCallsLoading = ref(false);
 const voipCallsError = ref("");
