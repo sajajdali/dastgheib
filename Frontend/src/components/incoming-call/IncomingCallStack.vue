@@ -102,9 +102,7 @@ import axios from 'axios'
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useIncomingCalls } from './useIncomingCalls'
 
-const props = defineProps({
-  // Close the popup after clicking "مشاهده پرونده"
-  closeOnOpen: { type: Boolean, default: true },
+defineProps({
   canCreate: { type: Boolean, default: false },
 })
 const emit = defineEmits(['open-file', 'create-file'])
@@ -183,7 +181,7 @@ const viewCalls = computed(() => calls.value.map(c => {
   const t = now.value
   const idx = Math.max(0, STAGES.findIndex(s => s.key === c.stage))
   const s = STAGES[idx]
-  const waiting = idx < 2
+  const waiting = !c.connectedAt && idx < 2
   const waitMs = (c.connectedAt ?? t) - c.startedAt
   const talk = c.connectedAt ? clock((c.talkEndedAt ?? t) - c.connectedAt) : '—'
   const talkColor = idx === 2 ? '#16a34a' : idx === 3 ? '#64748b' : '#cbd5e1'
@@ -197,7 +195,6 @@ const viewCalls = computed(() => calls.value.map(c => {
 
 function onOpen(c) {
   emit(c.patient ? 'open-file' : 'create-file', c)
-  if (props.closeOnOpen) dismissCall(c.id)
 }
 </script>
 

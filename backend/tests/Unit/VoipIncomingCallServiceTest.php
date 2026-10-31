@@ -45,9 +45,15 @@ class VoipIncomingCallServiceTest extends TestCase
         $this->assertSame('queue', $live[0]['stage']);
         $this->assertSame('77', $live[0]['patient']['fileNo']);
         $this->assertSame(1, $live[0]['patient']['appointmentsCount']);
+        $answered = $this->event('call.answered', 3, ['target' => 'extension', 'operator' => 'پذیرش']);
+        $calls->record($answered, json_encode($answered));
+        $live = $calls->live();
+        $this->assertSame('talking', $live[0]['stage']);
+        $this->assertNotNull($live[0]['connectedAt']);
+        $this->assertNull($live[0]['talkEndedAt']);
         $ended = $this->event('call.ended', 4, ['direction' => 'inbound', 'status' => 'answered', 'statusLabel' => 'پاسخ‌داده', 'phone' => '09121234567']);
         $calls->record($ended, json_encode($ended));
-        $late = $this->event('call.answered', 3, ['operator' => 'اپراتور قدیمی']);
+        $late = $this->event('call.queued', 2, ['operator' => 'اپراتور قدیمی']);
         $calls->record($late, json_encode($late));
         $this->assertDatabaseHas('voip_calls', ['call_id' => 'C123', 'latest_seq' => 4, 'state' => 'پاسخ‌داده', 'operator' => 'پذیرش']);
 
@@ -57,7 +63,7 @@ class VoipIncomingCallServiceTest extends TestCase
         $test['test'] = true;
         $calls->record($test, json_encode($test));
         $this->assertDatabaseCount('voip_calls', 1);
-        $this->assertDatabaseCount('voip_call_events', 5);
+        $this->assertDatabaseCount('voip_call_events', 6);
         $this->assertSame('علی رضایی', $calls->recent()[0]['patient_name']);
     }
 
