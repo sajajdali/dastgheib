@@ -35,4 +35,15 @@ class VoipIntegrationController extends Controller
             'voip' => VoipIntegration::generate(),
         ]);
     }
+
+    public function updateIncomingCalls(Request $request): JsonResponse
+    {
+        $data = $request->validate(['enabled' => ['required', 'boolean']]);
+        $voip = VoipIntegration::setIncomingCallsEnabled((bool) $data['enabled']);
+
+        return response()->json([
+            'message' => $voip['incoming_calls_enabled'] ? 'نمایش تماس‌های ورودی فعال شد.' : 'نمایش تماس‌های ورودی غیرفعال شد.',
+            'voip' => $voip,
+        ]);
+    }
 }

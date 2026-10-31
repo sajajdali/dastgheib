@@ -16,7 +16,7 @@ class InitializeTenancyByVoipToken
         $id = VoipIntegration::tenantIdFrom((string) $request->bearerToken());
         $tenant = $id === null ? null : Tenant::find($id);
         if (! $tenant) {
-            \Log::warning('voip patient api: unknown token');
+            \Log::warning('voip api: unknown token');
             abort(401, 'توکن نامعتبر است');
         }
         tenancy()->initialize($tenant);

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\SatisfactionIntegrationController;
 use App\Http\Controllers\Api\VoipPatientController;
+use App\Http\Controllers\Api\VoipCallEventController;
 use App\Http\Middleware\InitializeTenancyByVoipToken;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
@@ -76,3 +77,5 @@ Route::middleware([
 // names the tenant, so this works on any host (an IP, a central or a tenant domain).
 Route::get('external-api/voip/v1/patients/by-phone/{phone}', [VoipPatientController::class, 'show'])
     ->middleware(['api', InitializeTenancyByVoipToken::class, 'tenant.active', 'throttle:120,1']);
+Route::post('external-api/voip/v1/call-events', [VoipCallEventController::class, 'receive'])
+    ->middleware(['api', InitializeTenancyByVoipToken::class, 'tenant.active', 'throttle:300,1']);

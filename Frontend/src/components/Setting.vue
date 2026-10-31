@@ -983,6 +983,51 @@
           </div>
         </div>
       </section>
+      <section class="satisfaction-integration-card voip-incoming-card" :class="{ 'is-active': voip.enabled && voip.incoming_calls_enabled }">
+        <div class="satisfaction-integration-top">
+          <div class="satisfaction-integration-icon">↙</div>
+          <div class="satisfaction-integration-heading">
+            <span>مرکز تماس</span>
+            <h3>نمایش تماس‌های ورودی</h3>
+            <p>وضعیت تماس‌های ورودی این مطب با رویدادهای مرکز تماس به‌روز می‌شود.</p>
+          </div>
+          <label class="satisfaction-integration-switch">
+            <input type="checkbox" :checked="voip.incoming_calls_enabled" :disabled="voipSaving || !voip.enabled" @change="setIncomingCallsEnabled($event.target.checked)">
+            <i></i>
+            <b>{{ voip.enabled && voip.incoming_calls_enabled ? 'فعال' : 'غیرفعال' }}</b>
+          </label>
+        </div>
+        <div class="satisfaction-integration-body">
+          <p v-if="!voip.enabled" class="voip-off">ابتدا «ارتباط با VoIP» را فعال کنید.</p>
+          <p v-if="voipMessage" class="voip-incoming-feedback">{{ voipMessage }}</p>
+          <template v-else-if="voip.incoming_calls_enabled">
+            <p v-if="!voip.token" class="voip-off">ابتدا در بخش بالا توکن API بسازید.</p>
+            <div v-else class="voip-incoming-endpoint">
+              <label class="satisfaction-integration-url">آدرس وب‌هوک برای ثبت در مرکز تماس
+                <div class="voip-token-row">
+                  <input :value="voipIncomingUrl" readonly dir="ltr" @focus="$event.target.select()">
+                  <button type="button" @click="copyVoip(voipIncomingUrl)">کپی</button>
+                </div>
+              </label>
+              <small>متد POST · بدنه JSON · هدر Authorization: Bearer با توکن همین مطب که در بخش بالا نمایش داده شده است.</small>
+              <small>در مرکز تماس دست‌کم رویدادهای call.started و call.ended را فعال کنید؛ برای نمایش وضعیت لحظه‌ای، call.queued، call.ringing و call.answered را هم روشن کنید. رویداد آزمایشی پاسخ ۲۰۰ می‌گیرد و وارد فهرست تماس‌های واقعی نمی‌شود.</small>
+            </div>
+            <div class="voip-incoming-list-head">
+              <strong>تماس‌های ورودی اخیر</strong>
+              <button type="button" :disabled="voipCallsLoading" @click="loadVoipCalls">به‌روزرسانی</button>
+            </div>
+            <p v-if="voipCallsError" class="voip-off">{{ voipCallsError }}</p>
+            <div v-if="voipCalls.length" class="voip-incoming-list">
+              <div v-for="call in voipCalls" :key="call.call_id" class="voip-incoming-row">
+                <div><strong>{{ call.patient_name || call.phone || 'شماره ناشناس' }}</strong><small v-if="call.patient_name && call.phone" dir="ltr">{{ call.phone }}</small></div>
+                <div><span class="voip-incoming-state" :class="{ missed: call.status === 'missed', live: !call.ended_at }">{{ call.state }}</span><small>{{ call.operator || call.queue || '—' }}</small></div>
+                <time>{{ formatVoipCallTime(call.last_event_at) }}</time>
+              </div>
+            </div>
+            <p v-else-if="!voipCallsLoading && !voipCallsError" class="voip-incoming-empty">هنوز تماس ورودی ثبت نشده است.</p>
+          </template>
+        </div>
+      </section>
     </div>
 
     <StorageDashboard v-if="canViewSettings && activeSection === 'storage'" />
@@ -993,7 +1038,7 @@
 
 <script setup>
 import { avatarInitial, avatarUrl } from '@/utils/avatar'
-import { computed, ref, onMounted, watch, nextTick } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Swal from "sweetalert2";
@@ -1421,15 +1466,22 @@ const saveSatisfactionIntegration = async () => {
 };
 
 // «ارتباط با VoIP»: token the call-center panel uses to read this clinic's patient files
-const voip = ref({ enabled: false, token: "", created_at: "" });
+const voip = ref({ enabled: false, incoming_calls_enabled: false, token: "", created_at: "" });
 const voipSaving = ref(false);
 const voipMessage = ref("");
 const voipOrigin = window.location.origin;
+const voipIncomingUrl = `${voipOrigin}/external-api/voip/v1/call-events`;
+const voipCalls = ref([]);
+const voipCallsLoading = ref(false);
+const voipCallsError = ref("");
+const formatVoipCallTime = (value) => value ? new Date(value).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" }) : "—";
+let voipCallsTimer;
 const voipCreatedAt = computed(() => voip.value.created_at ? new Date(voip.value.created_at).toLocaleString("fa-IR", { dateStyle: "medium", timeStyle: "short" }) : "");
 const loadVoip = async () => {
   try {
     const { data } = await axios.get('/api/settings/voip');
     voip.value = data.voip;
+    if (voip.value.incoming_calls_enabled) loadVoipCalls();
   } catch {
     voipMessage.value = "تنظیمات ارتباط با VoIP خوانده نشد.";
   }
@@ -1445,6 +1497,34 @@ const setVoipEnabled = async (enabled) => {
     voipMessage.value = error.response?.data?.message || "ذخیره انجام نشد.";
   } finally {
     voipSaving.value = false;
+  }
+};
+const setIncomingCallsEnabled = async (enabled) => {
+  voipSaving.value = true;
+  voipMessage.value = "";
+  try {
+    const { data } = await axios.put('/api/settings/voip/incoming-calls', { enabled });
+    voip.value = data.voip;
+    voipMessage.value = data.message;
+    if (enabled) loadVoipCalls();
+    else voipCalls.value = [];
+  } catch (error) {
+    voipMessage.value = error.response?.data?.message || "ذخیره تنظیمات تماس‌های ورودی انجام نشد.";
+  } finally {
+    voipSaving.value = false;
+  }
+};
+const loadVoipCalls = async () => {
+  if (activeSection.value !== 'voip' || !voip.value.incoming_calls_enabled) return;
+  voipCallsLoading.value = true;
+  voipCallsError.value = "";
+  try {
+    const { data } = await axios.get('/api/settings/voip/incoming-calls');
+    voipCalls.value = data.calls || [];
+  } catch (error) {
+    voipCallsError.value = error.response?.data?.message || "فهرست تماس‌ها خوانده نشد.";
+  } finally {
+    voipCallsLoading.value = false;
   }
 };
 const makeVoipToken = async () => {
@@ -1480,6 +1560,10 @@ const copyVoip = async (text) => {
   }
 };
 watch(activeSection, (section) => { if (section === "voip") loadVoip(); }, { immediate: true });
+onMounted(() => { voipCallsTimer = window.setInterval(() => {
+  if (activeSection.value === 'voip' && voip.value.incoming_calls_enabled && !voipCallsLoading.value) loadVoipCalls();
+}, 5000); });
+onBeforeUnmount(() => window.clearInterval(voipCallsTimer));
 
 // بخش دسترسی‌ها
 const accessSections = ref([
@@ -2654,6 +2738,22 @@ textarea{ min-height:120px; resize:none; }
 .voip-token-row input{flex:1;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;letter-spacing:.2px;background:#f8fafc!important}
 .voip-token-row button{flex:none;padding:0 16px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1d4ed8;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
 .voip-off{margin:0;padding:10px 12px;border-radius:12px;background:#fef3c7;color:#92400e;font-size:11.5px;line-height:1.8}
+.voip-incoming-card{margin-top:18px}
+.voip-incoming-endpoint{display:grid;gap:8px}
+.voip-incoming-endpoint>small{color:#64748b;font-size:11px;line-height:1.8}
+.voip-incoming-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:#243b5b}
+.voip-incoming-list-head button{border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;color:#1d4ed8;padding:7px 11px;font:inherit;font-size:11px;cursor:pointer}
+.voip-incoming-list{display:grid;gap:8px;max-height:380px;overflow:auto;margin-top:10px}
+.voip-incoming-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:center;gap:14px;padding:11px 13px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.voip-incoming-row>div{display:grid;gap:4px;min-width:0}
+.voip-incoming-row strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-size:12px}
+.voip-incoming-row small,.voip-incoming-row time{color:#64748b;font-size:10.5px}
+.voip-incoming-state{width:fit-content;padding:3px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:10.5px;font-weight:800}
+.voip-incoming-state.live{background:#dcfce7;color:#15803d}
+.voip-incoming-state.missed{background:#fef2f2;color:#dc2626}
+.voip-incoming-empty{margin:12px 0 0;color:#64748b;font-size:12px}
+.voip-incoming-feedback{margin:0;color:#1d4ed8;font-size:11.5px;font-weight:700}
+@media(max-width:640px){.voip-incoming-row{grid-template-columns:1fr auto}.voip-incoming-row>div:nth-child(2){grid-column:1}.voip-incoming-row time{grid-column:2;grid-row:1}}
 @media(max-width:640px){.satisfaction-integration-card{padding:16px}.satisfaction-integration-top{align-items:flex-start;flex-wrap:wrap}.satisfaction-integration-icon{width:42px;height:42px}.satisfaction-integration-switch{width:100%;justify-content:flex-start;margin-top:5px}.satisfaction-integration-actions button{width:100%;margin-right:0}}
 .satisfaction-question-editor{cursor:grab}.satisfaction-question-editor.dragging{opacity:.55;border-color:#60a5fa;background:#eff6ff;cursor:grabbing}.drag-handle{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#f1f5f9;color:#64748b;font-size:16px;cursor:grab}.question-actions{display:flex;align-items:center;gap:6px}.question-actions button{background:#f1f5f9!important;color:#475569!important;font-size:14px!important}.question-actions button:last-child{background:#fee2e2!important;color:#dc2626!important;font-size:19px!important}
 .satisfaction-required-toggle{height:40px;align-self:end;justify-self:start;display:inline-flex!important;grid-template-columns:none!important;align-items:center;gap:8px;padding:0 10px!important;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;color:#64748b;font-size:11px;font-weight:900;cursor:pointer;transition:border-color .18s ease,background-color .18s ease,color .18s ease,box-shadow .18s ease}.satisfaction-required-toggle input{position:absolute;opacity:0;pointer-events:none}.satisfaction-required-toggle .toggle-track{position:relative;width:30px;height:18px;flex:0 0 30px;border-radius:999px;background:#cbd5e1;transition:background-color .18s ease}.satisfaction-required-toggle .toggle-track i{position:absolute;top:3px;right:3px;width:12px;height:12px;border-radius:999px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.18);transition:transform .18s ease}.satisfaction-required-toggle b{line-height:1;color:inherit}.satisfaction-required-toggle.required{border-color:#bbf7d0;background:#f0fdf4;color:#15803d;box-shadow:0 8px 18px rgba(34,197,94,.08)}.satisfaction-required-toggle.required .toggle-track{background:#22c55e}.satisfaction-required-toggle.required .toggle-track i{transform:translateX(-12px)}.satisfaction-required-toggle:hover{border-color:#bfdbfe;background:#fff}

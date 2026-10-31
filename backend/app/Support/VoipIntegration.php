@@ -23,6 +23,7 @@ class VoipIntegration
 
         return [
             'enabled' => (bool) ($saved['enabled'] ?? false),
+            'incoming_calls_enabled' => (bool) ($saved['incoming_calls_enabled'] ?? false),
             'token' => self::decrypt($saved['token'] ?? ''),
             'created_at' => (string) ($saved['created_at'] ?? ''),
         ];
@@ -31,7 +32,15 @@ class VoipIntegration
     public static function setEnabled(bool $enabled): array
     {
         $current = self::settings();
-        self::store($enabled, $current['token'], $current['created_at']);
+        self::store($enabled, $current['incoming_calls_enabled'], $current['token'], $current['created_at']);
+
+        return self::settings();
+    }
+
+    public static function setIncomingCallsEnabled(bool $enabled): array
+    {
+        $current = self::settings();
+        self::store($current['enabled'], $enabled, $current['token'], $current['created_at']);
 
         return self::settings();
     }
@@ -40,7 +49,7 @@ class VoipIntegration
     public static function generate(): array
     {
         $token = 'dg_'.tenant('id').'.'.Str::random(48);
-        self::store(true, $token, now()->toIso8601String());
+        self::store(true, self::settings()['incoming_calls_enabled'], $token, now()->toIso8601String());
 
         return self::settings();
     }
@@ -61,11 +70,17 @@ class VoipIntegration
         return $s['enabled'] && $s['token'] !== '' && hash_equals($s['token'], $given);
     }
 
-    private static function store(bool $enabled, string $token, string $createdAt): void
+    public static function acceptsIncomingCalls(string $given): bool
+    {
+        return self::settings()['incoming_calls_enabled'] && self::accepts($given);
+    }
+
+    private static function store(bool $enabled, bool $incomingCallsEnabled, string $token, string $createdAt): void
     {
         AppSetting::updateOrCreate(['key' => self::KEY], [
             'value' => json_encode([
                 'enabled' => $enabled,
+                'incoming_calls_enabled' => $incomingCallsEnabled,
                 'token' => $token === '' ? '' : Crypt::encryptString($token),
                 'created_at' => $createdAt,
             ], JSON_UNESCAPED_UNICODE),

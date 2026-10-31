@@ -23,6 +23,7 @@ use App\Http\Controllers\ServiceFollowupController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\VoipIntegrationController;
+use App\Http\Controllers\Api\VoipCallEventController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CentralServiceTicketController;
@@ -96,6 +97,8 @@ Route::put('/settings/satisfaction/integration', [SatisfactionController::class,
 Route::get('/settings/voip', [VoipIntegrationController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::put('/settings/voip', [VoipIntegrationController::class, 'update'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/voip/token', [VoipIntegrationController::class, 'generate'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::put('/settings/voip/incoming-calls', [VoipIntegrationController::class, 'updateIncomingCalls'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::get('/settings/voip/incoming-calls', [VoipCallEventController::class, 'index'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/patients/{patient}/satisfaction', [SatisfactionController::class, 'patientResponses'])->middleware('permission:patients.view');
 Route::get('/calendar/events', [CalendarController::class, 'index']);
 Route::put('/calendar/overrides/{date}', [CalendarController::class, 'saveOverride'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
