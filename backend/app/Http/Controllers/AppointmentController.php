@@ -417,6 +417,7 @@ class AppointmentController extends Controller
                         $appt['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] - $financial['discount'] - $appt['wallet_applied']);
                     }
 
+                    $appt = [...$appt, ...$this->commissionFlagsForDraft($previousAppointment, $appt['source'] ?? null)];
                     $reward = $this->calculateReferralReward($appt);
                     $appt['referral_score'] = $reward['amount'];
                     $appt['referral_commission_type'] = $reward['type'];
@@ -642,6 +643,7 @@ class AppointmentController extends Controller
                     $incoming['wallet_applied'] = min(max(0, $this->signedMoneyToInteger($incoming['wallet_applied'] ?? 0)), max(0, $financial['original_amount'] + $financial['surcharge'] + $manualOverage - $financial['discount']));
                     $incoming['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] + $manualOverage - $financial['discount'] - $incoming['wallet_applied']);
                 }
+                $incoming = [...$incoming, ...$this->commissionFlagsForDraft($previous, $incoming['source'] ?? null)];
                 $incoming = $this->normalizeAppointmentTracking($incoming, $previous);
                 $reward = $this->calculateReferralReward($incoming);
                 $incoming['referral_score'] = $reward['amount'];
@@ -2338,7 +2340,8 @@ class AppointmentController extends Controller
         $inventories = Inventory::with('commissions')->whereIn('name', $names)->get()->keyBy('name');
         $doctors = Doctor::query()->get()->keyBy(fn (Doctor $doctor) => $this->resourceKey($doctor->name));
         $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
-        $doctorCommissionBlocked = $this->sourceBlocksDoctorCommission($appointment->source);
+        $doctorCommissionEnabled = (bool) ($appointment->doctor_commission_enabled ?? true);
+        $staffCommissionEnabled = (bool) ($appointment->staff_commission_enabled ?? true);
 
         foreach ($lines as $line) {
             // جانبی‌های مستقل فقط در مبلغ نوبت اثر دارند و پورسانت ندارند.
@@ -2354,7 +2357,8 @@ class AppointmentController extends Controller
                 ['type' => 'doctor', 'name' => $line['doctor'] ?: $appointment->doctor, 'map' => $doctors],
                 ['type' => 'staff', 'name' => $line['consultant'] ?: $appointment->consultant, 'map' => $staff],
             ] as $target) {
-                if ($target['type'] === 'doctor' && $doctorCommissionBlocked) {
+                if (($target['type'] === 'doctor' && ! $doctorCommissionEnabled)
+                    || ($target['type'] === 'staff' && ! $staffCommissionEnabled)) {
                     continue;
                 }
                 $resourceName = trim((string) $target['name']);
@@ -2567,17 +2571,18 @@ class AppointmentController extends Controller
         };
     }
 
-    private function sourceBlocksDoctorCommission(?string $source): bool
+    private function commissionFlagsForDraft(?Appointment $previous, ?string $source): array
     {
-        $sourceKey = $this->resourceKey($source);
-        if ($sourceKey === '') {
-            return false;
+        if ($previous && ($this->resourceKey($previous->source) === $this->resourceKey($source)
+            || trim((string) $previous->done) === 'انجام شد')) {
+            return [
+                'doctor_commission_enabled' => (bool) ($previous->doctor_commission_enabled ?? true),
+                'staff_commission_enabled' => (bool) ($previous->staff_commission_enabled ?? true),
+                'referral_reward_enabled' => (bool) ($previous->referral_reward_enabled ?? true),
+            ];
         }
 
-        return Channel::query()
-            ->where('exclude_doctor_commission', true)
-            ->get(['name'])
-            ->contains(fn (Channel $channel) => $this->resourceKey($channel->name) === $sourceKey);
+        return Channel::commissionFlagsForSource($source);
     }
 
     /** Rebuild persisted earning lines after a channel commission rule changes. */
@@ -2742,7 +2747,7 @@ class AppointmentController extends Controller
         return [
             'patient' => $referrer,
             'referred_patient' => $referred,
-            'amount' => ($enabled && $isCompleted && $isSettled && $received > 0 && $referrer) ? $total : 0,
+            'amount' => ($enabled && ($appointment['referral_reward_enabled'] ?? true) && $isCompleted && $isSettled && $received > 0 && $referrer) ? $total : 0,
             'received_amount' => $received,
             'expiry_days' => max(1, (int) ($settings['expiry_days'] ?? 30)),
             'type' => count($uniqueTypes) === 1 ? $uniqueTypes[0] : (count($uniqueTypes) ? 'mixed' : null),

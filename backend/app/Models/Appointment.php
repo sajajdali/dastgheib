@@ -20,6 +20,19 @@ class Appointment extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Appointment $appointment): void {
+            if (! Schema::hasColumn('appointments', 'doctor_commission_enabled') || ! Schema::hasTable('channels')) return;
+            foreach (Channel::commissionFlagsForSource($appointment->source) as $field => $enabled) {
+                if ($appointment->getAttribute($field) === null) $appointment->setAttribute($field, $enabled);
+            }
+        });
+
+        static::updating(function (Appointment $appointment): void {
+            if (! $appointment->isDirty('source') || trim((string) $appointment->getRawOriginal('done')) === 'انجام شد') return;
+            if (! Schema::hasColumn('appointments', 'doctor_commission_enabled') || ! Schema::hasTable('channels')) return;
+            $appointment->forceFill(Channel::commissionFlagsForSource($appointment->source));
+        });
+
         static::saved(function (Appointment $appointment): void {
             if (Schema::hasTable('appointment_automatic_sms')) {
                 app(AppointmentAutomaticSmsService::class)->syncForAppointment($appointment);
@@ -36,6 +49,9 @@ class Appointment extends Model
         'completion_sms_statuses' => 'array',
         'payment_details' => 'array',
         'new_customer' => 'boolean'
+        ,'doctor_commission_enabled' => 'boolean'
+        ,'staff_commission_enabled' => 'boolean'
+        ,'referral_reward_enabled' => 'boolean'
         ,'wallet_applied' => 'decimal:2'
         ,'referral_commission_value' => 'decimal:2'
         ,'duration_minutes' => 'integer'

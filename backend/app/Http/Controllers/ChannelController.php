@@ -28,36 +28,22 @@ class ChannelController extends Controller
             '*.name' => ['required', 'string', 'max:255'],
             '*.icon' => ['nullable', 'string', 'max:30'],
             '*.exclude_doctor_commission' => ['sometimes', 'boolean'],
+            '*.exclude_staff_commission' => ['sometimes', 'boolean'],
+            '*.exclude_referral_reward' => ['sometimes', 'boolean'],
         ]);
 
         $savedChannels = [];
-        $changedCommissionSources = [];
         foreach ($channelsData as $channel) {
             $model = !empty($channel['id']) ? Channel::find($channel['id']) : null;
-            $previousName = trim((string) ($model?->name ?? ''));
-            $previousRule = (bool) ($model?->exclude_doctor_commission ?? false);
             $model ??= new Channel();
             $model->fill([
                 'name' => trim($channel['name']),
                 'icon' => $channel['icon'] ?? null,
-                'exclude_doctor_commission' => (bool) ($channel['exclude_doctor_commission'] ?? false),
+                'exclude_doctor_commission' => (bool) ($channel['exclude_doctor_commission'] ?? $model->exclude_doctor_commission ?? false),
+                'exclude_staff_commission' => (bool) ($channel['exclude_staff_commission'] ?? $model->exclude_staff_commission ?? false),
+                'exclude_referral_reward' => (bool) ($channel['exclude_referral_reward'] ?? $model->exclude_referral_reward ?? false),
             ])->save();
-            if ($model->wasRecentlyCreated && (bool) $model->exclude_doctor_commission) {
-                // A recreated channel may match historical appointment source
-                // text, so the rule must apply to those rows immediately too.
-                $changedCommissionSources[] = $model->name;
-            } elseif ($model->wasRecentlyCreated === false && (
-                $previousName !== $model->name
-                || $previousRule !== (bool) $model->exclude_doctor_commission
-            )) {
-                $changedCommissionSources[] = $previousName;
-                $changedCommissionSources[] = $model->name;
-            }
             $savedChannels[] = $model->fresh();
-        }
-
-        if ($changedCommissionSources !== []) {
-            app(AppointmentController::class)->resyncResourceEarningsForSources($changedCommissionSources);
         }
 
         return response()->json($savedChannels);
@@ -89,12 +75,10 @@ class ChannelController extends Controller
             return response()->json(['error' => 'کانال یافت نشد.'], 404);
         }
 
-        $source = $channel->name;
         if ($channel->icon_image_path) {
             Storage::disk('public')->delete($channel->icon_image_path);
         }
         $channel->delete();
-        app(AppointmentController::class)->resyncResourceEarningsForSources([$source]);
         return response()->json(null, 204);
     }
 }

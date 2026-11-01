@@ -251,7 +251,7 @@
             <td data-label="آیکون"><span class="channel-card-icon"><img v-if="channelImageUrl(row)" :src="channelImageUrl(row)" alt=""><template v-else>{{ row.icon || '📣' }}</template></span></td>
             <td data-label="نام کانال"><strong class="channel-card-name">{{ row.name || 'کانال جدید' }}</strong></td>
             <td class="doctor-settings-cell" data-label="تنظیمات">
-              <button type="button" class="doctor-settings-btn channel-settings-btn" @click="openChannelSettings(index)"><span class="doctor-settings-icon">✎</span><span><strong>تنظیم کانال</strong><small>{{ channelCommissionSummary(row) }}</small></span><b :class="{ 'commission-blocked': row.exclude_doctor_commission }">{{ row.exclude_doctor_commission ? 'بدون پورسانت' : 'ویرایش' }}</b></button>
+              <button type="button" class="doctor-settings-btn channel-settings-btn" @click="openChannelSettings(index)"><span class="doctor-settings-icon">✎</span><span><strong>تنظیم کانال</strong><small>{{ channelCommissionSummary(row) }}</small></span><b :class="{ 'commission-blocked': channelHasCommissionExclusion(row) }">{{ channelHasCommissionExclusion(row) ? 'محدود شده' : 'فعال' }}</b></button>
             </td>
             <td class="actions-cell" data-label="عملیات"><button v-if="index === channelRows.length - 1" class="btn-add" type="button" title="اضافه کردن کانال" @click="addChannelRow"><span>+</span><small>اضافه</small></button><button v-if="channelRows.length > 1" class="btn-remove" type="button" title="حذف کانال" @click="requestChannelRemoval(index)"><span>−</span><small>حذف</small></button></td>
           </tr>
@@ -263,7 +263,16 @@
       <section class="doctor-settings-modal channel-settings-modal" role="dialog" aria-modal="true" aria-labelledby="channel-settings-title">
         <header class="doctor-settings-modal-head"><div><span class="modal-eyebrow">تنظیمات کانال</span><h3 id="channel-settings-title">{{ activeChannel.name || 'کانال جدید' }}</h3><p>نام و آیکون نمایشی کانال تبلیغاتی را تعیین کنید.</p></div><button type="button" class="resource-modal-close" title="بستن" aria-label="بستن" @click="closeChannelSettings">×</button></header>
         <div class="doctor-settings-modal-body">
-          <section class="channel-modal-form"><label><span>نام کانال</span><input v-model.trim="activeChannel.name" type="text" placeholder="نام کانال تبلیغات"></label><label><span>آیکون نمایشی</span><select v-model="activeChannel.icon"><option value="">آیکون پیش‌فرض</option><option v-for="icon in channelIconOptions" :key="icon" :value="icon">{{ icon }}</option></select></label><label class="channel-doctor-commission-rule" :class="{ active: activeChannel.exclude_doctor_commission }"><input v-model="activeChannel.exclude_doctor_commission" type="checkbox"><span><b>عدم تعلق پورسانت به پزشک</b><small>برای نوبت‌هایی که منبع آن‌ها این کانال است، هیچ پورسانت خدمت یا پاداش فروش برای پزشک محاسبه نمی‌شود. پورسانت پرسنل و مبالغ مالی تغییر نمی‌کند.</small></span></label><label class="channel-image-upload"><span>تصویر اختصاصی <small>اختیاری</small></span><input type="file" accept="image/png,image/jpeg,image/webp" @change="uploadChannelIcon"><b>انتخاب و بارگذاری تصویر</b><em>PNG، JPG یا WEBP تا ۲ مگابایت</em></label><div class="channel-modal-preview"><span><img v-if="channelImageUrl(activeChannel)" :src="channelImageUrl(activeChannel)" alt=""><template v-else>{{ activeChannel.icon || '📣' }}</template></span><strong>{{ activeChannel.name || 'پیش‌نمایش کانال' }}</strong></div></section>
+          <section class="channel-modal-form">
+            <label><span>نام کانال</span><input v-model.trim="activeChannel.name" type="text" placeholder="نام کانال تبلیغات"></label>
+            <label><span>آیکون نمایشی</span><select v-model="activeChannel.icon"><option value="">آیکون پیش‌فرض</option><option v-for="icon in channelIconOptions" :key="icon" :value="icon">{{ icon }}</option></select></label>
+            <p class="channel-commission-note">به‌صورت پیش‌فرض پورسانت پزشک، پرسنل و پاداش معرف محاسبه می‌شود. برای حذف هر مورد، تیک آن را بزنید. تغییرات فقط برای نوبت‌های بعدی است و مبلغ نوبت را عوض نمی‌کند.</p>
+            <label class="channel-commission-rule" :class="{ active: activeChannel.exclude_doctor_commission }"><input v-model="activeChannel.exclude_doctor_commission" type="checkbox"><span><b>پورسانت پزشک محاسبه نشود</b><small>پورسانت خدمات و پاداش فروش پزشک برای نوبت‌های این کانال محاسبه نمی‌شود.</small></span></label>
+            <label class="channel-commission-rule" :class="{ active: activeChannel.exclude_staff_commission }"><input v-model="activeChannel.exclude_staff_commission" type="checkbox"><span><b>پورسانت پرسنل محاسبه نشود</b><small>پورسانت خدمات و پاداش فروش پرسنل برای نوبت‌های این کانال محاسبه نمی‌شود.</small></span></label>
+            <label class="channel-commission-rule" :class="{ active: activeChannel.exclude_referral_reward }"><input v-model="activeChannel.exclude_referral_reward" type="checkbox"><span><b>پاداش معرف پرداخت نشود</b><small>اگر نوبت معرف داشته باشد، برای این کانال پاداشی به کیف پول معرف واریز نمی‌شود.</small></span></label>
+            <label class="channel-image-upload"><span>تصویر اختصاصی <small>اختیاری</small></span><input type="file" accept="image/png,image/jpeg,image/webp" @change="uploadChannelIcon"><b>انتخاب و بارگذاری تصویر</b><em>PNG، JPG یا WEBP تا ۲ مگابایت</em></label>
+            <div class="channel-modal-preview"><span><img v-if="channelImageUrl(activeChannel)" :src="channelImageUrl(activeChannel)" alt=""><template v-else>{{ activeChannel.icon || '📣' }}</template></span><strong>{{ activeChannel.name || 'پیش‌نمایش کانال' }}</strong></div>
+          </section>
         </div>
         <footer class="doctor-settings-modal-actions"><span>تغییرات پس از بستن به‌صورت خودکار ذخیره می‌شوند.</span><button type="button" @click="closeChannelSettings">تأیید و بستن</button></footer>
       </section>
@@ -353,7 +362,7 @@ export default {
     }],
 
     channelRows: [{
-      name: '', icon: '', exclude_doctor_commission: false
+      name: '', icon: '', exclude_doctor_commission: false, exclude_staff_commission: false, exclude_referral_reward: false
     }],
     channelIconOptions: ['📱','📷','🌐','🔍','📣','👥','💬','✉️','☎️','🎯','⭐','🤝','📍','🎬','▶️','🟢'],
     users: [],
@@ -550,8 +559,16 @@ export default {
     },
 
     channelCommissionSummary(row) {
-      if (row?.exclude_doctor_commission) return 'پورسانت پزشک برای این کانال محاسبه نمی‌شود';
-      return this.channelImageUrl(row) ? 'تصویر اختصاصی بارگذاری شده' : row?.icon ? 'آیکون اختصاصی انتخاب شده' : 'پورسانت پزشک طبق قوانین عادی';
+      const blocked = [
+        row?.exclude_doctor_commission && 'پزشک',
+        row?.exclude_staff_commission && 'پرسنل',
+        row?.exclude_referral_reward && 'معرف',
+      ].filter(Boolean);
+      return blocked.length ? `بدون پورسانت: ${blocked.join('، ')}` : 'پورسانت پزشک، پرسنل و معرف فعال است';
+    },
+
+    channelHasCommissionExclusion(row) {
+      return Boolean(row?.exclude_doctor_commission || row?.exclude_staff_commission || row?.exclude_referral_reward);
     },
 
     doctorServiceSummary(row) {
@@ -670,6 +687,8 @@ export default {
           this.channelRows = channelsData.map(row => ({
             ...row,
             exclude_doctor_commission: Boolean(row.exclude_doctor_commission),
+            exclude_staff_commission: Boolean(row.exclude_staff_commission),
+            exclude_referral_reward: Boolean(row.exclude_referral_reward),
           }));
         }
 
@@ -725,7 +744,7 @@ export default {
     },
 
     addChannelRow() {
-      this.channelRows.push({ name: '', icon: '', exclude_doctor_commission: false });
+      this.channelRows.push({ name: '', icon: '', exclude_doctor_commission: false, exclude_staff_commission: false, exclude_referral_reward: false });
     },
     requestChannelRemoval(index) {
       const channel = this.channelRows[index];
@@ -2242,7 +2261,8 @@ input:focus {
 .channel-modal-form{display:grid;grid-template-columns:1fr 180px;gap:14px}
 .channel-modal-form label{display:grid;gap:7px;color:#334155;font-size:11px;font-weight:900}
 .channel-modal-form input,.channel-modal-form select{width:100%;height:42px;padding:0 12px;border:1px solid #dbe3ed;border-radius:11px;background:#fff;font-family:inherit;text-align:right}
-.channel-doctor-commission-rule{grid-column:1/-1!important;display:flex!important;align-items:flex-start;gap:11px;padding:13px 14px;border:1px solid #fecaca;border-radius:13px;background:#fff7f7;cursor:pointer}.channel-doctor-commission-rule.active{border-color:#ef4444;background:#fef2f2;box-shadow:0 0 0 3px rgba(239,68,68,.08)}.channel-doctor-commission-rule input{width:18px!important;height:18px!important;min-height:18px;margin-top:2px;padding:0;accent-color:#dc2626}.channel-doctor-commission-rule span{display:grid;gap:4px}.channel-doctor-commission-rule b{color:#991b1b;font-size:12px}.channel-doctor-commission-rule small{color:#64748b;font-size:10px;font-weight:700;line-height:1.9}
+.channel-commission-note{grid-column:1/-1;margin:0;color:#475569;font-size:11px;line-height:1.9}
+.channel-commission-rule{grid-column:1/-1!important;display:flex!important;align-items:flex-start;gap:11px;padding:13px 14px;border:1px solid #e2e8f0;border-radius:13px;background:#f8fafc;cursor:pointer}.channel-commission-rule.active{border-color:#fca5a5;background:#fef2f2;box-shadow:0 0 0 3px rgba(239,68,68,.08)}.channel-commission-rule input{width:18px!important;height:18px!important;min-height:18px;margin-top:2px;padding:0;accent-color:#dc2626}.channel-commission-rule span{display:grid;gap:4px}.channel-commission-rule b{color:#334155;font-size:12px}.channel-commission-rule small{color:#64748b;font-size:10px;font-weight:700;line-height:1.9}
 .channel-modal-preview{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #ddd6fe;border-radius:14px;background:#faf5ff}
 .channel-image-upload{grid-column:1/-1;padding:11px 12px;border:1px dashed #a78bfa;border-radius:12px;background:#faf5ff;cursor:pointer}.channel-image-upload>span{display:block;color:#5b21b6;font-size:11px;font-weight:900}.channel-image-upload small{color:#8b5cf6;font-weight:600}.channel-image-upload input{display:none}.channel-image-upload b{display:block;margin-top:7px;color:#6d28d9;font-size:12px}.channel-image-upload em{display:block;margin-top:3px;color:#8b5cf6;font-size:9px;font-style:normal;font-weight:700}.channel-modal-preview span{width:48px;height:48px;display:grid;place-items:center;overflow:hidden;border-radius:13px;background:#7c3aed;color:#fff;font-size:23px}.channel-modal-preview span img{width:100%;height:100%;object-fit:cover}
 .channel-modal-preview strong{color:#4c1d95;font-size:13px}

@@ -778,7 +778,7 @@
                 :style="{ width: columnWidths.source + 'px' }"
               >
 
-                <select v-model="row.source" @change="saveData(0)">
+                <select v-model="row.source" @change="onSourceChanged(row)">
 
                   <option value=""></option>
 
@@ -3727,6 +3727,11 @@ export default {
         status: this.emptyScheduleCellValue(item.status), arrivedAt: item.arrived_at || '',
         waitMinutes: item.wait_minutes == null ? null : Number(item.wait_minutes), doctor: item.doctor || '',
         consultant: item.consultant || '', source: item.source || '', description: item.description || '',
+        doctorCommissionEnabled: item.doctor_commission_enabled !== false,
+        staffCommissionEnabled: item.staff_commission_enabled !== false,
+        referralRewardEnabled: item.referral_reward_enabled !== false,
+        _commissionSource: item.source || '',
+        _commissionLocked: item.done === 'انجام شد',
         doctorNote: item.doctor_note || '', done: this.emptyScheduleCellValue(item.done),
         completedAt: item.completed_at || '', amount: item.amount ? this.formatDisplayMoney(item.amount) : '',
         originalAmount: item.original_amount ? this.formatDisplayMoney(item.original_amount) : '',
@@ -3897,6 +3902,7 @@ export default {
       const transient = new Set([
         'id', 'collapsed', 'dateLabel', 'holidayTitle', 'isHoliday',
         'patientId', 'profileThumbnailUrl', 'profilePhotoUrl', 'hasPatientFile',
+        'doctorCommissionEnabled', 'staffCommissionEnabled', 'referralRewardEnabled',
         'walletBalance', 'originalDebt', 'patientOutstandingDebt', 'customerLevel',
         'noteMessageCount', 'doctorNoteUnread', 'timelineDoctors', 'timelineConsultant'
       ]);
@@ -3911,6 +3917,7 @@ export default {
         'appointmentId', 'lockVersion', 'patientId', 'profileThumbnailUrl',
         'profilePhotoUrl', 'hasPatientFile', 'walletBalance', 'originalDebt',
         'patientOutstandingDebt', 'customerLevel', 'noteMessageCount',
+        'doctorCommissionEnabled', 'staffCommissionEnabled', 'referralRewardEnabled',
         'doctorNoteUnread', 'timelineDoctors', 'timelineConsultant',
         'registeredBy', 'registeredAt', 'lastEditedBy', 'lastEditedAt'
       ]);
@@ -6150,6 +6157,11 @@ export default {
             doctor: item.doctor || "",
             consultant: item.consultant || "",
             source: item.source || "",
+            doctorCommissionEnabled: item.doctor_commission_enabled !== false,
+            staffCommissionEnabled: item.staff_commission_enabled !== false,
+            referralRewardEnabled: item.referral_reward_enabled !== false,
+            _commissionSource: item.source || '',
+            _commissionLocked: item.done === 'انجام شد',
             description: item.description || "",
             doctorNote: item.doctor_note || "",
             noteMessageCount: Number(item.note_message_count || 0),
@@ -6474,17 +6486,31 @@ export default {
       return true;
     },
 
-    sourceBlocksDoctorCommission(row) {
+    sourceBlocksCommission(row, recipientType) {
       const source = String(row?.source || '').trim().toLocaleLowerCase('fa-IR');
+      const enabledField = {
+        doctor: 'doctorCommissionEnabled',
+        staff: 'staffCommissionEnabled',
+        referral: 'referralRewardEnabled',
+      }[recipientType];
+      const storedSource = String(row?._commissionSource || '').trim().toLocaleLowerCase('fa-IR');
+      if (row?.appointmentId && enabledField && (source === storedSource || row._commissionLocked)) {
+        return row[enabledField] === false;
+      }
       if (!source) return false;
+      const exclusionField = {
+        doctor: 'exclude_doctor_commission',
+        staff: 'exclude_staff_commission',
+        referral: 'exclude_referral_reward',
+      }[recipientType];
       return this.sourceOptions.some(channel =>
-        Boolean(channel?.exclude_doctor_commission)
+        Boolean(channel?.[exclusionField])
         && String(channel?.name || '').trim().toLocaleLowerCase('fa-IR') === source
       );
     },
 
     commissionBase(resource, row, serviceAmount, materialCost, recipientType = 'staff') {
-      if (recipientType === 'doctor' && this.sourceBlocksDoctorCommission(row)) return 0;
+      if (this.sourceBlocksCommission(row, recipientType)) return 0;
       if (!this.commissionAppliesToCustomer(resource, row)) return 0;
       return resource?.commission_after_materials
         ? Math.max(serviceAmount - materialCost, 0)
@@ -6833,6 +6859,11 @@ this.calculateFinalAmount(row)
               row.registeredAt = appointment.registered_at || row.registeredAt || appointment.created_at || '';
               row.lastEditedBy = appointment.last_edited_by || row.lastEditedBy || '';
               row.lastEditedAt = appointment.last_edited_at || row.lastEditedAt || '';
+              row.doctorCommissionEnabled = appointment.doctor_commission_enabled !== false;
+              row.staffCommissionEnabled = appointment.staff_commission_enabled !== false;
+              row.referralRewardEnabled = appointment.referral_reward_enabled !== false;
+              row._commissionSource = appointment.source || '';
+              row._commissionLocked = appointment.done === 'انجام شد';
               row.automaticSms = appointment.automatic_sms || row.automaticSms || { items: [], total_count: 0, active_count: 0, sent_count: 0, failed_count: 0, has_active: false };
               const rowDay = scheduledDays.find(day => (day.rows || []).includes(row));
               const rowIndex = rowDay?.rows.indexOf(row) ?? -1;
@@ -6925,6 +6956,11 @@ this.calculateFinalAmount(row)
         doctor: "",
         consultant: "",
         source: "",
+        doctorCommissionEnabled: true,
+        staffCommissionEnabled: true,
+        referralRewardEnabled: true,
+        _commissionSource: '',
+        _commissionLocked: false,
         description: "",
         doctorNote: "",
         done: "",
@@ -9890,9 +9926,14 @@ smsColor(val) {
       this.calculateReferralRewardForRow(row);
     },
 
+    onSourceChanged(row) {
+      this.calculateReferralRewardForRow(row);
+      this.saveData(0);
+    },
+
     calculateReferralRewardForRow(row) {
       if (!row) return 0;
-      if (!String(row.referrerPhone || '').trim()) {
+      if (!String(row.referrerPhone || '').trim() || this.sourceBlocksCommission(row, 'referral')) {
         row.referralScore = '';
         row.referralCommissionType = '';
         row.referralCommissionValue = 0;
