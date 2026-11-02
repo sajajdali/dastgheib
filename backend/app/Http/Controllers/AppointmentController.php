@@ -575,11 +575,14 @@ class AppointmentController extends Controller
                 $this->assertAppointmentSlotAvailable($incoming, $data['month'], $previous);
                 // A delayed browser request containing an empty slot must
                 // never clear a booking which has already been persisted.
+                // Clearing the row on its current version is a deliberate
+                // edit by the operator and is saved like any other change.
                 if (
                     $previous
                     && trim((string) $previous->lastname) !== ''
                     && trim((string) ($incoming['lastname'] ?? '')) === ''
                     && ! $this->incomingAppointmentHasMeaningfulData($incoming)
+                    && (int) ($incoming['lock_version'] ?? 0) !== max(1, (int) $previous->lock_version)
                 ) {
                     $saved[] = $previous->fresh();
                     continue;

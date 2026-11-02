@@ -48,6 +48,35 @@ class AppointmentConcurrencyTest extends TestCase
         ]);
     }
 
+    public function test_clearing_the_patient_name_on_the_current_version_is_saved(): void
+    {
+        $this->actingAs($this->user());
+        $appointment = Appointment::create(['month' => '1405-06', 'day_num' => 22, 'sort_order' => 0, 'lastname' => 'پاک‌شدنی', 'time' => '10:00', 'lock_version' => 1]);
+
+        $this->postJson('/api/appointments/row', [
+            'appointment_id' => $appointment->id, 'lock_version' => 1,
+            'month' => '1405-06', 'day_num' => 22, 'sort_order' => 0,
+            'lastname' => '', 'time' => '10:00', 'services' => [],
+        ])->assertOk()->assertJsonPath('appointment.lock_version', 2);
+
+        $this->assertDatabaseHas('appointments', ['id' => $appointment->id, 'lastname' => '']);
+        $this->getJson('/api/appointments?month=1405-06')->assertOk()->assertJsonMissing(['id' => $appointment->id]);
+    }
+
+    public function test_stale_empty_row_does_not_clear_the_patient_name(): void
+    {
+        $this->actingAs($this->user());
+        $appointment = Appointment::create(['month' => '1405-06', 'day_num' => 23, 'sort_order' => 0, 'lastname' => 'ثبت‌شده', 'time' => '10:00', 'lock_version' => 3]);
+
+        $this->postJson('/api/appointments/row', [
+            'appointment_id' => $appointment->id, 'lock_version' => 2,
+            'month' => '1405-06', 'day_num' => 23, 'sort_order' => 0,
+            'lastname' => '', 'time' => '10:00', 'services' => [],
+        ])->assertOk();
+
+        $this->assertDatabaseHas('appointments', ['id' => $appointment->id, 'lastname' => 'ثبت‌شده', 'lock_version' => 3]);
+    }
+
     public function test_legacy_empty_slot_does_not_block_a_real_appointment(): void
     {
         $this->actingAs($this->user());

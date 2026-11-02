@@ -4809,7 +4809,7 @@ export default {
       const day = this.days.find(item => (item.rows || []).includes(row));
       // Any user-entered value creates the row. The generated clock value by
       // itself is deliberately ignored so untouched slots stay database-free.
-      if (!day || !this.rowShouldPersist(row)) return false;
+      if (!day || !this.rowNeedsServerWrite(row)) return false;
 
       let confirmed = false;
       for (let attempt = 0; attempt < 3 && !confirmed; attempt += 1) {
@@ -6775,7 +6775,7 @@ export default {
 
             scheduledDays.forEach(day => {
               day.rows.forEach((row, rowIndex) => {
-                if (!this.rowShouldPersist(row)) return;
+                if (!this.rowNeedsServerWrite(row)) return;
                 // Existing rows which have not changed are not part of this
                 // request. This prevents an edit/new appointment from being
                 // rejected because of an unrelated row in the same month.
@@ -9022,6 +9022,14 @@ this.calculateFinalAmount(row)
       // Time slots are regenerated from clinic settings. Persisting them as
       // empty appointments made every page load and save unnecessarily heavy.
       return this.rowHasAppointment(row);
+    },
+
+    rowNeedsServerWrite(row) {
+      // A saved appointment whose fields were all cleared (e.g. the patient
+      // name was erased) must still reach the server, otherwise the old values
+      // come back after a reload. The server keeps the record, so its history
+      // and financial links survive, while the empty row no longer loads.
+      return this.rowShouldPersist(row) || Boolean(row?.appointmentId);
     },
 
     toggleServiceAddons(service) {
@@ -11566,6 +11574,10 @@ smsColor(val) {
   white-space: nowrap;
   cursor: cell;
   outline: 0;
+}
+/* A saved row whose name was cleared must stay easy to click and re-fill. */
+.appointment-patient-name-value:empty::before {
+  content: "\00a0";
 }
 .appointment-patient-name-value:focus-visible {
   border-radius: 5px;
