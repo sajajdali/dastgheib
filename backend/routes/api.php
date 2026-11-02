@@ -50,6 +50,7 @@ use App\Http\Controllers\Api\AppointmentScheduleMonthController;
 use App\Http\Controllers\Api\SatisfactionController;
 use App\Http\Controllers\Api\SatisfactionDocumentationController;
 use App\Http\Controllers\Api\AiAssistantController;
+use App\Http\Controllers\Api\AiUsageController;
 
 
 
@@ -64,16 +65,24 @@ Route::get('/public/satisfaction/{token}', [SatisfactionController::class, 'show
 Route::post('/public/satisfaction/{token}', [SatisfactionController::class, 'submit'])->middleware('throttle:10,1');
 Route::get('/public/satisfaction/integration/swagger', [SatisfactionDocumentationController::class, 'index'])->middleware('throttle:60,1');
 Route::get('/public/satisfaction/integration/openapi.json', [SatisfactionDocumentationController::class, 'spec'])->middleware('throttle:60,1');
-Route::get('/connectivity', fn () => response()->json(['online' => true]))->middleware('throttle:120,1');
+Route::get('/connectivity', fn () => response()->json(['online' => true]))->middleware('throttle:120,1,connectivity');
 Route::middleware(['auth', 'tenant.subscription', \App\Http\Middleware\EnforceTenantStorageQuota::class])->group(function () {
 Route::middleware(['permission:assistant.use', \App\Http\Middleware\EnsureTenantAssistantEnabled::class])->prefix('assistant')->group(function () {
     Route::get('/settings', [AiAssistantController::class, 'settings']);
     Route::put('/settings', [AiAssistantController::class, 'updateSettings'])->middleware('permission:assistant.manage');
+    Route::get('/balance', [AiUsageController::class, 'balance']);
+    Route::post('/lists', [AiAssistantController::class, 'listPage'])->middleware('throttle:60,1,assistant-lists');
+    Route::get('/usage/summary', [AiUsageController::class, 'summary']);
+    Route::get('/usage/grouped', [AiUsageController::class, 'grouped']);
+    Route::get('/usage/requests', [AiUsageController::class, 'requests']);
+    Route::get('/usage/options', [AiUsageController::class, 'options']);
+    Route::get('/usage/export', [AiUsageController::class, 'export'])->middleware('throttle:10,1,assistant-export');
+    Route::get('/wallet/transactions', [AiUsageController::class, 'transactions']);
     Route::get('/conversations', [AiAssistantController::class, 'conversations']);
     Route::get('/conversations/{conversation}', [AiAssistantController::class, 'show']);
     Route::delete('/conversations/{conversation}', [AiAssistantController::class, 'destroy']);
-    Route::post('/messages', [AiAssistantController::class, 'message'])->middleware('throttle:20,1');
-    Route::post('/transcriptions', [AiAssistantController::class, 'transcribe'])->middleware('throttle:12,1');
+    Route::post('/messages', [AiAssistantController::class, 'message'])->middleware('throttle:20,1,assistant-messages');
+    Route::post('/transcriptions', [AiAssistantController::class, 'transcribe'])->middleware('throttle:12,1,assistant-voice');
 });
 Route::get('/storage/status', [StorageQuotaController::class, 'status']);
 Route::get('/storage', [StorageQuotaController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');

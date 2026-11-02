@@ -2,6 +2,7 @@
 
 namespace App\Reporting\DynamicReports\Sources;
 
+use App\Reporting\DynamicReports\ReportTextMatch;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Reporting\DynamicReports\DynamicReportChunkContextLoader;
@@ -144,8 +145,7 @@ final class AppointmentReportSource implements ReportSource
 
     private function prefix(Builder|QueryBuilder $query, string $column, mixed $value): void
     {
-        $value = trim((string) $value);
-        if ($value !== '') $query->where($column, 'like', addcslashes($value, '%_\\').'%');
+        ReportTextMatch::apply($query, $column, $value);
     }
 
     private function moneyExpression(string $column): string

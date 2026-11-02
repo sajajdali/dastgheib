@@ -16,7 +16,8 @@ final class AssistantToolRegistry
         'list_appointments' => ['permission' => 'appointments.view', 'description' => 'List real clinic appointments with a Jalali date range and optional doctor/status filters.'],
         'list_service_followups' => ['permission' => 'followups.view', 'description' => 'List service followups due today, overdue, pending, or in a date range.'],
         'list_followups' => ['permission' => 'followups.view', 'description' => 'Search followup rows in the clinic campaigns by patient name and show due today, overdue, pending or all. Follow-up dates in returned rows are Gregorian.'],
-        'search_patients' => ['permission' => 'patients.view', 'description' => 'Find patient files by name or file number. Return limited identifiers and names.'],
+        'search_patients' => ['permission' => 'patients.view', 'description' => 'Find patient files by name, file number or phone. Returns name, file number and mobile. For lists with other columns or conditions prefer build_report.'],
+        'build_report' => ['permission' => 'reports.view', 'description' => 'Build any patient-file or appointment list on the clinic report-builder engine with columns and filters you choose (e.g. all patients whose family contains X with mobile, patients with/without national ID, patients of a city, appointments of a doctor with status, debtors, no-return customers). Shows the list in chat and a button to open the identical report in the report builder. Prefer this whenever the user wants a list with specific columns (mobile, national ID, city, birth date, doctor, amount, debt...) or conditions the report builder supports. text_filters modes: starts_with, contains, has_value (not empty), empty. Dates are Jalali YYYY-MM-DD; for patients scope leave from/to null unless an appointment-based filter needs a period.'],
         'search_people' => ['permission' => 'patients.view|settings.users', 'description' => 'Find a named person across patient files and software users. Use for a full name such as Ali Mousavi. Return exact matches and buttons to open patient files; distinguish patient from software user.'],
         'preview_doctor_patients' => ['permission' => 'patients.view&reports.view', 'description' => 'Find distinct patient files with appointments attributed to a doctor in a Jalali date range. Return a bounded preview and a button to open the complete filtered report builder. Resolve ambiguous doctor names first. Use for list of patients of Dr X.'],
         'find_patient_photos' => ['permission' => 'patients.view&photos.view', 'description' => 'Find a patient by name or file number, then count and list their before, after, or all images with folder dates and angle labels. If names collide, return choices and ask which patient. Use for requests like show after photos of Ms Mousavi.'],
@@ -25,6 +26,8 @@ final class AssistantToolRegistry
         'inspect_clinic_record' => ['permission' => null, 'description' => 'Inspect one exact record previously returned by query_clinic_records and show its permitted linked datasets with counts and interactive choices. Use after the user selects one of several matches.'],
         'get_financial_metric' => ['permission' => 'reports.financial', 'description' => 'Get a precisely named clinic financial KPI for a Jalali period: recognized revenue, expenses, or net profit according to the existing clinic report.'],
         'get_doctor_revenue' => ['permission' => 'reports.financial&reports.doctors', 'description' => 'Get attributed recognized revenue for each registered doctor from the existing doctor performance report. Use for questions like how much revenue each doctor generates. This is clinic revenue attributed to the doctor, not doctor salary, commission or take-home pay. If no period is specified, use this_month through today.'],
+        'read_clinic_settings' => ['permission' => 'assistant.use|settings.view', 'description' => 'Read the clinic\'s current software settings in plain words, e.g. which patient-form fields are enabled or required (age is derived from birth date), appointment columns, SMS and birthday SMS, working hours, customer levels, wallet, report targets, attendance, AI assistant, the current user access (my_access), roles and who has which access, storage usage, VoIP, satisfaction form, photo processing and automatic SMS scenarios. Use it to answer questions like "is X active?" instead of telling the user to check.'],
+        'explain_app_feature' => ['permission' => null, 'description' => 'Explain where a part of this clinic software is and what it does / how to use it (menus, settings, report builder, SMS, roles, etc.). Use for questions like "where is X", "how do I do Y", "what is Z". Returns location path, explanation and a button to open it.'],
         'open_clinic_page' => ['permission' => null, 'description' => 'Offer a button to open the exact clinic page, settings section and nested tab requested by the user. Use for navigation, never as evidence of live data.'],
     ];
 
@@ -61,6 +64,18 @@ final class AssistantToolRegistry
         return $definitions;
     }
 
+    private function reportValueHints(): string
+    {
+        $builder = app(AssistantReportBuilder::class);
+        $hints = [];
+        foreach (['status' => 'appointment status', 'work' => 'work done', 'finstatus' => 'patient financial rating (NOT payment status)', 'payment' => 'payment method', 'account' => 'deposit account', 'source' => 'lead source'] as $field => $label) {
+            $values = $builder->allowedValues($field) ?? [];
+            if ($values !== []) $hints[] = $field.' ('.$label.'): '.implode('، ', array_slice($values, 0, 25));
+        }
+
+        return implode(' | ', $hints).' | doctor: doctor names. A paid appointment means amount_from=1 with debt eq 0 (or a payment filter), not finstatus.';
+    }
+
     private function parameters(string $name, User $user): array
     {
         $period = ['type' => 'string', 'enum' => ['today', 'this_month', 'custom'], 'description' => 'Jalali period. For custom provide from and to.'];
@@ -85,7 +100,33 @@ final class AssistantToolRegistry
                 'query' => ['type' => ['string', 'null'], 'description' => 'Optional patient name to search.'],
                 'limit' => $limit,
             ],
-            'search_patients' => ['query' => ['type' => 'string', 'description' => 'Patient name or file number.']],
+            'search_patients' => ['query' => ['type' => 'string', 'description' => 'Patient name, file number or phone.']],
+            'build_report' => [
+                'scope' => ['type' => 'string', 'enum' => ['patients', 'appointments'], 'description' => 'patients: one row per patient file. appointments: one row per appointment.'],
+                'columns' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => array_keys(config('dynamic_reports.fields', []))],
+                    'description' => 'Output columns: '.collect(config('dynamic_reports.fields', []))->map(fn ($label, $key) => $key.'='.$label)->implode(', ')],
+                'text_filters' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                    'field' => ['type' => 'string', 'enum' => AssistantReportBuilder::TEXT_FIELDS],
+                    'mode' => ['type' => 'string', 'enum' => ['starts_with', 'contains', 'has_value', 'empty']],
+                    'value' => ['type' => 'string', 'description' => 'Text for starts_with/contains; empty string for has_value/empty.'],
+                ], 'required' => ['field', 'mode', 'value'], 'additionalProperties' => false]],
+                'gender' => ['type' => 'string', 'enum' => ['all', 'male', 'female']],
+                'multi_filters' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                    'field' => ['type' => 'string', 'enum' => AssistantReportBuilder::MULTI_FIELDS],
+                    'values' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Exact stored values. '.$this->reportValueHints()],
+                ], 'required' => ['field', 'values'], 'additionalProperties' => false]],
+                'money_filters' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                    'field' => ['type' => 'string', 'enum' => ['debt', 'deposit']],
+                    'op' => ['type' => 'string', 'enum' => ['lt', 'gt', 'eq']],
+                    'value' => ['type' => 'integer', 'description' => 'Toman.'],
+                ], 'required' => ['field', 'op', 'value'], 'additionalProperties' => false]],
+                'amount_from' => ['type' => ['integer', 'null']], 'amount_to' => ['type' => ['integer', 'null']],
+                'no_return_months' => ['type' => ['integer', 'null'], 'description' => '1 to 6: customers who have not returned for this many months, or null.'],
+                'birth_from' => $date, 'birth_to' => $date,
+                'from' => $date, 'to' => $date,
+                'sort' => ['type' => 'string', 'enum' => ['oldest', 'newest'], 'description' => 'newest for latest/last/recent records first.'],
+                'title' => ['type' => 'string', 'description' => 'Short Persian title for the list.'],
+            ],
             'search_people' => ['query' => ['type' => 'string', 'description' => 'Full or partial person name, at least two characters.']],
             'preview_doctor_patients' => [
                 'doctor' => ['type' => 'string', 'description' => 'Doctor name or distinctive fragment.'],
@@ -106,8 +147,8 @@ final class AssistantToolRegistry
                 'filters' => ['type'=>'array','description'=>'Zero to four AND filters. Use [] for all records.',
                     'items'=>['type'=>'object','properties'=>[
                         'field'=>['type'=>'string','enum'=>(new AssistantDataCatalog)->fields($user)],
-                        'operator'=>['type'=>'string','enum'=>['equals','contains','gte','lte']],
-                        'value'=>['type'=>'string','description'=>'The database value; dates use stored format.'],
+                        'operator'=>['type'=>'string','enum'=>['equals','contains','gte','lte','is_empty','not_empty']],
+                        'value'=>['type'=>'string','description'=>'The database value; dates use stored format. Empty string for is_empty/not_empty.'],
                     ],'required'=>['field','operator','value'],'additionalProperties'=>false]],
                 'limit' => $limit,
             ],
@@ -122,9 +163,12 @@ final class AssistantToolRegistry
             'get_doctor_revenue' => [
                 'period' => $period, 'from' => $date, 'to' => $date, 'doctor' => $doctor,
             ],
+            'read_clinic_settings' => ['topic' => ['type' => 'string', 'enum' => array_keys(AssistantSettingsReader::TOPICS)]],
+            'explain_app_feature' => ['query' => ['type' => 'string', 'description' => 'The feature or question in Persian, e.g. «گزارش‌ساز» or «کجا پزشک اضافه کنم».']],
             'open_clinic_page' => [
                 'page' => ['type' => 'string', 'enum' => array_keys((new AssistantNavigationCatalog)->allowed($user))],
                 'date' => $date,
+                'search' => ['type' => ['string', 'null'], 'description' => 'For page=appointments: a name, phone or file number to type into the appointments search box (with date = that appointment Jalali date, if known), or null.'],
                 'doctor' => $doctor,
             ],
         };

@@ -25,7 +25,7 @@
           </tr>
         </thead>
         <tbody>
-  <tr v-for="(row, index) in doctorRows" :key="index">
+  <tr v-for="(row, index) in doctorRows" :key="index" :data-resource-key="`doctor-${row.id}`" :class="{ 'resource-row--highlight': highlightedResourceKey === `doctor-${row.id}` }">
     <td class="resource-photo-cell" data-label="عکس">
       <label class="resource-avatar">
         <img v-if="resourceAvatar(row)" :src="resourceAvatar(row)" alt="" />
@@ -188,7 +188,7 @@
       <table>
         <thead><tr><th>عکس</th><th>نام</th><th>تنظیمات مالی و پورسانت</th><th>حقوق ثابت (تومان)</th><th>حذف / اضافه</th></tr></thead>
         <tbody>
-          <tr v-for="(row, index) in staffRows" :key="row._staffKey">
+          <tr v-for="(row, index) in staffRows" :key="row._staffKey" :data-resource-key="`staff-${row.id}`" :class="{ 'resource-row--highlight': highlightedResourceKey === `staff-${row.id}` }">
             <td class="resource-photo-cell" data-label="عکس">
               <label class="resource-avatar">
                 <img v-if="resourceAvatar(row)" :src="resourceAvatar(row)" alt="" />
@@ -305,11 +305,13 @@ export default {
   components: { CommissionRules },
   props: {
     initialTab: { type: String, default: 'doctor' },
+    highlightResource: { type: Object, default: null },
   },
   data() {
   return {
     activeTab: ['doctor', 'staff', 'channels'].includes(this.initialTab) ? this.initialTab : 'doctor',
     activeDoctorIndex: null,
+    highlightedResourceKey: '',
     activeStaffIndex: null,
     activeChannelIndex: null,
     pendingChannelRemoval: null,
@@ -392,12 +394,15 @@ export default {
 },
 
   mounted() {
-    this.fetchData();
+    this.fetchData().then(() => this.applyResourceHighlight());
   },
 
   watch: {
     initialTab(tab) {
       if (['doctor', 'staff', 'channels'].includes(tab)) this.activeTab = tab;
+    },
+    highlightResource() {
+      this.applyResourceHighlight();
     },
     doctorRows: {
       handler() {
@@ -649,6 +654,21 @@ export default {
         const inventoryData = await inventoryResponse.json();
         this.inventorySections = Array.isArray(inventoryData.sections) ? inventoryData.sections : [];
       }
+    },
+
+    // پروندهٔ پزشک/پرسنلی که دستیار باز کرده: ردیفش جلوی چشم و چند ثانیه برجسته می‌شود.
+    applyResourceHighlight() {
+      const target = this.highlightResource;
+      if (!target?.id) return;
+      const type = target.type === 'staff' ? 'staff' : 'doctor';
+      const rows = type === 'staff' ? this.staffRows : this.doctorRows;
+      if (!rows.some(row => String(row.id) === String(target.id))) return;
+      this.activeTab = type;
+      const key = `${type}-${target.id}`;
+      this.highlightedResourceKey = key;
+      this.$nextTick(() => this.$el?.querySelector?.(`[data-resource-key="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+      clearTimeout(this.highlightTimer);
+      this.highlightTimer = setTimeout(() => { this.highlightedResourceKey = ''; }, 5000);
     },
 
     async fetchData() {
@@ -2266,4 +2286,6 @@ input:focus {
 .channel-modal-preview{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #ddd6fe;border-radius:14px;background:#faf5ff}
 .channel-image-upload{grid-column:1/-1;padding:11px 12px;border:1px dashed #a78bfa;border-radius:12px;background:#faf5ff;cursor:pointer}.channel-image-upload>span{display:block;color:#5b21b6;font-size:11px;font-weight:900}.channel-image-upload small{color:#8b5cf6;font-weight:600}.channel-image-upload input{display:none}.channel-image-upload b{display:block;margin-top:7px;color:#6d28d9;font-size:12px}.channel-image-upload em{display:block;margin-top:3px;color:#8b5cf6;font-size:9px;font-style:normal;font-weight:700}.channel-modal-preview span{width:48px;height:48px;display:grid;place-items:center;overflow:hidden;border-radius:13px;background:#7c3aed;color:#fff;font-size:23px}.channel-modal-preview span img{width:100%;height:100%;object-fit:cover}
 .channel-modal-preview strong{color:#4c1d95;font-size:13px}
-@media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:180px;min-width:180px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}</style>
+@media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:180px;min-width:180px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}.resource-row--highlight td { background: #fff7d6 !important; transition: background .4s ease; }
+.resource-row--highlight td:first-child { box-shadow: inset -4px 0 0 #f59e0b; }
+</style>

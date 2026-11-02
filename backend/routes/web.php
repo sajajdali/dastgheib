@@ -7,6 +7,7 @@ use App\Http\Controllers\CentralServiceTicketController;
 use App\Http\Controllers\CentralTenantController;
 use App\Http\Controllers\CentralCalendarController;
 use App\Http\Controllers\CentralStorageController;
+use App\Http\Controllers\CentralAiController;
 
 foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
     Route::domain($centralDomain)->group(function () {
@@ -49,6 +50,19 @@ foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
                 Route::get('/service-tickets', [CentralServiceTicketController::class, 'centralIndex']);
                 Route::post('/service-tickets/{ticket}', [CentralServiceTicketController::class, 'centralUpdate']);
                 Route::patch('/service-tickets/{ticket}', [CentralServiceTicketController::class, 'centralUpdate']);
+
+                Route::get('/ai', [CentralAiController::class, 'index']);
+                Route::patch('/ai/settings', [CentralAiController::class, 'updateSettings']);
+                Route::post('/ai/prices', [CentralAiController::class, 'storePrice']);
+                Route::patch('/ai/wallets/{tenant}', [CentralAiController::class, 'updateWallet']);
+                Route::post('/ai/wallets/{tenant}/charges', [CentralAiController::class, 'charge']);
+                Route::post('/ai/wallets/{tenant}/adjustments', [CentralAiController::class, 'adjust']);
+                Route::get('/ai/wallets/{tenant}/transactions', [CentralAiController::class, 'transactions']);
+                Route::get('/ai/usage/summary', [CentralAiController::class, 'summary']);
+                Route::get('/ai/usage/grouped', [CentralAiController::class, 'grouped']);
+                Route::get('/ai/usage/requests', [CentralAiController::class, 'requests']);
+                Route::get('/ai/usage/options', [CentralAiController::class, 'options']);
+                Route::get('/ai/usage/export', [CentralAiController::class, 'export']);
             });
         });
 

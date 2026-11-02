@@ -21,7 +21,6 @@ final class AssistantSettings
             'enabled' => (bool) ($stored['enabled'] ?? true),
             'default_model' => $default,
             'allowed_models' => $allowed,
-            'daily_limit' => min(500, max(1, (int) ($stored['daily_limit'] ?? config('assistant.max_messages_per_day', 80)))),
         ];
     }
 
@@ -43,6 +42,7 @@ final class AssistantSettings
         return [
             ...$settings,
             'configured' => filled(config('assistant.api_key')),
+            'voice_enabled' => (bool) config('assistant.voice_enabled'),
             'models' => collect(config('assistant.models', []))
                 ->only($settings['allowed_models'])
                 ->map(fn ($label, $id) => ['id' => $id, 'label' => $label])

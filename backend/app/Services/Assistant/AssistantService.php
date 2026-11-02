@@ -5,6 +5,8 @@ namespace App\Services\Assistant;
 use App\Models\AiAssistantConversation;
 use App\Models\AiAssistantMessage;
 use App\Models\User;
+use App\Services\Assistant\Billing\AiMeter;
+use App\Services\Assistant\Billing\AiUsageContext;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -13,13 +15,29 @@ use Throwable;
 final class AssistantService
 {
     public function __construct(
-        private readonly OpenAiClient $client,
+        private readonly AiMeter $meter,
         private readonly AssistantToolRegistry $registry,
         private readonly AssistantToolExecutor $executor,
         private readonly AssistantCapabilityCatalog $capabilities,
+        private readonly AssistantListShaper $lists,
     ) {}
 
     public function send(User $user, string $text, string $model, ?AiAssistantConversation $conversation): array
+    {
+        $usage = AiUsageContext::forCurrentTenant($user, 'chat', $conversation?->id);
+        try {
+            $result = $this->converse($usage, $user, $text, $model, $conversation);
+        } catch (Throwable $exception) {
+            $this->meter->finish($usage, 'incomplete');
+            throw $exception;
+        }
+        $usage->conversationId = $result['conversation_id'];
+        $this->meter->finish($usage);
+
+        return $result;
+    }
+
+    private function converse(AiUsageContext $usage, User $user, string $text, string $model, ?AiAssistantConversation $conversation): array
     {
         $history = $conversation?->messages()->latest('id')->limit(12)->get()->reverse()->values() ?? collect();
         $input = $history->map(function (AiAssistantMessage $message): array {
@@ -27,9 +45,8 @@ final class AssistantService
             if ($message->role === 'assistant') {
                 $actions = collect($message->presentation ?? [])->flatMap(function (array $card): array {
                     $items = [];
-                    if (($card['page'] ?? null) === 'report_builder' && is_array($card['report'] ?? null)) {
-                        $items[] = ['page'=>'report_builder','report'=>$card['report']];
-                    }
+                    // فقط عنوان کارت گزارش‌ساز؛ payload کامل فیلترها توکن الکی مصرف می‌کند.
+                    if (is_array($card['report'] ?? null)) $items[] = ['report_builder_card'=>(string) ($card['title'] ?? '')];
                     foreach ((array) ($card['row_actions'] ?? []) as $index => $action) {
                         if (is_array($action)) $items[] = ['row'=>($card['rows'][$index] ?? []),'action'=>$action];
                     }
@@ -52,6 +69,15 @@ final class AssistantService
         $instructions .= ' برای یافتن شخص با نام کامل از search_people استفاده کن. برای بیماران یک پزشک از preview_doctor_patients استفاده کن؛ اگر بازه مشخص نشده همهٔ سوابق تا امروز را بگیر و بازه را در جواب روشن کن. دکمه‌های ابزار را در متن بازنویسی نکن. اگر ابزار کارت قابل باز کردن داد، کاربر را به آن ارجاع بده.';
         $instructions .= ' برای پرسش‌های سایر مجموعه‌های داده از query_clinic_records استفاده کن. فقط فیلدهای همان dataset را فیلتر کن و اگر فیلتر در کاتالوگ نیست، نتیجهٔ کامل ادعا نکن. برای چند شرط فیلترهای AND بده. هرگز نام فیلد یا دادهٔ حساس خارج از ابزار مجاز را حدس نزن.';
         $instructions .= ' اگر کاربر در ادامه گفت «بله، گزارش را بیاور»، از جزئیات گزارش پاسخ قبلی برای فراخوانی دوبارهٔ preview_doctor_patients استفاده کن تا دکمهٔ گزارش معتبر و تازه ساخته شود.';
+        $instructions .= ' تو یک دستیار گفت‌وگویی هستی و خودت بهترین ابزار و بهترین راه را انتخاب می‌کنی. هرگز نگو «ابزار فلان ستون یا فیلتر را ندارد» وقتی build_report می‌تواند آن را بسازد. برای هر فهرست پرونده، مراجع یا نوبت با ستون یا شرط خاص (موبایل، کد ملی، شهر، تاریخ تولد، پزشک، وضعیت، مبلغ، بدهی، بیعانه، عدم بازگشت، منبع، بخش) از build_report استفاده کن: برای «در نامش هست» mode=contains، برای «دارای کد ملی» has_value و برای «بدون کد ملی» empty. ستون‌هایی را بگذار که کاربر خواسته به‌اضافهٔ نام، نام خانوادگی و شماره پرونده برای شناسایی. فهرست‌ها محدودیت ندارند و کارت همهٔ موارد را صفحه‌به‌صفحه نشان می‌دهد؛ پس نگو فقط N مورد را نشان می‌دهم.';
+        $instructions .= ' رفتار کلی: مثل یک همکار باهوش کلینیک رفتار کن. اگر درخواست کمی مبهم است، معقول‌ترین برداشت را خودت انتخاب و اجرا کن و برداشتت را در یک جملهٔ کوتاه بگو؛ فقط وقتی واقعاً هیچ برداشت معقولی ممکن نیست سؤال بپرس. برای تأیید چیزی که خودت می‌توانی اجرا کنی از کاربر سؤال نکن. اگر ابزار خطای «مقدار نامعتبر» داد، از فهرست مقادیر مجازی که در خطا آمده درست‌ترین را انتخاب کن و همان لحظه دوباره اجرا کن؛ خطا را به کاربر برنگردان مگر بعد از تلاش دوباره.';
+        $instructions .= ' معناها: «پرداخت‌شده» یعنی مبلغ بیشتر از صفر و بدهی صفر (build_report با amount_from=1 و money_filters بدهی eq 0)، نه وضعیت مالی؛ وضعیت مالی رتبهٔ مالی بیمار است. «آخرین/جدیدترین» یعنی sort=newest و در پاسخ ردیف اول را معرفی کن. «اسم دارد و فلان خالی است» را با query_clinic_records و عملگرهای not_empty/is_empty اجرا کن؛ اگر نگفت کدام ستون، نوبت‌های دارای نام را که پزشک یا وضعیت یا ساعت‌شان خالی است نشان بده.';
+        $instructions .= ' برای سؤال‌هایی مثل «فلان تنظیم فعاله؟» یا «فلان فیلد در فرم هست؟» از read_clinic_settings استفاده کن و جواب قطعی بده. برای «فلان بخش کجاست؟» یا «چطور فلان کار را بکنم؟» از explain_app_feature استفاده کن و مسیر و توضیح کوتاه بده.';
+        $instructions .= ' برای «من به فلان بخش دسترسی دارم؟» read_clinic_settings با my_access، برای «چه کسی به فلان دسترسی دارد؟» با roles، برای «چه کسی فلان را حذف/ویرایش کرد؟» query_clinic_records روی activity_logs و برای «پیامک خودکار فلان نوبت رفت؟» روی appointment_automatic_sms. هر سؤالی دربارهٔ داده، تنظیمات یا محل بخش‌ها را با ابزار مناسب جواب بده و کاربر را برای بررسی دستی جای دیگری نفرست.';
+        $instructions .= ' اگر کاربر خواست کسی را «در نوبت‌دهی پیدا کن/نشان بده»، open_clinic_page با page=appointments و search=نام یا شماره و date=تاریخ شمسی نوبتش (اگر می‌دانی؛ اول با list_appointments یا query_clinic_records پیدایش کن) اجرا کن تا خود صفحهٔ نوبت‌دهی باز شود و جست‌وجو در آن انجام شود.';
+        $instructions .= ' برای دیدن جزئیات هر گزارش، گزارش‌ساز را به داشبورد گزارش ترجیح بده: اگر کاربر جزئیات یا فهرست پشت یک عدد را خواست، build_report را با همان بازه و فیلتر اجرا کن.';
+        $instructions .= ' کارت‌هایی که report_builder_button یا دکمهٔ گزارش‌ساز دارند همان فیلترها را در گزارش‌ساز باز می‌کنند؛ در پاسخ کوتاه به این دکمه اشاره کن. در پایان پاسخ‌های فهرستی و آماری یک پیشنهاد کوتاه و کاربردی برای گام بعد بده؛ مثلاً افزودن یک ستون، محدود کردن به یک بازه یا پزشک، یا گزارشی مرتبط در گزارش‌ساز.';
+        $instructions .= ' اگر خروجی ابزار rows_in_card=true داشت، فهرست کامل در کارت تعاملی به کاربر نشان داده شده است: ردیف‌ها را فهرست نکن، فقط تعداد کل را در یک جملهٔ کوتاه بگو و بگو از دکمه‌های کارت انتخاب کند چند مورد ببیند یا فهرست را محدود کند.';
         $instructions .= ' برای عکس قبل/بعد بیمار از find_patient_photos استفاده کن. وقتی چند پرونده یا عکس پیدا شد، تعداد و تاریخ/زاویه‌ها را بگو و از کاربر بخواه انتخاب کند؛ دکمه‌های انتخاب را هم نمایش بده. «عکس بعد» فقط comparison_stage=after است. عکس را با حدس نام یا تاریخ به پروندهٔ دیگری نسبت نده.';
         $instructions .= ' اگر کاربر گفت «دومی»، «همان را باز کن» یا به یکی از نتایج قبلی اشاره کرد، از شماره پرونده و شناسهٔ عکس در نتایج قابل اقدام پاسخ قبلی استفاده کن و با open_patient_result دکمهٔ معتبر بساز. برای انتخاب یکی از بیماران هم‌نام و دیدن عکس‌هایش، find_patient_photos را با شماره پروندهٔ انتخاب‌شده دوباره اجرا کن.';
         $instructions .= ' الگوی تعامل در همهٔ بخش‌ها یکسان است: اگر چند نتیجه پیدا شد نام و شناسهٔ آن‌ها را نشان بده و بپرس کدام؛ پس از انتخاب، inspect_clinic_record را با dataset و id دقیق اجرا کن. ارتباط‌های رکورد را فقط از خروجی همان ابزار بگیر و برای نمایش رابطه از query_clinic_records با فیلتر اعلام‌شده استفاده کن. برای مجموعه‌های بدون دکمهٔ مستقیم، دکمهٔ بخش مربوط را پیشنهاد بده.';
@@ -65,7 +91,7 @@ final class AssistantService
                 'max_output_tokens'=>1600,
             ];
             if ($round === 0 && $forcedTool !== null) $request['tool_choice'] = ['type'=>'function','name'=>$forcedTool];
-            $response = $this->client->respond($request);
+            $response = $this->meter->respond($usage, $request);
             $output = (array) ($response['output'] ?? []);
             $functionCalls = array_values(array_filter($output, fn ($item) => ($item['type'] ?? '') === 'function_call'));
             if ($functionCalls === []) {
@@ -86,7 +112,8 @@ final class AssistantService
                 $name = (string) ($call['name'] ?? '');
                 $arguments = json_decode((string) ($call['arguments'] ?? '{}'), true);
                 try {
-                    $result = $this->executor->execute($user, $name, is_array($arguments) ? $arguments : []);
+                    $arguments = is_array($arguments) ? array_diff_key($arguments, ['offset' => true]) : [];
+                    $result = $this->lists->shape($name, $arguments, $this->executor->execute($user, $name, $arguments));
                 } catch (InvalidArgumentException $exception) {
                     $result = ['model'=>['error'=>$exception->getMessage()], 'presentation'=>null];
                 } catch (Throwable $exception) {

@@ -40,7 +40,7 @@
       </button>
       <div class="appointment-search-wrap">
         <div class="appointment-search-input-wrap">
-          <input type="text" v-model="searchQuery" @input="scheduleTableSearch" class="global-search-box" placeholder="جستجو در کل جدول..." />
+          <input ref="globalSearchInput" type="text" v-model="searchQuery" @input="scheduleTableSearch" class="global-search-box" :class="{ 'is-assistant-typing': assistantTyping }" placeholder="جستجو در کل جدول..." />
           <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
         </div>
         <div v-if="appliedSearchQuery.trim()" class="appointment-search-navigation">
@@ -2636,6 +2636,7 @@ export default {
       appointmentReady: false,
       handledOpenViewRequestAt: null,
       searchQuery: "",
+      assistantTyping: false,
       // مقدار اعمال‌شدهٔ جستجو؛ با تأخیر کوتاه به‌روز می‌شود تا هر حرف کل ماه را دوباره رندر نکند.
       appliedSearchQuery: "",
       searchDebounceTimer: null,
@@ -3934,6 +3935,7 @@ export default {
     },
 
     async applyOpenViewRequest(request) {
+      if (request?.search && request.view !== "timeline") { await this.applySearchRequest(request); return; }
       if (!request || request.view !== "timeline") return;
       this.appointmentView = "timeline";
 
@@ -3944,8 +3946,8 @@ export default {
         return;
       }
 
-      const selectedDate = moment(request.date, "YYYY-MM-DD", true);
-      if (!selectedDate.isValid()) return;
+      const selectedDate = this.requestDate(request.date);
+      if (!selectedDate) return;
 
       const targetMonth = selectedDate.format("jYYYY-jMM");
       if (!this.months.includes(targetMonth)) {
@@ -3971,6 +3973,55 @@ export default {
       this.activateScheduleDay(day);
       this.handledOpenViewRequestAt = requestKey;
       this.pendingTimelineFollowup = request.followup || null;
+    },
+
+    // تاریخ درخواست: شمسی (از دستیار، مثل 1405-08-11) یا میلادی.
+    requestDate(value) {
+      const text = String(value || '');
+      const date = /^1[34]\d{2}-/.test(text) ? moment(text, "jYYYY-jMM-jDD", true) : moment(text, "YYYY-MM-DD", true);
+      return date.isValid() ? date : null;
+    },
+
+    // دستیار مثل یک کاربر واقعی: ماه را عوض می‌کند و متن را حرف‌به‌حرف در جستجوی بالای جدول تایپ می‌کند.
+    async applySearchRequest(request) {
+      const requestKey = request.requestedAt || request.search;
+      if (this.handledOpenViewRequestAt === requestKey) return;
+      this.handledOpenViewRequestAt = requestKey;
+      this.appointmentView = "table";
+      const selectedDate = this.requestDate(request.date);
+      if (selectedDate) {
+        const targetMonth = selectedDate.format("jYYYY-jMM");
+        if (!this.months.includes(targetMonth)) {
+          this.months.push(targetMonth);
+          this.months = this.fillMissingMonths(this.months);
+        }
+        const targetMonthIndex = this.months.indexOf(targetMonth);
+        if (targetMonthIndex !== this.currentMonth) {
+          this.generatingNewMonth = true;
+          try {
+            this.currentMonth = targetMonthIndex;
+            localStorage.setItem("schedule_current_month", this.currentMonth);
+            await this.fetchMonthEvents();
+            await this.fetchData();
+            this.syncAllDaysCollapsedState();
+          } finally {
+            this.generatingNewMonth = false;
+          }
+        }
+      }
+      await this.$nextTick();
+      const input = this.$refs.globalSearchInput;
+      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input?.focus({ preventScroll: true });
+      this.clearAppointmentSearch();
+      this.assistantTyping = true;
+      const text = String(request.search).trim();
+      for (const char of text) {
+        this.searchQuery += char;
+        await new Promise(resolve => setTimeout(resolve, 55));
+      }
+      this.assistantTyping = false;
+      this.searchTable();
     },
 
     showAvatarPreview(event, url, level = 'blue') {
@@ -4699,7 +4750,7 @@ export default {
       } finally {
         this.isFetching = false;
         this.appointmentReady = true;
-        if (this.openViewRequest?.date) {
+        if (this.openViewRequest?.date || this.openViewRequest?.search) {
           await this.applyOpenViewRequest(this.openViewRequest);
         } else {
           this.focusTodayAfterLoad();
@@ -10208,6 +10259,8 @@ smsColor(val) {
         if (request?.view === "timeline") {
           this.appointmentView = "timeline";
           if (this.appointmentReady) this.applyOpenViewRequest(request);
+        } else if (request?.search && this.appointmentReady) {
+          this.applyOpenViewRequest(request);
         }
       }
     },
@@ -10272,6 +10325,8 @@ smsColor(val) {
 
 
 <style>
+.global-search-box.is-assistant-typing { border-color: #2563eb !important; box-shadow: 0 0 0 4px rgba(37, 99, 235, .18) !important; }
+
 @import '@/scss/main.scss';
 .transfer-schedule{margin:16px 0;max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:12px}.transfer-schedule table{width:100%;border-collapse:collapse;margin-top:10px}.transfer-schedule th,.transfer-schedule td{padding:8px;text-align:right;border-bottom:1px solid #e2e8f0}
 

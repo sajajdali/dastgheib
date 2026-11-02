@@ -69,8 +69,9 @@ final class AssistantDoctorPatientsTest extends TestCase
         $this->assertSame(1, $result['model']['count']);
         $this->assertSame('علی موسوی', $result['model']['rows'][0]['name']);
         $this->assertSame('101', $result['presentation']['row_actions'][0]['file_number']);
-        $this->assertSame('report_builder', $result['presentation']['page']);
-        $this->assertSame('دکتر احمدی', $result['presentation']['report']['doctor']);
+        $this->assertSame(['دکتر احمدی'], $result['presentation']['report']['filters']['multi']['doctor']);
+        $this->assertSame('patients', $result['presentation']['report']['filters']['scope']);
+        $this->assertNotEmpty($result['presentation']['report_label']);
 
         $person = app(AssistantToolExecutor::class)->execute($user, 'search_people', ['query'=>'علی موسوی']);
         $this->assertSame(1, $person['model']['count']);

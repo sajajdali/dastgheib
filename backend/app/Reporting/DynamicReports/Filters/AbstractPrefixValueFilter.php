@@ -2,6 +2,7 @@
 
 namespace App\Reporting\DynamicReports\Filters;
 
+use App\Reporting\DynamicReports\ReportTextMatch;
 use Illuminate\Database\Eloquent\Builder;
 
 abstract class AbstractPrefixValueFilter implements DynamicReportQueryFilter
@@ -11,9 +12,7 @@ abstract class AbstractPrefixValueFilter implements DynamicReportQueryFilter
 
     public function apply(Builder $query, array $filters): void
     {
-        $value = trim((string) data_get($filters, 'values.'.$this->key(), ''));
-        if ($value === '') return;
-        $query->where($this->column(), 'like', $this->pattern($value));
+        ReportTextMatch::apply($query, $this->column(), data_get($filters, 'values.'.$this->key(), ''));
     }
 
     protected function pattern(string $value): string

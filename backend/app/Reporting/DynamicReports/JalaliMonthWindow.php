@@ -20,6 +20,11 @@ final class JalaliMonthWindow
         return ['from' => $this->format($fromYear, $fromMonth, $fromDay), 'to' => $to];
     }
 
+    public function date(CarbonInterface $date): string
+    {
+        return $this->format(...$this->fromGregorian($date));
+    }
+
     /** @return array{int, int, int} */
     private function fromGregorian(CarbonInterface $date): array
     {

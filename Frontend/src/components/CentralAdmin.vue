@@ -76,6 +76,7 @@
     />
 
     <CentralCalendar v-else-if="activeTab === 'calendar'" />
+    <CentralAi v-else-if="activeTab === 'ai'" />
 
     <CentralTenantManager
       v-else
@@ -110,6 +111,7 @@ import CentralModules from "../central/components/CentralModules.vue";
 import CentralPackages from "../central/components/CentralPackages.vue";
 import CentralServiceTickets from "../central/components/CentralServiceTickets.vue";
 import CentralCalendar from "../central/components/CentralCalendar.vue";
+import CentralAi from "../central/components/CentralAi.vue";
 import CentralStorage from "../central/components/CentralStorage.vue";
 import CentralStoreTerms from "../central/components/CentralStoreTerms.vue";
 import CentralTenantManager from "../central/components/CentralTenantManager.vue";

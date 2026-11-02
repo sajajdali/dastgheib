@@ -33,6 +33,15 @@ final class OpenAiClient
 
     public function transcribe(UploadedFile $file): string
     {
+        $text = trim((string) $this->transcribeRaw($file)['text']);
+        if ($text === '') throw new RuntimeException('متنی از پیام صوتی تشخیص داده نشد.');
+
+        return $text;
+    }
+
+    /** پاسخ خام رونویسی، شامل usage، حتی اگر متنی تشخیص داده نشده باشد (هزینه‌اش گرفته شده). */
+    public function transcribeRaw(UploadedFile $file): array
+    {
         $this->ensureConfigured();
         try {
             $stream = fopen($file->getRealPath(), 'rb');
@@ -47,7 +56,7 @@ final class OpenAiClient
                     ])
                     ->post(rtrim(config('assistant.base_url'), '/').'/audio/transcriptions', [
                         'model' => config('assistant.transcription_model'),
-                        'prompt' => 'گفت‌وگوی فارسی درباره نوبت‌ها، پزشکان، پیگیری‌ها و گزارش‌های یک کلینیک.',
+                        'prompt' => $this->transcriptionPrompt(),
                     ]);
             } finally {
                 fclose($stream);
@@ -56,10 +65,13 @@ final class OpenAiClient
             throw new RuntimeException('رونویسی صدا به‌دلیل قطع ارتباط انجام نشد.', 0, $exception);
         }
         $this->assertSuccess($response->status(), $response->json());
-        $text = trim((string) $response->json('text', ''));
-        if ($text === '') throw new RuntimeException('متنی از پیام صوتی تشخیص داده نشد.');
 
-        return $text;
+        return (array) $response->json();
+    }
+
+    public function transcriptionPrompt(): string
+    {
+        return 'گفت‌وگوی فارسی درباره نوبت‌ها، پزشکان، پیگیری‌ها و گزارش‌های یک کلینیک.';
     }
 
     private function ensureConfigured(): void

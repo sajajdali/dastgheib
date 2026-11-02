@@ -18,6 +18,8 @@ use InvalidArgumentException;
 
 final class AssistantToolExecutor
 {
+    private ?User $currentUser = null;
+
     public function __construct(
         private readonly AssistantToolRegistry $registry,
         private readonly AssistantDateRange $dates,
@@ -27,6 +29,7 @@ final class AssistantToolExecutor
     public function execute(User $user, string $name, array $arguments): array
     {
         if (! $this->registry->allowed($user, $name)) throw new InvalidArgumentException('اجازهٔ دسترسی به این داده را ندارید.');
+        $this->currentUser = $user;
         return match ($name) {
             'find_doctors' => $this->doctors($arguments),
             'count_doctors' => $this->countDoctors(),
@@ -38,6 +41,7 @@ final class AssistantToolExecutor
             'list_service_followups' => $this->followups($arguments),
             'list_followups' => $this->generalFollowups($arguments),
             'search_patients' => $this->patients($arguments),
+            'build_report' => app(AssistantReportBuilder::class)->tool($arguments),
             'search_people' => $this->people($user, $arguments),
             'preview_doctor_patients' => $this->doctorPatients($arguments),
             'find_patient_photos' => $this->patientPhotos($arguments),
@@ -46,6 +50,8 @@ final class AssistantToolExecutor
             'inspect_clinic_record' => app(AssistantDataCatalog::class)->inspect($user, (string) ($arguments['dataset'] ?? ''), (int) ($arguments['id'] ?? 0)),
             'get_financial_metric' => $this->financial($arguments),
             'get_doctor_revenue' => $this->doctorRevenue($arguments),
+            'read_clinic_settings' => app(AssistantSettingsReader::class)->read($user, (string) ($arguments['topic'] ?? '')),
+            'explain_app_feature' => app(AssistantHelpCatalog::class)->search($user, (string) ($arguments['query'] ?? '')),
             'open_clinic_page' => $this->page($user, $arguments),
             default => throw new InvalidArgumentException('ابزار نامعتبر است.'),
         };
@@ -56,9 +62,15 @@ final class AssistantToolExecutor
         $name = trim((string) ($arguments['name'] ?? ''));
         $query = Doctor::query()->when($name !== '', fn ($q) => $q->where('name', 'like', '%'.addcslashes($name, '%_\\').'%'));
         $count = (clone $query)->count();
-        $rows = $query->orderBy('name')->limit(50)->pluck('name')->all();
-        return $this->result(['count' => $count, 'doctors' => $rows, 'truncated' => $count > 50],
-            ['type' => 'list', 'title' => 'پزشکان · '.$count.' نفر', 'items' => $rows]);
+        [$offset, $limit] = $this->window($arguments, 50);
+        $doctors = $query->orderBy('name')->offset($offset)->limit($limit)->get(['id', 'name']);
+        $rows = $doctors->pluck('name')->all();
+        $links = app(AssistantPersonLinks::class);
+        return $this->result(['count' => $count, 'doctors' => $rows, 'truncated' => $count > $offset + count($rows)],
+            ['type' => 'table', 'title' => 'پزشکان', 'count' => $count, 'columns' => ['name' => 'نام پزشک'],
+                'rows' => array_map(fn ($name) => ['name' => (string) $name], $rows),
+                'row_actions' => $doctors->map(fn (Doctor $doctor) => $this->currentUser ? $links->forResource($this->currentUser, 'doctor', (int) $doctor->id) : null)->all(),
+                'page' => 'settings_doctors']);
     }
 
     private function countDoctors(): array
@@ -72,7 +84,8 @@ final class AssistantToolExecutor
     {
         $count = Patient::query()->count();
         return $this->result(['count'=>$count,'entity'=>'patients','scope'=>'active_patient_files'],
-            ['type'=>'metric','title'=>'تعداد پرونده‌های فعال','value'=>$count,'unit'=>'پرونده','subtitle'=>'پرونده‌های فعال کلینیک']);
+            ['type'=>'metric','title'=>'تعداد پرونده‌های فعال','value'=>$count,'unit'=>'پرونده','subtitle'=>'پرونده‌های فعال کلینیک',
+                ...$this->builderLink(['scope'=>'patients','columns'=>['fileNo','name','family','phone','city']], 'فهرست پرونده‌ها در گزارش‌ساز')]);
     }
 
     private function countStaff(): array
@@ -109,7 +122,8 @@ final class AssistantToolExecutor
                     ->where(fn (Builder $x) => $x->where('month', '<', $tm)->orWhere(fn (Builder $y) => $y->where('month', $tm)->where('day_num', '<=', $td)));
             });
         if ($doctor) $query->where('doctor', 'like', '%'.addcslashes($doctor, '%_\\').'%');
-        if ($status === 'active') $query->whereNotIn('status', ['کنسل شد', 'پاسخ نداد', 'انتقال یافت']);
+        // وضعیت استاندارد انتقال «انتقال داده شده» است؛ «انتقال یافت» برای داده‌های قدیمی نگه داشته شده.
+        if ($status === 'active') $query->whereNotIn('status', ['کنسل شد', 'پاسخ نداد', 'انتقال داده شده', 'انتقال یافت']);
         elseif ($status === 'cancelled') $query->where('status', 'کنسل شد');
         elseif ($status === 'no_answer') $query->where('status', 'پاسخ نداد');
         elseif ($status === 'arrived') $query->where('status', 'آمد');
@@ -119,10 +133,11 @@ final class AssistantToolExecutor
         $count = (clone $query)->count();
         $label = $range['from'] === $range['to'] ? $range['from'] : $range['from'].' تا '.$range['to'];
         if (! $list) return $this->result(['count' => $count, 'period' => $label, 'doctor' => $doctor, 'status' => $status],
-            ['type' => 'metric', 'title' => 'تعداد نوبت‌ها', 'value' => $count, 'subtitle' => $label.($doctor ? ' · '.$doctor : '')]);
+            ['type' => 'metric', 'title' => 'تعداد نوبت‌ها', 'value' => $count, 'subtitle' => $label.($doctor ? ' · '.$doctor : ''),
+                ...$this->builderLink($this->appointmentReportArguments($range, $doctor, $status), 'ریز این نوبت‌ها در گزارش‌ساز')]);
 
-        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
-        $rows = (clone $query)->orderBy('month')->orderBy('day_num')->orderBy('sort_order')->limit($limit)
+        [$offset, $limit] = $this->window($arguments);
+        $rows = (clone $query)->orderBy('month')->orderBy('day_num')->orderBy('sort_order')->offset($offset)->limit($limit)
             ->get(['id', 'month', 'day_num', 'lastname', 'doctor', 'status', 'time', 'file_number'])
             ->map(fn (Appointment $a) => [
                 'date' => $a->month.'-'.str_pad((string) $a->day_num, 2, '0', STR_PAD_LEFT),
@@ -130,8 +145,11 @@ final class AssistantToolExecutor
                 'doctor' => (string) ($a->doctor ?? ''), 'status' => (string) ($a->status ?? ''),
                 'file_number' => (string) ($a->file_number ?? ''),
             ])->all();
-        return $this->result(['count' => $count, 'period' => $label, 'doctor' => $doctor, 'rows' => $rows, 'truncated' => $count > $limit],
-            ['type' => 'table', 'title' => 'نوبت‌ها · '.$label, 'count' => $count, 'columns' => ['date'=>'تاریخ','time'=>'ساعت','patient'=>'مراجع','doctor'=>'پزشک','status'=>'وضعیت'], 'rows' => $rows, 'page' => 'appointments', 'date' => $range['from'] === $range['to'] ? $range['from'] : null]);
+        $rowActions = array_map(fn (array $row) => ($row['patient'] !== '' || $row['file_number'] !== '')
+            ? ['page' => 'appointments', 'search' => $row['patient'] !== '' ? $row['patient'] : $row['file_number'], 'date' => $row['date'], 'label' => 'نمایش در نوبت‌دهی'] : null, $rows);
+        return $this->result(['count' => $count, 'period' => $label, 'doctor' => $doctor, 'rows' => $rows, 'truncated' => $count > $offset + count($rows)],
+            ['type' => 'table', 'row_actions' => $rowActions, 'title' => 'نوبت‌ها · '.$label, 'count' => $count, 'columns' => ['date'=>'تاریخ','time'=>'ساعت','patient'=>'مراجع','doctor'=>'پزشک','status'=>'وضعیت'], 'rows' => $rows, 'page' => 'appointments', 'date' => $range['from'] === $range['to'] ? $range['from'] : null,
+                ...$this->builderLink($this->appointmentReportArguments($range, $doctor, $status), 'نمایش در گزارش‌ساز با همین فیلترها')]);
     }
 
     private function followups(array $arguments): array
@@ -150,11 +168,11 @@ final class AssistantToolExecutor
         if ($scope === 'overdue') $query->whereDate('due_date', '<', $today)->where('status', 'pending');
         if ($scope === 'pending') $query->where('status', 'pending');
         $count = (clone $query)->count();
-        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
-        $rows = $query->orderBy('due_date')->limit($limit)->get(['patient_name','service_name','due_date','status'])
+        [$offset, $limit] = $this->window($arguments);
+        $rows = $query->orderBy('due_date')->offset($offset)->limit($limit)->get(['patient_name','service_name','due_date','status'])
             ->map(fn (ServiceFollowup $f) => ['patient' => (string) $f->patient_name, 'service' => (string) $f->service_name,
                 'due' => (string) $f->due_date?->format('Y-m-d'), 'status' => (string) $f->status])->all();
-        return $this->result(['count'=>$count,'scope'=>$scope,'rows'=>$rows,'truncated'=>$count>$limit],
+        return $this->result(['count'=>$count,'scope'=>$scope,'rows'=>$rows,'truncated'=>$count>$offset+count($rows)],
             ['type'=>'table','title'=>'پیگیری‌های خدمت','count'=>$count,'columns'=>['patient'=>'مراجع','service'=>'خدمت','due'=>'سررسید میلادی','status'=>'وضعیت'],'rows'=>$rows,'page'=>'service_followups']);
     }
 
@@ -206,9 +224,9 @@ final class AssistantToolExecutor
         }
         usort($matches, fn (array $a, array $b) => strcmp($a['due'], $b['due']));
         $count = count($matches);
-        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
-        $rows = array_slice($matches, 0, $limit);
-        return $this->result(['count'=>$count,'scope'=>$scope,'query'=>$term,'rows'=>$rows,'truncated'=>$count>$limit],
+        [$offset, $limit] = $this->window($arguments);
+        $rows = array_slice($matches, $offset, $limit);
+        return $this->result(['count'=>$count,'scope'=>$scope,'query'=>$term,'rows'=>$rows,'truncated'=>$count>$offset+count($rows)],
             ['type'=>'table','title'=>'پیگیری‌ها','count'=>$count,'columns'=>['name'=>'نام','due'=>'تاریخ میلادی','status'=>'وضعیت','consultant'=>'مشاور','campaign'=>'کمپین'],'rows'=>$rows,'page'=>'followups']);
     }
 
@@ -218,12 +236,14 @@ final class AssistantToolExecutor
         if (mb_strlen($term) < 2) throw new InvalidArgumentException('برای جست‌وجوی پرونده حداقل دو حرف لازم است.');
         $escaped = addcslashes($term, '%_\\');
         $query = Patient::query()->where(fn (Builder $q) => $q->where('first_name','like','%'.$escaped.'%')
-            ->orWhere('last_name','like','%'.$escaped.'%')->orWhere('file_number','like','%'.$escaped.'%'));
+            ->orWhere('last_name','like','%'.$escaped.'%')->orWhere('file_number','like','%'.$escaped.'%')
+            ->orWhere('phone','like','%'.$escaped.'%'));
         $count = (clone $query)->count();
-        $rows = $query->limit(20)->get(['id','first_name','last_name','file_number'])->map(fn (Patient $p) =>
-            ['name'=>trim($p->first_name.' '.$p->last_name),'file_number'=>(string) $p->file_number])->all();
-        return $this->result(['count'=>$count,'rows'=>$rows,'truncated'=>$count>20],
-            ['type'=>'table','title'=>'پرونده‌ها','count'=>$count,'columns'=>['name'=>'نام','file_number'=>'شماره پرونده'],'rows'=>$rows,
+        [$offset, $limit] = $this->window($arguments);
+        $rows = $query->orderBy('last_name')->orderBy('first_name')->offset($offset)->limit($limit)->get(['id','first_name','last_name','file_number','phone'])->map(fn (Patient $p) =>
+            ['name'=>trim($p->first_name.' '.$p->last_name),'file_number'=>(string) $p->file_number,'phone'=>(string) ($p->phone ?? '')])->all();
+        return $this->result(['count'=>$count,'rows'=>$rows,'truncated'=>$count>$offset+count($rows)],
+            ['type'=>'table','title'=>'پرونده‌های «'.$term.'»','count'=>$count,'columns'=>['name'=>'نام','file_number'=>'شماره پرونده','phone'=>'موبایل'],'rows'=>$rows,
                 'row_actions'=>array_map(fn (array $row) => $row['file_number'] !== ''
                     ? ['page'=>'patient_profile','file_number'=>$row['file_number'],'label'=>'مشاهده پرونده'] : null, $rows),
                 'page'=>'patients']);
@@ -234,8 +254,10 @@ final class AssistantToolExecutor
         $term = trim(preg_replace('/\s+/u', ' ', (string) ($arguments['query'] ?? '')));
         if (mb_strlen($term) < 2) throw new InvalidArgumentException('برای جست‌وجوی شخص حداقل دو حرف لازم است.');
         $tokens = array_values(array_filter(explode(' ', $term)));
+        [$offset, $limit] = $this->window($arguments);
         $rows = [];
         $count = 0;
+        $patientCount = 0;
         if ($user->can('patients.view')) {
             $patients = Patient::query();
             foreach ($tokens as $token) {
@@ -243,10 +265,14 @@ final class AssistantToolExecutor
                 $patients->where(fn (Builder $q) => $q->where('first_name', 'like', $pattern)
                     ->orWhere('last_name', 'like', $pattern)->orWhere('file_number', 'like', $pattern));
             }
-            $count += (clone $patients)->count();
-            foreach ($patients->orderBy('last_name')->orderBy('first_name')->limit(20)->get(['id','first_name','last_name','file_number']) as $patient) {
+            $patientCount = (clone $patients)->count();
+            $count += $patientCount;
+            $patientRows = $offset < $patientCount
+                ? $patients->orderBy('last_name')->orderBy('first_name')->offset($offset)->limit($limit)->get(['id','first_name','last_name','file_number','phone'])
+                : collect();
+            foreach ($patientRows as $patient) {
                 $rows[] = ['type'=>'پرونده بیمار', 'name'=>trim($patient->first_name.' '.$patient->last_name),
-                    'identifier'=>(string) $patient->file_number, 'action'=>$patient->file_number
+                    'identifier'=>(string) $patient->file_number, 'phone'=>(string) ($patient->phone ?? ''), 'action'=>$patient->file_number
                         ? ['page'=>'patient_profile','file_number'=>(string) $patient->file_number,'label'=>'باز کردن پرونده'] : null];
             }
         }
@@ -254,14 +280,19 @@ final class AssistantToolExecutor
             $users = User::query();
             foreach ($tokens as $token) $users->where('name', 'like', '%'.addcslashes($token, '%_\\').'%');
             $count += (clone $users)->count();
-            foreach ($users->orderBy('name')->limit(20)->get(['id','name']) as $person) {
-                $rows[] = ['type'=>'کاربر نرم‌افزار', 'name'=>(string) $person->name, 'identifier'=>'#'.$person->id, 'action'=>null];
+            $remaining = $limit - count($rows);
+            $userRows = $remaining > 0
+                ? $users->orderBy('name')->offset(max(0, $offset - $patientCount))->limit($remaining)->get(['id','name'])
+                : collect();
+            foreach ($userRows as $person) {
+                $rows[] = ['type'=>'کاربر نرم‌افزار', 'name'=>(string) $person->name, 'identifier'=>'#'.$person->id, 'phone'=>'',
+                    'action'=>app(AssistantPersonLinks::class)->forUser($user, (int) $person->id)];
             }
         }
         return $this->result(['count'=>$count,'query'=>$term,'rows'=>array_map(fn ($row) => array_diff_key($row, ['action'=>true]), $rows),
-            'truncated'=>$count>count($rows)],
+            'truncated'=>$count>$offset+count($rows)],
             ['type'=>'table','title'=>'نتیجهٔ جست‌وجوی «'.$term.'»','count'=>$count,
-                'columns'=>['type'=>'نوع','name'=>'نام','identifier'=>'شماره پرونده / شناسه'],
+                'columns'=>['type'=>'نوع','name'=>'نام','identifier'=>'شماره پرونده / شناسه','phone'=>'موبایل'],
                 'rows'=>$rows,'row_actions'=>array_column($rows, 'action')]);
     }
 
@@ -282,20 +313,22 @@ final class AssistantToolExecutor
         $filters = ['scope'=>'patients', 'reportDate'=>$range, 'multi'=>['doctor'=>[$doctor]]];
         $query = app(DynamicReportFilterPipeline::class)->query($filters);
         $count = (clone $query)->count();
-        $patients = $query->limit(20)->get(['id','first_name','last_name','file_number']);
+        [$offset, $limit] = $this->window($arguments);
+        $patients = $query->offset($offset)->limit($limit)->get(['id','first_name','last_name','file_number']);
         $rows = $patients->map(fn (Patient $patient) => [
             'name'=>trim($patient->first_name.' '.$patient->last_name),
             'file_number'=>(string) $patient->file_number,
         ])->all();
         $actions = $patients->map(fn (Patient $patient) => $patient->file_number
             ? ['page'=>'patient_profile','file_number'=>(string) $patient->file_number,'label'=>'باز کردن پرونده'] : null)->all();
-        $report = ['doctor'=>$doctor,'from'=>$range['from'],'to'=>$range['to']];
         return $this->result(['doctor'=>$doctor,'count'=>$count,'period'=>$range,'rows'=>$rows,
-            'truncated'=>$count>20,'report_available'=>true],
+            'truncated'=>$count>$offset+count($rows),'report_available'=>true],
             ['type'=>'table','title'=>'بیماران '.$doctor.' · '.$range['from'].' تا '.$range['to'],
                 'count'=>$count,'columns'=>['name'=>'نام بیمار','file_number'=>'شماره پرونده'],
-                'rows'=>$rows,'row_actions'=>$actions,'page'=>'report_builder','report'=>$report,
-                'label'=>'نمایش گزارش کامل در گزارش‌ساز']);
+                'rows'=>$rows,'row_actions'=>$actions,
+                'report'=>app(AssistantReportBuilder::class)->payload(['scope'=>'patients','from'=>$range['from'],'to'=>$range['to'],
+                    'columns'=>['fileNo','name','family','phone'],'multi_filters'=>[['field'=>'doctor','values'=>[$doctor]]]]),
+                'report_label'=>'نمایش گزارش کامل در گزارش‌ساز']);
     }
 
     private function patientPhotos(array $arguments): array
@@ -313,14 +346,15 @@ final class AssistantToolExecutor
         }
         $count = (clone $people)->count();
         if ($count === 0) return $this->result(['count'=>0,'error'=>'پرونده‌ای با این مشخصات پیدا نشد.']);
+        [$offset, $limit] = $this->window($arguments, $count > 1 ? 20 : 30);
         if ($count > 1) {
-            $choices = $people->orderBy('last_name')->limit(20)->get(['id','first_name','last_name','file_number'])
+            $choices = $people->orderBy('last_name')->offset($offset)->limit($limit)->get(['id','first_name','last_name','file_number'])
                 ->map(fn (Patient $person) => ['name'=>trim($person->first_name.' '.$person->last_name),
                     'file_number'=>(string) $person->file_number])->all();
             $actions = array_map(fn (array $person) => $person['file_number'] !== ''
                 ? ['prompt'=>'عکس‌های '.(['before'=>'قبل','after'=>'بعد','all'=>'همه'][$stage]).' پروندهٔ شماره '.$person['file_number'].' را نشان بده',
                     'label'=>'انتخاب این پرونده'] : null, $choices);
-            return $this->result(['ambiguous'=>true,'count'=>$count,'patients'=>$choices,'truncated'=>$count>20],
+            return $this->result(['ambiguous'=>true,'count'=>$count,'patients'=>$choices,'truncated'=>$count>$offset+count($choices)],
                 ['type'=>'table','title'=>'کدام پرونده را می‌خواهید؟','count'=>$count,
                     'columns'=>['name'=>'نام','file_number'=>'شماره پرونده'],'rows'=>$choices,'row_actions'=>$actions]);
         }
@@ -328,7 +362,7 @@ final class AssistantToolExecutor
         $query = PatientMedia::query()->with('folder.parent.parent')->where('patient_id', $person->id)->where('media_type', 'image');
         if ($stage !== 'all') $query->where('comparison_stage', $stage);
         $photoCount = (clone $query)->count();
-        $items = $query->orderByDesc('created_at')->limit(30)->get(['id','patient_id','folder_id','original_name','media_type','comparison_stage','photo_angle_label','created_at']);
+        $items = $query->orderByDesc('created_at')->offset($offset)->limit($limit)->get(['id','patient_id','folder_id','original_name','media_type','comparison_stage','photo_angle_label','created_at']);
         $rows = $items->map(function (PatientMedia $photo): array {
             $folder = $photo->folder;
             $date = null;
@@ -344,7 +378,7 @@ final class AssistantToolExecutor
             ? ['page'=>'patient_photo','file_number'=>(string) $person->file_number,'media_id'=>(int) $photo->id,'label'=>'باز کردن عکس'] : null)->all();
         return $this->result(['patient'=>trim($person->first_name.' '.$person->last_name),
             'file_number'=>(string) $person->file_number,'count'=>$photoCount,'stage'=>$stage,
-            'rows'=>$rows,'truncated'=>$photoCount>30],
+            'rows'=>$rows,'truncated'=>$photoCount>$offset+count($rows)],
             ['type'=>'table','title'=>'عکس‌های '.(['before'=>'قبل','after'=>'بعد','all'=>'پرونده'][$stage]).' '.trim($person->first_name.' '.$person->last_name),
                 'count'=>$photoCount,'columns'=>['date'=>'تاریخ','date_type'=>'تقویم','stage'=>'مرحله','angle'=>'زاویه / عنوان'],
                 'rows'=>$rows,'row_actions'=>$actions]);
@@ -386,8 +420,11 @@ final class AssistantToolExecutor
         $filters = $this->reports->normalizeFilters($range);
         $kpis = $this->reports->dashboard($filters)['kpis'];
         $value = (int) ($kpis[$metric] ?? 0);
+        // ریز درآمد از نوبت‌ها در گزارش‌ساز قابل دیدن است؛ هزینه و سود خالص منبعی در گزارش‌ساز ندارند و به داشبورد گزارش می‌روند.
+        $link = $metric === 'recognized_revenue' ? $this->builderLink(['scope'=>'appointments','from'=>$range['from'],'to'=>$range['to'],
+            'columns'=>['appointmentDate','name','family','doctor','work','amount','income','finstatus']], 'ریز نوبت‌ها و مبالغ این بازه در گزارش‌ساز') : [];
         return $this->result(['metric'=>$metric,'value'=>$value,'unit'=>'تومان','from'=>$range['from'],'to'=>$range['to'],'definition'=>$definitions[$metric]],
-            ['type'=>'metric','title'=>$labels[$metric],'value'=>$value,'unit'=>'تومان','subtitle'=>$range['from'].' تا '.$range['to'].' · '.$definitions[$metric],'page'=>'reports']);
+            ['type'=>'metric','title'=>$labels[$metric],'value'=>$value,'unit'=>'تومان','subtitle'=>$range['from'].' تا '.$range['to'].' · '.$definitions[$metric],'page'=>'reports', ...$link]);
     }
 
     private function doctorRevenue(array $arguments): array
@@ -405,15 +442,22 @@ final class AssistantToolExecutor
             if ($rows->count() > 1) return $this->result(['error'=>'نام پزشک مبهم است.','matches'=>$rows->pluck('doctor')->all()]);
         }
         $rows = $rows->sortByDesc('revenue')->values()->all();
+        $total = count($rows);
+        [$offset, $limit] = $this->window($arguments, 50);
+        $rows = array_slice($rows, $offset, $limit);
         $label = $range['from'].' تا '.$range['to'];
         $definition = 'آوردهٔ خدمات انجام‌شده و تسویه‌شدهٔ منتسب به پزشک؛ حقوق و پورسانت نیست';
         return $this->result([
             'period'=>$label,'unit'=>'تومان','definition'=>$definition,
-            'count'=>count($rows),'doctors'=>$rows,
+            'count'=>$total,'doctors'=>$rows,
         ], [
-            'type'=>'table','title'=>'آوردهٔ هر پزشک · '.$label,'count'=>count($rows),
+            'type'=>'table','title'=>'آوردهٔ هر پزشک · '.$label,'count'=>$total,
             'columns'=>['doctor'=>'پزشک','revenue'=>'آورده (تومان)'],'rows'=>$rows,
             'page'=>'reports','definition'=>$definition,
+            ...$this->builderLink(['scope'=>'appointments','from'=>$range['from'],'to'=>$range['to'],
+                'columns'=>['appointmentDate','name','family','doctor','work','amount','income'],
+                'multi_filters'=>$needle !== '' && count($rows) === 1 ? [['field'=>'doctor','values'=>[$rows[0]['doctor']]]] : []],
+                'ریز نوبت‌ها و مبالغ هر پزشک در گزارش‌ساز'),
         ]);
     }
 
@@ -424,7 +468,48 @@ final class AssistantToolExecutor
         if ($destination === null) throw new InvalidArgumentException('اجازهٔ باز کردن این بخش را ندارید.');
         $date = (string) ($arguments['date'] ?? '');
         if ($date !== '' && ! preg_match('/^1[34]\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/', $date)) $date = '';
-        return $this->result(['page'=>$page,'label'=>$destination[0]], ['type'=>'navigation','title'=>'نمایش در برنامه','label'=>'رفتن به '.$destination[0],'page'=>$page,'date'=>$date ?: null]);
+        $search = $page === 'appointments' ? mb_substr(trim((string) ($arguments['search'] ?? '')), 0, 60) : '';
+        return $this->result(['page'=>$page,'label'=>$destination[0],'search'=>$search ?: null],
+            ['type'=>'navigation','title'=>$search !== '' ? 'جست‌وجوی «'.$search.'» در نوبت‌دهی' : 'نمایش در برنامه',
+                'label'=>$search !== '' ? 'جست‌وجو در نوبت‌دهی' : 'رفتن به '.$destination[0],'page'=>$page,'date'=>$date ?: null,'search'=>$search ?: null]);
+    }
+
+    private function appointmentReportArguments(array $range, ?string $doctor, string $status): array
+    {
+        return ['scope' => 'appointments', 'from' => $range['from'], 'to' => $range['to'],
+            'columns' => ['appointmentDate', 'name', 'family', 'phone', 'doctor', 'status'],
+            'multi_filters' => array_values(array_filter([
+                $doctor ? ['field' => 'doctor', 'values' => [$doctor]] : null,
+                ($statuses = $this->reportStatuses($status)) ? ['field' => 'status', 'values' => $statuses] : null,
+            ]))];
+    }
+
+    /** دکمهٔ گزارش‌ساز فقط برای کسی که به گزارش‌ساز دسترسی دارد. */
+    private function builderLink(array $arguments, string $label): array
+    {
+        if (! $this->currentUser?->can('reports.view')) return [];
+        try {
+            return ['report' => app(AssistantReportBuilder::class)->payload($arguments), 'report_label' => $label];
+        } catch (InvalidArgumentException) {
+            return [];
+        }
+    }
+
+    /** وضعیت‌های ابزار نوبت → وضعیت‌های گزارش‌ساز. */
+    private function reportStatuses(string $status): array
+    {
+        return match ($status) {
+            'arrived' => ['آمد'], 'cancelled' => ['کنسل شد'], 'no_answer' => ['پاسخ نداد'],
+            'followup' => ['پیگیری'], 'scheduled' => ['وقت داده شد'],
+            'active' => ['وقت داده شد', 'آمد', 'پیگیری'],
+            default => [],
+        };
+    }
+
+    /** پنجرهٔ صفحه‌بندی؛ offset فقط از صفحه‌بندی کارت (بدون AI) می‌آید. */
+    public static function window(array $arguments, int $default = 20): array
+    {
+        return [max(0, min(100000, (int) ($arguments['offset'] ?? 0))), max(1, min(100, (int) ($arguments['limit'] ?? $default)))];
     }
 
     private function result(array $model, ?array $presentation = null): array

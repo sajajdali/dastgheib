@@ -8,6 +8,7 @@ return [
             'permissions' => [
                 ['name' => 'assistant.use', 'label' => 'استفاده از دستیار'],
                 ['name' => 'assistant.manage', 'label' => 'تنظیم مدل و محدودیت دستیار'],
+                ['name' => 'assistant.usage.view', 'label' => 'گزارش مصرف و موجودی دستیار برای همهٔ کاربران'],
             ],
         ],
         [

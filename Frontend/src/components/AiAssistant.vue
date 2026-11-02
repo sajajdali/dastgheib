@@ -26,7 +26,7 @@
             </div>
             <div class="ai-preview-heading">
               <h2 id="ai-assistant-preview-title">دستیار هوش مصنوعی</h2>
-              <span><i aria-hidden="true"></i> {{ settings?.configured ? 'کلید OpenAI تنظیم شده' : 'نیازمند تنظیم کلید OpenAI' }}</span>
+              <span :class="{ 'is-off': !settings?.configured }"><i aria-hidden="true"></i> {{ settings?.configured ? 'آنلاین · آمادهٔ پاسخ‌گویی' : 'نیازمند تنظیم کلید OpenAI' }}</span>
             </div>
             <button type="button" class="ai-preview-header-action" title="گفت‌وگوی جدید" @click="newConversation">＋</button>
             <button type="button" class="ai-preview-header-action" title="گفت‌وگوهای پیشین" @click="showHistory = !showHistory">☷</button>
@@ -50,9 +50,13 @@
             </select>
             <button v-if="settings?.can_manage" type="button" @click="showSettings = !showSettings">تنظیمات</button>
           </div>
+          <div v-if="settings?.balance" class="ai-preview-balance" :class="{ 'is-blocked': blocked, 'is-low': !blocked && settings.balance.low }">
+            <span>موجودی: <b>{{ formatUsd(settings.balance.balance_usd) }}</b></span>
+            <button type="button" @click="openUsage">گزارش مصرف</button>
+          </div>
+          <div v-if="blocked" class="ai-preview-blocked" role="alert">{{ blockedText }}</div>
           <div v-if="showSettings && settings?.can_manage" class="ai-preview-settings">
             <label><input v-model="settingsDraft.enabled" type="checkbox"> فعال</label>
-            <label>سقف پیام روزانه <input v-model.number="settingsDraft.daily_limit" type="number" min="1" max="500"></label>
             <label>مدل‌های مجاز</label>
             <label v-for="model in settings?.available_models || []" :key="model.id"><span>{{ model.label }}</span><input v-model="settingsDraft.allowed_models" type="checkbox" :value="model.id"></label>
             <label>مدل پیش‌فرض <select v-model="settingsDraft.default_model"><option v-for="model in settings?.available_models || []" :key="model.id" :value="model.id">{{ model.label }}</option></select></label>
@@ -93,11 +97,12 @@
                 <p v-else>{{ message.text }}</p>
                 <div v-for="(card, index) in message.presentation || []" :key="index" class="ai-preview-card" :class="`ai-preview-card--${card.type}`">
                   <template v-if="card.type === 'metric'"><strong>{{ card.title }}</strong><div class="ai-preview-metric-value"><b>{{ formatValue(card.value) }}</b><span v-if="card.unit">{{ card.unit }}</span></div><small>{{ card.subtitle }}</small></template>
-                  <template v-else-if="card.type === 'table'"><div class="ai-preview-card-heading"><strong>{{ card.title }}</strong><span>{{ formatValue(card.count) }} مورد</span></div><div class="ai-preview-table-wrap"><table :class="{ 'has-row-actions': hasTableRowActions(card) }"><thead><tr><th v-for="(label, key) in card.columns" :key="key">{{ label }}</th><th v-if="hasTableRowActions(card)">مشاهده</th></tr></thead><tbody><tr v-for="(row, rowIndex) in card.rows" :key="rowIndex"><td v-for="(_, key) in card.columns" :key="key">{{ typeof row[key] === 'number' ? formatValue(row[key]) : row[key] }}</td><td v-if="hasTableRowActions(card)"><button v-if="tableRowAction(card, row, rowIndex)" type="button" @click="runAction(tableRowAction(card, row, rowIndex))">{{ tableRowAction(card, row, rowIndex).label }}</button></td></tr></tbody></table></div><small v-if="card.definition">{{ card.definition }}</small></template>
+                  <AiListCard v-else-if="card.type === 'table'" :card="card" @action="runAction" @prompt="(text) => runAction({ prompt: text })" @navigate="navigate" />
                   <template v-else-if="card.type === 'list'"><strong>{{ card.title }}</strong><div v-if="card.items?.length" class="ai-preview-list-items"><span v-for="(item, itemIndex) in card.items" :key="itemIndex">{{ item }}</span></div><small v-else>موردی پیدا نشد</small></template>
                   <template v-else-if="card.type === 'record'"><strong>{{ card.title }}</strong><div class="ai-preview-record-fields"><div v-for="(value, label) in card.fields" :key="label" class="ai-preview-record-field"><span>{{ label }}</span><b>{{ value ?? '—' }}</b></div></div><div class="ai-preview-card-actions"><button v-if="card.action" type="button" @click="runAction(card.action)">{{ card.action.label }} ↗</button><button v-for="(item, relatedIndex) in card.related_actions || []" :key="relatedIndex" type="button" @click="runAction(item)">{{ item.title }} · {{ formatValue(item.count) }} مورد</button></div></template>
                   <strong v-else-if="card.type === 'navigation'">{{ card.title }}</strong>
-                  <button v-if="card.page" type="button" @click="navigate(card)">{{ card.label || 'نمایش در برنامه' }} ↗</button>
+                  <button v-if="card.report && card.type !== 'table'" type="button" class="ai-preview-report-btn" @click="navigate({ page: 'report_builder', report: { ...card.report, title: card.title } })">{{ card.report_label || 'نمایش در گزارش‌ساز' }} ↗</button>
+                  <button v-else-if="card.page && card.type !== 'table'" type="button" @click="navigate(card)">{{ card.label || 'نمایش در برنامه' }} ↗</button>
                 </div>
               </div>
             </div>
@@ -118,20 +123,20 @@
                 maxlength="1000"
                 placeholder="سؤالت رو اینجا بنویس..."
                 aria-label="متن سؤال برای دستیار"
-                :disabled="busy || !settings?.enabled || !settings?.configured"
+                :disabled="busy || blocked || !settings?.enabled || !settings?.configured"
                 @keydown.enter.exact.prevent="sendMessage"
               ></textarea>
               <div class="ai-preview-compose-actions">
-                <button type="button" class="ai-preview-mic" :class="{ 'ai-preview-mic--recording': recording }" :disabled="busy || stopping || !settings?.configured" :aria-label="recording ? 'پایان ضبط و ارسال ویس' : 'ضبط پیام صوتی'" :title="recording ? 'پایان ضبط و ارسال ویس' : 'ضبط پیام صوتی'" @click="toggleRecording">
+                <button v-if="settings?.voice_enabled" type="button" class="ai-preview-mic" :class="{ 'ai-preview-mic--recording': recording }" :disabled="busy || stopping || blocked || !settings?.configured" :aria-label="recording ? 'پایان ضبط و ارسال ویس' : 'ضبط پیام صوتی'" :title="recording ? 'پایان ضبط و ارسال ویس' : 'ضبط پیام صوتی'" @click="toggleRecording">
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4m-4 0h8"/></svg>
                 </button>
-                <span class="ai-preview-divider"></span>
-                <button type="submit" class="ai-preview-send" :disabled="busy || !draft.trim() || !settings?.configured" aria-label="ارسال پیام" title="ارسال پیام">
+                <span v-if="settings?.voice_enabled" class="ai-preview-divider"></span>
+                <button type="submit" class="ai-preview-send" :disabled="busy || blocked || !draft.trim() || !settings?.configured" aria-label="ارسال پیام" title="ارسال پیام">
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v14"/></svg>
                 </button>
               </div>
             </form>
-            <small>{{ recording ? `در حال ضبط · ${recordingSeconds} ثانیه · برای پایان و ارسال دوباره بزنید` : 'پس از پایان ضبط، ویس خودکار به دستیار ارسال می‌شود. پاسخ‌ها بر اساس دسترسی شما هستند.' }}</small>
+            <small v-if="recording">در حال ضبط · {{ recordingSeconds }} ثانیه · برای پایان و ارسال دوباره بزنید</small>
           </div>
         </section>
       </Transition>
@@ -144,13 +149,14 @@
         :aria-expanded="open"
         aria-controls="ai-assistant-preview-panel"
         :aria-label="open ? 'بستن دستیار هوش مصنوعی' : 'باز کردن دستیار هوش مصنوعی'"
+        :title="open ? 'بستن دستیار' : undefined"
         @click="togglePanel"
       >
         <span class="ai-preview-launcher-icon" aria-hidden="true">
           <svg v-if="!open" viewBox="0 0 24 24" fill="none"><path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></svg>
           <svg v-else viewBox="0 0 24 24" fill="none"><path d="M5 5 19 19M19 5 5 19"/></svg>
         </span>
-        <span class="ai-preview-launcher-label">{{ open ? 'بستن دستیار' : 'دستیار هوش مصنوعی' }}</span>
+        <span v-if="!open" class="ai-preview-launcher-label">دستیار هوش مصنوعی</span>
       </button>
     </div>
   </Teleport>
@@ -159,6 +165,7 @@
 <script setup>
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import AiListCard from './AiListCard.vue';
 
 const props = defineProps({ dark: { type: Boolean, default: false }, user: { type: Object, default: () => ({}) } });
 const emit = defineEmits(['navigate']);
@@ -196,19 +203,26 @@ let recorderTimer;
 let nextMessageId = 1;
 let discardRecording = false;
 
-const errorText = (error) => error?.response?.data?.message || 'ارتباط با سرور برقرار نشد. دوباره تلاش کنید.';
+const errorText = (error) => {
+  if (error?.response?.status === 429) return 'تعداد پیام‌ها در یک دقیقه زیاد شد؛ چند ثانیه بعد دوباره بفرستید.';
+  return error?.response?.data?.message || 'ارتباط با سرور برقرار نشد. دوباره تلاش کنید.';
+};
+const blocked = computed(() => settings.value?.balance?.blocked === true);
+const blockedText = computed(() => {
+  const balance = settings.value?.balance;
+  if (!balance) return '';
+  return balance.can_manage
+    ? `موجودی دستیار هوش مصنوعی شما هم‌اکنون ${formatUsd(balance.balance_usd)} است (کمتر از ${formatUsd(balance.min_balance_usd)}) و امکان استفاده ندارید. لطفاً ابتدا موجودی را شارژ کنید.`
+    : `موجودی دستیار هوش مصنوعی کلینیک کمتر از ${formatUsd(balance.min_balance_usd)} است و فعلاً امکان استفاده نیست. لطفاً به مدیر کلینیک اطلاع دهید.`;
+});
+function formatUsd(value) {
+  const n = Number(value || 0);
+  const digits = n > 0 && n < 1 ? 4 : 2;
+  return `${n.toLocaleString('fa-IR', { minimumFractionDigits: digits, maximumFractionDigits: digits })} دلار`;
+}
+function openUsage() { emit('navigate', { page: 'ai_usage' }); closePanel(); }
+async function handleBillingError(error) { if (error?.response?.status === 402) await loadBase(); }
 const formatValue = (value) => Number(value || 0).toLocaleString('fa-IR');
-function tableRowAction(card, row, index) {
-  const explicit = card?.row_actions?.[index];
-  if (explicit) return explicit;
-  if (card?.page === 'patients' && row?.file_number) {
-    return { page: 'patient_profile', file_number: String(row.file_number), label: 'مشاهده پرونده' };
-  }
-  return null;
-}
-function hasTableRowActions(card) {
-  return (card?.rows || []).some((row, index) => tableRowAction(card, row, index));
-}
 function messageBlocks(value) {
   const blocks = [];
   let paragraph = [];
@@ -240,7 +254,7 @@ async function loadBase() {
   try {
     const [config, history] = await Promise.all([axios.get('/api/assistant/settings'), axios.get('/api/assistant/conversations')]);
     settings.value = config.data;
-    settingsDraft.value = { enabled: config.data.enabled, default_model: config.data.default_model, allowed_models: [...config.data.allowed_models], daily_limit: config.data.daily_limit };
+    settingsDraft.value = { enabled: config.data.enabled, default_model: config.data.default_model, allowed_models: [...config.data.allowed_models] };
     selectedModel.value ||= config.data.default_model;
     conversations.value = history.data;
     if (!config.data.configured) notice.value = 'کلید OpenAI باید در backend/.env روی سرور تنظیم شود.';
@@ -279,7 +293,7 @@ async function saveSettings() {
   busy.value = true;
   try {
     const { data } = await axios.put('/api/assistant/settings', settingsDraft.value);
-    settings.value = data; settingsDraft.value = { enabled: data.enabled, default_model: data.default_model, allowed_models: [...data.allowed_models], daily_limit: data.daily_limit };
+    settings.value = data; settingsDraft.value = { enabled: data.enabled, default_model: data.default_model, allowed_models: [...data.allowed_models] };
     notice.value = 'تنظیمات ذخیره شد.'; showSettings.value = false;
   } catch (error) { notice.value = errorText(error); }
   finally { busy.value = false; }
@@ -299,10 +313,16 @@ async function sendMessage(allowDuringTranscription = false) {
     messages.value = messages.value.filter((m) => m.id !== localId);
     draft.value = text;
     notice.value = errorText(error);
+    if (error?.response?.status === 404 && conversationId.value) {
+      conversationId.value = null;
+      notice.value = 'این گفت‌وگو دیگر وجود ندارد؛ پیام را دوباره بفرستید تا در گفت‌وگوی تازه ثبت شود.';
+    }
+    await handleBillingError(error);
   } finally { busy.value = false; composer.value?.focus(); }
 }
 
 async function toggleRecording() {
+  if (blocked.value && !recording.value) { notice.value = blockedText.value; return; }
   if (recording.value) { if (!stopping.value && recorder?.state === 'recording') { stopping.value = true; recorder.stop(); } return; }
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { notice.value = 'مرورگر شما ضبط صدا را پشتیبانی نمی‌کند.'; return; }
   try {
@@ -327,7 +347,7 @@ async function toggleRecording() {
         draft.value = transcript;
         transcribing.value = false;
         await sendMessage(true);
-      } catch (error) { notice.value = errorText(error); }
+      } catch (error) { notice.value = errorText(error); await handleBillingError(error); }
       finally { busy.value = false; transcribing.value = false; }
     };
     recordingSeconds.value = 0; recorder.start(); recording.value = true;
@@ -338,18 +358,28 @@ async function runAction(action) {
   if (action?.prompt) { draft.value = action.prompt; await sendMessage(); return; }
   navigate(action);
 }
-function navigate(card) { emit('navigate', { page: card.page, date: card.date || null, file_number: card.file_number || null, media_id: card.media_id || null, report: card.report || null }); closePanel(); }
+function navigate(card) { emit('navigate', { page: card.page, date: card.date || null, file_number: card.file_number || null, media_id: card.media_id || null, report: card.report || null, resource_type: card.resource_type || null, resource_id: card.resource_id || null, search: card.search || null }); closePanel(); }
 function onKeydown(event) { if (event.key === 'Escape' && open.value) closePanel(); }
 window.addEventListener('keydown', onKeydown);
 onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); discardRecording = true; if (recorder?.state === 'recording') recorder.stop(); clearInterval(recorderTimer); mediaStream?.getTracks().forEach((track) => track.stop()); });
 </script>
 
 <style scoped>
+.ai-preview-balance { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 18px 8px; padding: 7px 11px; border: 1px solid #dbeafe; border-radius: 11px; background: #f5f9ff; color: #1e3a8a; font-size: 11px; }
+.ai-preview-balance b { font-weight: 900; }
+.ai-preview-balance button { border: 0; background: none; color: #2563eb; font: inherit; font-weight: 900; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.ai-preview-balance.is-low { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.ai-preview-balance.is-blocked { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+.ai-preview-report-btn { border-color: #b7e0d6 !important; background: #effaf6 !important; color: #0e6b5e !important; }
+.ai-preview--dark .ai-preview-report-btn { border-color: #2c5a52 !important; background: #17312e !important; color: #9fe0cf !important; }
+.ai-preview--dark .ai-preview-balance { border-color: #26385a; background: #14223a; color: #cbd5e1; }
+.ai-preview--dark .ai-preview-blocked { background: #3b1219; color: #fecaca; }
+.ai-preview-blocked { margin: 0 18px 10px; padding: 10px 12px; border-radius: 11px; background: #fee2e2; color: #991b1b; font-size: 12px; font-weight: 800; line-height: 1.9; }
 .ai-preview { --ai-ink: #16253c; --ai-muted: #73829a; --ai-line: #e6ebf3; position: relative; z-index: 2147483005; }
 .ai-preview-backdrop { position: fixed; inset: 0; z-index: 2147483005; border: 0; background: rgba(14, 25, 45, .12); cursor: default; }
 .ai-preview-launcher { position: fixed; bottom: max(22px, env(safe-area-inset-bottom)); left: max(22px, env(safe-area-inset-left)); z-index: 2147483007; min-height: 58px; display: inline-flex; align-items: center; gap: 10px; padding: 7px 18px 7px 8px; border: 1px solid rgba(255,255,255,.34); border-radius: 18px; background: linear-gradient(125deg, #253f82 0%, #3760b4 54%, #167d97 100%); color: #fff; box-shadow: 0 16px 38px rgba(22, 55, 117, .28), inset 0 1px rgba(255,255,255,.18); font-size: 13px; font-weight: 900; letter-spacing: -.15px; transition: transform .2s ease, box-shadow .2s ease; }
 .ai-preview-launcher:hover { transform: translateY(-3px); box-shadow: 0 20px 42px rgba(22, 55, 117, .34), inset 0 1px rgba(255,255,255,.18); }
-.ai-preview-launcher--open { min-height: 48px; bottom: max(25px, env(safe-area-inset-bottom)); padding: 5px 12px 5px 6px; border-radius: 14px; background: #243958; box-shadow: 0 9px 22px rgba(22, 35, 59, .22); font-size: 11px; }
+.ai-preview-launcher--open { min-height: 48px; bottom: max(25px, env(safe-area-inset-bottom)); padding: 6px; border-radius: 14px; background: #243958; box-shadow: 0 9px 22px rgba(22, 35, 59, .22); font-size: 11px; }
 .ai-preview-launcher-icon { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 13px; background: rgba(255,255,255,.17); }
 .ai-preview-launcher--open .ai-preview-launcher-icon { width: 34px; height: 34px; border-radius: 10px; }
 .ai-preview-launcher-icon svg { width: 23px; height: 23px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -495,6 +525,57 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); discar
 .ai-preview--dark .ai-preview-card button { border-color: #456488; background: #264462; color: #d7eaff; }
 .ai-preview--dark .ai-preview-card small, .ai-preview--dark .ai-preview-record-field span { color: #a8bad1; }
 .ai-preview--dark .ai-preview-working { border-color: #3a4b66; background: #23344e; color: #a9d5ff; }
+
+/* ── طراحی تازهٔ پنل ── */
+.ai-preview-window { border: 0; border-radius: 26px; background: #f6f8fc; box-shadow: 0 30px 80px rgba(16, 34, 70, .26), 0 0 0 1px rgba(20, 45, 90, .06); }
+.ai-preview-header { position: relative; min-height: 86px; padding: 16px 18px; border: 0; overflow: hidden; background: linear-gradient(125deg, #1f3c86 0%, #2f5fbe 55%, #0f8aa0 100%); color: #fff; }
+.ai-preview-header::before { content: ''; position: absolute; width: 190px; height: 190px; top: -110px; left: 18%; border-radius: 50%; background: rgba(255,255,255,.08); pointer-events: none; }
+.ai-preview-header::after { content: ''; position: absolute; width: 120px; height: 120px; bottom: -80px; left: -30px; border-radius: 50%; background: rgba(255,255,255,.07); pointer-events: none; }
+.ai-preview-header > * { position: relative; z-index: 1; }
+.ai-preview-avatar { width: 46px; height: 46px; border-radius: 16px; background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.ai-preview-heading h2 { color: #fff; font-size: 15.5px; }
+.ai-preview-heading span { color: rgba(255,255,255,.82); }
+.ai-preview-heading i { background: #4ade80; box-shadow: 0 0 0 3px rgba(74,222,128,.25); }
+.ai-preview-heading span.is-off i { background: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,.25); }
+.ai-preview-header-action, .ai-preview-close { width: 34px; height: 34px; border: 1px solid rgba(255,255,255,.22); border-radius: 11px; background: rgba(255,255,255,.12); color: #fff; font-size: 17px; transition: background .15s; }
+.ai-preview-header-action:hover, .ai-preview-close:hover { background: rgba(255,255,255,.24); color: #fff; }
+.ai-preview-model-row { gap: 8px; padding: 9px 16px; border: 0; background: #fff; box-shadow: 0 1px 0 #e9eef6; }
+.ai-preview-model-row select { height: 30px; padding: 0 10px; border: 1px solid #dde6f2; border-radius: 999px; background: #f4f7fc; color: #24456f; font-size: 11px; font-weight: 800; }
+.ai-preview-model-row button { height: 30px; padding: 0 12px; border: 1px solid #dde6f2; border-radius: 999px; background: #fff; color: #315d93; font-size: 11px; font-weight: 800; }
+.ai-preview-balance { margin: 10px 16px 0; padding: 8px 12px; border-radius: 12px; background: #fff; box-shadow: 0 2px 10px rgba(25, 55, 100, .05); }
+.ai-preview-thread { padding: 18px 16px 22px; background: radial-gradient(circle at 100% 0%, rgba(47, 95, 190, .07), transparent 40%), radial-gradient(circle at 0% 100%, rgba(15, 138, 160, .07), transparent 40%), #f6f8fc; }
+.ai-preview-day { margin-bottom: 18px; border: 0; background: rgba(255,255,255,.9); box-shadow: 0 1px 4px rgba(20, 45, 90, .06); }
+.ai-preview-message { gap: 10px; margin-bottom: 16px; }
+.ai-preview-message-icon { width: 30px; height: 30px; border: 0; border-radius: 10px; background: linear-gradient(140deg, #2f5fbe, #0f8aa0); color: #fff; font-size: 14px; box-shadow: 0 4px 10px rgba(36, 92, 170, .25); }
+.ai-preview-bubble { padding: 14px 15px; border: 0; border-radius: 18px 18px 18px 6px; background: #fff; box-shadow: 0 2px 6px rgba(20, 45, 90, .05), 0 10px 24px rgba(20, 45, 90, .05); }
+.ai-preview-message-role { margin-bottom: 6px; color: #6b7f9c; font-size: 10px; }
+.ai-preview-message-role::before { background: linear-gradient(140deg, #2f5fbe, #0f8aa0); }
+.ai-preview-message--user .ai-preview-bubble { border: 0; border-radius: 18px 18px 6px 18px; background: linear-gradient(135deg, #2f5fbe, #1d78a8); box-shadow: 0 8px 20px rgba(40, 93, 170, .22); }
+.ai-preview-message--user .ai-preview-bubble p { line-height: 1.9; }
+.ai-preview-suggestions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0 0; }
+.ai-preview-suggestions > span { grid-column: 1 / -1; }
+.ai-preview-suggestions button { width: 100%; min-height: 54px; align-items: flex-start; padding: 10px 12px; border: 0; border-radius: 14px; background: #fff; color: #23426d; box-shadow: 0 2px 6px rgba(20, 45, 90, .05); line-height: 1.8; transition: transform .15s, box-shadow .15s; }
+.ai-preview-suggestions button:hover { transform: translateY(-2px); background: #fff; box-shadow: 0 10px 22px rgba(20, 45, 90, .1); }
+.ai-preview-suggestions button span { color: #2f5fbe; }
+.ai-preview-card { border: 0; border-radius: 16px; box-shadow: 0 0 0 1px #e8eef7, 0 6px 16px rgba(20, 45, 90, .04); }
+.ai-preview-card--metric { background: linear-gradient(135deg, #eef4ff, #f3fbfd); box-shadow: 0 0 0 1px #dbe7fa; }
+.ai-preview-compose-area { padding: 10px 14px 12px; border: 0; background: transparent; }
+.ai-preview-composer { min-height: 56px; padding: 6px 8px 6px 6px; border: 1px solid #e1e8f3; border-radius: 18px; background: #fff; box-shadow: 0 8px 24px rgba(20, 45, 90, .08); }
+.ai-preview-composer:focus-within { border-color: #9ab8ea; box-shadow: 0 8px 24px rgba(20, 45, 90, .08), 0 0 0 4px rgba(47, 95, 190, .1); }
+.ai-preview-send { width: 38px; height: 38px; border-radius: 13px; background: linear-gradient(135deg, #2f5fbe, #0f8aa0); }
+.ai-preview-mic { width: 36px; height: 36px; border-radius: 12px; }
+.ai-preview-compose-area > small { margin-top: 7px; color: #a0adbf; }
+.ai-preview-launcher--open { width: 48px; justify-content: center; border-radius: 15px; background: linear-gradient(135deg, #243f7e, #1c6f93); }
+.ai-preview--dark .ai-preview-window { background: #131f33; box-shadow: 0 30px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(120, 150, 200, .12); }
+.ai-preview--dark .ai-preview-header { background: linear-gradient(125deg, #1a2f60 0%, #23488f 55%, #0c6878 100%); }
+.ai-preview--dark .ai-preview-model-row, .ai-preview--dark .ai-preview-balance { background: #182740; box-shadow: 0 1px 0 #24354f; }
+.ai-preview--dark .ai-preview-model-row select, .ai-preview--dark .ai-preview-model-row button { border-color: #2f4364; background: #1f3150; color: #d4e3f7; }
+.ai-preview--dark .ai-preview-thread { background: radial-gradient(circle at 100% 0%, rgba(80, 130, 220, .1), transparent 40%), #131f33; }
+.ai-preview--dark .ai-preview-day { background: #1c2b45; color: #9fb0c8; }
+.ai-preview--dark .ai-preview-bubble, .ai-preview--dark .ai-preview-suggestions button { background: #1c2b45; box-shadow: 0 0 0 1px #26385a; color: #d4e3f7; }
+.ai-preview--dark .ai-preview-message--user .ai-preview-bubble { background: linear-gradient(135deg, #2f5fbe, #1d6f9c); box-shadow: none; }
+.ai-preview--dark .ai-preview-card { box-shadow: 0 0 0 1px #2c3f5f; }
+.ai-preview--dark .ai-preview-composer { border-color: #2f4364; background: #1c2b45; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 @media (max-width: 600px) {
   .ai-preview-backdrop { background: rgba(14,25,45,.36); }
   .ai-preview-launcher { bottom: max(16px, env(safe-area-inset-bottom)); left: max(14px, env(safe-area-inset-left)); min-height: 53px; padding: 5px 12px 5px 6px; font-size: 11px; border-radius: 16px; }

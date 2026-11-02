@@ -111,6 +111,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 18 20H6a1.5 1.5 0 0 1-1.5-1.5v-13A1.5 1.5 0 0 1 6 4Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
         <span>سوابق</span>
       </button>
+      <button v-if="canUseAssistant" type="button" @click="uiMenuOpen = false; changePage('AiUsage')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.4 5.1L18.5 9.5l-5.1 1.4L12 16l-1.4-5.1L5.5 9.5l5.1-1.4L12 3Z"/><path d="M4 21h16"/></svg>
+        <span>مصرف هوش مصنوعی</span>
+      </button>
       <button v-if="isClinicManager" type="button" @click="uiMenuOpen = false; changePage('Store')">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8a3 3 0 0 1 6 0"/><path d="M9 13h6"/></svg>
         <span>فروشگاه</span>
@@ -270,6 +274,7 @@
 
       <Gozaresh v-if="currentPage === 'Gozaresh'" :permissions="user.permissions || []" :initial-view="reportInitialView" :assistant-report="pendingAssistantReport" />
       <ActivityLogs v-if="currentPage === 'ActivityLogs'" :permissions="user.permissions || []" />
+      <AiUsageReport v-if="currentPage === 'AiUsage' && canUseAssistant" api-base="/api/assistant" />
 
       <Anbar ref="inventory" v-if="currentPage === 'Anbar'" />
 
@@ -300,7 +305,7 @@
       <PayrollSettlement v-if="currentPage === 'Payroll' && user.permissions?.includes('payroll.view')" />
 
       <!-- تنظیمات -->
-      <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : settingsInitialSection" :initial-accordion="settingsInitialAccordion" :initial-resource-tab="settingsInitialResourceTab" />
+      <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : settingsInitialSection" :initial-accordion="settingsInitialAccordion" :initial-resource-tab="settingsInitialResourceTab" :highlight-resource="settingsHighlightResource" />
       <Store
         v-if="currentPage === 'Store'"
         :enabled-features="tenantEnabledFeatures"
@@ -471,6 +476,7 @@ import SubscriptionRenewal from "./components/SubscriptionRenewal.vue";
 import HRtimes from "./components/HRtimes.vue";
 import PayrollSettlement from "./components/PayrollSettlement.vue";
 import AiAssistant from "./components/AiAssistant.vue";
+import AiUsageReport from "./components/AiUsageReport.vue";
 import IncomingCallStack from "./components/incoming-call/IncomingCallStack.vue";
 import { startPresence, stopPresence } from "./services/presence";
 
@@ -528,6 +534,7 @@ export default {
     HRtimes,
     PayrollSettlement,
     AiAssistant,
+    AiUsageReport,
     IncomingCallStack
 
   },
@@ -566,6 +573,7 @@ export default {
       ,settingsInitialAccordion: ""
       ,settingsInitialSection: "internal"
       ,settingsInitialResourceTab: "doctor"
+      ,settingsHighlightResource: null
       // حضور و غیاب فقط بر اساس ماژول اشتراک مجموعه کنترل می‌شود.
       ,attendanceEnabled: true
       ,uiMenuOpen: false
@@ -745,6 +753,10 @@ export default {
     isClinicManager() {
       const allowed = ["مدیر کل", "مدیر سیستم", "super admin", "super-admin"];
       return (this.user?.roles || []).some(role => allowed.includes(String(role).trim().toLowerCase()));
+    },
+
+    canUseAssistant() {
+      return this.user?.tenant?.ai_assistant_enabled === true && (this.user?.permissions || []).includes("assistant.use");
     },
 
     canViewActivityLogs() {
@@ -1114,7 +1126,8 @@ export default {
         Peygiri: 'followups.view', ServiceFollowups: 'followups.view', Gozaresh: 'reports.view', Anbar: 'inventory.view',
         dermatracker: 'beauty.view', Ticket: 'tickets.view', Products: 'services.view',
         Bills: 'bills.view', HRtimes: 'attendance.view', Payroll: 'payroll.view',
-        ActivityLogs: 'activity_logs.view'
+        ActivityLogs: 'activity_logs.view',
+        AiUsage: 'assistant.use'
       };
       const feature = featureMap[page];
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return false;
@@ -1375,7 +1388,7 @@ export default {
       return result.isConfirmed;
     },
 
-    openAssistantPage({ page, date, file_number, media_id, report }) {
+    openAssistantPage({ page, date, file_number, media_id, report, resource_type, resource_id, search }) {
       if ((page === 'patient_profile' || page === 'patient_photo') && file_number) {
         this.changePage('Parvande').then(() => {
           if (this.currentPage === 'Parvande') this.pendingPatientProfileRequest = { file_number, open_media: page === 'patient_photo', media_id: page === 'patient_photo' ? media_id : null, requestedAt: Date.now() };
@@ -1398,16 +1411,19 @@ export default {
       if (internalAccordions[page] || settingsSections[page]) {
         const section = settingsSections[page] || 'internal';
         this.settingsInitialResourceTab = page === 'settings_staff' ? 'staff' : page === 'settings_channels' ? 'channels' : 'doctor';
+        this.settingsHighlightResource = resource_id ? { type: resource_type === 'staff' ? 'staff' : 'doctor', id: resource_id, requestedAt: Date.now() } : null;
         this.changePage('Setting', section).then(() => {
           if (this.currentPage === 'Setting') this.settingsInitialAccordion = internalAccordions[page] || '';
         });
         return;
       }
-      const pages = { appointments: 'Vaghtdahi', followups: 'Peygiri', service_followups: 'ServiceFollowups', reports: 'Gozaresh', report_builder: 'Gozaresh', activity_logs: 'ActivityLogs', patients: 'Parvande', inventory: 'Anbar', expenses: 'Bills', photos: 'Photos', beauty: 'dermatracker', services: 'Products', tickets: 'Ticket', attendance: 'HRtimes', payroll: 'Payroll', settings: 'Setting', satisfaction: 'Satisfaction', automation: 'Automation', automatic_sms: 'AutomaticSms', store: 'Store' };
+      const pages = { appointments: 'Vaghtdahi', followups: 'Peygiri', service_followups: 'ServiceFollowups', reports: 'Gozaresh', report_builder: 'Gozaresh', activity_logs: 'ActivityLogs', ai_usage: 'AiUsage', patients: 'Parvande', inventory: 'Anbar', expenses: 'Bills', photos: 'Photos', beauty: 'dermatracker', services: 'Products', tickets: 'Ticket', attendance: 'HRtimes', payroll: 'Payroll', settings: 'Setting', satisfaction: 'Satisfaction', automation: 'Automation', automatic_sms: 'AutomaticSms', store: 'Store' };
       if (page === 'reports' || page === 'report_builder') this.reportInitialView = page === 'report_builder' ? 'builder' : 'reports';
       if (page === 'report_builder' && report) this.pendingAssistantReport = { ...report, requestedAt: Date.now() };
       if (pages[page]) this.changePage(pages[page]).then(() => {
-        if (page === 'appointments' && date && this.currentPage === 'Vaghtdahi') {
+        if (page === 'appointments' && search && this.currentPage === 'Vaghtdahi') {
+          this.pendingAppointmentViewRequest = { view: 'table', search, date: date || '', requestedAt: Date.now() };
+        } else if (page === 'appointments' && date && this.currentPage === 'Vaghtdahi') {
           this.pendingAppointmentViewRequest = { view: 'timeline', date, requestedAt: Date.now() };
         }
       });
@@ -1431,6 +1447,7 @@ export default {
         Photos: 'gallery',
         Gozaresh: 'report',
         ActivityLogs: null,
+        AiUsage: null,
         Anbar: 'inventory',
         Ticket: 'tickets',
         Products: 'finder',
@@ -1465,6 +1482,7 @@ export default {
         Notif: 'followups.view',
         Gozaresh: 'reports.view',
         ActivityLogs: 'activity_logs.view',
+        AiUsage: 'assistant.use',
         Anbar: 'inventory.view',
         dermatracker: 'beauty.view',
         Ticket: 'tickets.view',

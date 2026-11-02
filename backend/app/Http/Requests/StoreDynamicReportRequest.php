@@ -48,6 +48,7 @@ class StoreDynamicReportRequest extends FormRequest
             'filters.range.amount.to' => ['nullable', 'string', 'max:30'],
             'filters.multi' => ['sometimes', 'array'],
             'filters.comparators' => ['sometimes', 'array'],
+            'filters.sort' => ['nullable', Rule::in(['asc', 'desc'])],
             'filters.comparators.debt' => ['nullable', Rule::in(['lt','gt','eq'])],
             'filters.comparators.deposit' => ['nullable', Rule::in(['lt','gt','eq'])],
             'filters.multi.custseg' => ['sometimes', 'array', 'max:3'],
@@ -97,6 +98,7 @@ class StoreDynamicReportRequest extends FormRequest
 
         return [
             'scope' => data_get($data, 'filters.scope', 'appointments'),
+            'sort' => data_get($data, 'filters.sort') === 'desc' ? 'desc' : 'asc',
             'values' => [
                 'name' => $this->text($data, 'name'),
                 'family' => $this->text($data, 'family'),

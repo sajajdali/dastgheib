@@ -25,6 +25,7 @@
           <div class="rb-btn rb-btn--ghostTeal" @click.stop="selectAll">انتخاب همه نمایش‌ها</div>
           <div class="rb-btn rb-btn--ghost" @click.stop="clearAll">پاک کردن</div>
         </div>
+        <p class="rb-text-hint">در فیلدهای متنی: «متن» یعنی شروع با متن، «*متن» یعنی شامل متن، «*» یعنی دارای مقدار و «-» یعنی خالی.</p>
 
         <div v-for="g in groups" :key="g.title" class="rb-group">
           <div class="rb-grouphead"><span class="rb-bar"></span><span>{{ g.title }}</span></div>
@@ -120,7 +121,12 @@
     </div>
 
     <!-- نمونه گزارش -->
-    <div class="rb-card rb-card--rel">
+    <div ref="resultCard" class="rb-card rb-card--rel">
+      <div v-if="assistantTitle" class="rb-assistant-banner">
+        <span aria-hidden="true">✦</span>
+        <div><b>{{ assistantTitle }}</b><small>این گزارش را دستیار هوش مصنوعی با فیلترهای درخواست شما ساخت.</small></div>
+        <button type="button" @click="editAssistantFilters">ویرایش فیلترها</button>
+      </div>
       <div class="rb-reporthead">
         <div class="rb-title">نمونه گزارش</div>
         <div class="rb-sub">
@@ -202,6 +208,13 @@
         <div class="rb-pager">
           <div class="rb-sub rb-nowrap">
             نمایش {{ pd(pageMeta.from || 0) }} تا {{ pd(pageMeta.to || 0) }} از {{ pd(totalRows) }} رکورد
+          </div>
+          <div class="rb-pagesize">
+            <span class="rb-sub rb-nowrap">ترتیب</span>
+            <select class="rb-minisel" v-model="sortDir" @change="buildReport">
+              <option value="asc">قدیمی‌ترین اول</option>
+              <option value="desc">جدیدترین اول</option>
+            </select>
           </div>
           <div class="rb-pagesize">
             <span class="rb-sub rb-nowrap">تعداد در صفحه</span>
@@ -579,7 +592,8 @@ export default {
       busy: null, busyStep: '', timer: null,
       reportId: null, reportProgress: 0, reportError: '', resultRows: [], totalRows: 0,
       unsubscribeReport: null,
-      pageMeta: { from: 0, to: 0 }, page: 1, pageSize: 10, reportTotals: { amount: 0 }
+      pageMeta: { from: 0, to: 0 }, page: 1, pageSize: 10, reportTotals: { amount: 0 },
+      assistantTitle: '', scrollToResults: false, sortDir: 'asc'
     };
   },
   computed: {
@@ -673,6 +687,32 @@ export default {
   },
   methods: {
     applyAssistantRequest(request) {
+      // گزارشی که دستیار ساخته: همان payload گزارش‌ساز با ستون‌ها و فیلترها.
+      if (request?.filters && Array.isArray(request.columns)) {
+        const filters = request.filters;
+        const vals = {};
+        FIELDS.forEach(field => { if (field.type === 'text' || field.type === 'compare') vals[field.id] = ''; if (field.type === 'select') vals[field.id] = field.options[0]; });
+        const validDate = value => Array.isArray(value) && value.length === 3 ? value.map(Number) : null;
+        this.reportScope = filters.scope === 'patients' ? 'patients' : 'appointments';
+        this.show = Object.fromEntries(request.columns.filter(key => FIELDS.some(field => field.id === key)).map(key => [key, true]));
+        this.vals = { ...vals, ...Object.fromEntries(Object.entries(filters.values || {}).filter(([key]) => key in vals)) };
+        this.multi = { ...(filters.multi || {}) };
+        this.range = { amount: { from: filters.range?.amount?.from || '', to: filters.range?.amount?.to || '' } };
+        this.date = { from: validDate(filters.birthDate?.from), to: validDate(filters.birthDate?.to) };
+        const from = validDate(filters.reportDate?.from), to = validDate(filters.reportDate?.to);
+        if (from && to) { this.reportDate = { from, to }; this.reportCalY = from[0]; this.reportCalM = from[1]; }
+        this.comparators = { debt: filters.comparators?.debt || 'eq', deposit: filters.comparators?.deposit || 'eq' };
+        this.sortDir = filters.sort === 'desc' ? 'desc' : 'asc';
+        this.activePreset = null;
+        this.page = 1;
+        this.pageSize = 25;
+        this.assistantTitle = String(request.title || 'گزارش دستیار');
+        // فیلترها جمع می‌شوند و صفحه مستقیم به نتیجه می‌رود؛ با «ویرایش فیلترها» دوباره باز می‌شوند.
+        this.filtersOpen = false;
+        this.scrollToResults = true;
+        this.$nextTick(() => { this.revealResults(); this.buildReport(); });
+        return;
+      }
       if (!request?.doctor || !/^1[34]\d{2}-\d{2}-\d{2}$/.test(request.from || '') || !/^1[34]\d{2}-\d{2}-\d{2}$/.test(request.to || '')) return;
       const parts = value => value.split('-').map(Number);
       this.reportScope = 'patients';
@@ -921,9 +961,17 @@ export default {
         this.totalRows = Number(data.meta?.total || 0);
         this.pageMeta = { from: data.meta?.from || 0, to: data.meta?.to || 0 };
         this.reportTotals = { amount: Number(data.summary?.amount_total || 0) };
+        if (this.scrollToResults) { this.scrollToResults = false; this.revealResults(); }
       } catch (error) {
         this.reportError = error.response?.data?.message || 'دریافت ردیف‌های گزارش ناموفق بود.';
       }
+    },
+    revealResults() {
+      this.$nextTick(() => this.$refs.resultCard?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    },
+    editAssistantFilters() {
+      this.filtersOpen = true;
+      this.$nextTick(() => this.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     },
     formatReportTotal(value) { return Number(value || 0).toLocaleString('en-US'); },
     goToPage(page) {
@@ -972,7 +1020,7 @@ export default {
     payload() {
       return {
         columns: this.cols.map(c => c.key),
-        filters: { scope: this.reportScope, values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, reportDate: this.reportDate, comparators: this.comparators },
+        filters: { scope: this.reportScope, values: this.vals, multi: this.multi, range: this.range, birthDate: this.date, reportDate: this.reportDate, comparators: this.comparators, sort: this.sortDir },
         pagination: { page: this.page, pageSize: this.pageSize }
       };
     }
@@ -1002,6 +1050,14 @@ export default {
 .rb-report-range-copy { display: flex; align-items: center; gap: 12px; min-width: 280px; }
 .rb-report-range-picker { max-width: 430px; margin-inline-start: auto; background: #F9FCFB; border-color: #CFE3DD; }
 .rb-scope-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 0 12px; border-bottom: 1px solid #EDF1F4; }
+.rb-card--rel { scroll-margin-top: 96px; }
+.rb-assistant-banner { display: flex; align-items: center; gap: 12px; margin: -4px 0 16px; padding: 12px 14px; border: 1px solid #CFE3DD; border-radius: 14px; background: linear-gradient(120deg, #EEF7F4, #F2F7FF); }
+.rb-assistant-banner > span { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 11px; background: #0E6B5E; color: #fff; font-size: 16px; }
+.rb-assistant-banner > div { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.rb-assistant-banner b { color: #0B3D36; font-size: 13px; }
+.rb-assistant-banner small { color: #4F6F68; font-size: 11px; }
+.rb-assistant-banner button { flex: none; height: 34px; padding: 0 14px; border: 1px solid #0E6B5E; border-radius: 10px; background: #fff; color: #0E6B5E; font: 800 12px Vazirmatn, system-ui, sans-serif; cursor: pointer; }
+.rb-text-hint { margin: 2px 0 10px; color: #5B6B78; font-size: 11px; line-height: 1.9; }
 .rb-scope-label { color: #16232F; font-size: 13px; font-weight: 800; white-space: nowrap; }
 .rb-scope-select { width: min(100%, 240px); min-height: 42px; }
 .rb-report-range-picker .rb-pickericon { margin-inline-start: auto; }

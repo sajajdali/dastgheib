@@ -56,7 +56,8 @@ class DynamicReportController extends Controller
         $this->authorizeReport($request, $dynamicReport);
         abort_unless($dynamicReport->status === 'completed', 409, 'گزارش هنوز آماده نشده است.');
         $perPage = min(100, max(10, (int) $request->integer('per_page', 25)));
-        $rows = $dynamicReport->rows()->orderBy('id')->paginate($perPage);
+        // ردیف‌ها به ترتیب id منبع ساخته می‌شوند؛ «جدیدترین اول» فقط جهت نمایش را برعکس می‌کند.
+        $rows = $dynamicReport->rows()->orderBy('id', data_get($dynamicReport->filters, 'sort') === 'desc' ? 'desc' : 'asc')->paginate($perPage);
         $amountTotal = 0;
         if (in_array('amount', $dynamicReport->columns ?? [], true)) {
             $amountTotal = $dynamicReport->rows()->cursor()->sum(function ($row) {

@@ -5,23 +5,35 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AiAssistantConversation;
 use App\Models\AiAssistantMessage;
+use App\Services\Assistant\AssistantListShaper;
 use App\Services\Assistant\AssistantService;
 use App\Services\Assistant\AssistantSettings;
+use App\Services\Assistant\Billing\AiBalanceException;
+use App\Services\Assistant\Billing\AiMeter;
+use App\Services\Assistant\Billing\AiPriceBook;
+use App\Services\Assistant\Billing\AiPriceMissingException;
+use App\Services\Assistant\Billing\AiUsageContext;
+use App\Services\Assistant\Billing\AiWallet;
 use App\Services\Assistant\OpenAiClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 use RuntimeException;
 
 final class AiAssistantController extends Controller
 {
-    public function settings(Request $request, AssistantSettings $settings): JsonResponse
+    public function settings(Request $request, AssistantSettings $settings, AiWallet $wallet): JsonResponse
     {
-        return response()->json([...$settings->publicData(), 'can_manage'=>$request->user()->can('assistant.manage')]);
+        return response()->json([
+            ...$settings->publicData(),
+            'can_manage'=>$request->user()->can('assistant.manage'),
+            'can_view_all_usage'=>$request->user()->can('assistant.usage.view'),
+            'balance'=>AiUsageController::balanceData($request, $wallet),
+        ]);
     }
 
-    public function updateSettings(Request $request, AssistantSettings $settings): JsonResponse
+    public function updateSettings(Request $request, AssistantSettings $settings, AiWallet $wallet): JsonResponse
     {
         $models = array_keys(config('assistant.models', []));
         $validated = $request->validate([
@@ -29,13 +41,12 @@ final class AiAssistantController extends Controller
             'default_model'=>['required',Rule::in($models)],
             'allowed_models'=>['required','array','min:1'],
             'allowed_models.*'=>['required','string','distinct',Rule::in($models)],
-            'daily_limit'=>['required','integer','between:1,500'],
         ]);
         if (! in_array($validated['default_model'], $validated['allowed_models'], true)) {
             return response()->json(['message'=>'مدل پیش‌فرض باید در فهرست مدل‌های مجاز باشد.'], 422);
         }
         $settings->save($validated);
-        return $this->settings($request, $settings);
+        return $this->settings($request, $settings, $wallet);
     }
 
     public function conversations(Request $request): JsonResponse
@@ -57,7 +68,7 @@ final class AiAssistantController extends Controller
         return response()->json(['ok'=>true]);
     }
 
-    public function message(Request $request, AssistantSettings $settings, AssistantService $assistant, OpenAiClient $client): JsonResponse
+    public function message(Request $request, AssistantSettings $settings, AssistantService $assistant, OpenAiClient $client, AiWallet $wallet, AiPriceBook $prices): JsonResponse
     {
         $validated = $request->validate([
             'message'=>['required','string','min:2','max:2000'],
@@ -70,41 +81,65 @@ final class AiAssistantController extends Controller
         $model = $validated['model'] ?? $current['default_model'];
         if (! in_array($model, $current['allowed_models'], true)) return response()->json(['message'=>'این مدل برای کلینیک مجاز نیست.'], 422);
         $conversation = isset($validated['conversation_id']) ? $this->owned($request, (int) $validated['conversation_id']) : null;
-        $key = $this->rateKey($request);
-        if (RateLimiter::tooManyAttempts($key, (int) $current['daily_limit'])) {
-            return response()->json(['message'=>'سقف پیام‌های امروز به دستیار پر شده است.'], 429);
-        }
-        RateLimiter::hit($key, 86400);
+        if ($blocked = $this->billingBlock($request, $wallet, $prices, $model)) return $blocked;
         try {
             return response()->json($assistant->send($request->user(), trim($validated['message']), $model, $conversation));
+        } catch (AiBalanceException $exception) {
+            return response()->json($exception->payload($request->user()->can('assistant.manage')), 402);
+        } catch (AiPriceMissingException $exception) {
+            return response()->json(['message'=>$exception->getMessage()], 422);
         } catch (RuntimeException $exception) {
             return response()->json(['message'=>$exception->getMessage()], 502);
         }
     }
 
-    public function transcribe(Request $request, AssistantSettings $settings, OpenAiClient $client): JsonResponse
+    public function transcribe(Request $request, AssistantSettings $settings, OpenAiClient $client, AiMeter $meter, AiWallet $wallet, AiPriceBook $prices): JsonResponse
     {
         $validated = $request->validate(['audio'=>['required','file','max:10240','mimetypes:audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,video/webm,video/mp4']]);
+        if (! config('assistant.voice_enabled')) return response()->json(['message'=>'پیام صوتی فعلاً غیرفعال است.'], 403);
         if (! $settings->current()['enabled']) return response()->json(['message'=>'دستیار برای این کلینیک غیرفعال است.'], 403);
         if (! $client->configured()) return response()->json(['message'=>'کلید OpenAI روی سرور تنظیم نشده است.'], 503);
-        $key = 'assistant:voice:'.$this->rateKey($request);
-        if (RateLimiter::tooManyAttempts($key, 30)) return response()->json(['message'=>'سقف رونویسی ویس پر شده است.'], 429);
-        RateLimiter::hit($key, 86400);
+        if ($blocked = $this->billingBlock($request, $wallet, $prices, (string) config('assistant.transcription_model'))) return $blocked;
         try {
-            return response()->json(['text'=>$client->transcribe($validated['audio'])]);
+            return response()->json(['text'=>$meter->transcribe(AiUsageContext::forCurrentTenant($request->user(), 'transcription'), $validated['audio'])]);
+        } catch (AiBalanceException $exception) {
+            return response()->json($exception->payload($request->user()->can('assistant.manage')), 402);
+        } catch (AiPriceMissingException $exception) {
+            return response()->json(['message'=>$exception->getMessage()], 422);
         } catch (RuntimeException $exception) {
             return response()->json(['message'=>$exception->getMessage()], 502);
         }
+    }
+
+    /** صفحهٔ بعدی فهرست یک کارت؛ بدون فراخوانی AI و بدون هزینه. */
+    public function listPage(Request $request, AssistantListShaper $lists): JsonResponse
+    {
+        $validated = $request->validate([
+            'tool'=>['required','string',Rule::in(AssistantListShaper::LIST_TOOLS)],
+            'arguments'=>['nullable','array'],
+            'offset'=>['required','integer','min:0','max:100000'],
+            'limit'=>['required','integer','min:1','max:'.AssistantListShaper::MAX_PAGE],
+        ]);
+        try {
+            return response()->json($lists->page($request->user(), $validated['tool'], $validated['arguments'] ?? [], (int) $validated['offset'], (int) $validated['limit']));
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message'=>$exception->getMessage()], 422);
+        }
+    }
+
+    private function billingBlock(Request $request, AiWallet $wallet, AiPriceBook $prices, string $model): ?JsonResponse
+    {
+        if (! $prices->current($model)) return response()->json(['message'=>(new AiPriceMissingException($model))->getMessage()], 422);
+        try {
+            $wallet->ensureUsable((string) tenant()->getTenantKey());
+        } catch (AiBalanceException $exception) {
+            return response()->json($exception->payload($request->user()->can('assistant.manage')), 402);
+        }
+        return null;
     }
 
     private function owned(Request $request, int $id): AiAssistantConversation
     {
         return AiAssistantConversation::query()->where('user_id', $request->user()->id)->findOrFail($id);
-    }
-
-    private function rateKey(Request $request): string
-    {
-        $tenant = function_exists('tenant') && tenant() ? tenant()->getTenantKey() : 'central';
-        return 'assistant:message:'.$tenant.':'.$request->user()->id.':'.now('Asia/Tehran')->toDateString();
     }
 }

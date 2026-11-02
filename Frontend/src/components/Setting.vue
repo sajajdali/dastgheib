@@ -1032,7 +1032,7 @@
     </div>
 
     <StorageDashboard v-if="canViewSettings && activeSection === 'storage'" />
-    <Manabe v-if="canViewResources && activeSection === 'resources'" :initial-tab="initialResourceTab" />
+    <Manabe v-if="canViewResources && activeSection === 'resources'" :initial-tab="initialResourceTab" :highlight-resource="highlightResource" />
 
   </div>
 </template>
@@ -1053,7 +1053,8 @@ const props = defineProps({
   enabledFeatures: { type: Array, default: null },
   initialSection: { type: String, default: "internal" },
   initialAccordion: { type: String, default: "" },
-  initialResourceTab: { type: String, default: "doctor" }
+  initialResourceTab: { type: String, default: "doctor" },
+  highlightResource: { type: Object, default: null }
 });
 const isSuperAdmin = computed(() => (props.currentUser?.roles || []).some(role => ['مدیر کل', 'مدیر سیستم', 'super admin', 'super-admin'].includes(String(role).trim().toLowerCase())));
 const canViewSettings = computed(() => isSuperAdmin.value);
@@ -1085,8 +1086,28 @@ watch(() => props.initialAccordion, (accordion) => {
   if (accordion) {
     activeSection.value = 'internal';
     openAccordion.value = accordion;
+    revealOpenAccordion();
   }
 }, { immediate: true });
+
+// بخشی که دستیار باز کرده: صفحه تا همان بخش پایین می‌رود و چند لحظه برجسته می‌شود.
+function revealOpenAccordion() {
+  const reveal = () => {
+    const body = document.querySelector('.accordion-body');
+    const item = body?.parentElement;
+    if (!item) return false;
+    item.classList.remove('accordion--flash');
+    void item.offsetWidth;
+    item.classList.add('accordion--flash');
+    item.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => item.classList.remove('accordion--flash'), 2600);
+    return true;
+  };
+  // بدنهٔ بخش بعد از بارگذاری تنظیمات رندر می‌شود؛ چند بار کوتاه تلاش می‌کنیم.
+  let attempts = 0;
+  const tryReveal = () => { if (!reveal() && ++attempts < 10) setTimeout(tryReveal, 200); };
+  nextTick(() => setTimeout(tryReveal, 150));
+}
 const paymentMethodRows = ref([{ name: "کارتخوان" }, { name: "کارت به کارت" }, { name: "شبا" }]);
 const paymentAccountRows = ref([{ name: "حساب اصلی" }]);
 const serviceCategoryRows = ref([{ name: "زیبایی" }, { name: "درمانی" }, { name: "لیزر" }, { name: "پوست و مو" }]);
@@ -2252,6 +2273,8 @@ onMounted(() => {
 .add-payment-option{width:100%;height:40px;border:1px dashed #93c5fd;border-radius:11px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.add-payment-option:hover{border-style:solid;background:#dbeafe}
 .payment-settings-actions{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:18px}.payment-settings-actions span{margin-left:auto;color:#15803d;font-size:11px;font-weight:800}.payment-settings-actions span.error{color:#dc2626}.payment-settings-actions button{min-width:190px;height:44px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:0 8px 18px rgba(37,99,235,.2)}.payment-settings-actions button:disabled{cursor:wait;opacity:.65}
 .accordion{ background:white; border-radius:22px; overflow:hidden; border:1px solid #e8eefc; box-shadow: 0 4px 18px rgba(0,0,0,0.03); width:50%; margin-right:0; margin-left:auto; }
+.accordion--flash{ scroll-margin-top:96px; animation:accordion-flash 2.6s ease; }
+@keyframes accordion-flash{ 0%,60%{ box-shadow:0 0 0 3px rgba(37,99,235,.45), 0 12px 30px rgba(37,99,235,.18); } 100%{ box-shadow:none; } }
 .accordion-header{ padding:18px 22px; font-weight:700; text-align:right; cursor:pointer; transition:0.3s; }
 .accordion-header:hover{ background:#f8fbff; }
 .accordion-body{ padding:20px; display:flex; flex-direction:column; gap:14px; border-top:1px solid #eef2ff; }
