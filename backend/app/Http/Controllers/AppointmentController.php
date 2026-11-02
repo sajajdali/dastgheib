@@ -1590,7 +1590,26 @@ class AppointmentController extends Controller
             'wallet_balance' => (int) ($patient?->wallet_balance ?? 0),
             'outstanding_debt' => (int) ($patient?->outstanding_debt ?? 0),
             'transactions' => $ledger,
+            // همان عددی که financialCheckout به‌عنوان «دریافت‌شدهٔ قبلی» استفاده می‌کند.
+            'recorded_payment_total' => $this->appointmentPreviouslyReceived($appointment, app(FinancialCheckoutBalanceService::class)),
         ]);
+    }
+
+    private function appointmentPreviouslyReceived(Appointment $appointment, FinancialCheckoutBalanceService $balanceService): int
+    {
+        $totals = AppointmentFinancialTransaction::query()
+            ->where('appointment_id', $appointment->id)
+            ->whereIn('type', ['payment', 'debt_settlement'])
+            ->whereNull('voided_at')
+            ->selectRaw('type, SUM(amount) AS total')
+            ->groupBy('type')
+            ->pluck('total', 'type');
+
+        return $balanceService->previouslyReceived(
+            $totals->has('payment') ? (int) $totals['payment'] : null,
+            $totals->has('debt_settlement') ? (int) $totals['debt_settlement'] : null,
+            is_array($appointment->payment_details) ? $appointment->payment_details : [],
+        );
     }
 
     public function financialCheckout(Request $request, Appointment $appointment, FinancialCheckoutBalanceService $balanceService)
@@ -1628,11 +1647,7 @@ class AppointmentController extends Controller
             $totalPayment = (int) $payments->sum('amount') + $walletPaymentAmount;
             $totalDeposit = (int) $depositRows->sum('amount');
             $payable = max(0, $this->signedMoneyToInteger($appointment->amount));
-            $existingPaymentTotal = (int) AppointmentFinancialTransaction::query()
-                ->where('appointment_id', $appointment->id)
-                ->where('type', 'payment')
-                ->whereNull('voided_at')
-                ->sum('amount');
+            $existingPaymentTotal = $this->appointmentPreviouslyReceived($appointment, $balanceService);
             if ($walletPaymentAmount > 0) {
                 if (! $patient) abort(422, 'برای استفاده از بیعانه، پرونده بیمار باید مشخص باشد.');
                 if ($walletPaymentAmount > (int) $patient->fresh()->wallet_balance) abort(422, 'مبلغ بیعانه از اعتبار موجود بیمار بیشتر است.');

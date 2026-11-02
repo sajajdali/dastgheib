@@ -6,6 +6,30 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class FinancialCheckoutBalanceService
 {
+    /**
+     * مبلغی که پیش از این تسویه برای نوبت دریافت شده است: پرداخت‌های دفتر به‌علاوهٔ
+     * تسویه‌های بدهی همین نوبت. باید با recordedPaymentAmount صفحهٔ نوبت‌دهی یکی باشد؛
+     * وگرنه بعد از تسویهٔ بدهی، صفحه مانده را صفر می‌بیند و سرور آن را بدهی حساب می‌کند.
+     * null یعنی برای آن نوع تراکنشی در دفتر نیست (نوبت‌های قدیمی پیش از دفتر مالی).
+     */
+    public function previouslyReceived(?int $ledgerPayments, ?int $ledgerSettlements, array $paymentDetails): int
+    {
+        $payments = $ledgerPayments;
+        if ($payments === null) {
+            $breakdown = collect($paymentDetails['payment_breakdown'] ?? [])->sum(fn ($amount) => max(0, (int) $amount));
+            $payments = array_key_exists('ledger_total', $paymentDetails)
+                ? (int) $paymentDetails['ledger_total']
+                : ($breakdown > 0
+                    ? $breakdown
+                    : (int) ($paymentDetails['cash'] ?? 0) + (int) ($paymentDetails['card'] ?? 0) + (int) data_get($paymentDetails, 'check.amount', 0));
+        }
+
+        $settlements = $ledgerSettlements ?? (int) collect($paymentDetails['debt_payments'] ?? [])
+            ->sum(fn ($payment) => max(0, (int) ($payment['amount'] ?? 0)));
+
+        return max(0, $payments) + max(0, $settlements);
+    }
+
     public function reconcile(
         int $payable,
         int $receivedTotal,

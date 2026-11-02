@@ -40,10 +40,10 @@
       </button>
       <div class="appointment-search-wrap">
         <div class="appointment-search-input-wrap">
-          <input type="text" v-model="searchQuery" @input="searchTable" class="global-search-box" placeholder="جستجو در کل جدول..." />
+          <input type="text" v-model="searchQuery" @input="scheduleTableSearch" class="global-search-box" placeholder="جستجو در کل جدول..." />
           <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
         </div>
-        <div v-if="searchQuery.trim()" class="appointment-search-navigation">
+        <div v-if="appliedSearchQuery.trim()" class="appointment-search-navigation">
           <button type="button" title="نتیجه قبلی" aria-label="نتیجه قبلی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(-1)">↑</button>
           <span>{{ searchResults.length ? searchResultIndex + 1 : 0 }} از {{ searchResults.length }}</span>
           <button type="button" title="نتیجه بعدی" aria-label="نتیجه بعدی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(1)">↓</button>
@@ -1420,10 +1420,10 @@
       </div>
       <div class="appointment-search-wrap timeline-search-wrap">
         <div class="appointment-search-input-wrap">
-          <input v-model="searchQuery" type="text" class="global-search-box timeline-global-search" placeholder="جستجو در کل نوبت‌ها..." aria-label="جستجو در کل نوبت‌ها" @input="searchTable" />
+          <input v-model="searchQuery" type="text" class="global-search-box timeline-global-search" placeholder="جستجو در کل نوبت‌ها..." aria-label="جستجو در کل نوبت‌ها" @input="scheduleTableSearch" />
           <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
         </div>
-        <div v-if="searchQuery.trim()" class="appointment-search-navigation">
+        <div v-if="appliedSearchQuery.trim()" class="appointment-search-navigation">
           <button type="button" title="نتیجه قبلی" aria-label="نتیجه قبلی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(-1)">↑</button>
           <span>{{ searchResults.length ? searchResultIndex + 1 : 0 }} از {{ searchResults.length }}</span>
           <button type="button" title="نتیجه بعدی" aria-label="نتیجه بعدی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(1)">↓</button>
@@ -1568,7 +1568,7 @@
           <p>نوبت {{ activeTimelineDraft.lastname }} از {{ activeTimelineDay?.dateLabel }}، ساعت {{ activeTimelineRow?.time }} به زمان زیر منتقل می‌شود.</p>
           <div class="timeline-form-grid compact">
             <label>تاریخ جدید
-              <date-picker v-model="timelineTransferDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD"
+              <jalali-date-input v-model="timelineTransferDate" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD"
                 input-class="timeline-modal-input" auto-submit append-to="body" @open="raiseTimelineTimePicker" @change="loadTransferAppointments" />
             </label>
             <label>ساعت جدید
@@ -2602,6 +2602,7 @@
 <script>
 import axios from "axios";
 import DatePicker from "vue3-persian-datetime-picker";
+import JalaliDateInput from "./JalaliDateInput.vue";
 import Swal from "sweetalert2";
 import moment from "moment-jalaali";
 import Multiselect from "vue-multiselect";
@@ -2622,6 +2623,7 @@ export default {
 
   components: {
     DatePicker,
+    JalaliDateInput,
     Multiselect,
     PatientAvatar
   },
@@ -2634,6 +2636,9 @@ export default {
       appointmentReady: false,
       handledOpenViewRequestAt: null,
       searchQuery: "",
+      // مقدار اعمال‌شدهٔ جستجو؛ با تأخیر کوتاه به‌روز می‌شود تا هر حرف کل ماه را دوباره رندر نکند.
+      appliedSearchQuery: "",
+      searchDebounceTimer: null,
       searchResults: [],
       searchResultIndex: -1,
       holidays: {},
@@ -2985,7 +2990,7 @@ export default {
     },
     hasActiveTableFilters() {
       return Boolean(
-        this.searchQuery.trim() || this.selectedStatuses.length || this.selectedSources.length ||
+        this.appliedSearchQuery.trim() || this.selectedStatuses.length || this.selectedSources.length ||
         this.selectedDone.length || this.selectedGenders.length ||
         this.selectedAppointmentSms.length || this.selectedInfoSms.length ||
         this.selectedBeforePhotoStates.length || this.selectedAfterPhotoStates.length ||
@@ -3344,6 +3349,7 @@ export default {
     this.unsubscribeAppointmentNoteChanges?.();
     clearTimeout(this.realtimeRefreshTimer);
     clearTimeout(this.highlightedRowTimer);
+    clearTimeout(this.searchDebounceTimer);
     clearTimeout(this.timelinePatientSearchTimer);
     clearTimeout(this.timelineFileNumberLookupTimer);
     clearTimeout(this.timelineScheduleLoadingTimer);
@@ -7490,6 +7496,9 @@ this.calculateFinalAmount(row)
         const { data } = await axios.get(`/api/appointments/${this.activeFinancialRow.appointmentId}/financial-context`);
         this.financialPreviousDebts = data.previous_debts || [];
         this.financialTransactions = data.transactions || [];
+        // مبنای «پرداخت‌شدهٔ قبلی» همان عدد سرور است (پرداخت‌ها + تسویه‌های بدهی)،
+        // تا مانده‌ای که اینجا صفر دیده می‌شود در ثبت هزینه بدهی حساب نشود.
+        if (data.recorded_payment_total != null) this.financialOriginalRecordedPayment = Number(data.recorded_payment_total) || 0;
         const savedDebtLines = this.financialTransactions.filter(transaction => transaction.type === 'debt').flatMap(transaction => (transaction.allocations || []).map(allocation => ({ key: allocation.service_key, amount: Number(allocation.allocated_amount || 0), reason: transaction.reason || '' })));
         if (savedDebtLines.length) {
           const savedByKey = new Map(savedDebtLines.map(line => [String(line.key || ''), line]));
@@ -7637,9 +7646,11 @@ this.calculateFinalAmount(row)
     async saveFinancialPanel() {
       const row = this.activeFinancialRow;
       if (!row || this.financialContextLoading) return;
-      // ممکن است ذخیرهٔ خودکار هنوز در حال انجام نباشد و ردیف شناسهٔ سرور نداشته باشد.
-      // قبل از ثبت خدمات/تسویه، خود ردیف را ذخیره می‌کنیم تا کاربر با هشدار اشتباه مواجه نشود.
-      if (!row.appointmentId) {
+      // ممکن است ذخیرهٔ خودکار هنوز انجام نشده باشد (ردیف بدون شناسه، یا مبلغ/خدماتی که
+      // هنوز به سرور نرسیده). سرور مانده را با مبلغ ذخیره‌شده حساب می‌کند، پس اول ردیف را ذخیره می‌کنیم.
+      const hasUnsavedChanges = !row.appointmentId || this.saveInProgress || Boolean(this.saveTimeout)
+        || this.scheduleFingerprint() !== this.lastPersistedScheduleFingerprint;
+      if (hasUnsavedChanges) {
         const saved = await this.persistDirectAppointment(row);
         if (!saved || !row.appointmentId) {
           await Swal.fire({ icon: 'warning', title: 'ذخیره نوبت انجام نشد', text: 'اطلاعات نوبت را بررسی کنید و دوباره تلاش کنید.' });
@@ -8438,12 +8449,12 @@ this.calculateFinalAmount(row)
     },
 
     isAppointmentSearchResult(row) {
-      return Boolean(this.searchQuery.trim())
+      return Boolean(this.appliedSearchQuery.trim())
         && this.searchResults.some(result => result.row._rowId === row?._rowId);
     },
 
     appointmentSearchResultCountForDay(day) {
-      if (!this.searchQuery.trim()) return 0;
+      if (!this.appliedSearchQuery.trim()) return 0;
       return this.searchResults.reduce((count, result) =>
         count + (Number(result.day?.dayNum) === Number(day?.dayNum) ? 1 : 0), 0);
     },
@@ -8477,14 +8488,27 @@ this.calculateFinalAmount(row)
 
     clearAppointmentSearch() {
       clearTimeout(this.highlightedRowTimer);
+      clearTimeout(this.searchDebounceTimer);
       this.searchQuery = '';
+      this.appliedSearchQuery = '';
       this.searchResults = [];
       this.searchResultIndex = -1;
       this.highlightedRowId = null;
     },
 
+    scheduleTableSearch() {
+      clearTimeout(this.searchDebounceTimer);
+      if (!this.searchQuery.trim()) {
+        this.searchTable();
+        return;
+      }
+      this.searchDebounceTimer = setTimeout(() => this.searchTable(), 250);
+    },
+
     searchTable() {
-      const search = this.normalizeAppointmentSearchText(this.searchQuery);
+      clearTimeout(this.searchDebounceTimer);
+      this.appliedSearchQuery = this.searchQuery;
+      const search = this.normalizeAppointmentSearchText(this.appliedSearchQuery);
       clearTimeout(this.highlightedRowTimer);
       this.highlightedRowId = null;
       this.searchResults = [];
@@ -9678,7 +9702,7 @@ this.calculateFinalAmount(row)
     },
 
     getFilteredRows(day) {
-      const appointmentSearch = this.normalizeAppointmentSearchText(this.searchQuery);
+      const appointmentSearch = this.normalizeAppointmentSearchText(this.appliedSearchQuery);
       if (appointmentSearch) {
         return (day.rows || [])
           .filter(row => this.appointmentSearchText(row).includes(appointmentSearch))

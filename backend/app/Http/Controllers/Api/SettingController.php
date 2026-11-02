@@ -25,7 +25,7 @@ class SettingController extends Controller
 {
     private function defaultEducationOptions(): array
     {
-        return ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'دکتری', 'تحصیلات تکمیلی'];
+        return ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'فوق لیسانس', 'دکتری', 'تحصیلات تکمیلی'];
     }
 
     private function educationOptions(): array
@@ -154,7 +154,7 @@ class SettingController extends Controller
         $profileFieldsData = array_merge([
             'national_id' => false, 'foreign_national_code' => false, 'marriage_date' => false, 'marital_status' => false, 'education' => false,
             'father_name' => false, 'second_phone' => false, 'address' => false,
-            'city' => false,
+            'city' => false, 'weight' => false,
         ], is_array($profileFieldsData) ? $profileFieldsData : []);
 
         $smsTemplates = $this->configuredFixedSmsTemplates();

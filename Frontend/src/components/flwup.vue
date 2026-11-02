@@ -1329,7 +1329,7 @@
           <button type="button" aria-label="بستن" @click="closeFollowupAppointmentModal">×</button>
         </header>
         <div class="followup-appointment-form">
-          <label><span>تاریخ نوبت</span><date-picker v-model="appointmentForm.date" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="date-input" placeholder="تاریخ را انتخاب کنید" auto-submit append-to="body" @open="raiseFollowupAppointmentDatePicker" /></label>
+          <label><span>تاریخ نوبت</span><jalali-date-input v-model="appointmentForm.date" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="date-input" placeholder="تاریخ را انتخاب کنید" auto-submit append-to="body" @open="raiseFollowupAppointmentDatePicker" /></label>
           <label><span>ساعت</span><input v-model="appointmentForm.time" type="time"></label>
           <label><span>پزشک</span><select v-model="appointmentForm.doctor"><option value="">انتخاب پزشک</option><option v-for="doctor in doctorOptions" :key="doctor.id" :value="doctor.name">{{ doctor.name }}</option></select></label>
           <label><span>مشاور</span><select v-model="appointmentForm.consultant"><option value="">انتخاب مشاور</option><option v-for="staff in staffOptions" :key="staff.id" :value="staff.name">{{ staff.name }}</option></select></label>
@@ -1467,6 +1467,7 @@
 import axios from "axios";
 import moment from "moment-jalaali";
 import DatePicker from 'vue3-persian-datetime-picker'
+import JalaliDateInput from './JalaliDateInput.vue'
 import draggable from "vuedraggable";
 import { avatarInitial, avatarUrl, findResourceByName } from '@/utils/avatar';
 
@@ -1509,6 +1510,7 @@ export default {
 
   components: {
   DatePicker,
+  JalaliDateInput,
   draggable
 },
 

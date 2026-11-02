@@ -112,6 +112,7 @@
                 <label><input type="checkbox" v-model="profileFields.father_name" /> <span>نام پدر</span></label>
                 <label><input type="checkbox" v-model="profileFields.second_phone" /> <span>شماره تماس دوم</span></label>
                 <label><input type="checkbox" v-model="profileFields.address" /> <span>آدرس</span></label>
+                <label><input type="checkbox" v-model="profileFields.weight" /> <span>وزن</span></label>
               </div>
             </div>
             <section class="education-options-settings">
@@ -1186,8 +1187,8 @@ const smsTemplateGroups = computed(() => {
 });
 const smsVariables = ["{name}", "{date}", "{time}", "{doctor}", "{clinic}", "{code}", "{amount}", "{balance}", "{link}"];
 const savingSms = ref(false);
-const profileFields = ref({ national_id: false, foreign_national_code: false, marriage_date: false, marital_status: false, education: false, father_name: false, second_phone: false, address: false, city: false });
-const educationOptions = ref(["سیکل", "دیپلم", "کاردانی", "لیسانس", "دکتری", "تحصیلات تکمیلی"]);
+const profileFields = ref({ national_id: false, foreign_national_code: false, marriage_date: false, marital_status: false, education: false, father_name: false, second_phone: false, address: false, city: false, weight: false });
+const educationOptions = ref(["سیکل", "دیپلم", "کاردانی", "لیسانس", "فوق لیسانس", "دکتری", "تحصیلات تکمیلی"]);
 const addEducationOption = () => educationOptions.value.push("");
 const removeEducationOption = index => {
   if (educationOptions.value.length > 1) educationOptions.value.splice(index, 1);
@@ -1216,7 +1217,7 @@ const handleAppointmentFileNumberLockChange = async event => {
   if (event?.target) event.target.checked = appointmentFileNumberLocked.value;
 };
 const patientFieldOptions = [
-  ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['foreign_national_code','کد اتباع'],['father_name','نام پدر'],['marital_status','وضعیت تأهل'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
+  ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['foreign_national_code','کد اتباع'],['father_name','نام پدر'],['marital_status','وضعیت تأهل'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['weight','وزن'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
 ].map(([key,label]) => ({ key,label }));
 const patientRequiredFields = ref(Object.fromEntries(patientFieldOptions.map(field => [field.key, false])));
 const customerLevelColumns = [

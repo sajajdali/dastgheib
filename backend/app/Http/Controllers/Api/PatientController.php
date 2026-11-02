@@ -21,7 +21,7 @@ class PatientController extends Controller
 {
     private function educationOptions(): array
     {
-        $defaults = ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'دکتری', 'تحصیلات تکمیلی'];
+        $defaults = ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'فوق لیسانس', 'دکتری', 'تحصیلات تکمیلی'];
         $raw = AppSetting::getByKey('education_options');
         $stored = is_string($raw) ? json_decode($raw, true) : $raw;
 
@@ -92,12 +92,16 @@ class PatientController extends Controller
             'marital_status' => $presence('marital_status').'|string|in:مجرد,متاهل',
             'marriage_date' => $presence('marriage_date').'|string|max:20',
             'education' => [$presence('education'), 'string', 'max:100', Rule::in($this->educationOptions())],
+            'weight' => [$presence('weight'), 'numeric', 'between:1,500'],
             'second_phone' => $presence('second_phone').'|string|max:30',
             'address' => $presence('address').'|string',
         ], [
             'phone.unique' => 'شماره موبایل تکراری است',
             'file_number.unique' => 'این شماره پرونده قبلاً ثبت شده است.',
             'education.in' => 'تحصیلات را از گزینه‌های تعریف‌شده در تنظیمات انتخاب کنید.',
+            'weight.required' => 'وزن را وارد کنید.',
+            'weight.numeric' => 'وزن باید عدد باشد.',
+            'weight.between' => 'وزن باید بین ۱ تا ۵۰۰ کیلوگرم باشد.',
         ]);
 
         // شماره پیشنهادی خودکار است، اما کاربر می‌تواند شماره آزاد دیگری
@@ -297,12 +301,16 @@ class PatientController extends Controller
             'marital_status' => [$presence('marital_status'), 'string', Rule::in(['مجرد', 'متاهل'])],
             'marriage_date' => [$presence('marriage_date'), 'string', 'max:20'],
             'education' => [$presence('education'), 'string', 'max:100', Rule::in($this->educationOptions())],
+            'weight' => [$presence('weight'), 'numeric', 'between:1,500'],
             'second_phone' => [$presence('second_phone'), 'string', 'max:30'],
             'address' => [$presence('address'), 'string'],
         ], [
             'phone.unique' => 'شماره موبایل تکراری است',
             'file_number.unique' => 'این شماره پرونده قبلاً ثبت شده است.',
             'education.in' => 'تحصیلات را از گزینه‌های تعریف‌شده در تنظیمات انتخاب کنید.',
+            'weight.required' => 'وزن را وارد کنید.',
+            'weight.numeric' => 'وزن باید عدد باشد.',
+            'weight.between' => 'وزن باید بین ۱ تا ۵۰۰ کیلوگرم باشد.',
         ]);
 
         $oldFileNumber = (string) ($patient->file_number ?? '');
@@ -374,7 +382,7 @@ class PatientController extends Controller
 
     private function normalizePatientRequestDigits(Request $request): void
     {
-        $fields = ['file_number', 'phone', 'second_phone', 'national_id', 'foreign_national_code', 'birth_date', 'marriage_date'];
+        $fields = ['file_number', 'phone', 'second_phone', 'national_id', 'foreign_national_code', 'birth_date', 'marriage_date', 'weight'];
         $normalized = [];
         foreach ($fields as $field) {
             if ($request->has($field)) {
@@ -382,6 +390,7 @@ class PatientController extends Controller
                 // ConvertEmptyStringsToNull runs before this controller. Do
                 // not turn those nullable values back into an empty string,
                 // because MySQL DATE columns reject ''.
+                if ($field === 'weight') $value = str_replace(['٫', '/', ','], '.', $value);
                 $normalized[$field] = $value === '' ? null : $value;
             }
         }

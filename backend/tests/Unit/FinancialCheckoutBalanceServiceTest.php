@@ -81,4 +81,28 @@ class FinancialCheckoutBalanceServiceTest extends TestCase
         $this->assertSame(1_500_000, $result['overpayment']);
         $this->assertSame(-1_500_000, $result['balance']);
     }
+
+    public function test_settled_debt_counts_as_received_so_zero_debt_checkout_is_accepted(): void
+    {
+        // ۶۰۰ پرداخت اولیه، ۴۰۰ بدهی که بعداً تسویه شد؛ ثبت دوباره با بدهی صفر نباید خطا بدهد.
+        $received = $this->service->previouslyReceived(600_000, 400_000, ['ledger_total' => 600_000]);
+        $this->assertSame(1_000_000, $received);
+
+        $result = $this->service->reconcile(1_000_000, $received, 0);
+        $this->assertSame(0, $result['balance']);
+    }
+
+    public function test_previously_received_falls_back_to_payment_details_for_legacy_appointments(): void
+    {
+        $this->assertSame(700_000, $this->service->previouslyReceived(null, null, [
+            'cash' => 500_000,
+            'card' => 200_000,
+        ]));
+        $this->assertSame(900_000, $this->service->previouslyReceived(null, null, [
+            'payment_breakdown' => ['نقدی' => 600_000, 'کارت' => 100_000],
+            'debt_payments' => [['amount' => 200_000]],
+        ]));
+        // پس از اولین تسویه، دفتر مالی مبنا است حتی اگر همهٔ پرداخت‌ها حذف شده باشند.
+        $this->assertSame(0, $this->service->previouslyReceived(null, null, ['ledger_total' => 0, 'cash' => 500_000]));
+    }
 }

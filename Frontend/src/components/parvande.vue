@@ -66,7 +66,7 @@
           <option>مرد</option>
         </select>
 
-        <date-picker
+        <jalali-date-input
           v-if="!showMediaModal"
           v-model="form.birth_date"
           format="jYYYY-jMM-jDD"
@@ -127,7 +127,7 @@
           <option value="متاهل">متأهل</option>
         </select>
 
-        <date-picker
+        <jalali-date-input
           v-if="activeProfileFields.marriage_date && !showMediaModal"
           v-model="form.marriage_date"
           format="jYYYY-jMM-jDD"
@@ -145,6 +145,15 @@
           <option value="" disabled>{{ `تحصیلات${patientRequiredFields.education ? ' *' : ''}` }}</option>
           <option v-for="option in educationOptions" :key="option" :value="option">{{ option }}</option>
         </select>
+
+        <input
+          v-if="activeProfileFields.weight"
+          v-model.trim="form.weight"
+          type="text"
+          inputmode="decimal"
+          maxlength="6"
+          :placeholder="`وزن (کیلوگرم)${patientRequiredFields.weight ? ' *' : ''}`"
+        />
 
         <input 
           v-if="activeProfileFields.second_phone" 
@@ -813,7 +822,7 @@
             <option value="مرد">مرد</option>
           </select>
 
-          <date-picker
+          <jalali-date-input
             v-model="editPatient.birth_date"
             format="jYYYY-jMM-jDD"
             display-format="jYYYY-jMM-jDD"
@@ -845,6 +854,7 @@
             <option value="">انتخاب تحصیلات</option>
             <option v-for="option in educationOptions" :key="option" :value="option">{{ option }}</option>
           </select>
+          <input v-if="activeProfileFields.weight" v-model.trim="editPatient.weight" type="text" inputmode="decimal" maxlength="6" placeholder="وزن (کیلوگرم)" />
           <input v-if="activeProfileFields.second_phone && canViewPatientPhone" v-model="editPatient.second_phone" placeholder="شماره تماس دوم" maxlength="11" />
           <input v-else-if="activeProfileFields.second_phone" :value="displayPatientPhone(editPatient.second_phone)" placeholder="شماره تماس دوم" readonly />
 
@@ -1756,6 +1766,7 @@
 <script>
 import Swal from 'sweetalert2'
 import DatePicker from 'vue3-persian-datetime-picker'
+import JalaliDateInput from './JalaliDateInput.vue'
 import Multiselect from 'vue-multiselect'
 import 'vue-multiselect/dist/vue-multiselect.css'
 import dayjs from 'dayjs'
@@ -1794,6 +1805,7 @@ const FACE_PHOTO_ANGLES = [
 export default {
   components:{
     DatePicker,
+    JalaliDateInput,
     Multiselect,
     PatientAvatar
   },
@@ -1826,10 +1838,11 @@ export default {
         father_name: false,
         second_phone: false,
         address: false,
-        city: false
+        city: false,
+        weight: false
       },
       patientRequiredFields: {},
-      educationOptions: ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'دکتری', 'تحصیلات تکمیلی'],
+      educationOptions: ['سیکل', 'دیپلم', 'کاردانی', 'لیسانس', 'فوق لیسانس', 'دکتری', 'تحصیلات تکمیلی'],
       patientFileNumberLocked: true,
       fileNumberAvailability: 'idle',
       fileNumberCheckTimer: null,
@@ -1859,6 +1872,7 @@ export default {
         marital_status: '',
         marriage_date: '',
         education: '',
+        weight: '',
         second_phone: '',
         address: ''
       },
@@ -1889,6 +1903,7 @@ export default {
         marital_status: 'وضعیت تأهل',
         marriage_date: 'تاریخ ازدواج',
         education: 'تحصیلات',
+        weight: 'وزن (کیلوگرم)',
         second_phone: 'شماره تماس دوم',
         address: 'آدرس',
         wallet_balance: 'موجودی کیف پول',
@@ -2060,6 +2075,7 @@ export default {
         { key: 'marital_status', label: 'وضعیت تأهل', icon: '♡' },
         { key: 'marriage_date', label: 'تاریخ ازدواج', icon: '♡' },
         { key: 'education', label: 'تحصیلات', icon: '▣' },
+        { key: 'weight', label: 'وزن', icon: '⚖', format: value => `${value} کیلوگرم` },
         { key: 'second_phone', label: 'شماره تماس دوم', icon: '☎', phone: true },
         { key: 'address', label: 'آدرس محل سکونت', icon: '⌖', wide: true },
         { key: 'patient_history', label: 'تیپ شخصیتی', icon: '◎', wide: true },
@@ -2600,6 +2616,7 @@ export default {
         marital_status: '',
         marriage_date: '',
         education: '',
+        weight: '',
         second_phone: '',
         address: ''
       }
@@ -4657,6 +4674,7 @@ export default {
         education: this.educationOptions.includes(this.optionalPatientValue(patient.education))
           ? this.optionalPatientValue(patient.education)
           : '',
+        weight: this.optionalPatientValue(patient.weight),
         address: this.optionalPatientValue(patient.address),
         patient_history: this.optionalPatientValue(patient.patient_history),
         medical_history: this.optionalPatientValue(patient.medical_history)

@@ -1981,7 +1981,8 @@ body.central-host #app {
   position: fixed;
   top: 20px;
   left: 20px;
-  z-index: 2147483002;
+  /* بالاتر از فیلدهای تقویم که در Time.vue لایهٔ 2147483004 دارند */
+  z-index: 2147483007;
   width: 46px;
   height: 46px;
   display: grid;
@@ -2097,7 +2098,7 @@ body.central-host #app {
 .utility-menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2147483000;
+  z-index: 2147483005;
   width: 100%;
   height: 100%;
   padding: 0;
@@ -2110,7 +2111,7 @@ body.central-host #app {
   position: fixed;
   top: 62px;
   left: 18px;
-  z-index: 2147483001;
+  z-index: 2147483006;
   width: 304px;
   box-sizing: border-box;
   display: grid;

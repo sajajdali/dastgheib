@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import './utils/datePickerCleanup'
 import App from './App.vue'
 import axios from 'axios'
 import './scss/main.scss'

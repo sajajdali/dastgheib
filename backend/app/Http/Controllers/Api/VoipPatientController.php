@@ -32,7 +32,7 @@ class VoipPatientController extends Controller
     private const EXTRA_FIELDS = [
         'gender' => 'جنسیت', 'birth_date' => 'تاریخ تولد', 'area' => 'محدوده', 'financial_status' => 'وضعیت مالی',
         'national_id' => 'کد ملی', 'foreign_national_code' => 'کد اتباع', 'father_name' => 'نام پدر', 'marital_status' => 'وضعیت تأهل',
-        'marriage_date' => 'تاریخ ازدواج', 'education' => 'تحصیلات', 'second_phone' => 'شماره تماس دوم', 'address' => 'آدرس محل سکونت',
+        'marriage_date' => 'تاریخ ازدواج', 'education' => 'تحصیلات', 'weight' => 'وزن (کیلوگرم)', 'second_phone' => 'شماره تماس دوم', 'address' => 'آدرس محل سکونت',
         'patient_history' => 'تیپ شخصیتی', 'medical_history' => 'سوابق پزشکی',
     ];
 

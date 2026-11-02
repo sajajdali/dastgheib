@@ -34,11 +34,16 @@ class Patient extends Model
         'marital_status',
         'marriage_date',
         'education',
+        'weight',
         'second_phone',
         'address',
         'profile_photo_path',
         'profile_thumbnail_path',
         'wallet_balance',
+    ];
+
+    protected $casts = [
+        'weight' => 'float',
     ];
 
     public function walletTransactions()
