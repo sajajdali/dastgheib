@@ -39,6 +39,49 @@ class PatientImageOptimizerTest extends TestCase
         $this->assertSame([400, 600], array_slice(getimagesize(Storage::disk('public')->path($stored['path'])), 0, 2));
     }
 
+    public function test_photo_upload_uses_gd_when_imagemagick_is_not_installed(): void
+    {
+        Storage::fake('public');
+
+        $optimizer = new class extends PatientImageOptimizer {
+            protected function magickBinary(): ?string { return null; }
+        };
+        $stored = $optimizer->store(
+            UploadedFile::fake()->image('mobile.jpg', 1200, 800),
+            'patients/test/media',
+            ['max_side' => 600, 'quality' => 88, 'target_kb' => 100]
+        );
+
+        $this->assertSame('image/webp', $stored['mime_type']);
+        $this->assertSame([600, 400], array_slice(getimagesize(Storage::disk('public')->path($stored['path'])), 0, 2));
+    }
+
+    public function test_mobile_cropped_webp_uses_gd_when_it_exceeds_folder_limit(): void
+    {
+        Storage::fake('public');
+        $source = UploadedFile::fake()->image('source.png', 900, 600);
+        $temporary = tempnam(sys_get_temp_dir(), 'mobile-webp-test-');
+
+        try {
+            $image = imagecreatefrompng($source->getRealPath());
+            imagewebp($image, $temporary, 95);
+            imagedestroy($image);
+            $optimizer = new class extends PatientImageOptimizer {
+                protected function magickBinary(): ?string { return null; }
+            };
+            $stored = $optimizer->store(
+                new UploadedFile($temporary, 'cropped.webp', 'image/webp', null, true),
+                'patients/test/media',
+                ['max_side' => 600, 'quality' => 88, 'target_kb' => 100]
+            );
+
+            $this->assertSame('image/webp', $stored['mime_type']);
+            $this->assertSame([600, 400], array_slice(getimagesize(Storage::disk('public')->path($stored['path'])), 0, 2));
+        } finally {
+            @unlink($temporary);
+        }
+    }
+
     public function test_heic_photo_is_converted_when_the_server_supports_heic(): void
     {
         Storage::fake('public');
