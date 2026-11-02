@@ -3194,9 +3194,11 @@ export default {
           50,
           50
         )
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.48))
+        let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.48))
+        if (blob?.type !== 'image/webp') blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.48))
         if (!blob) throw new Error('ساخت تصویر کوچک ممکن نیست')
-        return new File([blob], 'thumbnail.webp', { type: 'image/webp' })
+        const extension = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
+        return new File([blob], `thumbnail.${extension}`, { type: blob.type })
       } finally {
         URL.revokeObjectURL(imageUrl)
       }
@@ -3311,9 +3313,12 @@ export default {
         size / 2 + this.profileCrop.y * outputScale
       )
       context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2)
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality))
+      let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality))
+      // Safari may silently return PNG when WebP encoding is unavailable.
+      if (blob?.type !== 'image/webp') blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality))
       if (!blob) throw new Error('ساخت تصویر برش‌خورده ممکن نیست')
-      return new File([blob], filename, { type: 'image/webp' })
+      const extension = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
+      return new File([blob], filename.replace(/\.[^.]+$/, `.${extension}`), { type: blob.type })
     },
 
     async confirmProfileCrop() {

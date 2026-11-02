@@ -523,7 +523,7 @@ class PatientController extends Controller
     {
         $data = $request->validate([
             'photo' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
-            'thumbnail' => 'required|image|mimes:webp|max:30|dimensions:width=50,height=50',
+            'thumbnail' => 'required|image|mimes:jpg,jpeg,png,webp|max:30|dimensions:width=50,height=50',
         ]);
 
         Storage::disk('public')->delete(array_filter([
@@ -532,9 +532,15 @@ class PatientController extends Controller
         ]));
 
         $path = $request->file('photo')->store("patients/{$patient->id}/profile", 'public');
-        $thumbnailPath = $request->file('thumbnail')->storeAs(
+        $thumbnail = $request->file('thumbnail');
+        $thumbnailExtension = match ($thumbnail->getMimeType()) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            default => 'webp',
+        };
+        $thumbnailPath = $thumbnail->storeAs(
             "patients/{$patient->id}/profile",
-            'thumbnail-'.Str::uuid().'.webp',
+            'thumbnail-'.Str::uuid().'.'.$thumbnailExtension,
             'public'
         );
         $patient->update([
