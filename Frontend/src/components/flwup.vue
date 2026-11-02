@@ -1185,7 +1185,11 @@
                     </td>
 
                     <td v-if="isGeneralFollowupCampaign(activeCampaign)" :class="{ 'filtered-cell': isFiltered('source') }">
-                      <input v-model="row.source" placeholder="منبع" />
+                      <select v-model="row.source" :title="channelsLoadError || 'انتخاب منبع'">
+                        <option value="">{{ channelsLoading ? 'در حال بارگذاری منابع...' : 'انتخاب منبع' }}</option>
+                        <option v-if="row.source && !channelOptions.some(channel => channel.name === row.source)" :value="row.source">{{ row.source }}</option>
+                        <option v-for="channel in channelOptions" :key="channel.id" :value="channel.name">{{ channel.name }}</option>
+                      </select>
                     </td>
 
                     <td
@@ -2275,6 +2279,7 @@ export default {
     async openGeneralFollowups() {
       this.showArchived = false;
       this.showMissedFollowups = false;
+      this.loadChannels();
 
       let campaign = this.generalFollowupCampaign;
       try {
