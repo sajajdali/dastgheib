@@ -792,8 +792,6 @@ class AppointmentController extends Controller
         // though only its starting time is stored as a database row.
         $candidateMinute = $this->appointmentTimeMinutes($time);
         if ($candidateMinute !== null) {
-            $candidateDuration = max(1, (int) ($incoming['duration_minutes'] ?? $previous?->duration_minutes ?? 1));
-            $candidateEnd = $candidateMinute + $candidateDuration;
             $coveredByExtendedAppointment = Appointment::query()
                 ->where('month', $month)
                 ->where('day_num', $day)
@@ -802,26 +800,54 @@ class AppointmentController extends Controller
                 ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
                 ->lockForUpdate()
                 ->get()
-                ->contains(function (Appointment $appointment) use ($candidateMinute, $candidateEnd, $candidateResources) {
+                ->contains(function (Appointment $appointment) use ($candidateMinute, $candidateResources) {
                     $start = $this->appointmentTimeMinutes((string) $appointment->time);
+                    $duration = (int) $appointment->duration_minutes;
+                    // فقط ساعت‌های «داخل» یک نوبتِ واقعاً تمدیدشده قفل‌اند؛ نوبتی که
+                    // دقیقاً همان ساعت شروع می‌شود ادغام‌شده نیست و چند نوبت هم‌ساعت مجاز است.
                     return $start !== null
-                        && $candidateMinute < $start + max(1, (int) $appointment->duration_minutes)
-                        && $candidateEnd > $start
+                        && $duration > 1
+                        && $candidateMinute > $start
+                        && $candidateMinute < $start + $duration
                         && $this->appointmentResourcesConflict($candidateResources, $appointment);
                 });
             abort_if($coveredByExtendedAppointment, 409,
                 'این ساعت بخشی از یک نوبت ادغام‌شده است و امکان رزرو آن وجود ندارد.');
         }
 
+        // چند مراجع در یک ساعت مجاز است (نوبت‌دهی موازی)، ولی فقط با تأیید صریح
+        // کاربر: اگر آن ساعت قبلاً نوبت فعالی دارد و تأیید نیامده، 409 با کد
+        // slot_occupied برمی‌گردد تا صفحه بپرسد «مطمئنید؟» و با تأیید دوباره بفرستد.
+        if ($time !== '') {
+            if (filter_var($incoming['confirm_occupied_slot'] ?? false, FILTER_VALIDATE_BOOLEAN)) return;
+            $occupants = Appointment::query()
+                ->where('month', $month)
+                ->where('day_num', $day)
+                ->where('time', $time)
+                ->when($previous, fn ($query) => $query->whereKeyNot($previous->getKey()))
+                ->where(fn ($query) => $query->whereNull('status')->orWhereNotIn('status', ['انتقال داده شده', 'کنسل شد']))
+                ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
+                ->lockForUpdate()
+                ->pluck('lastname')
+                ->map(fn ($name) => trim((string) $name))
+                ->filter()
+                ->values();
+            if ($occupants->isNotEmpty()) {
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                    'code' => 'slot_occupied',
+                    'message' => "نوبت روز {$day} ساعت {$time} قبلاً برای «".$occupants->take(3)->implode('»، «')."» ثبت شده است.",
+                    'month' => $month, 'day_num' => $day, 'time' => $time,
+                    'occupants' => $occupants->take(5)->all(), 'occupied_count' => $occupants->count(),
+                ], 409));
+            }
+            return;
+        }
+
         $occupied = Appointment::query()
             ->where('month', $month)
             ->where('day_num', $day)
-            ->when(
-                $time !== '',
-                fn ($query) => $query->where('time', $time),
-                fn ($query) => $query->where(fn ($slot) => $slot->whereNull('time')->orWhere('time', ''))
-                    ->where('sort_order', $sortOrder),
-            )
+            ->where(fn ($slot) => $slot->whereNull('time')->orWhere('time', ''))
+            ->where('sort_order', $sortOrder)
             ->when($previous, fn ($query) => $query->whereKeyNot($previous->getKey()))
             ->where(fn ($query) => $query->whereNull('status')->orWhere('status', '<>', 'انتقال داده شده'))
             // Old versions persisted every generated empty slot. Those rows
@@ -1116,7 +1142,7 @@ class AppointmentController extends Controller
     /** A generated clock value alone is not an appointment; every user field is. */
     private function incomingAppointmentHasMeaningfulData(array $appointment): bool
     {
-        $ignored = ['id', 'appointment_id', 'lock_version', '_client_key', 'month', 'day_num', 'sort_order', 'time'];
+        $ignored = ['id', 'appointment_id', 'lock_version', '_client_key', 'confirm_occupied_slot', 'month', 'day_num', 'sort_order', 'time'];
 
         foreach (collect($appointment)->except($ignored) as $value) {
             if (is_bool($value) && $value) return true;

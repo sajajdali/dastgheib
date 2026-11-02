@@ -4694,6 +4694,14 @@ export default {
         if (!String(service.consultant || '').trim()) service.consultant = consultant;
       });
 
+      const timelineOccupants = this.slotOccupants(this.activeTimelineDay, draft, this.activeTimelineRow);
+      const timelineKey = this.slotConfirmKey(this.activeTimelineDay, draft);
+      const movesSlot = !this.activeTimelineRow.appointmentId || (this.activeTimelineRow._persistedTime || '') !== String(draft.time || '');
+      if (movesSlot && timelineOccupants.length && draft._occupiedSlotConfirmedFor !== timelineKey) {
+        if (!await this.askOccupiedSlot(this.activeTimelineDay, draft.time, timelineOccupants)) return;
+        draft._occupiedSlotConfirmedFor = timelineKey;
+      }
+
       if (draft.sendAppointmentSms) draft.appointmentSms = 'انتظار';
       if (draft.sendInfoSms) draft.infoSms = 'انتظار';
       Object.keys(this.activeTimelineRow).forEach(key => {
@@ -6207,6 +6215,7 @@ export default {
             profilePhotoUrl: this.patientOriginalPhotoUrl(item),
             hasPatientFile: !!item.has_patient_file,
             time: item.time || "",
+            _persistedTime: item.time || "",
             durationMinutes: Number(item.duration_minutes || 0),
             status: this.emptyScheduleCellValue(item.status),
             arrivedAt: item.arrived_at || "",
@@ -6631,6 +6640,79 @@ export default {
       return String(message || '').includes('در تنظیمات غیرفعال است');
     },
 
+    slotConfirmKey(day, row) {
+      return `${this.months[this.currentMonth] || ''}|${day?.dayNum || ''}|${String(row?.time || '').slice(0, 5)}`;
+    },
+
+    /** نوبت‌های فعال دیگرِ همان روز و ساعت (کنسل و منتقل‌شده ساعت را پر نمی‌کنند). */
+    slotOccupants(day, row, self = row) {
+      const time = String(row?.time || '').slice(0, 5);
+      if (!day || !time) return [];
+      return (day.rows || []).filter(other => other !== self && other !== row
+        && String(other.time || '').slice(0, 5) === time
+        && !this.isEmptyAppointmentRow(other)
+        && !['انتقال داده شده', 'کنسل شد'].includes(String(other.status || '').trim()));
+    },
+
+    async askOccupiedSlot(day, time, occupants, serverMessage = '') {
+      const escape = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+      const names = occupants.map(item => (typeof item === 'string' ? item : item.lastname) || 'بدون نام').slice(0, 3);
+      const dayLabel = day?.dateLabel || (day?.dayNum ? `روز ${day.dayNum}` : '');
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'این ساعت قبلاً پر شده است',
+        html: `${serverMessage ? `<p>${escape(serverMessage)}</p>` : `<p>نوبت <b>${escape(dayLabel)}</b> ساعت <b>${escape(String(time || '').slice(0, 5))}</b> قبلاً برای «${names.map(escape).join('»، «')}» ثبت شده است.</p>`}<p>آیا اطمینان دارید که می‌خواهید در همین ساعت هم نوبت ثبت کنید؟</p>`,
+        showCancelButton: true,
+        confirmButtonText: 'بله، ثبت شود',
+        cancelButtonText: 'خیر، ثبت نشود',
+        reverseButtons: true,
+        focusCancel: true,
+      });
+      return result.isConfirmed;
+    },
+
+    /** ردیف رد‌شده: نوبت تازه حذف و جابه‌جایی به ساعت قبلی برمی‌گردد. */
+    discardOccupiedSlotRow(day, row) {
+      if (!day) return;
+      if (row.appointmentId && row._persistedTime) {
+        row.time = row._persistedTime;
+        this.sortDayRowsByTime(day);
+        return;
+      }
+      const index = day.rows.indexOf(row);
+      if (index >= 0) day.rows.splice(index, 1);
+    },
+
+    async confirmOccupiedSlots(days) {
+      for (const day of days) {
+        for (const row of [...(day.rows || [])]) {
+          if (!this.rowShouldPersist(row) || !String(row.time || '').trim()) continue;
+          const movesSlot = !row.appointmentId || (row._persistedTime !== undefined && row._persistedTime !== row.time);
+          const key = this.slotConfirmKey(day, row);
+          if (!movesSlot || row._occupiedSlotConfirmedFor === key) continue;
+          const occupants = this.slotOccupants(day, row);
+          if (!occupants.length) continue;
+          if (await this.askOccupiedSlot(day, row.time, occupants)) row._occupiedSlotConfirmedFor = key;
+          else this.discardOccupiedSlotRow(day, row);
+        }
+      }
+    },
+
+    async resolveOccupiedRejections(rejections, days) {
+      let confirmed = false;
+      for (const { row, data } of rejections) {
+        const day = days.find(item => (item.rows || []).includes(row));
+        if (!day) continue;
+        if (await this.askOccupiedSlot(day, row.time, data.occupants || [], data.message || '')) {
+          row._occupiedSlotConfirmedFor = this.slotConfirmKey(day, row);
+          confirmed = true;
+        } else {
+          this.discardOccupiedSlotRow(day, row);
+        }
+      }
+      return confirmed;
+    },
+
     retrySave(error) {
       if (!this.isRetriableSaveError(error) || this.saveRetryCount >= 3) return false;
 
@@ -6683,6 +6765,9 @@ export default {
 
             const draftRevisionAtRequest = this.draftRevision;
             const month = scheduledMonth;
+
+            // ثبت در ساعتی که قبلاً نوبت دارد فقط با تأیید کاربر.
+            await this.confirmOccupiedSlots(scheduledDays);
 
             const payload = [];
             const payloadRows = [];
@@ -6738,6 +6823,8 @@ this.calculateFinalAmount(row)
                   lock_version: row.appointmentId ? Number(row.lockVersion || 0) : null,
 
                   _client_key: row._rowId,
+
+                  confirm_occupied_slot: row._occupiedSlotConfirmedFor === this.slotConfirmKey(day, row) || undefined,
 
                   day_num:
                     day.dayNum,
@@ -6891,8 +6978,13 @@ this.calculateFinalAmount(row)
               payload.map(appointment => axios.post('/api/appointments/row', appointment))
             );
             let firstError = null;
+            const occupiedRejections = [];
             rowResponses.forEach((result, index) => {
               if (result.status === 'rejected') {
+                if (result.reason?.response?.data?.code === 'slot_occupied') {
+                  occupiedRejections.push({ row: payloadRows[index], data: result.reason.response.data });
+                  return;
+                }
                 firstError ||= result.reason;
                 return;
               }
@@ -6912,6 +7004,7 @@ this.calculateFinalAmount(row)
                 day.rows = day.rows.filter(item => item === row || Number(item.appointmentId) !== Number(appointment.id));
               });
               row.lockVersion = Number(appointment.lock_version || 1);
+              row._persistedTime = appointment.time || '';
               row.registeredBy = appointment.registered_by || row.registeredBy || '';
               row.registeredAt = appointment.registered_at || row.registeredAt || appointment.created_at || '';
               row.lastEditedBy = appointment.last_edited_by || row.lastEditedBy || '';
@@ -6935,6 +7028,9 @@ this.calculateFinalAmount(row)
                 row._persistedStateFingerprint = payloadFingerprints[index];
               }
             });
+            if (occupiedRejections.length && await this.resolveOccupiedRejections(occupiedRejections, scheduledDays)) {
+              setTimeout(() => this.saveData(0, true), 0);
+            }
             if (firstError) throw firstError;
             saveSucceeded = true;
             this.saveRetryCount = 0;
