@@ -2,11 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Http\Controllers\AppointmentController;
 use App\Models\AppSetting;
 use App\Models\Appointment;
-use App\Models\Doctor;
 use App\Models\Inventory;
-use App\Models\Staff;
 use App\Models\Ticket;
 use App\Services\ShsmsService;
 use Illuminate\Foundation\Queue\Queueable;
@@ -79,22 +78,17 @@ class SendLeadAlertSms
         if ($revenue <= 0) return [];
 
         $inventory = Inventory::query()->get()->keyBy('name');
-        $doctors = Doctor::query()->get()->keyBy('name');
-        $staff = Staff::query()->get()->keyBy('name');
         $cost = 0;
         $commissions = 0;
 
         foreach ($appointments as $appointment) {
-            $newCustomer = (bool) $appointment->new_customer;
+            // پورسانت با همان قاعدهٔ حقوق: استثنای شخص، پورسانت کلی انبار، درصد منابع.
+            $commissions += app(AppointmentController::class)->estimatedResourceCommission($appointment);
             foreach ($appointment->services ?? [] as $service) {
                 $item = $inventory->get($service['name'] ?? '');
                 $quantity = (float) ($service['cc'] ?? 0);
                 if (! $item || $quantity <= 0) continue;
-                $lineRevenue = $this->number($item->amount) * $quantity;
                 $cost += $this->number($item->price) * $quantity;
-                // درصد پزشک/پرسنل بر اساس جدید یا قدیمی بودن مشتری؛ تعریف‌نشده یعنی بدون پورسانت.
-                $commissions += $lineRevenue * (($doctors->get($service['doctor'] ?? '')?->customerCommissionPercent($newCustomer) ?? 0) / 100);
-                $commissions += $lineRevenue * (($staff->get($service['consultant'] ?? '')?->customerCommissionPercent($newCustomer) ?? 0) / 100);
             }
         }
 

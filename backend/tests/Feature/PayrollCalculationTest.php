@@ -210,6 +210,38 @@ class PayrollCalculationTest extends TestCase
         $this->assertSame(120000.0, $this->commission($resourceVisit));
     }
 
+    public function test_profit_estimate_uses_the_same_commission_rules_before_the_visit_is_done(): void
+    {
+        $inventory = Inventory::query()->create(['name' => 'استایلج', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        InventoryCommission::query()->create(['inventory_id' => $inventory->id, 'recipient_type' => 'doctor', 'recipient_id' => $this->doctor->id, 'recipient_name' => $this->doctor->name, 'commission_type' => 'fixed', 'commission_value' => 50000]);
+        $visit = $this->visit(['name' => 'استایلج'], null);
+
+        $this->assertSame(150000.0, app(AppointmentController::class)->estimatedResourceCommission($visit));
+        $this->resync();
+        $this->assertSame(0, ResourceEarningLine::query()->where('appointment_id', $visit->id)->count());
+    }
+
+    public function test_legacy_appointment_discount_reduces_the_first_service_only_when_lines_have_none(): void
+    {
+        Inventory::query()->create(['name' => 'بوتاکس', 'amount' => 1000000]);
+        Inventory::query()->create(['name' => 'فیلر', 'amount' => 1000000]);
+        $legacy = $this->visit(['name' => 'بوتاکس']);
+        $legacy->update(['discount' => 100000, 'services' => [
+            ['name' => 'بوتاکس', 'cc' => 1, 'discount' => 0, 'doctor' => $this->doctor->name],
+            ['name' => 'فیلر', 'cc' => 1, 'doctor' => $this->doctor->name],
+        ]]);
+        $lineDiscount = $this->visit(['name' => 'فیلر']);
+        $lineDiscount->update(['discount' => 200000, 'services' => [
+            ['name' => 'بوتاکس', 'cc' => 1, 'doctor' => $this->doctor->name],
+            ['name' => 'فیلر', 'cc' => 1, 'discount' => '200,000', 'doctor' => $this->doctor->name],
+        ]]);
+
+        $this->resync();
+
+        $this->assertSame(380000.0, $this->commission($legacy));
+        $this->assertSame(360000.0, $this->commission($lineDiscount));
+    }
+
     public function test_allowed_shortage_hours_are_taken_from_the_first_short_days_of_the_month(): void
     {
         $this->doctor->update(['shortage_hourly_deduction' => 100000, 'absence_deduction' => 700000, 'allowed_shortage_hours' => 2.5]);

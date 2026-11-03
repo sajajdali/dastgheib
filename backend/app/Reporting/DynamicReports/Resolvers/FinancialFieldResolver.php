@@ -29,7 +29,10 @@ class FinancialFieldResolver implements ReportFieldResolver
     {
         if (! $appointment) return null;
         $income = $this->number($appointment->amount ?? $appointment->original_amount ?? 0);
-        $expense = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->sum('material_cost');
+        // هر خدمت برای پزشک و مشاور ردیف جدا دارد؛ هزینهٔ مواد هر خدمت فقط یک بار شمرده می‌شود.
+        $expense = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->where('status', 'active')->get()
+            ->groupBy(fn (ResourceEarningLine $line) => $line->service_line_index.'-'.(int) $line->is_addon.'-'.$line->service_name)
+            ->sum(fn ($lines) => (float) $lines->max('material_cost'));
         return 'درآمد: '.number_format($income, 0, '.', '٬').' · هزینه: '.number_format((float) $expense, 0, '.', '٬');
     }
 

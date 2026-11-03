@@ -2423,13 +2423,19 @@ class AppointmentController extends Controller
     }
 
     /** پورسانت فقط برای نوبت انجام‌شده محاسبه می‌شود؛ مثل کسر موجودی انبار. */
-    private function resourceEarningPayloads(Appointment $appointment): array
+    /** پورسانت پزشک و پرسنل یک نوبت با همان قاعدهٔ حقوق، حتی اگر نوبت هنوز انجام نشده باشد (برای تخمین سود). */
+    public function estimatedResourceCommission(Appointment $appointment): float
     {
-        if (! $this->appointmentIsDone($appointment)) {
+        return (float) collect($this->resourceEarningPayloads($appointment, false))->sum('amount');
+    }
+
+    private function resourceEarningPayloads(Appointment $appointment, bool $requireDone = true): array
+    {
+        if ($requireDone && ! $this->appointmentIsDone($appointment)) {
             return [];
         }
 
-        $lines = $this->appointmentServiceLines($appointment->services ?? []);
+        $lines = $this->appointmentServiceLines($appointment->services ?? [], (float) ($appointment->discount ?? 0));
         if ($lines === []) {
             return [];
         }
@@ -2478,11 +2484,20 @@ class AppointmentController extends Controller
         return $payloads;
     }
 
-    private function appointmentServiceLines(array $services): array
+    private function appointmentServiceLines(array $services, float $appointmentDiscount = 0): array
     {
+        // نوبت‌های قدیمی تخفیف را فقط در سطح نوبت دارند؛ صفحهٔ نوبت‌ها آن را روی خدمت اول می‌گذارد.
+        $hasLineAdjustment = collect($services)->contains(fn ($service) => is_array($service) && (
+            $this->earningMoney($service['discount'] ?? 0) > 0
+            || collect($service['addons'] ?? [])->contains(fn ($addon) => is_array($addon) && $this->earningMoney($addon['discount'] ?? 0) > 0)
+        ));
         $lines = [];
         foreach (array_values($services) as $index => $service) {
             $service = is_array($service) ? $service : [];
+            if ($index === 0 && ! $hasLineAdjustment && $appointmentDiscount > 0) {
+                $service['discount'] = $appointmentDiscount;
+                $service['adjustment_mode'] = 'discount';
+            }
             $lines[] = $this->normalizeEarningServiceLine($service, $index, false);
             foreach (array_values($service['addons'] ?? []) as $addon) {
                 $lines[] = $this->normalizeEarningServiceLine(is_array($addon) ? $addon : [], $index, true, $service);
@@ -2495,7 +2510,7 @@ class AppointmentController extends Controller
     private function normalizeEarningServiceLine(array $line, int $index, bool $isAddon, array $parent = []): array
     {
         $isSurcharge = ($line['adjustment_mode'] ?? '') === 'surcharge';
-        $adjustment = max(0, (float) ($line['discount'] ?? 0));
+        $adjustment = max(0, $this->earningMoney($line['discount'] ?? 0));
 
         return [
             'name' => trim((string) ($line['name'] ?? '')),
@@ -2510,6 +2525,11 @@ class AppointmentController extends Controller
             'index' => $index,
             'is_addon' => $isAddon,
         ];
+    }
+
+    private function earningMoney(mixed $value): float
+    {
+        return (float) str_replace([',', '٬', ' '], '', (string) $value);
     }
 
     private function baseCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array

@@ -3715,8 +3715,8 @@ export default {
             cc: service.cc || '',
             doctor: service.doctor || '',
             consultant: service.consultant || '',
-            discount: (service.discount || (serviceIndex === 0 ? item.discount : 0))
-              ? this.formatDisplayMoney(service.discount || item.discount) : '',
+            discount: (service.discount || this.legacyServiceDiscount(item, serviceIndex))
+              ? this.formatDisplayMoney(service.discount || this.legacyServiceDiscount(item, serviceIndex)) : '',
             adjustment_mode: service.adjustment_mode || 'discount',
             surcharge_for_doctor_commission: Boolean(service.surcharge_for_doctor_commission),
             _lastSavedCc: parseInt(service.cc) || 0,
@@ -5718,14 +5718,8 @@ export default {
         const grossServiceAmount = Number(item.amount || 0) * cc;
         const serviceAmount = this.serviceNetAmount(service, grossServiceAmount);
         const materialCost = Number(item.price || 0) * cc;
-        const doctor = this.doctors.find(d => d.name === service.doctor);
-        const doctorPercent = this.resourceCustomerPercent(doctor, row) || 0;
-        const doctorWage = this.commissionBase(doctor, row, serviceAmount, materialCost, 'doctor') * (doctorPercent / 100);
-
-        const consultantName = String(service.consultant || row.consultant || row.timelineConsultant || '').trim();
-        const consultant = this.staff.find(s => String(s.name || '').trim() === consultantName);
-        const staffPercent = this.resourceCustomerPercent(consultant, row) || 0;
-        const staffCommission = this.commissionBase(consultant, row, serviceAmount, materialCost, 'staff') * (staffPercent / 100);
+        const doctorWage = this.serviceCommission(this.serviceDoctor(service, row), 'doctor', row, service, item, cc);
+        const staffCommission = this.serviceCommission(this.serviceConsultant(service, row), 'staff', row, service, item, cc);
 
         financial.totalAmount += serviceAmount;
         financial.materialCost += materialCost;
@@ -6196,7 +6190,7 @@ export default {
                 cc: s.cc || "",
                 doctor: s.doctor || "",
                 consultant: s.consultant || "",
-                discount: (s.discount || (serviceIndex === 0 ? item.discount : 0)) ? this.formatDisplayMoney(s.discount || item.discount) : "",
+                discount: (s.discount || this.legacyServiceDiscount(item, serviceIndex)) ? this.formatDisplayMoney(s.discount || this.legacyServiceDiscount(item, serviceIndex)) : "",
                 adjustment_mode: s.adjustment_mode || "discount",
                 surcharge_for_doctor_commission: Boolean(s.surcharge_for_doctor_commission),
                 _lastSavedCc: parseInt(s.cc) || 0
@@ -6438,25 +6432,9 @@ export default {
 
         totalCost += materialCost;
 
-        const doctor =
-          this.doctors.find(
-            d => d.name === service.doctor
-          );
+        doctorShare += this.serviceCommission(this.serviceDoctor(service, row), 'doctor', row, service, item, cc);
 
-        const doctorPercent =
-          this.resourceCustomerPercent(doctor, row) || 0;
-
-        doctorShare += this.commissionBase(doctor, row, serviceAmount, materialCost, 'doctor') * (doctorPercent / 100);
-
-        const consultantName = String(service.consultant || row.consultant || row.timelineConsultant || '').trim();
-        const consultant = this.staff.find(
-          s => String(s.name || '').trim() === consultantName
-        );
-
-        const consultantPercent =
-          this.resourceCustomerPercent(consultant, row) || 0;
-
-        consultantShare += this.commissionBase(consultant, row, serviceAmount, materialCost, 'staff') * (consultantPercent / 100);
+        consultantShare += this.serviceCommission(this.serviceConsultant(service, row), 'staff', row, service, item, cc);
 
       });
 
@@ -6559,10 +6537,6 @@ export default {
       localStorage.removeItem(this.pendingDraftKey(month));
     },
 
-    commissionAppliesToCustomer(resource, row) {
-      return this.resourceCustomerPercent(resource, row) !== null;
-    },
-
     // درصد پورسانت منبع برای مشتری جدید یا قدیمی؛ null یعنی برای این نوع مشتری پورسانتی تعریف نشده.
     resourceCustomerPercent(resource, row) {
       if (!resource) return null;
@@ -6600,12 +6574,55 @@ export default {
       );
     },
 
-    commissionBase(resource, row, serviceAmount, materialCost, recipientType = 'staff') {
+    // نوبت‌های قدیمی تخفیف را فقط در سطح نوبت دارند؛ فقط وقتی هیچ خدمتی تخفیف یا اضافه‌مبلغ خودش را ندارد
+    // روی خدمت اول نشان داده می‌شود تا با محاسبهٔ حقوق یکی باشد و دو بار کم نشود.
+    legacyServiceDiscount(item, serviceIndex) {
+      if (serviceIndex !== 0) return 0;
+      const hasLineAdjustment = (item?.services || []).some(service =>
+        this.moneyToNumber(service?.discount) > 0
+        || (service?.addons || []).some(addon => this.moneyToNumber(addon?.discount) > 0));
+      return hasLineAdjustment ? 0 : this.moneyToNumber(item?.discount);
+    },
+
+    serviceDoctor(service, row) {
+      const name = String(service?.doctor || row?.doctor || '').trim();
+      return this.doctors.find(doctor => String(doctor.name || '').trim() === name) || null;
+    },
+
+    serviceConsultant(service, row) {
+      const name = String(service?.consultant || row?.consultant || row?.timelineConsultant || '').trim();
+      return this.staff.find(person => String(person.name || '').trim() === name) || null;
+    },
+
+    // پورسانت یک خدمت با همان قاعدهٔ حقوق: استثنای شخص روی خدمت، سپس پورسانت کلی انبار، سپس درصد منابع.
+    // قانون‌های انبار به نوع مشتری وابسته نیستند و تیک «بعد از کسر مواد» در همهٔ حالت‌های درصدی اعمال می‌شود.
+    serviceCommission(resource, recipientType, row, service, item, cc) {
+      if (!resource || !item || service?.addon_definition_id || cc <= 0) return 0;
       if (this.sourceBlocksCommission(row, recipientType)) return 0;
-      if (!this.commissionAppliesToCustomer(resource, row)) return 0;
-      return resource?.commission_after_materials
-        ? Math.max(serviceAmount - materialCost, 0)
-        : Math.max(serviceAmount, 0);
+
+      const gross = Number(item.amount || 0) * cc;
+      const adjustment = Math.max(0, this.moneyToNumber(service?.discount));
+      const surcharge = service?.adjustment_mode === 'surcharge' ? adjustment : 0;
+      const discount = surcharge ? 0 : Math.min(adjustment, gross);
+      const includeSurcharge = recipientType !== 'doctor' || Boolean(service?.surcharge_for_doctor_commission);
+      const net = Math.max(0, gross + (includeSurcharge ? surcharge : 0) - discount);
+      const base = resource.commission_after_materials ? Math.max(0, net - Number(item.price || 0) * cc) : net;
+      const amount = (type, value) => type === 'fixed'
+        ? Math.max(0, Number(value) || 0) * Math.max(1, cc)
+        : base * Math.max(0, Number(value) || 0) / 100;
+
+      const nameKey = value => String(value || '').trim().toLocaleLowerCase('fa-IR');
+      const rules = item.commissions || [];
+      let exceptions = rules.filter(rule => rule.recipient_type === recipientType
+        && ((rule.recipient_id && Number(rule.recipient_id) === Number(resource.id)) || nameKey(rule.recipient_name) === nameKey(resource.name)));
+      if (!exceptions.length && resource.user_id) {
+        exceptions = rules.filter(rule => rule.recipient_type === 'user' && Number(rule.recipient_id) === Number(resource.user_id));
+      }
+      if (exceptions.length) return exceptions.reduce((sum, rule) => sum + amount(rule.commission_type, rule.commission_value), 0);
+      if (Number(item.default_commission_value) > 0) return amount(item.default_commission_type, item.default_commission_value);
+
+      const percent = this.resourceCustomerPercent(resource, row);
+      return percent === null ? 0 : amount('percent', percent);
     },
 
     salesSalaryBonus(resource, totalSales) {

@@ -107,8 +107,9 @@ class AppointmentFieldResolver implements ReportFieldResolver
     private function salary(mixed $appointment): ?string
     {
         if (!$appointment) return null;
-        $names = array_filter([$appointment->doctor, $appointment->consultant]);
-        $value = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->whereIn('resource_name', $names)->sum('amount');
+        // پورسانت فعال همهٔ پزشکان و مشاوران خدمات این نوبت (پزشک هر خدمت ممکن است با پزشک نوبت فرق کند).
+        $value = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->where('status', 'active')
+            ->whereIn('earning_type', ResourceEarningLine::COMMISSION_TYPES)->sum('amount');
         return $value ? number_format((float)$value, 0, '.', '٬') : '۰';
     }
     private function overtime(mixed $appointment): ?string
