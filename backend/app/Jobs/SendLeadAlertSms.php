@@ -79,20 +79,22 @@ class SendLeadAlertSms
         if ($revenue <= 0) return [];
 
         $inventory = Inventory::query()->get()->keyBy('name');
-        $doctors = Doctor::query()->pluck('bonus', 'name');
-        $staff = Staff::query()->pluck('bonus', 'name');
+        $doctors = Doctor::query()->get()->keyBy('name');
+        $staff = Staff::query()->get()->keyBy('name');
         $cost = 0;
         $commissions = 0;
 
         foreach ($appointments as $appointment) {
+            $newCustomer = (bool) $appointment->new_customer;
             foreach ($appointment->services ?? [] as $service) {
                 $item = $inventory->get($service['name'] ?? '');
                 $quantity = (float) ($service['cc'] ?? 0);
                 if (! $item || $quantity <= 0) continue;
                 $lineRevenue = $this->number($item->amount) * $quantity;
                 $cost += $this->number($item->price) * $quantity;
-                $commissions += $lineRevenue * ((float) ($doctors[$service['doctor'] ?? ''] ?? 0) / 100);
-                $commissions += $lineRevenue * ((float) ($staff[$service['consultant'] ?? ''] ?? 0) / 100);
+                // درصد پزشک/پرسنل بر اساس جدید یا قدیمی بودن مشتری؛ تعریف‌نشده یعنی بدون پورسانت.
+                $commissions += $lineRevenue * (($doctors->get($service['doctor'] ?? '')?->customerCommissionPercent($newCustomer) ?? 0) / 100);
+                $commissions += $lineRevenue * (($staff->get($service['consultant'] ?? '')?->customerCommissionPercent($newCustomer) ?? 0) / 100);
             }
         }
 

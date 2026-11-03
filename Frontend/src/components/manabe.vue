@@ -52,7 +52,7 @@
           <strong>تنظیم خدمات و پورسانت</strong>
           <small>{{ doctorServiceSummary(row) }}</small>
         </span>
-        <b>{{ Number(row.bonus || 0).toLocaleString('fa-IR') }}٪</b>
+        <b>{{ resourcePercentBadge(row) }}</b>
       </button>
     </td>
 
@@ -157,16 +157,6 @@
             <div v-else class="doctor-services-empty">ابتدا گروه‌بندی خدمات را در بخش انبار ثبت کنید.</div>
           </section>
 
-          <section class="doctor-base-commission">
-            <label>
-              <span>درصد پورسانت پایه</span>
-              <div>
-                <input v-model.number="activeDoctor.bonus" type="number" min="0" max="100" placeholder="مثلاً ۱۰">
-                <b>درصد</b>
-              </div>
-            </label>
-          </section>
-
           <CommissionRules v-model="doctorRows[activeDoctorIndex]" />
         </div>
 
@@ -208,7 +198,7 @@
               <button type="button" class="doctor-settings-btn" @click="openStaffSettings(index)">
                 <span class="doctor-settings-icon">٪</span>
                 <span><strong>تنظیم درصد و پورسانت</strong><small>{{ resourceCommissionSummary(row) }}</small></span>
-                <b>{{ Number(row.bonus || 0).toLocaleString('fa-IR') }}٪</b>
+                <b>{{ resourcePercentBadge(row) }}</b>
               </button>
             </td>
             <td data-label="حقوق ثابت">
@@ -234,7 +224,6 @@
           <button type="button" class="resource-modal-close" title="بستن" aria-label="بستن" @click="closeStaffSettings">×</button>
         </header>
         <div class="doctor-settings-modal-body">
-          <section class="doctor-base-commission"><label><span>درصد پورسانت پایه</span><div><input v-model.number="activeStaff.bonus" type="number" min="0" max="100" placeholder="مثلاً ۵"><b>درصد</b></div></label></section>
           <CommissionRules v-model="staffRows[activeStaffIndex]" />
         </div>
         <footer class="doctor-settings-modal-actions"><span role="status">{{ staffSaveError ? staffSaveMessage : 'تغییرات به‌صورت خودکار ذخیره می‌شوند.' }}</span><button type="button" :disabled="savingStaff" @click="closeStaffSettings">{{ savingStaff ? 'در حال ذخیره...' : 'تأیید و بستن' }}</button></footer>
@@ -331,6 +320,8 @@ export default {
       name: '',
       bonus: 0,
       commission_customer_scope: 'both',
+      new_customer_bonus: null,
+      existing_customer_bonus: null,
       commission_after_materials: false,
       sales_bonus_enabled: false,
       sales_bonus_tiers: [],
@@ -351,6 +342,8 @@ export default {
       name: '',
       bonus: 0,
       commission_customer_scope: 'both',
+      new_customer_bonus: null,
+      existing_customer_bonus: null,
       commission_after_materials: false,
       sales_bonus_enabled: false,
       sales_bonus_tiers: [],
@@ -557,10 +550,41 @@ export default {
     },
 
     resourceCommissionSummary(row) {
-      const scope = { new: 'مشتری جدید', existing: 'مشتری قدیمی', both: 'همه مشتریان' }[row?.commission_customer_scope] || 'همه مشتریان';
+      const scope = this.customerPercentParts(row).join('، ') || 'بدون پورسانت مشتری';
       const basis = row?.commission_after_materials ? 'پس از کسر مواد' : 'از مبلغ خدمت';
       const tiers = row?.sales_bonus_enabled ? `${(row.sales_bonus_tiers || []).length.toLocaleString('fa-IR')} پله فروش` : 'بدون پاداش پلکانی';
       return `${scope}، ${basis}، ${tiers}`;
+    },
+
+    // null یعنی برای آن نوع مشتری پورسانتی تعریف نشده است.
+    customerPercentParts(row) {
+      const percent = value => `${Number(value || 0).toLocaleString('fa-IR')}٪`;
+      return [
+        row?.new_customer_bonus != null && `جدید ${percent(row.new_customer_bonus)}`,
+        row?.existing_customer_bonus != null && `قدیمی ${percent(row.existing_customer_bonus)}`,
+      ].filter(Boolean);
+    },
+
+    resourcePercentBadge(row) {
+      const { new_customer_bonus: newBonus, existing_customer_bonus: existingBonus } = row || {};
+      if (newBonus != null && existingBonus != null && Number(newBonus) === Number(existingBonus)) {
+        return `${Number(newBonus).toLocaleString('fa-IR')}٪`;
+      }
+      return this.customerPercentParts(row).join(' · ') || 'بدون پورسانت';
+    },
+
+    // ردیف‌های ذخیره‌شده با نسخهٔ قبلی فقط درصد پایه و «پورسانت برای» دارند.
+    customerPercentFields(row = {}) {
+      if ('new_customer_bonus' in row || 'existing_customer_bonus' in row) {
+        const percent = value => (value === null || value === undefined || value === '' ? null : Number(value) || 0);
+        return { new_customer_bonus: percent(row.new_customer_bonus), existing_customer_bonus: percent(row.existing_customer_bonus) };
+      }
+      const scope = row.commission_customer_scope || 'both';
+      const bonus = Number(row.bonus || 0);
+      return {
+        new_customer_bonus: ['new', 'both'].includes(scope) ? bonus : null,
+        existing_customer_bonus: ['existing', 'both'].includes(scope) ? bonus : null,
+      };
     },
 
     channelCommissionSummary(row) {
@@ -601,6 +625,7 @@ export default {
         ...row,
         user_id: row.user_id || '',
         commission_customer_scope: row.commission_customer_scope || 'both',
+        ...this.customerPercentFields(row),
         commission_after_materials: Boolean(row.commission_after_materials),
         sales_bonus_enabled: Boolean(row.sales_bonus_enabled),
         sales_bonus_tiers: Array.isArray(row.sales_bonus_tiers) ? row.sales_bonus_tiers : [],
@@ -616,6 +641,7 @@ export default {
         _staffKey: row._staffKey || `staff-${++staffRowSequence}`,
         user_id: row.user_id || '',
         commission_customer_scope: row.commission_customer_scope || 'both',
+        ...this.customerPercentFields(row),
         commission_after_materials: Boolean(row.commission_after_materials),
         sales_bonus_enabled: Boolean(row.sales_bonus_enabled),
         sales_bonus_tiers: Array.isArray(row.sales_bonus_tiers) ? row.sales_bonus_tiers : []
@@ -624,7 +650,8 @@ export default {
     },
 
     resourcePayload(type, row) {
-      const fields = ['id', 'updated_at', 'save_version', 'user_id', 'name', 'bonus', 'commission_customer_scope',
+      // درصد پایه و «پورسانت برای» در سرور از این دو مقدار ساخته می‌شوند.
+      const fields = ['id', 'updated_at', 'save_version', 'user_id', 'name', 'new_customer_bonus', 'existing_customer_bonus',
         'commission_after_materials', 'sales_bonus_enabled', 'sales_bonus_tiers', 'salary',
         'hourly_rate', 'overtime_hourly_rate', 'shortage_hourly_deduction', 'absence_deduction',
         'allowed_shortage_hours', 'profile_photo_path', 'profile_thumbnail_path'];
@@ -722,7 +749,7 @@ export default {
         user_id: '',
         name: '',
         bonus: 0,
-        commission_customer_scope: 'both', commission_after_materials: false, sales_bonus_enabled: false, sales_bonus_tiers: [],
+        commission_customer_scope: 'both', new_customer_bonus: null, existing_customer_bonus: null, commission_after_materials: false, sales_bonus_enabled: false, sales_bonus_tiers: [],
         hourly_rate: 0, overtime_hourly_rate: 0, shortage_hourly_deduction: 0, absence_deduction: 0, allowed_shortage_hours: 0,
         salary: '',
         available_days: [],
@@ -745,7 +772,7 @@ export default {
         user_id: '',
         name: '',
         bonus: 0,
-        commission_customer_scope: 'both', commission_after_materials: false, sales_bonus_enabled: false, sales_bonus_tiers: [],
+        commission_customer_scope: 'both', new_customer_bonus: null, existing_customer_bonus: null, commission_after_materials: false, sales_bonus_enabled: false, sales_bonus_tiers: [],
         hourly_rate: 0, overtime_hourly_rate: 0, shortage_hourly_deduction: 0, absence_deduction: 0, allowed_shortage_hours: 0,
         salary: '',
         profile_photo_path: null,
@@ -1771,46 +1798,6 @@ select {
   text-align: center;
 }
 
-.doctor-base-commission {
-  margin-top: 14px;
-  padding: 15px;
-  border: 1px solid #bbf7d0;
-  border-radius: 16px;
-  background: #f0fdf4;
-}
-
-.doctor-base-commission label {
-  display: grid;
-  grid-template-columns: 1fr 210px;
-  align-items: center;
-  gap: 14px;
-  color: #166534;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.doctor-base-commission label > div {
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid #86efac;
-  border-radius: 11px;
-  background: #fff;
-}
-
-.doctor-base-commission input {
-  width: 100%;
-  height: 40px;
-  border: 0;
-  outline: 0;
-}
-
-.doctor-base-commission b {
-  padding: 0 12px;
-  color: #15803d;
-  font-size: 11px;
-}
-
 .doctor-settings-modal-actions {
   display: flex;
   align-items: center;
@@ -1843,7 +1830,6 @@ select {
   .doctor-settings-modal-head,
   .doctor-settings-modal-body { padding-right: 16px; padding-left: 16px; }
   .doctor-services-grid { grid-template-columns: 1fr 1fr; }
-  .doctor-base-commission label { grid-template-columns: 1fr; }
   .doctor-settings-modal-actions { padding: 13px 16px; }
   .doctor-settings-modal-actions span { display: none; }
   .doctor-settings-modal-actions button { width: 100%; }

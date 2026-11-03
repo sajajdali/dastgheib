@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\HasCustomerCommission;
 use App\Models\Concerns\HasSaveVersion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 class Doctor extends Model
 {
-    use Auditable, HasSaveVersion;
+    use Auditable, HasCustomerCommission, HasSaveVersion;
 
     public function activitySection(): string { return 'پزشکان'; }
 
@@ -18,6 +19,8 @@ class Doctor extends Model
         'user_id',
         'bonus',
         'commission_customer_scope',
+        'new_customer_bonus',
+        'existing_customer_bonus',
         'commission_after_materials',
         'sales_bonus_enabled',
         'sales_bonus_tiers',
@@ -39,6 +42,8 @@ class Doctor extends Model
         'commission_after_materials' => 'boolean',
         'sales_bonus_enabled' => 'boolean',
         'sales_bonus_tiers' => 'array',
+        'new_customer_bonus' => 'float',
+        'existing_customer_bonus' => 'float',
         'allowed_shortage_hours' => 'decimal:2',
     ];
 

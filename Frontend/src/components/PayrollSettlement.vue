@@ -156,16 +156,16 @@
 
           <section v-else class="payroll-settings">
             <article>
-              <span>درصد پورسانت پایه</span>
-              <strong>{{ Number(report.resource.bonus || 0).toLocaleString('fa-IR') }}٪</strong>
+              <span>پورسانت مشتری جدید</span>
+              <strong>{{ customerPercentLabel(report.resource.new_customer_bonus) }}</strong>
+            </article>
+            <article>
+              <span>پورسانت مشتری قدیمی</span>
+              <strong>{{ customerPercentLabel(report.resource.existing_customer_bonus) }}</strong>
             </article>
             <article>
               <span>مبنای پورسانت</span>
               <strong>{{ report.resource.commission_after_materials ? 'پس از کسر مواد' : 'مبلغ خالص خدمت' }}</strong>
-            </article>
-            <article>
-              <span>دامنه مشتری</span>
-              <strong>{{ scopeLabel(report.resource.commission_customer_scope) }}</strong>
             </article>
             <article>
               <span>نرخ اضافه‌کاری</span>
@@ -554,8 +554,8 @@ export default {
         return String(value)
       }
     },
-    scopeLabel(scope) {
-      return { new: 'مشتری جدید', existing: 'مشتری قدیمی', both: 'همه مشتریان' }[scope] || 'همه مشتریان'
+    customerPercentLabel(value) {
+      return value === null || value === undefined || value === '' ? 'تعریف نشده' : `${Number(value).toLocaleString('fa-IR')}٪`
     }
   },
   created() {

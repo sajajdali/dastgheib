@@ -178,7 +178,9 @@ class HumanResourceController extends Controller
             '*.user_id' => ['nullable', 'integer', 'exists:users,id', 'distinct'],
             '*.name' => ['nullable', 'string', 'max:255'],
             '*.bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            '*.commission_customer_scope' => ['nullable', 'in:new,existing,both'],
+            '*.commission_customer_scope' => ['nullable', 'in:new,existing,both,none'],
+            '*.new_customer_bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            '*.existing_customer_bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
             '*.commission_after_materials' => ['nullable', 'boolean'],
             '*.sales_bonus_enabled' => ['nullable', 'boolean'],
             '*.sales_bonus_tiers' => ['nullable', 'array'],
@@ -235,6 +237,7 @@ class HumanResourceController extends Controller
             if ($record->exists) $values = array_filter($values,
                 fn ($key) => array_key_exists($key, $doctor) || ($key === 'name' && array_key_exists('user_id', $doctor)),
                 ARRAY_FILTER_USE_KEY);
+            $values = [...$values, ...$this->customerCommissionValues($doctor)];
             $record->fill($values);
             if (! $record->exists || $record->isDirty()) $record->save();
         }
@@ -258,7 +261,9 @@ public function saveStaff(Request $request)
             '*.user_id' => ['nullable', 'integer', 'exists:users,id', 'distinct'],
             '*.name' => ['nullable', 'string', 'max:255'],
             '*.bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            '*.commission_customer_scope' => ['nullable', 'in:new,existing,both'],
+            '*.commission_customer_scope' => ['nullable', 'in:new,existing,both,none'],
+            '*.new_customer_bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            '*.existing_customer_bonus' => ['nullable', 'numeric', 'min:0', 'max:100'],
             '*.commission_after_materials' => ['nullable', 'boolean'],
             '*.sales_bonus_enabled' => ['nullable', 'boolean'],
             '*.sales_bonus_tiers' => ['nullable', 'array'],
@@ -306,6 +311,7 @@ public function saveStaff(Request $request)
                 if ($record->exists) $values = array_filter($values,
                     fn ($key) => array_key_exists($key, $staff) || ($key === 'name' && array_key_exists('user_id', $staff)),
                     ARRAY_FILTER_USE_KEY);
+                $values = [...$values, ...$this->customerCommissionValues($staff)];
                 $record->fill($values);
                 if (! $record->exists || $record->isDirty()) $record->save();
             }
@@ -316,6 +322,19 @@ public function saveStaff(Request $request)
             'message' => 'اطلاعات پرسنل با موفقیت به‌روزرسانی شد.',
             'staff' => Staff::query()->orderBy('name')->get(),
         ]);
+    }
+
+    /**
+     * پورسانت مشتری جدید و قدیمی (null یعنی برای آن نوع مشتری پورسانتی تعریف نشده).
+     * درصد پایه و «پورسانت برای» قدیمی را خود مدل از همین دو مقدار می‌سازد؛ درخواستی
+     * که این دو فیلد را ندارد (نسخهٔ قبلی صفحه) با همان فیلدهای قدیمی ذخیره می‌شود.
+     */
+    private function customerCommissionValues(array $item): array
+    {
+        return collect(['new_customer_bonus', 'existing_customer_bonus'])
+            ->filter(fn ($field) => array_key_exists($field, $item))
+            ->mapWithKeys(fn ($field) => [$field => $item[$field] === null || $item[$field] === '' ? null : (float) $item[$field]])
+            ->all();
     }
 
     private function deleteResourceIfUnused(string $type, int $id): void

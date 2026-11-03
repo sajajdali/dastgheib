@@ -5704,12 +5704,12 @@ export default {
         const serviceAmount = this.serviceNetAmount(service, grossServiceAmount);
         const materialCost = Number(item.price || 0) * cc;
         const doctor = this.doctors.find(d => d.name === service.doctor);
-        const doctorPercent = Number(doctor?.bonus || 0);
+        const doctorPercent = this.resourceCustomerPercent(doctor, row) || 0;
         const doctorWage = this.commissionBase(doctor, row, serviceAmount, materialCost, 'doctor') * (doctorPercent / 100);
 
         const consultantName = String(service.consultant || row.consultant || row.timelineConsultant || '').trim();
         const consultant = this.staff.find(s => String(s.name || '').trim() === consultantName);
-        const staffPercent = Number(consultant?.bonus || 0);
+        const staffPercent = this.resourceCustomerPercent(consultant, row) || 0;
         const staffCommission = this.commissionBase(consultant, row, serviceAmount, materialCost, 'staff') * (staffPercent / 100);
 
         financial.totalAmount += serviceAmount;
@@ -6429,7 +6429,7 @@ export default {
           );
 
         const doctorPercent =
-          Number(doctor?.bonus || 0);
+          this.resourceCustomerPercent(doctor, row) || 0;
 
         doctorShare += this.commissionBase(doctor, row, serviceAmount, materialCost, 'doctor') * (doctorPercent / 100);
 
@@ -6439,7 +6439,7 @@ export default {
         );
 
         const consultantPercent =
-          Number(consultant?.bonus || 0);
+          this.resourceCustomerPercent(consultant, row) || 0;
 
         consultantShare += this.commissionBase(consultant, row, serviceAmount, materialCost, 'staff') * (consultantPercent / 100);
 
@@ -6545,11 +6545,21 @@ export default {
     },
 
     commissionAppliesToCustomer(resource, row) {
-      if (!resource) return false;
+      return this.resourceCustomerPercent(resource, row) !== null;
+    },
+
+    // درصد پورسانت منبع برای مشتری جدید یا قدیمی؛ null یعنی برای این نوع مشتری پورسانتی تعریف نشده.
+    resourceCustomerPercent(resource, row) {
+      if (!resource) return null;
+      const isNew = Boolean(row?.newCustomer);
+      const field = isNew ? 'new_customer_bonus' : 'existing_customer_bonus';
+      if (field in resource) {
+        const value = resource[field];
+        return value === null || value === '' ? null : Number(value) || 0;
+      }
       const scope = resource.commission_customer_scope || "both";
-      if (scope === "new") return Boolean(row?.newCustomer);
-      if (scope === "existing") return !Boolean(row?.newCustomer);
-      return true;
+      if (scope === "none" || (scope === "new" && !isNew) || (scope === "existing" && isNew)) return null;
+      return Number(resource.bonus || 0);
     },
 
     sourceBlocksCommission(row, recipientType) {

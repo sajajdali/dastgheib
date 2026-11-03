@@ -2453,7 +2453,7 @@ class AppointmentController extends Controller
     private function createBaseCommissionLine(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
     {
         $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
-        $commissionValue = (float) ($resource->bonus ?? 0);
+        $commissionValue = (float) ($resource->customerCommissionPercent((bool) $appointment->new_customer) ?? 0);
         $amount = $this->calculateCommissionAmount('percent', $commissionValue, $amounts['base'], $line['quantity']);
         if ($amount <= 0) {
             return;
@@ -2559,7 +2559,9 @@ class AppointmentController extends Controller
             'calculation_snapshot' => [
                 'calculation_source' => str_starts_with($earningType, 'inventory') ? 'inventory' : 'resource',
                 'calculation_source_label' => str_starts_with($earningType, 'inventory') ? 'تنظیمات انبار' : 'تنظیمات کلی منبع',
-                'resource_bonus' => (float) ($resource->bonus ?? 0),
+                'resource_bonus' => (float) ($resource->customerCommissionPercent((bool) $appointment->new_customer) ?? 0),
+                'resource_new_customer_bonus' => $resource->customerCommissionPercent(true),
+                'resource_existing_customer_bonus' => $resource->customerCommissionPercent(false),
                 'resource_sales_bonus_enabled' => (bool) ($resource->sales_bonus_enabled ?? false),
                 'resource_sales_bonus_tiers' => $resource->sales_bonus_tiers ?? [],
                 'inventory_amount' => (float) ($inventory->amount ?? 0),
@@ -2606,13 +2608,10 @@ class AppointmentController extends Controller
         return $this->resourceKey($commission->recipient_name) === $this->resourceKey($resource->name);
     }
 
+    /** اگر برای این نوع مشتری (جدید/قدیمی) درصدی تعریف نشده باشد، هیچ پورسانتی محاسبه نمی‌شود. */
     private function resourceReceivesCommission(Doctor|Staff $resource, bool $newCustomer): bool
     {
-        return match ($resource->commission_customer_scope ?? 'both') {
-            'new' => $newCustomer,
-            'existing' => ! $newCustomer,
-            default => true,
-        };
+        return $resource->receivesCommissionFor($newCustomer);
     }
 
     private function commissionFlagsForDraft(?Appointment $previous, ?string $source): array

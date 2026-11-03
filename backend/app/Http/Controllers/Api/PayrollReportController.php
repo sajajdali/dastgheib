@@ -178,6 +178,8 @@ class PayrollReportController extends Controller
             'salary' => (float) ($resource->salary ?? 0),
             'bonus' => (float) ($resource->bonus ?? 0),
             'commission_customer_scope' => $resource->commission_customer_scope ?? 'both',
+            'new_customer_bonus' => $resource->customerCommissionPercent(true),
+            'existing_customer_bonus' => $resource->customerCommissionPercent(false),
             'commission_after_materials' => (bool) ($resource->commission_after_materials ?? false),
             'sales_bonus_enabled' => (bool) ($resource->sales_bonus_enabled ?? false),
             'sales_bonus_tiers' => $resource->sales_bonus_tiers ?? [],
