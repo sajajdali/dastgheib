@@ -952,6 +952,10 @@ class AppointmentController extends Controller
                 $current->update(collect($destinationValues)
                     ->filter(fn ($value, string $column) => Schema::hasColumn('appointments', $column))
                     ->all());
+                // پورسانت باید با نوبت به ماه و روز جدید برود و پاداش فروش هر دو ماه دوباره حساب شود.
+                $this->syncResourceEarningLines($current);
+                collect([$before->month, $current->month])->filter()->unique()
+                    ->each(fn (string $month) => $this->syncMonthlySalesBonusLines($month));
                 return [$before, $sourceMarker, $current];
             });
         });
@@ -2364,20 +2368,70 @@ class AppointmentController extends Controller
 
     private function inventoryUsageForAppointment(?Appointment $appointment): array
     {
-        if (! $appointment || trim((string) $appointment->done) !== 'انجام شد') {
+        if (! $this->appointmentIsDone($appointment)) {
             return [];
         }
 
         return $this->inventoryUsageForServices($appointment->services ?? []);
     }
 
+    private function appointmentIsDone(?Appointment $appointment): bool
+    {
+        return $appointment !== null && trim((string) $appointment->done) === 'انجام شد';
+    }
+
+    /**
+     * ردیف‌های پورسانت نوبت را از نو می‌سازد. ردیفی که در صفحهٔ حقوق دستی ویرایش
+     * یا حذف شده تا وقتی همان خدمت در نوبت هست حفظ می‌شود و فقط تاریخش به‌روز می‌شود.
+     */
     private function syncResourceEarningLines(Appointment $appointment): void
     {
-        ResourceEarningLine::query()->where('appointment_id', $appointment->id)->delete();
+        $existing = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->get();
+        $kept = $existing
+            ->filter(fn (ResourceEarningLine $line) => $line->manually_edited || $line->status !== 'active')
+            ->values();
+        $obsoleteIds = $existing->pluck('id')->diff($kept->pluck('id'));
+        if ($obsoleteIds->isNotEmpty()) {
+            ResourceEarningLine::query()->whereIn('id', $obsoleteIds)->delete();
+        }
+
+        foreach ($this->resourceEarningPayloads($appointment) as $payload) {
+            $key = $this->earningLineKey($payload);
+            $index = $kept->search(fn (ResourceEarningLine $line) => $this->earningLineKey($line->toArray()) === $key);
+            if ($index === false) {
+                ResourceEarningLine::create($payload);
+                continue;
+            }
+            $kept->pull($index)->update(['month' => $payload['month'], 'day_num' => $payload['day_num']]);
+        }
+
+        // خدمت حذف‌شده یا نوبتی که دیگر انجام‌شده نیست پورسانتی ندارد.
+        $kept->each->delete();
+    }
+
+    private function earningLineKey(array $line): string
+    {
+        return implode('|', [
+            $line['resource_type'] ?? '',
+            (int) ($line['resource_id'] ?? 0),
+            $line['earning_type'] ?? '',
+            (int) ($line['inventory_id'] ?? 0),
+            (int) ($line['service_line_index'] ?? 0),
+            (int) (bool) ($line['is_addon'] ?? false),
+            trim((string) ($line['service_name'] ?? '')),
+        ]);
+    }
+
+    /** پورسانت فقط برای نوبت انجام‌شده محاسبه می‌شود؛ مثل کسر موجودی انبار. */
+    private function resourceEarningPayloads(Appointment $appointment): array
+    {
+        if (! $this->appointmentIsDone($appointment)) {
+            return [];
+        }
 
         $lines = $this->appointmentServiceLines($appointment->services ?? []);
         if ($lines === []) {
-            return;
+            return [];
         }
 
         $names = collect($lines)->pluck('name')->filter()->unique()->values();
@@ -2386,10 +2440,12 @@ class AppointmentController extends Controller
         $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
         $doctorCommissionEnabled = (bool) ($appointment->doctor_commission_enabled ?? true);
         $staffCommissionEnabled = (bool) ($appointment->staff_commission_enabled ?? true);
+        $payloads = [];
 
         foreach ($lines as $line) {
             // جانبی‌های مستقل فقط در مبلغ نوبت اثر دارند و پورسانت ندارند.
-            if (! empty($line['addon_definition_id'])) {
+            // تعداد صفر در فاکتور مبلغی ندارد، پس پورسانتی هم ندارد.
+            if (! empty($line['addon_definition_id']) || $line['quantity'] <= 0) {
                 continue;
             }
             $inventory = $inventories->get($line['name']);
@@ -2415,9 +2471,11 @@ class AppointmentController extends Controller
                     continue;
                 }
 
-                $this->createPreferredCommissionLine($appointment, $line, $inventory, $target['type'], $resource);
+                array_push($payloads, ...$this->preferredCommissionPayloads($appointment, $line, $inventory, $target['type'], $resource));
             }
         }
+
+        return $payloads;
     }
 
     private function appointmentServiceLines(array $services): array
@@ -2436,12 +2494,16 @@ class AppointmentController extends Controller
 
     private function normalizeEarningServiceLine(array $line, int $index, bool $isAddon, array $parent = []): array
     {
+        $isSurcharge = ($line['adjustment_mode'] ?? '') === 'surcharge';
+        $adjustment = max(0, (float) ($line['discount'] ?? 0));
+
         return [
             'name' => trim((string) ($line['name'] ?? '')),
             'addon_definition_id' => ! empty($line['addon_definition_id']) ? (int) $line['addon_definition_id'] : null,
-            'quantity' => max(1, (float) ($line['cc'] ?? 1)),
-            'discount' => max(0, (float) ($line['discount'] ?? 0)),
-            'surcharge' => ($line['adjustment_mode'] ?? '') === 'surcharge' ? max(0, (float) ($line['discount'] ?? 0)) : 0,
+            'quantity' => max(0, (float) ($line['cc'] ?? 1)),
+            // فیلد discount در حالت اضافه‌مبلغ، مبلغ اضافه را نگه می‌دارد نه تخفیف را.
+            'discount' => $isSurcharge ? 0 : $adjustment,
+            'surcharge' => $isSurcharge ? $adjustment : 0,
             'surcharge_for_doctor_commission' => (bool) ($line['surcharge_for_doctor_commission'] ?? false),
             'doctor' => trim((string) ($line['doctor'] ?? $parent['doctor'] ?? '')),
             'consultant' => trim((string) ($line['consultant'] ?? $parent['consultant'] ?? '')),
@@ -2450,16 +2512,16 @@ class AppointmentController extends Controller
         ];
     }
 
-    private function createBaseCommissionLine(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
+    private function baseCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
     {
         $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
         $commissionValue = (float) ($resource->customerCommissionPercent((bool) $appointment->new_customer) ?? 0);
         $amount = $this->calculateCommissionAmount('percent', $commissionValue, $amounts['base'], $line['quantity']);
         if ($amount <= 0) {
-            return;
+            return [];
         }
 
-        ResourceEarningLine::create($this->earningPayload(
+        return [$this->earningPayload(
             $appointment,
             $line,
             $inventory,
@@ -2471,18 +2533,17 @@ class AppointmentController extends Controller
             $amount,
             $amounts,
             "پورسانت پایه {$commissionValue}% برای {$line['name']}"
-        ));
+        )];
     }
 
     /** اولویت قطعی: قانون اختصاصی انبار، سپس قانون پیش فرض انبار، سپس منابع. */
-    private function createPreferredCommissionLine(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
+    private function preferredCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
     {
         $specific = $inventory->commissions
             ->where('recipient_type', $type)
             ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
         if ($specific->isNotEmpty()) {
-            $this->createInventoryCommissionLines($appointment, $line, $inventory, $type, $resource);
-            return;
+            return $this->inventoryCommissionPayloads($appointment, $line, $inventory, $type, $resource);
         }
 
         if ((float) $inventory->default_commission_value > 0) {
@@ -2490,18 +2551,20 @@ class AppointmentController extends Controller
             $commissionType = $inventory->default_commission_type === 'fixed' ? 'fixed' : 'percent';
             $value = (float) $inventory->default_commission_value;
             $amount = $this->calculateCommissionAmount($commissionType, $value, $amounts['net'], $line['quantity']);
-            if ($amount > 0) ResourceEarningLine::create($this->earningPayload($appointment, $line, $inventory, $type, $resource, 'inventory_default_commission', $commissionType, $value, $amount, [...$amounts, 'base' => $amounts['net']], "پورسانت پیش‌فرض انبار {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}"));
-            return;
+            return $amount > 0
+                ? [$this->earningPayload($appointment, $line, $inventory, $type, $resource, 'inventory_default_commission', $commissionType, $value, $amount, [...$amounts, 'base' => $amounts['net']], "پورسانت پیش‌فرض انبار {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}")]
+                : [];
         }
 
-        $this->createBaseCommissionLine($appointment, $line, $inventory, $type, $resource);
+        return $this->baseCommissionPayloads($appointment, $line, $inventory, $type, $resource);
     }
 
-    private function createInventoryCommissionLines(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): void
+    private function inventoryCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
     {
         $commissions = $inventory->commissions
             ->where('recipient_type', $type)
             ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
+        $payloads = [];
 
         foreach ($commissions as $commission) {
             $amounts = $this->earningAmounts($line, $inventory, false, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
@@ -2512,7 +2575,7 @@ class AppointmentController extends Controller
                 continue;
             }
 
-            ResourceEarningLine::create($this->earningPayload(
+            $payloads[] = $this->earningPayload(
                 $appointment,
                 $line,
                 $inventory,
@@ -2524,8 +2587,10 @@ class AppointmentController extends Controller
                 $amount,
                 [...$amounts, 'base' => $amounts['net']],
                 "پورسانت اختصاصی انبار {$commissionValue}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}"
-            ));
+            );
         }
+
+        return $payloads;
     }
 
     private function earningPayload(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource, string $earningType, string $commissionType, float $commissionValue, float $amount, array $amounts, string $description): array
@@ -2650,6 +2715,19 @@ class AppointmentController extends Controller
         });
     }
 
+    /** Rebuild every appointment's earning lines after a calculation fix. */
+    public function resyncAllResourceEarnings(): int
+    {
+        return DB::transaction(function () {
+            $appointments = Appointment::query()->get();
+            $appointments->each(fn (Appointment $appointment) => $this->syncResourceEarningLines($appointment));
+            $appointments->pluck('month')->filter()->unique()
+                ->each(fn (string $month) => $this->syncMonthlySalesBonusLines($month));
+
+            return $appointments->count();
+        });
+    }
+
     private function syncMonthlySalesBonusLines(string $month): void
     {
         // Sales bonuses are derived rows. Rebuild them instead of appending a
@@ -2665,7 +2743,8 @@ class AppointmentController extends Controller
                     ->where('month', $month)
                     ->where('resource_type', $target['type'])
                     ->where('resource_id', $resource->id)
-                    ->whereIn('earning_type', ['base_commission', 'inventory_commission'])
+                    ->where('status', 'active')
+                    ->whereIn('earning_type', ResourceEarningLine::COMMISSION_TYPES)
                     ->sum('net_amount');
 
                 $tier = collect($resource->sales_bonus_tiers ?? [])

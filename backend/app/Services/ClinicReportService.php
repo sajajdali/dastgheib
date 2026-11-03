@@ -878,7 +878,7 @@ class ClinicReportService
             $items = $lines->get($key, collect());
             $savedSalary = (float) $items->where('earning_type', 'salary')->sum('amount');
             $salary = $savedSalary ?: $resource['base_salary'] * $salaryRatio;
-            $commission = (float) $items->whereIn('earning_type', ['base_commission','inventory_commission','sales_bonus'])->sum('amount');
+            $commission = (float) $items->whereIn('earning_type', [...ResourceEarningLine::COMMISSION_TYPES, 'sales_bonus'])->sum('amount');
             $attendance = (float) $items->whereIn('earning_type', ['attendance_overtime','attendance_shortage','attendance_absence'])->sum('amount');
             $adjustment = (float) $adjustments->get($key, collect())->sum('amount');
             $total = $salary + $commission + $attendance + $adjustment;

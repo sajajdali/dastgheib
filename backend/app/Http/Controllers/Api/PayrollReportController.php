@@ -62,7 +62,7 @@ class PayrollReportController extends Controller
         $activeLines = $lines->where('status', 'active');
         $sum = fn (array $types) => (float) $activeLines->whereIn('earning_type', $types)->sum('amount');
         $serviceCommission = $sum(['base_commission']);
-        $inventoryCommission = $sum(['inventory_commission']);
+        $inventoryCommission = $sum(ResourceEarningLine::INVENTORY_COMMISSION_TYPES);
         $salesBonus = $sum(['sales_bonus']);
         $overtime = $sum(['attendance_overtime']);
         $shortage = $sum(['attendance_shortage']);

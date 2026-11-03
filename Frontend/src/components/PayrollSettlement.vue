@@ -215,15 +215,15 @@
         <div v-if="editingLine" class="line-edit-form">
           <label><span>شرح</span><input v-model.trim="lineForm.description" type="text"></label>
           <label><span>خدمت/آیتم موثر</span><input v-model.trim="lineForm.service_name" type="text"></label>
-          <label><span>تعداد / ساعت</span><input v-model.number="lineForm.quantity" type="number" step="0.001"></label>
+          <label><span>تعداد / ساعت</span><input v-model.number="lineForm.quantity" type="number" step="0.001" @input="recalculateLineAmount"></label>
           <label><span>مبلغ خام همین خط</span><input v-model.number="lineForm.gross_amount" type="number"></label>
           <label><span>تخفیف همین خط</span><input v-model.number="lineForm.discount_amount" type="number"></label>
           <label><span>خالص همین خط</span><input v-model.number="lineForm.net_amount" type="number"></label>
           <label><span>هزینه مواد</span><input v-model.number="lineForm.material_cost" type="number"></label>
-          <label><span>مبنای محاسبه</span><input v-model.number="lineForm.commission_base" type="number"></label>
+          <label><span>مبنای محاسبه</span><input v-model.number="lineForm.commission_base" type="number" @input="recalculateLineAmount"></label>
           <label>
             <span>نوع نرخ</span>
-            <select v-model="lineForm.commission_type">
+            <select v-model="lineForm.commission_type" @change="recalculateLineAmount">
               <option value="percent">درصدی</option>
               <option value="fixed">ثابت</option>
               <option value="hourly">ساعتی</option>
@@ -231,7 +231,7 @@
               <option value="absence">غیبت</option>
             </select>
           </label>
-          <label><span>مقدار نرخ</span><input v-model.number="lineForm.commission_value" type="number"></label>
+          <label><span>مقدار نرخ</span><input v-model.number="lineForm.commission_value" type="number" @input="recalculateLineAmount"></label>
           <label class="line-final-amount"><span>مبلغ نهایی این ردیف</span><input v-model.number="lineForm.amount" type="number"></label>
         </div>
         <footer class="line-detail-actions">
@@ -385,6 +385,16 @@ export default {
         amount: Number(line.amount || 0)
       }
     },
+    // همان فرمول سمت سرور برای پورسانت درصدی و ثابت؛ مبلغ نهایی بعد از آن هنوز دستی قابل تغییر است.
+    recalculateLineAmount() {
+      const form = this.lineForm
+      const value = Math.max(0, Number(form.commission_value) || 0)
+      if (form.commission_type === 'percent') {
+        form.amount = Math.round(Math.max(0, Number(form.commission_base) || 0) * value / 100)
+      } else if (form.commission_type === 'fixed') {
+        form.amount = Math.round(value * Math.max(1, Number(form.quantity) || 0))
+      }
+    },
     closeLineDetail() {
       this.detailLine = null
       this.lineForm = {}
@@ -479,6 +489,7 @@ export default {
       return {
         base_commission: 'پورسانت پایه',
         inventory_commission: 'پورسانت انبار',
+        inventory_default_commission: 'پورسانت پیش‌فرض انبار',
         sales_bonus: 'پاداش فروش',
         attendance_overtime: 'اضافه‌کاری',
         attendance_shortage: 'کسری ساعت',

@@ -211,16 +211,29 @@ class AttendanceMonthController extends Controller
             return;
         }
 
-        foreach (($attendanceMonth->days ?? []) as $day) {
-            if (! is_array($day)) {
-                continue;
-            }
+        // کسرکاری مجاز سهمیهٔ ماهانه است و از اولین روزهای کسری ماه کم می‌شود.
+        $allowedShortageLeft = max(0, (float) ($resource->allowed_shortage_hours ?? 0));
+        $days = collect($attendanceMonth->days ?? [])->filter(fn ($day) => is_array($day))->sortBy(fn ($day) => (int) ($day['day'] ?? 0));
 
-            $payload = $this->attendanceLinePayload($attendanceMonth, $resource, $day);
+        foreach ($days as $day) {
+            $payload = $this->attendanceLinePayload($attendanceMonth, $resource, $day, $allowedShortageLeft);
             if ($payload) {
                 ResourceEarningLine::create($payload);
             }
         }
+    }
+
+    /** ردیف‌های حضور و غیاب را بعد از تغییر نرخ‌ها یا کسرکاری مجاز دوباره می‌سازد. */
+    public function resyncAttendanceEarnings(?string $resourceType = null, ?int $resourceId = null): int
+    {
+        $months = AttendanceMonth::query()
+            ->when($resourceType, fn ($query) => $query->where('resource_type', $resourceType))
+            ->when($resourceId, fn ($query) => $query->where('resource_id', $resourceId))
+            ->get();
+
+        DB::transaction(fn () => $months->each(fn (AttendanceMonth $month) => $this->syncAttendanceEarningLines($month)));
+
+        return $months->count();
     }
 
     private function deleteAttendanceEarningLines(AttendanceMonth $attendanceMonth): void
@@ -234,7 +247,7 @@ class AttendanceMonthController extends Controller
             ->delete();
     }
 
-    private function attendanceLinePayload(AttendanceMonth $attendanceMonth, Doctor|Staff $resource, array $day): ?array
+    private function attendanceLinePayload(AttendanceMonth $attendanceMonth, Doctor|Staff $resource, array $day, float &$allowedShortageLeft): ?array
     {
         $dayNumber = (int) ($day['day'] ?? 0);
         if ($dayNumber <= 0) {
@@ -247,6 +260,8 @@ class AttendanceMonthController extends Controller
         $workedHours = max(0, (float) ($day['workedHours'] ?? 0));
         $diff = (float) ($day['diff'] ?? 0);
         $amount = (float) ($day['amount'] ?? 0);
+        $hours = abs($diff);
+        $allowedShortageUsed = 0;
         $earningType = null;
         $rate = 0;
         $description = null;
@@ -264,7 +279,11 @@ class AttendanceMonthController extends Controller
         } elseif ($diff < 0) {
             $earningType = 'attendance_shortage';
             $rate = (float) ($resource->shortage_hourly_deduction ?? 0);
-            $amount = $amount < 0 ? $amount : -round(abs($diff) * $rate);
+            $amount = $amount < 0 ? $amount : -round($hours * $rate);
+            $allowedShortageUsed = min($allowedShortageLeft, $hours);
+            $allowedShortageLeft -= $allowedShortageUsed;
+            $amount = round($amount * ($hours - $allowedShortageUsed) / $hours);
+            $hours -= $allowedShortageUsed;
             $description = 'کسر کسری ساعت روز '.$dayNumber;
         }
 
@@ -281,10 +300,10 @@ class AttendanceMonthController extends Controller
             'resource_id' => $attendanceMonth->resource_id,
             'resource_name' => $resource->name,
             'earning_type' => $earningType,
-            'quantity' => $absent ? 1 : abs($diff),
+            'quantity' => $absent ? 1 : $hours,
             'gross_amount' => $amount,
             'net_amount' => $amount,
-            'commission_base' => $absent ? 1 : abs($diff),
+            'commission_base' => $absent ? 1 : $hours,
             'commission_type' => $absent ? 'absence' : 'hourly',
             'commission_value' => $rate,
             'amount' => $amount,
@@ -302,6 +321,7 @@ class AttendanceMonthController extends Controller
                 'overtime_hourly_rate' => (float) ($resource->overtime_hourly_rate ?? 0),
                 'shortage_hourly_deduction' => (float) ($resource->shortage_hourly_deduction ?? 0),
                 'absence_deduction' => (float) ($resource->absence_deduction ?? 0),
+                'allowed_shortage_hours_used' => $allowedShortageUsed,
             ],
             'description' => $description,
         ];

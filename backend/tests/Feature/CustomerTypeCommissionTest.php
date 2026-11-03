@@ -10,11 +10,14 @@ use App\Models\ResourceEarningLine;
 use App\Models\Staff;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\CreatesPayrollTables;
 use Tests\TestCase;
 
 /** پورسانت جداگانهٔ مشتری جدید و قدیمی؛ درصد تعریف‌نشده یعنی بدون پورسانت. */
 class CustomerTypeCommissionTest extends TestCase
 {
+    use CreatesPayrollTables;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -33,43 +36,7 @@ class CustomerTypeCommissionTest extends TestCase
             $table->boolean('new_customer')->default(false); $table->decimal('amount', 15, 2)->default(0);
             $table->json('services')->nullable(); $table->timestamps();
         });
-        Schema::create('doctors', fn (Blueprint $table) => $this->resourceTable($table));
-        Schema::create('staff', fn (Blueprint $table) => $this->resourceTable($table));
-        Schema::create('inventories', function (Blueprint $table) {
-            $table->id(); $table->string('name'); $table->decimal('amount', 15, 2)->default(0);
-            $table->decimal('price', 15, 2)->default(0); $table->string('default_commission_type')->nullable();
-            $table->decimal('default_commission_value', 15, 2)->default(0); $table->timestamps();
-        });
-        Schema::create('inventory_commissions', function (Blueprint $table) {
-            $table->id(); $table->unsignedBigInteger('inventory_id'); $table->string('recipient_type');
-            $table->unsignedBigInteger('recipient_id')->nullable(); $table->string('recipient_name')->nullable();
-            $table->string('commission_type'); $table->decimal('commission_value', 15, 2); $table->timestamps();
-        });
-        Schema::create('resource_earning_lines', function (Blueprint $table) {
-            $table->id(); $table->unsignedBigInteger('appointment_id')->nullable(); $table->string('month', 7);
-            $table->unsignedInteger('day_num')->nullable(); $table->dateTime('earned_at')->nullable();
-            $table->string('resource_type'); $table->unsignedBigInteger('resource_id')->nullable(); $table->string('resource_name');
-            $table->string('earning_type'); $table->unsignedBigInteger('inventory_id')->nullable(); $table->string('inventory_name')->nullable();
-            $table->string('service_name')->nullable(); $table->unsignedInteger('service_line_index')->nullable(); $table->boolean('is_addon')->default(false);
-            $table->decimal('quantity', 12, 3)->default(1); $table->decimal('gross_amount', 15, 2)->default(0);
-            $table->decimal('discount_amount', 15, 2)->default(0); $table->decimal('net_amount', 15, 2)->default(0);
-            $table->decimal('material_cost', 15, 2)->default(0); $table->decimal('commission_base', 15, 2)->default(0);
-            $table->string('commission_type')->nullable(); $table->decimal('commission_value', 15, 2)->default(0);
-            $table->decimal('amount', 15, 2)->default(0); $table->string('status')->default('active');
-            $table->boolean('commission_after_materials')->default(false); $table->string('commission_customer_scope')->nullable();
-            $table->boolean('appointment_new_customer')->default(false); $table->json('calculation_snapshot')->nullable();
-            $table->json('audit_events')->nullable(); $table->string('description')->nullable(); $table->timestamps();
-        });
-    }
-
-    private function resourceTable(Blueprint $table): void
-    {
-        $table->id(); $table->string('name'); $table->decimal('bonus', 8, 2)->default(0);
-        $table->string('commission_customer_scope')->default('both');
-        $table->decimal('new_customer_bonus', 5, 2)->nullable(); $table->decimal('existing_customer_bonus', 5, 2)->nullable();
-        $table->boolean('commission_after_materials')->default(false);
-        $table->boolean('sales_bonus_enabled')->default(false); $table->json('sales_bonus_tiers')->nullable();
-        $table->decimal('salary', 15, 2)->default(0); $table->timestamps();
+        $this->createPayrollTables();
     }
 
     public function test_each_customer_type_uses_its_own_percent_and_undefined_means_no_commission(): void
@@ -79,7 +46,7 @@ class CustomerTypeCommissionTest extends TestCase
         Inventory::query()->create(['name' => 'خدمت تست', 'amount' => 1000, 'price' => 100]);
 
         $appointment = fn (bool $newCustomer, int $day) => Appointment::query()->create([
-            'month' => '1405-08', 'day_num' => $day, 'source' => 'اینستاگرام', 'new_customer' => $newCustomer,
+            'month' => '1405-08', 'day_num' => $day, 'source' => 'اینستاگرام', 'new_customer' => $newCustomer, 'done' => 'انجام شد',
             'doctor' => $doctor->name, 'consultant' => $staff->name, 'amount' => 1000,
             'services' => [['name' => 'خدمت تست', 'cc' => 1, 'doctor' => $doctor->name, 'consultant' => $staff->name]],
         ]);

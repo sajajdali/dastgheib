@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Api\AttendanceMonthController;
 use App\Models\AppSetting;
 use App\Models\Channel;
 use App\Models\Doctor;
@@ -240,6 +241,7 @@ class HumanResourceController extends Controller
             $values = [...$values, ...$this->customerCommissionValues($doctor)];
             $record->fill($values);
             if (! $record->exists || $record->isDirty()) $record->save();
+            $this->resyncAttendanceIfRatesChanged('doctor', $record);
         }
         foreach ($deletedIds as $id) $this->deleteResourceIfUnused('doctor', (int) $id);
         });
@@ -314,6 +316,7 @@ public function saveStaff(Request $request)
                 $values = [...$values, ...$this->customerCommissionValues($staff)];
                 $record->fill($values);
                 if (! $record->exists || $record->isDirty()) $record->save();
+                $this->resyncAttendanceIfRatesChanged('staff', $record);
             }
             foreach ($deletedIds as $id) $this->deleteResourceIfUnused('staff', (int) $id);
         });
@@ -335,6 +338,14 @@ public function saveStaff(Request $request)
             ->filter(fn ($field) => array_key_exists($field, $item))
             ->mapWithKeys(fn ($field) => [$field => $item[$field] === null || $item[$field] === '' ? null : (float) $item[$field]])
             ->all();
+    }
+
+    /** با تغییر نرخ اضافه‌کاری، کسری، غیبت یا کسرکاری مجاز، ردیف‌های حضور در حقوق هم به‌روز می‌شوند. */
+    private function resyncAttendanceIfRatesChanged(string $type, Doctor|Staff $record): void
+    {
+        if ($record->wasChanged(['overtime_hourly_rate', 'shortage_hourly_deduction', 'absence_deduction', 'allowed_shortage_hours'])) {
+            app(AttendanceMonthController::class)->resyncAttendanceEarnings($type, $record->id);
+        }
     }
 
     private function deleteResourceIfUnused(string $type, int $id): void

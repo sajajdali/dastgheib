@@ -5,15 +5,19 @@ namespace Tests\Feature;
 use App\Events\AppointmentChanged;
 use App\Http\Controllers\AppointmentController;
 use App\Models\Appointment;
+use App\Models\ResourceEarningLine;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\Concerns\CreatesPayrollTables;
 use Tests\TestCase;
 
 class AppointmentRescheduleTest extends TestCase
 {
+    use CreatesPayrollTables;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,10 +33,12 @@ class AppointmentRescheduleTest extends TestCase
             $table->string('doctor')->nullable();
             $table->string('consultant')->nullable();
             $table->string('status')->nullable();
+            $table->string('done')->nullable();
             $table->json('services')->nullable();
             $table->json('payment_details')->nullable();
             $table->timestamps();
         });
+        $this->createPayrollTables();
     }
 
     private function appointment(): Appointment
@@ -80,6 +86,22 @@ class AppointmentRescheduleTest extends TestCase
         $this->assertNull($marker->payment_details);
         Event::assertDispatched(AppointmentChanged::class, fn ($event) => $event->month === '1405-06');
         Event::assertDispatched(AppointmentChanged::class, fn ($event) => $event->month === '1405-07');
+    }
+
+    public function test_move_removes_old_month_commission_until_the_visit_is_done_again(): void
+    {
+        $appointment = $this->appointment();
+        $appointment->update(['done' => 'انجام شد']);
+        ResourceEarningLine::query()->create([
+            'appointment_id' => $appointment->id, 'month' => '1405-06', 'day_num' => 15,
+            'resource_type' => 'doctor', 'resource_id' => 1, 'resource_name' => 'doctor',
+            'earning_type' => 'base_commission', 'amount' => 100000,
+        ]);
+
+        $this->move($appointment);
+
+        $this->assertNull($appointment->fresh()->done);
+        $this->assertSame(0, ResourceEarningLine::query()->where('month', '1405-06')->count());
     }
 
     public function test_stale_transfer_does_not_overwrite_newer_appointment(): void

@@ -92,7 +92,7 @@ class ChannelDoctorCommissionRuleTest extends TestCase
         $appointment = Appointment::query()->create([
             'month' => '1405-08', 'day_num' => 1, 'source' => ' تبلیغات ویژه ',
             'doctor' => $doctor->name, 'consultant' => $staff->name,
-            'amount' => 950,
+            'amount' => 950, 'done' => 'انجام شد',
             'services' => [[
                 'name' => 'خدمت تست', 'cc' => 1, 'doctor' => $doctor->name, 'consultant' => $staff->name,
             ]],
@@ -122,6 +122,7 @@ class ChannelDoctorCommissionRuleTest extends TestCase
 
         $blocked = $appointment->replicate(['doctor_commission_enabled', 'staff_commission_enabled', 'referral_reward_enabled']);
         $blocked->day_num = 2;
+        $blocked->done = null;
         $blocked->save();
         $this->assertFalse($blocked->doctor_commission_enabled);
         $this->assertFalse($blocked->staff_commission_enabled);

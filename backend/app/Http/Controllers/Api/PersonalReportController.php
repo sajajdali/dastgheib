@@ -44,9 +44,10 @@ class PersonalReportController extends Controller
             ->where('month', $data['month'])
             ->where('resource_type', $type)
             ->where('resource_id', $resource->id)
+            ->where('status', 'active')
             ->get();
         $commission = (float) $earningLines
-            ->whereIn('earning_type', ['base_commission', 'inventory_commission'])
+            ->whereIn('earning_type', ResourceEarningLine::COMMISSION_TYPES)
             ->sum('amount');
         $salesBonus = (float) $earningLines->where('earning_type', 'sales_bonus')->sum('amount');
         $attendanceAdjustment = (float) $earningLines

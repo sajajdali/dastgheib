@@ -6,6 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class ResourceEarningLine extends Model
 {
+    /** پورسانت‌هایی که از تنظیمات انبار می‌آیند (قانون اختصاصی یا پیش‌فرض کالا). */
+    public const INVENTORY_COMMISSION_TYPES = ['inventory_commission', 'inventory_default_commission'];
+
+    /** همهٔ انواع پورسانت خدمات که از نوبت ساخته می‌شوند. */
+    public const COMMISSION_TYPES = ['base_commission', ...self::INVENTORY_COMMISSION_TYPES];
+
     protected $fillable = [
         'appointment_id',
         'month',
