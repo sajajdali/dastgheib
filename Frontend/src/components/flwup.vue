@@ -845,6 +845,10 @@
           </div>
 
           <div class="campaign-header-actions">
+            <button type="button" class="campaign-icon-action campaign-excel-action" title="خروجی اکسل از ردیف‌های نمایش‌داده‌شده" aria-label="خروجی اکسل" @click.stop="exportCampaignExcel">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 11l5 6M14 11l-5 6"/></svg>
+              <b>خروجی اکسل</b>
+            </button>
             <button v-if="!isGeneralFollowupCampaign(activeCampaign)" type="button" class="campaign-icon-action" title="ویرایش اطلاعات کمپین" aria-label="ویرایش اطلاعات کمپین" @click.stop="openEditCampaignModal(activeCampaign)">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"/><path d="m14 7 3 3"/></svg>
             </button>
@@ -2806,6 +2810,52 @@ export default {
     appointmentSummary(row) {
       return [this.formatDateFa(row.appointmentDate), row.appointmentTime].filter(Boolean).join(" - ");
     },
+
+    /** Excel export of the campaign rows currently shown (search and column filters applied). */
+    exportCampaignExcel() {
+      const campaign = this.activeCampaign;
+      if (!campaign) return;
+      const rows = this.activeFilteredRows.filter(row => String(row.fullName || '').trim() || String(row.phone || '').trim());
+      if (!rows.length) {
+        window.alert('ردیفی برای خروجی اکسل وجود ندارد.');
+        return;
+      }
+
+      const escape = value => String(value ?? '').replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+      const interestLabels = Object.fromEntries(this.interestFilterOptions().map(item => [item.value, item.label]));
+      const columns = [
+        ['نام کامل', row => row.fullName],
+        ['شماره تماس', row => this.displayPatientPhone(row.phone, row)],
+        ['جنسیت', row => row.gender],
+        ['تاریخ تماس', row => this.formatDateFa(row.contactDate)],
+        ['ساعت تماس', row => row.contactTime],
+        ['تاریخ پیگیری', row => this.formatDateFa(row.followUpDate)],
+        ['مشاور', row => row.consultant],
+        ['منبع', row => row.source || campaign.source],
+        ['وضعیت', row => row.status],
+        ['تمایل', row => interestLabels[String(row.interest ?? '')] || ''],
+        ['علت', row => row.reason],
+        ['توضیحات', row => row.description],
+        ['پیامک لندینگ', row => this.landingSmsValues(row).join('، ')],
+        ['نوبت', row => (row.appointmentRegistered ? this.appointmentSummary(row) || 'ثبت شده' : '')],
+      ];
+      const title = this.isGeneralFollowupCampaign(campaign) ? 'پیگیری کلی' : (campaign.title || 'کمپین بدون عنوان');
+      const textCell = value => `<td style="mso-number-format:'\\@'">${escape(value)}</td>`;
+      const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body dir="rtl"><table border="1" dir="rtl">`
+        + `<tr><th colspan="${columns.length}">${escape(title)}</th></tr>`
+        + `<tr>${columns.map(([label]) => `<th style="background:#e0f2fe">${escape(label)}</th>`).join('')}</tr>`
+        + rows.map(row => `<tr>${columns.map(([, value]) => textCell(value(row))).join('')}</tr>`).join('')
+        + '</table></body></html>';
+
+      const url = URL.createObjectURL(new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title.replace(/[\\/:*?"<>|]+/g, '-')}.xls`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    },
     
     setTodayContactDate(row) {
   if (!row.fullName) return;
@@ -4178,9 +4228,27 @@ export default {
   color: #111827;
 }
 
+/* Four actions never fit side by side in a quarter-width card: keep the
+   main action on its own row and share the next row between the others. */
 .campaign-footer {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.campaign-footer > button {
+  min-width: 0;
+  padding: 11px 6px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campaign-footer > .open-btn {
+  grid-column: 1 / -1;
 }
 
 .open-btn,
@@ -4436,7 +4504,7 @@ export default {
 .missed-followup-row { display:grid; grid-template-columns:1fr 140px 1fr 120px auto; gap:10px; align-items:center; padding:10px; border-bottom:1px solid #fee2e2; }
 .missed-followup-row button { border:0; border-radius:8px; padding:7px 10px; background:#dc2626; color:#fff; font-family:inherit; cursor:pointer; }
 .campaign-attachment-link { padding:5px 9px; border-radius:8px; background:#eef2ff; color:#4338ca; font-weight:800; text-decoration:none; }
-.campaign-header-actions{display:flex;align-items:center;gap:8px}.campaign-icon-action{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid #dbeafe;border-radius:11px;background:#eff6ff;color:#2563eb;box-sizing:border-box;cursor:pointer;transition:.16s ease}.campaign-icon-action:hover{border-color:#93c5fd;background:#dbeafe;transform:translateY(-1px)}.campaign-icon-action svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.campaign-icon-action>span{position:absolute;top:-7px;left:-7px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff;border-radius:999px;background:#2563eb;color:#fff;font-size:9px;font-weight:900}.banner-upload-action input{display:none}
+.campaign-header-actions{display:flex;align-items:center;gap:8px}.campaign-icon-action{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid #dbeafe;border-radius:11px;background:#eff6ff;color:#2563eb;box-sizing:border-box;cursor:pointer;transition:.16s ease}.campaign-icon-action:hover{border-color:#93c5fd;background:#dbeafe;transform:translateY(-1px)}.campaign-icon-action svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.campaign-icon-action>span{position:absolute;top:-7px;left:-7px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff;border-radius:999px;background:#2563eb;color:#fff;font-size:9px;font-weight:900}.banner-upload-action input{display:none}.campaign-excel-action{width:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-color:#bbf7d0;background:#f0fdf4;color:#15803d}.campaign-excel-action:hover{border-color:#86efac;background:#dcfce7}.campaign-excel-action b{font-size:12px;font-weight:800;white-space:nowrap}
 .banner-gallery-page{position:fixed;inset:0;z-index:2147483510;padding:24px;background:rgba(15,23,42,.56);backdrop-filter:blur(7px);overflow:auto;direction:rtl}.banner-gallery-shell{width:min(1180px,96vw);min-height:calc(100vh - 48px);box-sizing:border-box;margin:0 auto;padding:22px;border:1px solid rgba(255,255,255,.75);border-radius:26px;background:#f8fafc;box-shadow:0 30px 90px rgba(15,23,42,.34)}.banner-gallery-shell>header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px;padding:4px 3px 18px;border-bottom:1px solid #e2e8f0}.banner-gallery-shell header small{color:#2563eb;font-size:10px;font-weight:900}.banner-gallery-shell h2{margin:4px 0;color:#0f172a;font-size:23px}.banner-gallery-shell header p{margin:0;color:#64748b;font-size:11px}.banner-gallery-actions{display:flex;gap:8px}.banner-gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.banner-gallery-grid article{overflow:hidden;border:1px solid #dbe3ed;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.07);transition:.18s}.banner-gallery-grid article:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(15,23,42,.11)}.banner-gallery-grid article>a{height:230px;display:block;background:#e2e8f0}.banner-gallery-grid img{width:100%;height:100%;display:block;object-fit:contain}.banner-gallery-grid footer{display:flex;align-items:center;gap:10px;padding:11px 13px}.banner-gallery-grid footer span{min-width:0;flex:1;overflow:hidden;color:#334155;font-size:11px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}.banner-gallery-grid footer button{width:34px;height:34px;display:grid;place-items:center;padding:0;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#dc2626}.banner-gallery-grid footer button:hover{background:#fee2e2}.banner-gallery-grid footer svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.banner-gallery-empty{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;border:1px dashed #bfdbfe;border-radius:20px;background:#fff;color:#64748b}.banner-gallery-empty svg{width:55px;height:55px;fill:none;stroke:#93c5fd;stroke-width:1.4}.banner-gallery-empty strong{color:#334155}.banner-gallery-empty small{font-size:10px}@media(max-width:850px){.banner-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.banner-gallery-page{padding:8px}.banner-gallery-shell{min-height:calc(100vh - 16px);padding:14px;border-radius:18px}.banner-gallery-grid{grid-template-columns:1fr}.banner-gallery-shell>header{align-items:flex-start}.banner-gallery-grid article>a{height:210px}}
 .banner-upload-loading-overlay{position:fixed;z-index:2147483520;inset:0;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.38);backdrop-filter:blur(4px);direction:rtl}.banner-upload-loading-card{min-width:220px;display:grid;justify-items:center;gap:8px;padding:24px 28px;border:1px solid rgba(255,255,255,.86);border-radius:21px;background:rgba(255,255,255,.98);color:#0f172a;box-shadow:0 22px 60px rgba(15,23,42,.28);text-align:center}.banner-upload-loading-card strong{font-size:14px;font-weight:1000}.banner-upload-loading-card small{color:#64748b;font-size:11px;font-weight:800}.banner-upload-spinner{width:38px;height:38px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:banner-upload-spin .75s linear infinite}@keyframes banner-upload-spin{to{transform:rotate(360deg)}}
 
@@ -5158,10 +5226,6 @@ export default {
 
   .stats-grid {
     grid-template-columns: 1fr;
-  }
-
-  .campaign-footer {
-    flex-direction: column;
   }
 
   .today-followup-item {
