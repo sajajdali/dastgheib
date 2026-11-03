@@ -209,6 +209,36 @@ class Component extends DCLogic {
     ];
   }
 
+  componentDidMount() {
+    this.loadLowStockItems();
+  }
+
+  // کالایی که هنوز موجودی دارد ولی به حداقل موجودی رسیده؛ در دستهٔ زرد «نیاز به اقدام».
+  // به انتهای لیست اضافه می‌شود تا شمارهٔ موارد قبلی (برای «انجام شد») عوض نشود.
+  async loadLowStockItems() {
+    try {
+      const response = await fetch('/api/inventory', { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+      if (!response.ok) return;
+      const inventory = await response.json();
+      const items = (Array.isArray(inventory) ? inventory : [])
+        .filter(item => item && item.active !== false)
+        .map(item => ({ item, stock: Number(item.stock) || 0, minStock: Number(item.min_stock ?? 5) || 0 }))
+        .filter(({ stock, minStock }) => stock > 0 && stock <= minStock)
+        .map(({ item, stock, minStock }) => ({
+          p: 'a',
+          ic: this.IC.box,
+          tag: 'انبار',
+          d: `حداقل موجودی: ${this.fa(minStock)}`,
+          t: `موجودی «${String(item.name || 'کالای بدون نام').trim()}» به ${this.fa(stock)} رسیده است`
+        }));
+      if (!items.length) return;
+      this.ITEMS = [...this.ITEMS, ...items];
+      this.forceUpdate();
+    } catch (error) {
+      console.error('خطا در بررسی حداقل موجودی انبار', error);
+    }
+  }
+
   renderVals() {
     const S = this.state;
     const fa = n => n.toLocaleString('fa-IR');

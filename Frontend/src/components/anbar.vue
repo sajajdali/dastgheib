@@ -254,7 +254,7 @@
                 v-for="(row, index) in displayedRows"
                 :key="row.localId"
                 :title="searchQuery ? `بخش: ${sectionNameForRow(row)}` : ''"
-                :class="{ selected: selectedRow?.localId === row.localId }"
+                :class="{ selected: selectedRow?.localId === row.localId, 'stock-low-row': stockClass(row.stock, row.minStock) === 'stock-low' }"
                 @click="selectRow(row)"
               >
                 <td>
@@ -1493,6 +1493,9 @@ export default {
 
       if (nextNotifications.length !== existing.length) {
         this.writeInventoryZeroNotifications(nextNotifications)
+      } else {
+        // هشدار زرد حداقل موجودی در منو باید بلافاصله بعد از ذخیره به‌روز شود.
+        window.dispatchEvent(new CustomEvent("app:notifications-changed"))
       }
 
       this.originalStockByKey = currentSnapshot
@@ -2124,9 +2127,11 @@ export default {
         .trim()
     },
 
+    // رسیدن به حداقل موجودی (نه فقط کمتر شدن از آن) هشدار زرد دارد؛ صفر مثل قبل قرمز است.
     stockClass(stock, minStock) {
-      if (stock <= 0) return "stock-zero"
-      if (stock < minStock) return "stock-low"
+      const current = Number(stock) || 0
+      if (current <= 0) return "stock-zero"
+      if (current <= (Number(minStock) || 0)) return "stock-low"
       return ""
     },
 
@@ -3642,7 +3647,23 @@ select:focus {
 }
 
 .stock-low {
-  background: #fff7ed;
+  background: #fef08a;
+  color: #854d0e;
+  font-weight: 800;
+}
+
+/* کالایی که به حداقل موجودی رسیده، کل ردیفش زرد می‌شود. */
+tbody tr.stock-low-row td,
+tbody tr.stock-low-row:hover td {
+  background: #fefce8;
+}
+
+tbody tr.stock-low-row td:first-child {
+  box-shadow: inset -4px 0 0 #facc15;
+}
+
+tr.selected.stock-low-row td {
+  background: #fef9c3;
 }
 
 .stock-zero {

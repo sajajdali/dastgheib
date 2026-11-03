@@ -6,7 +6,11 @@
         v-for="item in primaryItems"
         :key="item.value"
         class="menu-item"
-        :class="{ active: currentPage === item.value || (item.value === 'Peygiri' && currentPage === 'ServiceFollowups') }"
+        :class="{
+          active: currentPage === item.value || (item.value === 'Peygiri' && currentPage === 'ServiceFollowups'),
+          'menu-item-stock-warning': item.value === 'Anbar' && inventoryLowStockCount > 0
+        }"
+        :title="item.value === 'Anbar' && inventoryLowStockCount > 0 ? `${formatBadgeCount(inventoryLowStockCount)} کالا به حداقل موجودی رسیده است` : null"
         @click="select(item.value)"
       >
         <div class="menu-dot"></div>
@@ -14,6 +18,7 @@
         <span
           v-if="item.value !== 'Vaghtdahi' && item.value !== 'Photos' && notificationCounts[item.value] > 0"
           class="notification-badge"
+          :class="{ 'notification-badge-warning': item.value === 'Anbar' && inventoryLowStockCount > 0 && !inventoryZeroCount }"
           :aria-label="`${notificationCounts[item.value]} مورد سررسید شده`"
         >
           {{ formatBadgeCount(notificationCounts[item.value]) }}
@@ -107,6 +112,8 @@ export default {
     return {
       notificationCounts: { Peygiri: 0, dermatracker: 0, Ticket: 0, Notif: 0, Anbar: 0, Vaghtdahi: 0, HRtimes: 0, Payroll: 0, Gozaresh: 0, ActivityLogs: 0 },
       notificationTimer: null,
+      inventoryZeroCount: 0,
+      inventoryLowStockCount: 0,
       overflowOpen: false,
       permissionMap: {
         Parvande: 'patients.view',
@@ -414,6 +421,22 @@ export default {
           }).length
       } catch {
         return this.localTodayTicketCount()
+      }
+    },
+    // کالاهایی که هنوز موجودی دارند ولی به حداقل موجودی رسیده‌اند (موجودی صفر جداگانه شمرده می‌شود).
+    async countLowStockItems() {
+      try {
+        const response = await fetch(`${API}/inventory`, { headers: { Accept: 'application/json' } })
+        if (!response.ok) return 0
+        const items = await response.json()
+        return (Array.isArray(items) ? items : []).filter(item => {
+          if (item?.active === false) return false
+          const stock = Number(item?.stock) || 0
+          const minStock = Number(item?.min_stock ?? 5) || 0
+          return stock > 0 && stock <= minStock
+        }).length
+      } catch {
+        return this.inventoryLowStockCount
       }
     },
     countInventoryZeroNotifications() {
@@ -871,7 +894,9 @@ export default {
       const beautyTodayCount = await this.countTodayBeautyPatients()
       this.notificationCounts.Peygiri = this.countTodayFollowups() + beautyTodayCount
       this.notificationCounts.Ticket = await this.countTodayTickets()
-      this.notificationCounts.Anbar = this.countInventoryZeroNotifications()
+      this.inventoryZeroCount = this.countInventoryZeroNotifications()
+      this.inventoryLowStockCount = await this.countLowStockItems()
+      this.notificationCounts.Anbar = this.inventoryZeroCount + this.inventoryLowStockCount
       this.notificationCounts.Gozaresh = await this.countHighCancellationWarning()
       this.notificationCounts.HRtimes = await this.countMissingAttendanceExits()
       this.notificationCounts.Vaghtdahi = 0
@@ -1043,6 +1068,24 @@ export default {
 }
 
 .menu-item.active .notification-badge { border-color: #318dfd; }
+
+/* رسیدن کالا به حداقل موجودی: تب «خدمات» و نشان آن زرد می‌شوند. */
+.notification-badge.notification-badge-warning {
+  background: linear-gradient(145deg, #fde047, #eab308);
+  color: #422006;
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.45);
+}
+
+.menu-item.menu-item-stock-warning:not(.active) {
+  border-color: #facc15;
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.menu-item.menu-item-stock-warning:not(.active) .menu-dot {
+  background: #eab308;
+  box-shadow: 0 0 0 3px rgba(234, 179, 8, .2);
+}
 
 @keyframes notification-pop {
   from { opacity: 0; transform: scale(0.45); }
