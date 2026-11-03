@@ -651,7 +651,7 @@
                       :class="{ 'problematic-customer-name': isProblematicCustomer(row) }"
                       :title="row.hasPatientFile ? 'نام مراجعه‌کننده' : ''"
                       @click.stop
-                      @focus="searchTablePatients(row)"
+                      @focus="onPatientNameFocus(row)"
                       @input="onPatientNameInput(row)"
                       @keyup.enter.prevent="$event.target.blur()"
                       @blur="finishPatientNameEdit(row)"
@@ -824,10 +824,11 @@
 
               <td
   :style="{ width: columnWidths.done + 'px' }"
-  :class="doneColor(row.done)"
+  :class="[doneColor(row.done), { 'done-locked': !canChooseDone(row) }]"
+  :title="canChooseDone(row) ? '' : 'ابتدا وضعیت نوبت را «آمد» کنید'"
 >
 
-  <select v-model="row.done" @change="onDoneChanged(row)">
+  <select v-model="row.done" :disabled="!canChooseDone(row)" @change="onDoneChanged(row)">
                   <option value=""></option>
                   <option>انجام شد</option>
                   <option>انجام نشد</option>
@@ -1896,7 +1897,12 @@
 
             <label>
               انجام کار
-              <select v-model="activeTimelineDraft.done" :class="doneColor(activeTimelineDraft.done)">
+              <select
+                v-model="activeTimelineDraft.done"
+                :class="[doneColor(activeTimelineDraft.done), { 'done-locked': !canChooseDone(activeTimelineDraft) }]"
+                :disabled="!canChooseDone(activeTimelineDraft)"
+                :title="canChooseDone(activeTimelineDraft) ? '' : 'ابتدا وضعیت نوبت را «آمد» کنید'"
+              >
                 <option value=""></option>
                 <option>انجام شد</option>
                 <option>انجام نشد</option>
@@ -2327,8 +2333,8 @@
           <p v-if="!financialDebtLines.length" class="financial-deposit-empty">برای این نوبت هنوز خدمتی انتخاب نشده است.</p>
           <div v-else class="financial-debt-line" v-for="line in financialDebtLines" :key="line.key">
             <div class="financial-deposit-identity"><small>{{ line.is_addon ? 'خدمت جانبی' : 'خدمت' }}</small><b>{{ line.service }}</b><span>{{ [line.section, line.subsection, line.parent_service].filter(Boolean).join(' / ') }}</span></div>
-            <label class="financial-debt-line-amount"><span>بدهی این خدمت</span><input v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDebtLine(line)"></label>
-            <label class="financial-debt-line-reason"><span>توضیحات</span><textarea v-model.trim="line.reason" rows="2" maxlength="1000" placeholder="توضیحات بدهی این خدمت"></textarea></label>
+            <label class="financial-debt-line-amount"><span>بدهی این خدمت</span><BufferedInput v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" :format="formatMoneyDraft" @commit="formatFinancialDebtLine(line)" /></label>
+            <label class="financial-debt-line-reason"><span>توضیحات</span><BufferedInput :model-value="line.reason" multiline rows="2" maxlength="1000" placeholder="توضیحات بدهی این خدمت" @update:model-value="line.reason = String($event || '').trim()" /></label>
           </div>
           <small v-if="financialRemainingDebtPreview() > 0" class="financial-debt-preview">مانده محاسبه‌شده از مبلغ جلسه و پرداخت‌ها:<b>{{ formatDisplayMoney(financialRemainingDebtPreview()) }} تومان</b></small>
         </section>
@@ -2347,7 +2353,7 @@
             </div>
             <label class="financial-deposit-amount">
               <span>بیعانه این خدمت</span>
-              <input v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" @input="formatFinancialDepositLine(line)">
+              <BufferedInput v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" :format="formatMoneyDraft" @commit="formatFinancialDepositLine(line)" />
             </label>
           </div>
         </section>
@@ -2395,12 +2401,12 @@
         </div>
         <div class="financial-payment-grid">
           <div v-for="line in financialPaymentLines" :key="line.method" class="financial-configured-payment">
-            <label>مبلغ {{ line.method }}<input v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" @input="formatConfiguredPaymentLine(line)"></label>
+            <label>مبلغ {{ line.method }}<BufferedInput v-model="line.amount" type="text" inputmode="numeric" placeholder="۰" :format="formatMoneyDraft" @commit="formatConfiguredPaymentLine(line)" /></label>
             <label>حساب واریز<select v-model="line.account">
               <option value="">انتخاب حساب واریز</option>
               <option v-for="account in paymentOptions.accounts" :key="`${line.method}-${account}`" :value="account">{{ account }}</option>
             </select></label>
-            <label v-if="isCheckPaymentMethod(line.method)">شماره چک<input v-model.trim="line.reference_number" type="text" placeholder="مثلا ۱۲۳۴۵۶"></label>
+            <label v-if="isCheckPaymentMethod(line.method)">شماره چک<BufferedInput :model-value="line.reference_number" type="text" placeholder="مثلا ۱۲۳۴۵۶" @update:model-value="line.reference_number = String($event || '').trim()" /></label>
             <label v-if="isCheckPaymentMethod(line.method)">تاریخ سررسید
             <date-picker
               v-model="line.due_date"
@@ -2608,6 +2614,7 @@ import moment from "moment-jalaali";
 import Multiselect from "vue-multiselect";
 import "vue-multiselect/dist/vue-multiselect.css";
 import PatientAvatar from './PatientAvatar.vue';
+import BufferedInput from './BufferedInput.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 
 const directAppointmentSaves = new WeakMap();
@@ -2622,6 +2629,7 @@ export default {
   },
 
   components: {
+    BufferedInput,
     DatePicker,
     JalaliDateInput,
     Multiselect,
@@ -4049,6 +4057,13 @@ export default {
       const hasName = String(row.lastname || '').trim().length > 0;
       const hasPhone = String(row.phone || '').replace(/\D/g, '').length >= 10;
       if (hasName && hasPhone) row.status = 'وقت داده شد';
+    },
+
+    onPatientNameFocus(row) {
+      // ذخیرهٔ خودکار در حین تایپ به ردیف جدید شناسهٔ نوبت می‌دهد؛ بدون این
+      // خط، فیلد نام وسط تایپ به متن ثابت تبدیل می‌شد و لیست جست‌وجو بسته می‌شد.
+      this.editingPatientNameRowId = row?._rowId || null;
+      this.searchTablePatients(row);
     },
 
     onPatientNameInput(row) {
@@ -7552,6 +7567,12 @@ this.calculateFinalAmount(row)
       );
     },
 
+    // قالب مبلغ هنگام تایپ در فیلدهای پنل مالی (بدون رسم دوبارهٔ جدول نوبت‌ها)
+    formatMoneyDraft(value) {
+      const amount = this.moneyToNumber(value);
+      return amount ? this.formatDisplayMoney(amount) : '';
+    },
+
     formatConfiguredPaymentLine(line) {
       const amount = this.moneyToNumber(line.amount);
       line.amount = amount ? this.formatDisplayMoney(amount) : '';
@@ -10049,6 +10070,11 @@ this.calculateFinalAmount(row)
       }
     },
 
+// انجام کار فقط وقتی معنا دارد که بیمار آمده باشد.
+canChooseDone(row) {
+  return String(row?.status || "").trim() === "آمد";
+},
+
 doneColor(done) {
   const d = (done || "").trim();
 
@@ -10085,17 +10111,31 @@ smsColor(val) {
       return row.services?.some(s => s.name);
     },
 
+    // در ستون خدمات نام زیربخش انتخاب‌شده نمایش داده می‌شود؛ خدمتی که زیربخش
+    // ندارد (مستقیم زیر بخش اصلی است) با نام خودش نمایش داده می‌شود.
     serviceButtonLabels(row) {
       const labels = (row?.services || [])
-        .map(service => String(service?.name || '').trim())
+        .map(service => this.serviceSubsectionLabel(service))
         .filter(Boolean);
       return [...new Set(labels)];
     },
 
+    serviceSubsectionLabel(service) {
+      const name = String(service?.name || '').trim();
+      const sectionId = service?.sectionId || this.getServiceData(service)?.section_id || '';
+      const rootId = service?.rootSectionId || this.rootSectionIdFor(sectionId);
+      if (sectionId && String(sectionId) !== String(rootId || '')) {
+        return String(this.serviceSectionLabel(sectionId) || '').trim() || name;
+      }
+      return name;
+    },
+
     serviceButtonTitle(row) {
-      const labels = this.serviceButtonLabels(row);
-      return labels.length
-        ? labels.join('، ')
+      const names = [...new Set((row?.services || [])
+        .map(service => String(service?.name || '').trim())
+        .filter(Boolean))];
+      return names.length
+        ? names.join('، ')
         : 'خدمات';
     },
 
@@ -12146,13 +12186,49 @@ smsColor(val) {
   background-color: #f0f7ff !important;
 }
 
-/* وضعیت انجام‌شده باید هنگام عبور موس نیز سبز باقی بماند. */
+/* رنگ ستون انجام کار باید هنگام عبور موس نیز ثابت بماند. */
 .main-schedule-table td.dn-yes,
 .main-schedule-table td.dn-yes select,
 .main-schedule-table tbody tr.data-row:hover > td.dn-yes,
 .main-schedule-table tbody tr.data-row:hover > td.dn-yes select {
   background-color: #c8e6c9 !important;
   color: #166534 !important;
+}
+
+.main-schedule-table td.dn-no,
+.main-schedule-table td.dn-no select,
+.main-schedule-table tbody tr.data-row:hover > td.dn-no,
+.main-schedule-table tbody tr.data-row:hover > td.dn-no select {
+  background-color: #ffcdd2 !important;
+  color: #991b1b !important;
+}
+
+.main-schedule-table td.dn-rep,
+.main-schedule-table td.dn-rep select,
+.main-schedule-table tbody tr.data-row:hover > td.dn-rep,
+.main-schedule-table tbody tr.data-row:hover > td.dn-rep select {
+  background-color: #e1bee7 !important;
+}
+
+.main-schedule-table td.dn-trans,
+.main-schedule-table td.dn-trans select,
+.main-schedule-table tbody tr.data-row:hover > td.dn-trans,
+.main-schedule-table tbody tr.data-row:hover > td.dn-trans select {
+  background-color: #bbdefb !important;
+}
+
+.main-schedule-table td.dn-cons,
+.main-schedule-table td.dn-cons select,
+.main-schedule-table tbody tr.data-row:hover > td.dn-cons,
+.main-schedule-table tbody tr.data-row:hover > td.dn-cons select {
+  background-color: #eeeeee !important;
+}
+
+/* تا وضعیت «آمد» نشود، انجام کار قابل انتخاب نیست. */
+.main-schedule-table td.done-locked select,
+select.done-locked {
+  cursor: not-allowed;
+  opacity: .55;
 }
 
 .main-schedule-table th,

@@ -41,7 +41,8 @@ test("financial panel records debt amount and description separately for every s
   assert.match(source, /ثبت بدهی برای هر خدمت/);
   assert.match(source, /v-for="line in financialDebtLines"/);
   assert.match(source, /v-model="line\.amount"/);
-  assert.match(source, /v-model\.trim="line\.reason"/);
+  // توضیحات هر خدمت با فیلد بافر‌شده ثبت و هنگام ذخیره در مدل حذف فاصله می‌شود.
+  assert.match(source, /:model-value="line\.reason"[^>]*@update:model-value="line\.reason = String\(\$event \|\| ''\)\.trim\(\)"/);
   assert.match(source, /const debtAllocations = debtLines\.map/);
 });
 
