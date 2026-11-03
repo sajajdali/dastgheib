@@ -304,6 +304,9 @@
 
       <PayrollSettlement v-if="currentPage === 'Payroll' && user.permissions?.includes('payroll.view')" />
 
+      <!-- وظایف پرسنل (قالب استاتیک) -->
+      <StaffTasks v-if="currentPage === 'StaffTasks' && isClinicManager" />
+
       <!-- تنظیمات -->
       <Setting v-if="currentPage === 'Setting' || currentPage === 'Satisfaction'" :current-user="user" :enabled-features="tenantEnabledFeatures" :initial-section="currentPage === 'Satisfaction' ? 'satisfaction' : settingsInitialSection" :initial-accordion="settingsInitialAccordion" :initial-resource-tab="settingsInitialResourceTab" :highlight-resource="settingsHighlightResource" />
       <Store
@@ -475,6 +478,7 @@ import SubscriptionRenewal from "./components/SubscriptionRenewal.vue";
 
 import HRtimes from "./components/HRtimes.vue";
 import PayrollSettlement from "./components/PayrollSettlement.vue";
+import StaffTasks from "./components/staff-tasks/StaffTasks.vue";
 import AiAssistant from "./components/AiAssistant.vue";
 import AiUsageReport from "./components/AiUsageReport.vue";
 import IncomingCallStack from "./components/incoming-call/IncomingCallStack.vue";
@@ -533,6 +537,7 @@ export default {
 
     HRtimes,
     PayrollSettlement,
+    StaffTasks,
     AiAssistant,
     AiUsageReport,
     IncomingCallStack
@@ -1119,7 +1124,8 @@ export default {
         Parvande: 'patients', Vaghtdahi: 'booking', Peygiri: 'followups', ServiceFollowups: 'service_followups',
         dermatracker: 'beauty', Photos: 'gallery', Gozaresh: 'report',
         Anbar: 'inventory', Ticket: 'tickets', Products: 'finder',
-        Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings', Satisfaction: 'satisfaction', AutomaticSms: null
+        Automation: 'automation', Bills: 'bills', HRtimes: 'attendance', Setting: 'settings', Satisfaction: 'satisfaction', AutomaticSms: null,
+        StaffTasks: 'staff_tasks'
       };
       const permissionMap = {
         Parvande: 'patients.view', Photos: 'photos.view', Vaghtdahi: 'appointments.view',
@@ -1131,7 +1137,7 @@ export default {
       };
       const feature = featureMap[page];
       if (Array.isArray(this.tenantEnabledFeatures) && feature && !this.tenantEnabledFeatures.includes(feature)) return false;
-      if (page === 'Setting' || page === 'Satisfaction' || page === 'AutomaticSms' || page === 'Store' || page === 'Storage' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
+      if (page === 'Setting' || page === 'Satisfaction' || page === 'AutomaticSms' || page === 'StaffTasks' || page === 'Store' || page === 'Storage' || page === 'ServiceStatus' || page === 'ServiceTickets') return this.isClinicManager;
       if (page === 'HRtimes' && !this.attendanceEnabled) return false;
       return !permissionMap[page] || this.user?.permissions?.includes(permissionMap[page]);
     },
@@ -1456,6 +1462,7 @@ export default {
         Bills: 'bills',
         HRtimes: 'attendance',
         Payroll: null,
+        StaffTasks: 'staff_tasks',
         Store: null,
         Setting: 'settings',
         Satisfaction: 'satisfaction',
@@ -1496,6 +1503,7 @@ export default {
 
       if (menuValue === "HRtimes" && !this.attendanceEnabled) return;
       if (menuValue === "Store" && !this.isClinicManager) return;
+      if (menuValue === "StaffTasks" && !this.isClinicManager) return;
 
       if (menuValue === "Vaghtdahi") {
         this.pendingAppointmentViewRequest = null;

@@ -145,6 +145,7 @@ export default {
         { label: 'هزینه‌ها', value: 'Bills', feature: 'bills' },
         { label: 'حضور غیاب', value: 'HRtimes', feature: 'attendance' },
         { label: 'حقوق و تسویه', value: 'Payroll', feature: null },
+        { label: 'وظایف', value: 'StaffTasks', feature: 'staff_tasks' },
         { label: 'پیامک اتوماتیک', value: 'AutomaticSms', feature: null }
       ]
     }
@@ -164,6 +165,8 @@ export default {
         }
         if (item.value === 'Satisfaction') return this.isClinicManager && this.featureEnabled(item.feature)
         if (item.value === 'AutomaticSms') return this.isClinicManager
+        // نسخهٔ استاتیک هنوز مجوز اختصاصی ندارد؛ فعلاً فقط مدیر کلینیک آن را می‌بیند.
+        if (item.value === 'StaffTasks') return this.isClinicManager && this.featureEnabled(item.feature)
         if (!this.featureEnabled(item.feature)) return false
         const requiredPermission = this.permissionMap[item.value]
         return requiredPermission && this.permissions.includes(requiredPermission)
