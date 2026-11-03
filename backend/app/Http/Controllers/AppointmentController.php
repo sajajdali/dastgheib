@@ -2467,7 +2467,7 @@ class AppointmentController extends Controller
                 }
 
                 $resource = $target['map']->get($this->resourceKey($resourceName));
-                if (! $resource || ! $this->resourceReceivesCommission($resource, (bool) $appointment->new_customer)) {
+                if (! $resource) {
                     continue;
                 }
 
@@ -2514,6 +2514,11 @@ class AppointmentController extends Controller
 
     private function baseCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
     {
+        // درصد منابع فقط برای نوع مشتری‌ای که برایش درصد تعریف شده اعمال می‌شود.
+        if (! $this->resourceReceivesCommission($resource, (bool) $appointment->new_customer)) {
+            return [];
+        }
+
         $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
         $commissionValue = (float) ($resource->customerCommissionPercent((bool) $appointment->new_customer) ?? 0);
         $amount = $this->calculateCommissionAmount('percent', $commissionValue, $amounts['base'], $line['quantity']);
@@ -2536,23 +2541,23 @@ class AppointmentController extends Controller
         )];
     }
 
-    /** اولویت قطعی: قانون اختصاصی انبار، سپس قانون پیش فرض انبار، سپس منابع. */
+    /**
+     * اولویت قطعی: استثنای شخص روی خدمت، سپس پورسانت کلی انبار، سپس درصد منابع.
+     * قانون‌های انبار مستقل از نوع مشتری‌اند و تیک «بعد از کسر مواد» نیرو در همهٔ حالت‌های درصدی اعمال می‌شود.
+     */
     private function preferredCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
     {
-        $specific = $inventory->commissions
-            ->where('recipient_type', $type)
-            ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
-        if ($specific->isNotEmpty()) {
+        if ($this->resourceInventoryCommissions($inventory, $type, $resource)->isNotEmpty()) {
             return $this->inventoryCommissionPayloads($appointment, $line, $inventory, $type, $resource);
         }
 
         if ((float) $inventory->default_commission_value > 0) {
-            $amounts = $this->earningAmounts($line, $inventory, false, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
+            $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
             $commissionType = $inventory->default_commission_type === 'fixed' ? 'fixed' : 'percent';
             $value = (float) $inventory->default_commission_value;
-            $amount = $this->calculateCommissionAmount($commissionType, $value, $amounts['net'], $line['quantity']);
+            $amount = $this->calculateCommissionAmount($commissionType, $value, $amounts['base'], $line['quantity']);
             return $amount > 0
-                ? [$this->earningPayload($appointment, $line, $inventory, $type, $resource, 'inventory_default_commission', $commissionType, $value, $amount, [...$amounts, 'base' => $amounts['net']], "پورسانت پیش‌فرض انبار {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}")]
+                ? [$this->earningPayload($appointment, $line, $inventory, $type, $resource, 'inventory_default_commission', $commissionType, $value, $amount, $amounts, "پورسانت پیش‌فرض انبار {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}")]
                 : [];
         }
 
@@ -2561,16 +2566,14 @@ class AppointmentController extends Controller
 
     private function inventoryCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
     {
-        $commissions = $inventory->commissions
-            ->where('recipient_type', $type)
-            ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
+        $commissions = $this->resourceInventoryCommissions($inventory, $type, $resource);
         $payloads = [];
 
         foreach ($commissions as $commission) {
-            $amounts = $this->earningAmounts($line, $inventory, false, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
+            $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
             $commissionType = $commission->commission_type === 'fixed' ? 'fixed' : 'percent';
             $commissionValue = (float) $commission->commission_value;
-            $amount = $this->calculateCommissionAmount($commissionType, $commissionValue, $amounts['net'], $line['quantity']);
+            $amount = $this->calculateCommissionAmount($commissionType, $commissionValue, $amounts['base'], $line['quantity']);
             if ($amount <= 0) {
                 continue;
             }
@@ -2585,7 +2588,7 @@ class AppointmentController extends Controller
                 $commissionType,
                 $commissionValue,
                 $amount,
-                [...$amounts, 'base' => $amounts['net']],
+                $amounts,
                 "پورسانت اختصاصی انبار {$commissionValue}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}"
             );
         }
@@ -2662,6 +2665,24 @@ class AppointmentController extends Controller
         return $type === 'fixed'
             ? max(0, $value) * max(1, $quantity)
             : max(0, $base) * max(0, $value) / 100;
+    }
+
+    /**
+     * استثناهای همین نیرو روی خدمت. استثنای ثبت‌شده برای خود پزشک یا پرسنل مقدم است؛
+     * اگر نبود، استثنای «کاربر سیستم» متصل به همین نیرو اعمال می‌شود.
+     */
+    private function resourceInventoryCommissions(Inventory $inventory, string $type, Doctor|Staff $resource)
+    {
+        $direct = $inventory->commissions
+            ->where('recipient_type', $type)
+            ->filter(fn (InventoryCommission $commission) => $this->commissionMatchesResource($commission, $resource));
+        if ($direct->isNotEmpty() || ! $resource->user_id) {
+            return $direct;
+        }
+
+        return $inventory->commissions
+            ->where('recipient_type', 'user')
+            ->filter(fn (InventoryCommission $commission) => (int) $commission->recipient_id === (int) $resource->user_id);
     }
 
     private function commissionMatchesResource(InventoryCommission $commission, Doctor|Staff $resource): bool

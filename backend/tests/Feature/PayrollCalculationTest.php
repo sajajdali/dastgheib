@@ -9,6 +9,7 @@ use App\Models\Appointment;
 use App\Models\AttendanceMonth;
 use App\Models\Doctor;
 use App\Models\Inventory;
+use App\Models\InventoryCommission;
 use App\Models\ResourceEarningLine;
 use App\Models\Staff;
 use Illuminate\Database\Schema\Blueprint;
@@ -143,6 +144,70 @@ class PayrollCalculationTest extends TestCase
         $this->assertSame(2, ResourceEarningLine::query()->where('appointment_id', $visit->id)->count());
         $this->assertSame(250000.0, (float) $this->payroll('1405-09')['summary']['service_commission']);
         $this->assertSame(0.0, (float) $this->payroll('1405-08')['summary']['service_commission']);
+    }
+
+    public function test_commission_priority_is_person_exception_then_inventory_default_then_resource(): void
+    {
+        $withException = Inventory::query()->create(['name' => 'استایلج', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        InventoryCommission::query()->create(['inventory_id' => $withException->id, 'recipient_type' => 'doctor', 'recipient_id' => $this->doctor->id, 'recipient_name' => $this->doctor->name, 'commission_type' => 'fixed', 'commission_value' => 50000]);
+        Inventory::query()->create(['name' => 'میکرونیدلینگ', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        Inventory::query()->create(['name' => 'پیلینگ', 'amount' => 1000000]);
+        $exception = $this->visit(['name' => 'استایلج', 'cc' => 2]);
+        $default = $this->visit(['name' => 'میکرونیدلینگ']);
+        $resource = $this->visit(['name' => 'پیلینگ']);
+
+        $this->resync();
+
+        $this->assertSame(100000.0, $this->commission($exception));
+        $this->assertSame(200000.0, $this->commission($exception, 'staff'));
+        $this->assertSame(100000.0, $this->commission($default));
+        $this->assertSame(200000.0, $this->commission($resource));
+    }
+
+    public function test_exception_for_a_system_user_applies_to_their_linked_resource(): void
+    {
+        $this->staff->update(['user_id' => 42]);
+        $inventory = Inventory::query()->create(['name' => 'لیزر', 'amount' => 1000000]);
+        InventoryCommission::query()->create(['inventory_id' => $inventory->id, 'recipient_type' => 'user', 'recipient_id' => 42, 'recipient_name' => 'کاربر مشاور', 'commission_type' => 'percent', 'commission_value' => 12]);
+        $visit = $this->visit(['name' => 'لیزر']);
+
+        $this->resync();
+
+        $this->assertSame(120000.0, $this->commission($visit, 'staff'));
+        $this->assertSame(200000.0, $this->commission($visit));
+    }
+
+    public function test_inventory_rules_ignore_customer_type_but_resource_percent_does_not(): void
+    {
+        $this->doctor->update(['existing_customer_bonus' => null]);
+        Inventory::query()->create(['name' => 'بوتاکس', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        Inventory::query()->create(['name' => 'پیلینگ', 'amount' => 1000000]);
+
+        $inventoryRule = $this->visit(['name' => 'بوتاکس']);
+        $resourceRule = $this->visit(['name' => 'پیلینگ']);
+        $this->resync();
+
+        $this->assertSame(100000.0, $this->commission($inventoryRule));
+        $this->assertSame(0.0, $this->commission($resourceRule));
+    }
+
+    public function test_materials_flag_applies_to_percent_rules_everywhere_but_not_fixed_amounts(): void
+    {
+        $this->doctor->update(['commission_after_materials' => true]);
+        $percent = Inventory::query()->create(['name' => 'فیلر', 'amount' => 1000000, 'price' => 400000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        Inventory::query()->create(['name' => 'نخ', 'amount' => 1000000, 'price' => 400000, 'default_commission_type' => 'fixed', 'default_commission_value' => 70000]);
+        Inventory::query()->create(['name' => 'مزو', 'amount' => 1000000, 'price' => 400000]);
+        InventoryCommission::query()->create(['inventory_id' => $percent->id, 'recipient_type' => 'staff', 'recipient_id' => $this->staff->id, 'recipient_name' => $this->staff->name, 'commission_type' => 'percent', 'commission_value' => 10]);
+        $percentVisit = $this->visit(['name' => 'فیلر']);
+        $fixedVisit = $this->visit(['name' => 'نخ']);
+        $resourceVisit = $this->visit(['name' => 'مزو']);
+
+        $this->resync();
+
+        $this->assertSame(60000.0, $this->commission($percentVisit));
+        $this->assertSame(100000.0, $this->commission($percentVisit, 'staff'));
+        $this->assertSame(70000.0, $this->commission($fixedVisit));
+        $this->assertSame(120000.0, $this->commission($resourceVisit));
     }
 
     public function test_allowed_shortage_hours_are_taken_from_the_first_short_days_of_the_month(): void

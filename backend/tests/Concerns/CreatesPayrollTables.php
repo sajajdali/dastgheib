@@ -50,7 +50,7 @@ trait CreatesPayrollTables
 
     private function payrollResourceTable(Blueprint $table): void
     {
-        $table->id(); $table->string('name'); $table->decimal('bonus', 8, 2)->default(0);
+        $table->id(); $table->unsignedBigInteger('user_id')->nullable(); $table->string('name'); $table->decimal('bonus', 8, 2)->default(0);
         $table->string('commission_customer_scope')->default('both');
         $table->decimal('new_customer_bonus', 5, 2)->nullable(); $table->decimal('existing_customer_bonus', 5, 2)->nullable();
         $table->boolean('commission_after_materials')->default(false);
