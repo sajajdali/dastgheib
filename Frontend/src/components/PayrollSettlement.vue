@@ -61,6 +61,9 @@
             <article><span>پورسانت خدمات</span><strong>{{ money(report.summary.service_commission) }}</strong></article>
             <article><span>پورسانت انبار</span><strong>{{ money(report.summary.inventory_commission) }}</strong></article>
             <article><span>پاداش پلکانی</span><strong>{{ money(report.summary.sales_bonus) }}</strong></article>
+            <article v-if="report.resource.sales_bonus_enabled" :title="salesTargetHint">
+              <span>فروش تارگت (پس از کسر مواد)</span><strong>{{ money(report.summary.target_sales) }}</strong>
+            </article>
             <article><span>اضافه‌کاری</span><strong>{{ money(report.summary.overtime) }}</strong></article>
             <article><span>کسری ساعت</span><strong>{{ money(report.summary.shortage) }}</strong></article>
             <article><span>غیبت</span><strong>{{ money(report.summary.absence) }}</strong></article>
@@ -312,6 +315,17 @@ export default {
     },
     selectedKey() {
       return this.selected ? `${this.selected.type}-${this.selected.id}` : ''
+    },
+    salesTargetHint() {
+      const tier = this.report?.summary?.reached_tier
+      const next = (this.report?.resource?.sales_bonus_tiers || [])
+        .map(item => Number(item.sales_from) || 0)
+        .filter(from => from > Number(this.report?.summary?.target_sales || 0))
+        .sort((a, b) => a - b)[0]
+      return [
+        tier ? `پلهٔ رسیده: ${this.money(tier.sales_from)} → ${this.money(tier.salary_addition)}` : 'هنوز به پله‌ای نرسیده',
+        next ? `پلهٔ بعدی: ${this.money(next)}` : '',
+      ].filter(Boolean).join(' · ')
     },
     filteredResources() {
       const query = this.search.toLowerCase()

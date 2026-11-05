@@ -175,32 +175,7 @@ class AppointmentController extends Controller
     /** Ignore legacy rows that only represent generated empty calendar slots. */
     private function constrainToMeaningfulAppointments($query): void
     {
-        foreach ([
-            'lastname', 'gender', 'phone', 'file_number', 'status',
-            'doctor', 'consultant', 'source', 'description', 'doctor_note',
-            'done', 'payment_method', 'payment_account', 'payment_link',
-            'referrer_phone', 'appointment_sms', 'info_sms',
-        ] as $column) {
-            $query->orWhere(function ($query) use ($column) {
-                $query->whereNotNull($column)->where($column, '<>', '');
-            });
-        }
-        $query->orWhere('new_customer', true)
-            ->orWhere('payment_link_sent_count', '>', 0)
-            ->orWhere('amount', '>', 0)
-            ->orWhere('debt', '>', 0)
-            ->orWhere('discount', '>', 0)
-            ->orWhere(function ($query) {
-                $query->whereNotNull('services');
-                if ($query->getConnection()->getDriverName() === 'mysql') {
-                    $query->whereRaw('services REGEXP ?', ['"name"[[:space:]]*:[[:space:]]*"[^"]+"']);
-                } else {
-                    $query->where('services', 'like', '%"name":"_%');
-                }
-            })
-            ->orWhere(function ($query) {
-                $query->whereNotNull('service_types')->whereNotIn('service_types', ['', '[]', 'null']);
-            });
+        Appointment::constrainToMeaningful($query);
     }
 
     /**
@@ -539,6 +514,10 @@ class AppointmentController extends Controller
             'appointments.*.appointment_id' => ['nullable', 'integer'],
             'appointments.*.lock_version' => ['nullable', 'integer', 'min:1'],
             'appointments.*.description' => ['nullable', 'string', 'max:20000'],
+            'appointments.*.services' => ['nullable', 'array'],
+            'appointments.*.services.*.cc' => ['nullable', 'integer', 'min:0'],
+            'appointments.*.services.*.addons' => ['nullable', 'array'],
+            'appointments.*.services.*.addons.*.cc' => ['nullable', 'integer', 'min:0'],
         ]);
         // Laravel returns only nested keys which have explicit validation
         // rules. Using that result directly used to discard every appointment
@@ -952,6 +931,7 @@ class AppointmentController extends Controller
                 $current->update(collect($destinationValues)
                     ->filter(fn ($value, string $column) => Schema::hasColumn('appointments', $column))
                     ->all());
+                $this->syncAppointmentInventoryStock([['previous' => $before, 'current' => $current]], collect());
                 // پورسانت باید با نوبت به ماه و روز جدید برود و پاداش فروش هر دو ماه دوباره حساب شود.
                 $this->syncResourceEarningLines($current);
                 collect([$before->month, $current->month])->filter()->unique()
@@ -1351,7 +1331,7 @@ class AppointmentController extends Controller
                 $patient = Patient::find($transaction->patient_id);
                 $message = str_replace(
                     ['%param1%', '%param2%', '%param3%', '%param4%'],
-                    [number_format((float) $transaction->amount), number_format((float) ($patient?->wallet_balance ?? 0)), $this->gregorianToJalali($expiry), (string) AppSetting::getByKey('company_name', 'کلینیک')],
+                    [number_format((float) $transaction->amount), number_format((float) ($patient?->wallet_balance ?? 0)), $this->gregorianToJalali($expiry), (AppSetting::clinicName() ?: 'کلینیک')],
                     $template
                 );
                 app(ShsmsService::class)->send($phone, $message);
@@ -1393,12 +1373,87 @@ class AppointmentController extends Controller
             $this->syncAppointmentInventoryStock([], collect([$appointment]));
             ResourceEarningLine::query()->where('appointment_id', $appointment->id)->delete();
             $this->reverseAppointmentWalletSourceUnless($request, "appointment-referral|{$appointment->id}", false);
-            $this->reverseAppointmentWalletSourceUnless($request, "appointment-wallet|{$appointment->id}", false);
+            $this->refundAppointmentPaymentsToWallet($request, $appointment);
             $appointment->delete();
             $this->syncMonthlySalesBonusLines($appointment->month);
         });
         $this->broadcastAppointmentChange($deletedAppointment, 'deleted');
         return response()->noContent();
+    }
+
+    /**
+     * با حذف نوبت هیچ پولی گم نمی‌شود: هر چه از کیف پول برداشته شده برگشت می‌خورد و
+     * پرداخت نقد، کارت یا چک (و تسویهٔ بدهی) به‌صورت اعتبار به کیف پول بیمار برمی‌گردد.
+     */
+    /**
+     * خلاصهٔ نقد، کارت و چک از روی دفتر مالی. نام روش‌های پرداخت در تنظیمات هر کلینیک فرق دارد
+     * (مثلاً «نقد» یا «نقدی»، «شبا» یا «پز»)؛ هر روشی جز نقد، چک و کیف پول کارت/انتقال بانکی حساب می‌شود.
+     */
+    private function paymentMethodTotals($paymentLedger): array
+    {
+        $isWallet = fn ($payment) => in_array($payment->payment_method, ['بیعانه / کیف پول', 'کیف پول'], true);
+        $isCash = fn ($payment) => str_contains((string) $payment->payment_method, 'نقد');
+        $isCheck = fn ($payment) => str_contains((string) $payment->payment_method, 'چک');
+        $checks = $paymentLedger->filter($isCheck);
+        $check = $checks->first();
+
+        return [
+            'cash' => (int) $paymentLedger->filter($isCash)->sum('amount'),
+            'card' => (int) $paymentLedger->reject(fn ($payment) => $isWallet($payment) || $isCash($payment) || $isCheck($payment))->sum('amount'),
+            'check' => [
+                'amount' => (int) $checks->sum('amount'),
+                'number' => $check?->reference_number ?? '',
+                'dueDate' => $check?->due_date?->format('Y-m-d') ?? '',
+            ],
+        ];
+    }
+
+    private function refundAppointmentPaymentsToWallet(Request $request, Appointment $appointment): void
+    {
+        WalletTransaction::query()
+            ->where('appointment_id', $appointment->id)
+            ->where('type', 'withdraw')
+            ->whereIn('source_type', ['appointment_payment', 'appointment_financial_payment', 'debt_settlement'])
+            ->whereNull('reversed_at')
+            ->lockForUpdate()->get()
+            ->each(fn (WalletTransaction $transaction) => $this->reverseWalletTransaction($request, $transaction, 'حذف نوبت'));
+
+        $ledger = AppointmentFinancialTransaction::query()
+            ->where('appointment_id', $appointment->id)
+            ->whereIn('type', ['payment', 'debt_settlement'])
+            ->whereNull('voided_at')
+            ->lockForUpdate()->get();
+        $paid = (int) $ledger->reject(fn (AppointmentFinancialTransaction $transaction) => in_array($transaction->payment_method, ['بیعانه / کیف پول', 'کیف پول'], true))
+            ->sum('amount');
+        if ($ledger->isEmpty()) {
+            // نوبت‌های قدیمی که پرداختشان فقط در payment_details ثبت شده است.
+            $details = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+            $paid = $this->signedMoneyToInteger($details['cash'] ?? 0) + $this->signedMoneyToInteger($details['card'] ?? 0)
+                + $this->signedMoneyToInteger(data_get($details, 'check.amount', 0))
+                + (int) collect($details['debt_payments'] ?? [])->sum(fn ($payment) => $this->signedMoneyToInteger($payment['amount'] ?? 0));
+        }
+
+        if ($paid > 0) {
+            $patient = $this->appointmentPatient($appointment);
+            abort_unless($patient, 422, 'این نوبت پرداخت ثبت‌شده دارد ولی پروندهٔ بیمار مشخص نیست؛ ابتدا پرداخت‌ها را از پنل مالی حذف کنید.');
+            WalletTransaction::create([
+                'patient_id' => $patient->id, 'type' => 'deposit', 'amount' => $paid,
+                'description' => "برگشت پرداخت نوبت حذف‌شده {$appointment->lastname} ({$appointment->month}-{$appointment->day_num})",
+                'source_type' => 'appointment_refund', 'source_key' => "appointment-delete-refund|{$appointment->id}",
+                'appointment_id' => $appointment->id, 'created_by' => $request->user()?->id,
+                // دفتر مالی نوبت با حذف آن پاک می‌شود؛ ریز پرداخت‌ها همین‌جا می‌ماند.
+                'metadata' => [
+                    'payments' => $ledger->map(fn (AppointmentFinancialTransaction $transaction) => [
+                        'type' => $transaction->type, 'method' => $transaction->payment_method,
+                        'account' => $transaction->payment_account, 'amount' => (int) $transaction->amount,
+                        'occurred_at' => $transaction->occurred_at?->toISOString(),
+                    ])->values()->all(),
+                    'ip' => $request->ip(),
+                ],
+            ]);
+        }
+
+        $ledger->each(fn (AppointmentFinancialTransaction $transaction) => $transaction->update(['voided_at' => now(), 'voided_by' => $request->user()?->id]));
     }
 
     /** Realtime delivery must never turn an already committed database write into an API failure. */
@@ -1697,6 +1752,7 @@ class AppointmentController extends Controller
                 filter_var($data['confirm_debt_overage'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 filter_var($data['confirm_overpayment'] ?? false, FILTER_VALIDATE_BOOLEAN)
                     || $previouslyConfirmedOverpayment >= max(0, $receivedTotal - $payable),
+                $this->appointmentIsDone($appointment),
             );
             $payable = $balance['payable'];
             $totalDebt = $balance['total_debt'];
@@ -1798,10 +1854,7 @@ class AppointmentController extends Controller
                 : '';
             $details['last_checkout_at'] = now()->toDateTimeString();
             $firstPayment = $payments->first();
-            $details['cash'] = (int) $paymentLedger->where('payment_method', 'نقدی')->sum('amount');
-            $details['card'] = (int) $paymentLedger->filter(fn ($payment) => in_array($payment->payment_method, ['کارت', 'کارت به کارت', 'کارتخوان', 'کارت / کارتخوان'], true))->sum('amount');
-            $check = $paymentLedger->firstWhere('payment_method', 'چک');
-            $details['check'] = ['amount' => (int) ($check['amount'] ?? 0), 'number' => $check['reference_number'] ?? '', 'dueDate' => $check['due_date'] ?? ''];
+            $details = [...$details, ...$this->paymentMethodTotals($paymentLedger)];
             $appointment->update([
                 'amount' => $payable, 'debt' => $balance['balance'],
                 'payment_method' => $firstPayment['method'] ?? $appointment->payment_method,
@@ -1879,10 +1932,7 @@ class AppointmentController extends Controller
             $details['ledger_total'] = $paymentTotal;
             $details['payment_breakdown'] = $paymentLedger->groupBy('payment_method')
                 ->map(fn ($items) => (int) $items->sum('amount'))->all();
-            $details['cash'] = (int) $paymentLedger->where('payment_method', 'نقدی')->sum('amount');
-            $details['card'] = (int) $paymentLedger->filter(fn ($payment) => in_array($payment->payment_method, ['کارت', 'کارت به کارت', 'کارتخوان', 'کارت / کارتخوان'], true))->sum('amount');
-            $check = $paymentLedger->firstWhere('payment_method', 'چک');
-            $details['check'] = ['amount' => (int) ($check?->amount ?? 0), 'number' => $check?->reference_number ?? '', 'dueDate' => $check?->due_date?->format('Y-m-d') ?? ''];
+            $details = [...$details, ...$this->paymentMethodTotals($paymentLedger)];
             $details['debtDescription'] = $debt > 0 ? ((string) ($details['debtDescription'] ?? '') ?: 'مانده پرداخت این نوبت') : '';
             $latestPayment = $paymentLedger->sortByDesc('id')->first();
 
@@ -2183,8 +2233,8 @@ class AppointmentController extends Controller
                 ->merge(collect($service['addons'] ?? [])->pluck('name'));
         })->filter()->unique()->values();
 
-        $inventoryIds = collect($services)->flatMap(fn ($service) => collect($service['addons'] ?? [])
-            ->pluck('inventory_id'))->filter()->unique()->values();
+        $inventoryIds = collect($services)->flatMap(fn ($service) => collect([$service['inventory_id'] ?? null])
+            ->merge(collect($service['addons'] ?? [])->pluck('inventory_id')))->filter()->unique()->values();
         $addonDefinitionIds = collect($services)->flatMap(fn ($service) => collect($service['addons'] ?? [])
             ->pluck('addon_definition_id'))->filter()->unique()->values();
         $inventory = Inventory::query()
@@ -2216,6 +2266,7 @@ class AppointmentController extends Controller
             $discount = $line['adjustment_mode'] === 'discount' ? min($adjustment, $lineAmount) : 0;
             $surcharge = $line['adjustment_mode'] === 'surcharge' ? $adjustment : 0;
             $line['discount'] = $line['adjustment_mode'] === 'surcharge' ? $surcharge : $discount;
+            if ($inventoryItem && empty($line['addon_definition_id'])) $line['inventory_id'] = $inventoryItem->id;
             $originalAmount += $lineAmount;
             $totalDiscount += $discount;
             $totalSurcharge += $surcharge;
@@ -2251,6 +2302,12 @@ class AppointmentController extends Controller
         ]));
 
         $negative = str_starts_with($text, '-');
+        // ستون‌های اعشاری مثل wallet_applied به شکل «2000000.00» خوانده می‌شوند؛
+        // حذف نقطه آن‌ها را صد برابر می‌کرد.
+        $plain = str_replace([',', '٬', '،', ' ', '٫'], ['', '', '', '', '.'], $text);
+        if (preg_match('/^-?\d+\.\d+$/', $plain)) {
+            return (int) round((float) $plain);
+        }
         $digits = preg_replace('/[^0-9]/', '', $text);
         $amount = (int) ($digits ?: 0);
 
@@ -2265,20 +2322,15 @@ class AppointmentController extends Controller
     private function syncAppointmentInventoryStock(array $pairs, $deletedAppointments): void
     {
         $movements = [];
-
         foreach ($pairs as $pair) {
-            // انتخاب خدمت در «وقت داده شد» رزرو موجودی نیست. مصرف و کنترل
-            // موجودی فقط زمانی انجام می‌شود که کار واقعاً انجام شده باشد.
-            $previous = $this->inventoryUsageForAppointment($pair['previous']);
+            $previous = $this->inventoryUsageForAppointment($pair['previous'], true);
             $current = $this->inventoryUsageForAppointment($pair['current']);
-            $names = array_unique([...array_keys($previous), ...array_keys($current)]);
-
-            foreach ($names as $name) {
-                $delta = ($previous[$name] ?? 0) - ($current[$name] ?? 0);
-                if (abs($delta) < 0.0001) continue;
+            foreach (array_unique([...array_keys($previous), ...array_keys($current)]) as $key) {
+                $delta = ($previous[$key] ?? 0) - ($current[$key] ?? 0);
+                if ($delta === 0) continue;
                 $appointment = $delta < 0 ? $pair['current'] : $pair['previous'];
                 $movements[] = [
-                    'name' => $name,
+                    'key' => $key,
                     'quantity' => $delta,
                     'appointment' => $appointment,
                     'type' => $delta < 0 ? 'appointment_consumption' : 'appointment_reversal',
@@ -2290,9 +2342,9 @@ class AppointmentController extends Controller
         }
 
         foreach ($deletedAppointments as $appointment) {
-            foreach ($this->inventoryUsageForAppointment($appointment) as $name => $quantity) {
+            foreach ($this->inventoryUsageForAppointment($appointment, true) as $key => $quantity) {
                 $movements[] = [
-                    'name' => $name,
+                    'key' => $key,
                     'quantity' => $quantity,
                     'appointment' => $appointment,
                     'type' => 'appointment_reversal',
@@ -2302,30 +2354,19 @@ class AppointmentController extends Controller
         }
 
         if ($movements === []) return;
-
-        $totals = [];
-        foreach ($movements as $movement) $totals[$movement['name']] = ($totals[$movement['name']] ?? 0) + $movement['quantity'];
-        $inventories = Inventory::query()->whereIn('name', array_keys($totals))->lockForUpdate()->get()->keyBy('name');
-
-        foreach ($totals as $name => $quantity) {
-            $inventory = $inventories->get($name);
-            if (! $inventory) continue;
-            if ((float) $inventory->amount <= 0) continue;
-            // کمبود موجودی نباید ثبت یا تکمیل نوبت را متوقف کند. مقدار منفی
-            // کمبود واقعی را نگه می‌دارد تا برگشت/ویرایش بعدی نیز دقیق باشد.
-            $inventory->update(['stock' => (float) $inventory->stock + $quantity]);
-        }
-
         foreach ($movements as $movement) {
-            $inventory = $inventories->get($movement['name']);
-            if (! $inventory) continue;
-            if ((float) $inventory->amount <= 0) continue;
+            [$kind, $id] = explode(':', $movement['key'], 2);
+            $item = ($kind === 'addon' ? InventoryAddonDefinition::query() : Inventory::query())
+                ->whereKey((int) $id)->lockForUpdate()->first();
+            if (! $item || ! $item->track_stock) continue;
+            $item->update(['stock' => (int) $item->stock + $movement['quantity']]);
             InventoryMovement::create([
-                'inventory_id' => $inventory->id,
-                'inventory_name' => $inventory->name,
+                'inventory_id' => $kind === 'inventory' ? $item->id : null,
+                'inventory_addon_definition_id' => $kind === 'addon' ? $item->id : null,
+                'inventory_name' => $item->name,
                 'quantity' => $movement['quantity'],
                 'type' => $movement['type'],
-                'appointment_id' => $movement['type'] === 'appointment_consumption' ? $movement['appointment']?->id : null,
+                'appointment_id' => $movement['appointment']?->id,
                 'description' => $movement['description'],
                 'occurred_at' => now(),
             ]);
@@ -2357,22 +2398,80 @@ class AppointmentController extends Controller
     private function inventoryUsageForServices(array $services): array
     {
         $usage = [];
-        foreach ($this->appointmentServiceLines($services) as $line) {
-            $name = trim((string) ($line['name'] ?? ''));
-            $quantity = max(0, (float) ($line['quantity'] ?? 0));
-            if ($name === '' || $quantity <= 0) continue;
-            $usage[$name] = ($usage[$name] ?? 0) + $quantity;
+        foreach ($services as $service) {
+            if (! is_array($service)) continue;
+            foreach ([$service, ...($service['addons'] ?? [])] as $line) {
+                if (! is_array($line)) continue;
+                $quantity = $line['cc'] ?? 0;
+                if (! is_numeric($quantity) || (float) $quantity <= 0) continue;
+                // Historical fractional values are ignored; all new writes are validated as integers.
+                $quantity = (int) $quantity;
+                if ($quantity === 0) continue;
+                $key = $this->inventoryKeyForAppointmentLine($line);
+                if ($key) $usage[$key] = ($usage[$key] ?? 0) + $quantity;
+            }
         }
         return $usage;
     }
 
-    private function inventoryUsageForAppointment(?Appointment $appointment): array
+    private function inventoryKeyForAppointmentLine(array $line): ?string
+    {
+        if (! empty($line['addon_definition_id'])) {
+            return 'addon:'.(int) $line['addon_definition_id'];
+        }
+        if (! empty($line['inventory_id'])) {
+            return 'inventory:'.(int) $line['inventory_id'];
+        }
+        $name = trim((string) ($line['name'] ?? ''));
+        if ($name === '') return null;
+        $inventoryIds = Inventory::query()->where('name', $name)->limit(2)->pluck('id');
+        if ($inventoryIds->count() === 1) return 'inventory:'.$inventoryIds->first();
+        // Old completed appointments predate stored IDs; a consumption movement
+        // retains the exact inventory ID even if the product was later renamed.
+        return null;
+    }
+
+    private function inventoryUsageForAppointment(?Appointment $appointment, bool $previous = false): array
     {
         if (! $this->appointmentIsDone($appointment)) {
             return [];
         }
 
-        return $this->inventoryUsageForServices($appointment->services ?? []);
+        $services = $appointment->services ?? [];
+        if ($appointment->exists && $appointment->id && Schema::hasTable('inventory_movements')) {
+            foreach ($services as &$service) {
+                if (! is_array($service)) continue;
+                foreach (['self', 'addons'] as $part) {
+                    if ($part === 'self') {
+                        $lines = [&$service];
+                    } else {
+                        $lines = &$service['addons'];
+                        if (! is_array($lines)) continue;
+                    }
+                    foreach ($lines as &$line) {
+                        if (! is_array($line) || ! empty($line['inventory_id']) || ! empty($line['addon_definition_id'])) continue;
+                        $movement = InventoryMovement::query()->where('appointment_id', $appointment->id)
+                            ->where('inventory_name', trim((string) ($line['name'] ?? '')))
+                            ->where('type', 'appointment_consumption')->whereNotNull('inventory_id')
+                            ->latest('id')->first();
+                        if ($movement) $line['inventory_id'] = $movement->inventory_id;
+                    }
+                    unset($line, $lines);
+                }
+            }
+            unset($service);
+        }
+        $usage = $this->inventoryUsageForServices($services);
+        if (! $previous || ! $appointment->id || ! Schema::hasTable('inventory_movements')) return $usage;
+        // A completed appointment created before tracking was enabled never
+        // reduced stock, so editing or deleting it must not add phantom stock.
+        $consumed = InventoryMovement::query()->where('appointment_id', $appointment->id)
+            ->where('type', 'appointment_consumption')->get();
+        return array_filter($usage, function ($quantity, $key) use ($consumed) {
+            [$kind, $id] = explode(':', $key, 2);
+            return $consumed->contains(fn (InventoryMovement $movement) =>
+                (int) ($kind === 'addon' ? $movement->inventory_addon_definition_id : $movement->inventory_id) === (int) $id);
+        }, ARRAY_FILTER_USE_BOTH);
     }
 
     private function appointmentIsDone(?Appointment $appointment): bool
@@ -2515,7 +2614,8 @@ class AppointmentController extends Controller
         return [
             'name' => trim((string) ($line['name'] ?? '')),
             'addon_definition_id' => ! empty($line['addon_definition_id']) ? (int) $line['addon_definition_id'] : null,
-            'quantity' => max(0, (float) ($line['cc'] ?? 1)),
+            // تعداد خالی یعنی صفر، همان‌طور که مبلغ نوبت حساب می‌شود؛ فقط داده‌ای که اصلاً cc ندارد یک واحد است.
+            'quantity' => max(0, (float) (array_key_exists('cc', $line) ? ($line['cc'] ?? 0) : ($line['quantity'] ?? 1))),
             // فیلد discount در حالت اضافه‌مبلغ، مبلغ اضافه را نگه می‌دارد نه تخفیف را.
             'discount' => $isSurcharge ? 0 : $adjustment,
             'surcharge' => $isSurcharge ? $adjustment : 0,
@@ -2772,56 +2872,118 @@ class AppointmentController extends Controller
     private function syncMonthlySalesBonusLines(string $month): void
     {
         // Sales bonuses are derived rows. Rebuild them instead of appending a
-        // duplicate every time an appointment or channel rule is saved.
+        // duplicate every time an appointment or channel rule is saved; a row
+        // edited or deleted on the payroll page stays as the manager left it.
         ResourceEarningLine::query()
             ->where('month', $month)
             ->where('earning_type', 'sales_bonus')
+            ->where('status', 'active')
+            ->where('manually_edited', false)
             ->delete();
+        $kept = ResourceEarningLine::query()
+            ->where('month', $month)
+            ->where('earning_type', 'sales_bonus')
+            ->get()
+            ->keyBy(fn (ResourceEarningLine $line) => $line->resource_type.'-'.$line->resource_id);
 
-        foreach ([['type' => 'doctor', 'model' => Doctor::class], ['type' => 'staff', 'model' => Staff::class]] as $target) {
-            $target['model']::query()->where('sales_bonus_enabled', true)->get()->each(function (Doctor|Staff $resource) use ($month, $target) {
-                $sales = (float) ResourceEarningLine::query()
-                    ->where('month', $month)
-                    ->where('resource_type', $target['type'])
-                    ->where('resource_id', $resource->id)
-                    ->where('status', 'active')
-                    ->whereIn('earning_type', ResourceEarningLine::COMMISSION_TYPES)
-                    ->sum('net_amount');
+        $resources = collect()
+            ->merge(Doctor::query()->where('sales_bonus_enabled', true)->get()->map(fn (Doctor $doctor) => ['doctor', $doctor]))
+            ->merge(Staff::query()->where('sales_bonus_enabled', true)->get()->map(fn (Staff $staff) => ['staff', $staff]))
+            ->reject(fn (array $item) => $kept->has($item[0].'-'.$item[1]->id));
+        if ($resources->isEmpty()) {
+            return;
+        }
 
-                $tier = collect($resource->sales_bonus_tiers ?? [])
-                    ->filter(fn ($item) => $sales >= (float) ($item['sales_from'] ?? 0))
-                    ->sortByDesc(fn ($item) => (float) ($item['sales_from'] ?? 0))
-                    ->first();
+        $salesByResource = $this->monthlyTargetSales($month);
+        foreach ($resources as [$type, $resource]) {
+            $sales = (float) ($salesByResource[$type.'-'.$resource->id] ?? 0);
+            $tier = $this->reachedSalesTier($resource, $sales);
+            if (! $tier) {
+                continue;
+            }
 
-                if (! $tier) {
-                    return;
+            ResourceEarningLine::create([
+                'appointment_id' => null,
+                'month' => $month,
+                'earned_at' => now(),
+                'resource_type' => $type,
+                'resource_id' => $resource->id,
+                'resource_name' => $resource->name,
+                'earning_type' => 'sales_bonus',
+                'gross_amount' => $sales,
+                'net_amount' => $sales,
+                'commission_base' => $sales,
+                'commission_type' => 'tier',
+                'commission_value' => (float) ($tier['sales_from'] ?? 0),
+                'amount' => (float) ($tier['salary_addition'] ?? 0),
+                'commission_after_materials' => true,
+                'commission_customer_scope' => $resource->commission_customer_scope ?? 'both',
+                'calculation_snapshot' => [
+                    'monthly_sales' => $sales,
+                    'sales_basis' => 'همهٔ خدمات انجام‌شده، بعد از تخفیف و کسر مواد',
+                    'matched_tier' => $tier,
+                    'all_tiers' => $resource->sales_bonus_tiers ?? [],
+                ],
+                'description' => 'پاداش پلکانی فروش ماهانه',
+            ]);
+        }
+    }
+
+    /** بالاترین پله‌ای که فروش ماه به آن رسیده است (رسیدن یعنی برابر یا بیشتر). */
+    public function reachedSalesTier(Doctor|Staff $resource, float $sales): ?array
+    {
+        return collect($resource->sales_bonus_tiers ?? [])
+            ->filter(fn ($item) => (float) ($item['sales_from'] ?? 0) > 0 && $sales >= (float) ($item['sales_from'] ?? 0))
+            ->sortByDesc(fn ($item) => (float) ($item['sales_from'] ?? 0))
+            ->first();
+    }
+
+    /**
+     * فروش ماهانهٔ هر نیرو برای تارگت، با کلید «نوع-شناسه»: همهٔ خدمات نوبت‌های انجام‌شده‌ای که
+     * پزشک یا مشاورش بوده (چه پورسانت گرفته باشد چه نه)، بعد از تخفیف، با اضافه‌مبلغ و پس از کسر مواد.
+     */
+    public function monthlyTargetSales(string $month): array
+    {
+        $appointments = Appointment::query()->where('month', $month)->get()
+            ->filter(fn (Appointment $appointment) => $this->appointmentIsDone($appointment));
+        $inventories = Inventory::query()->get()->keyBy('name');
+        $doctors = Doctor::query()->get()->keyBy(fn (Doctor $doctor) => $this->resourceKey($doctor->name));
+        $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
+        $sales = [];
+
+        foreach ($appointments as $appointment) {
+            foreach ($this->appointmentServiceLines($appointment->services ?? [], (float) ($appointment->discount ?? 0)) as $line) {
+                $inventory = $inventories->get($line['name']);
+                if (! $inventory || ! empty($line['addon_definition_id']) || $line['quantity'] <= 0) {
+                    continue;
                 }
 
-                ResourceEarningLine::create([
-                    'appointment_id' => null,
-                    'month' => $month,
-                    'earned_at' => now(),
-                    'resource_type' => $target['type'],
-                    'resource_id' => $resource->id,
-                    'resource_name' => $resource->name,
-                    'earning_type' => 'sales_bonus',
-                    'gross_amount' => $sales,
-                    'net_amount' => $sales,
-                    'commission_base' => $sales,
-                    'commission_type' => 'tier',
-                    'commission_value' => (float) ($tier['sales_from'] ?? 0),
-                    'amount' => (float) ($tier['salary_addition'] ?? 0),
-                    'commission_after_materials' => (bool) ($resource->commission_after_materials ?? false),
-                    'commission_customer_scope' => $resource->commission_customer_scope ?? 'both',
-                    'calculation_snapshot' => [
-                        'monthly_sales' => $sales,
-                        'matched_tier' => $tier,
-                        'all_tiers' => $resource->sales_bonus_tiers ?? [],
-                    ],
-                    'description' => 'پاداش پلکانی فروش ماهانه',
-                ]);
-            });
+                $lineSales = $this->earningAmounts($line, $inventory, true)['base'];
+                foreach ([
+                    ['doctor', $line['doctor'] ?: $appointment->doctor, $doctors],
+                    ['staff', $line['consultant'] ?: $appointment->consultant, $staff],
+                ] as [$type, $name, $map]) {
+                    $resource = $map->get($this->resourceKey($name));
+                    if ($resource) {
+                        $sales[$type.'-'.$resource->id] = ($sales[$type.'-'.$resource->id] ?? 0) + $lineSales;
+                    }
+                }
+            }
         }
+
+        return $sales;
+    }
+
+    /** بعد از تغییر درصد، کسر مواد یا پله‌های تارگت در منابع، فقط ماه جاری دوباره حساب می‌شود. */
+    public function resyncMonthEarnings(string $month): int
+    {
+        return DB::transaction(function () use ($month) {
+            $appointments = Appointment::query()->where('month', $month)->get();
+            $appointments->each(fn (Appointment $appointment) => $this->syncResourceEarningLines($appointment));
+            $this->syncMonthlySalesBonusLines($month);
+
+            return $appointments->count();
+        });
     }
 
     private function resourceKey(?string $name): string
@@ -2922,6 +3084,12 @@ class AppointmentController extends Controller
 
     private function appointmentPatient(Appointment $appointment): ?Patient
     {
+        // بدون شماره پرونده و تلفن، نوبت به هیچ بیماری وصل نیست؛ وگرنه شرط خالی اولین بیمار را برمی‌گرداند
+        // و کیف پول، بدهی و پرداخت‌ها به نام او ثبت می‌شد.
+        if (blank($appointment->file_number) && blank($appointment->phone)) {
+            return null;
+        }
+
         return Patient::query()->where(function ($query) use ($appointment) {
             if ($appointment->file_number) $query->where('file_number', $appointment->file_number);
             if ($appointment->phone) {

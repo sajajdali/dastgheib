@@ -888,7 +888,7 @@
             </div>
 
             <div class="table-scroll" @scroll="closeAllFilters">
-              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: '1410px' }">
+              <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: (isGeneralFollowupCampaign(activeCampaign) ? 1530 : 1410) + 'px' }">
                 <thead>
                   <tr>
                     <!-- نام -->
@@ -909,14 +909,32 @@
                     </th>
 
                     <!-- تاریخ پیگیری -->
-                    <th class="center resizable" :style="{ width: colWidths.contactDate + 'px' }">
-                      <div class="th-content">تاریخ و ساعت تماس</div>
+                    <th class="center resizable" :class="{ filterable: isGeneralFollowupCampaign(activeCampaign), 'filtered-cell': isFiltered('contactDate') }" :style="{ width: colWidths.contactDate + 'px' }">
+                      <div class="th-content">تاریخ و ساعت تماس <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ تماس" @click.stop="toggleFilterMenu('contactDate', $event)">⚙</button></div>
+                      <div v-if="activeFilter === 'contactDate'" class="filter-dropdown date-filter-dropdown" :style="filterMenuStyle" @click.stop>
+                        <div class="date-filter-title">فیلتر تاریخ تماس</div>
+                        <div class="date-filter-field"><span>از</span><DatePicker v-model="dateFilters.contactDate.from" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
+                        <div class="date-filter-field"><span>تا</span><DatePicker v-model="dateFilters.contactDate.to" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
+                        <div class="date-filter-actions">
+                          <button type="button" @click="setDateFilterToday('contactDate')">امروز</button>
+                          <button v-if="isFiltered('contactDate')" type="button" class="danger" @click="clearDateFilter('contactDate')">پاک کردن</button>
+                        </div>
+                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'contactDate')" @dblclick.stop="autoFitFollowupColumn('contactDate')"></div>
                     </th>
 
                     <!-- تاریخ پیگیری -->
-                    <th class="center resizable" :style="{ width: colWidths.followUpDate + 'px' }">
-                      <div class="th-content">تاریخ پیگیری</div>
+                    <th class="center resizable" :class="{ filterable: isGeneralFollowupCampaign(activeCampaign), 'filtered-cell': isFiltered('followUpDate') }" :style="{ width: colWidths.followUpDate + 'px' }">
+                      <div class="th-content">تاریخ پیگیری <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ پیگیری" @click.stop="toggleFilterMenu('followUpDate', $event)">⚙</button></div>
+                      <div v-if="activeFilter === 'followUpDate'" class="filter-dropdown date-filter-dropdown" :style="filterMenuStyle" @click.stop>
+                        <div class="date-filter-title">فیلتر تاریخ پیگیری</div>
+                        <div class="date-filter-field"><span>از</span><DatePicker v-model="dateFilters.followUpDate.from" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
+                        <div class="date-filter-field"><span>تا</span><DatePicker v-model="dateFilters.followUpDate.to" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
+                        <div class="date-filter-actions">
+                          <button type="button" @click="setDateFilterToday('followUpDate')">امروز</button>
+                          <button v-if="isFiltered('followUpDate')" type="button" class="danger" @click="clearDateFilter('followUpDate')">پاک کردن</button>
+                        </div>
+                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'followUpDate')" @dblclick.stop="autoFitFollowupColumn('followUpDate')"></div>
                     </th>
 
@@ -980,6 +998,25 @@
                         <label v-for="val in getUniqueValues('source')" :key="val" class="filter-option"><input type="checkbox" :checked="selectedFilters.source.includes(val)" @change="toggleValue('source', val)" /><span>{{ val }}</span></label>
                       </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'source')" @dblclick.stop="autoFitFollowupColumn('source')"></div>
+                    </th>
+                    <!-- بخش (فقط زیربخش آخر) -->
+                    <th
+                      v-if="isGeneralFollowupCampaign(activeCampaign)"
+                      class="filterable resizable"
+                      :class="{ 'filtered-cell': isFiltered('subsection') }"
+                      :style="{ width: colWidths.subsection + 'px' }"
+                    >
+                      <div class="th-content">بخش <button class="filter-btn" title="فیلتر بخش" @click.stop="toggleFilterMenu('subsection', $event)">⚙</button></div>
+                      <div v-if="activeFilter === 'subsection'" class="filter-dropdown subsection-filter-dropdown" :style="filterMenuStyle" @click.stop>
+                        <input v-model="subsectionFilterSearch" class="filter-search-input" type="search" placeholder="جست‌وجوی بخش..." @keydown.stop />
+                        <label v-for="option in subsectionFilterOptions" :key="option.value" class="filter-option">
+                          <input type="checkbox" :checked="selectedFilters.subsection.includes(option.value)" @change="toggleValue('subsection', option.value)" />
+                          <span>{{ option.label }}</span>
+                        </label>
+                        <div v-if="!subsectionFilterOptions.length" class="filter-empty">بخشی پیدا نشد.</div>
+                        <button v-if="isFiltered('subsection')" type="button" class="filter-clear-btn" @click="selectedFilters.subsection = []">پاک کردن فیلتر</button>
+                      </div>
+                      <div class="resizer" @mousedown.stop.prevent="initResize($event, 'subsection')" @dblclick.stop="autoFitFollowupColumn('subsection')"></div>
                     </th>
                     <!-- وضعیت -->
                     <th
@@ -1196,6 +1233,55 @@
                       </select>
                     </td>
 
+                    <td v-if="isGeneralFollowupCampaign(activeCampaign)" class="subsection-cell" :class="{ 'filtered-cell': isFiltered('subsection') }" @click.stop>
+                      <button
+                        type="button"
+                        class="subsection-trigger"
+                        :class="{ active: followupSubsectionLabel(row) }"
+                        :title="followupSubsectionLabel(row) || 'انتخاب بخش'"
+                        @click="toggleSubsectionMenu(row, $event)"
+                      >
+                        <span>{{ followupSubsectionLabel(row) || 'انتخاب بخش' }}</span>
+                        <b>⌄</b>
+                      </button>
+                      <teleport to="body">
+                        <div
+                          v-if="activeSubsectionRowId === row._localId"
+                          class="subsection-menu-floating"
+                          :style="subsectionMenuStyle"
+                          @click.stop
+                        >
+                          <input
+                            v-model="subsectionSearch"
+                            class="filter-search-input subsection-search-input"
+                            type="search"
+                            placeholder="جست‌وجوی بخش..."
+                            @keydown.esc.prevent="closeSubsectionMenu"
+                            @keydown.enter.prevent="selectFirstSubsection(row)"
+                          />
+                          <div class="subsection-options">
+                            <div v-if="subsectionsLoading" class="filter-empty">در حال دریافت بخش‌ها...</div>
+                            <div v-else-if="subsectionsLoadError" class="filter-empty">{{ subsectionsLoadError }} <button type="button" class="subsection-retry" @click="loadSubsections">تلاش مجدد</button></div>
+                            <template v-else>
+                              <button v-if="followupSubsectionLabel(row)" type="button" class="subsection-option clear" @click="setRowSubsection(row, null)">بدون بخش</button>
+                              <button
+                                v-for="option in filteredSubsectionOptions"
+                                :key="option.id"
+                                type="button"
+                                class="subsection-option"
+                                :class="{ selected: String(option.id) === String(row.subsectionId || '') }"
+                                @click="setRowSubsection(row, option)"
+                              >
+                                <span>{{ option.name }}</span>
+                                <i v-if="String(option.id) === String(row.subsectionId || '')">✓</i>
+                              </button>
+                              <div v-if="!filteredSubsectionOptions.length" class="filter-empty">{{ subsectionOptions.length ? 'بخشی با این نام پیدا نشد.' : 'هنوز زیربخشی در بخش خدمات تعریف نشده است.' }}</div>
+                            </template>
+                          </div>
+                        </div>
+                      </teleport>
+                    </td>
+
                     <td
                       :class="[
                         { 'filtered-cell': isFiltered('status') },
@@ -1285,7 +1371,7 @@
                   </tr>
 
                   <tr v-if="!activeFilteredRows.length">
-                    <td :colspan="(canOpenAppointments ? 14 : 13) - (isGeneralFollowupCampaign(activeCampaign) ? 0 : 1)" class="empty-state">
+                    <td :colspan="(canOpenAppointments ? 14 : 13) + (isGeneralFollowupCampaign(activeCampaign) ? 1 : -1)" class="empty-state">
                       موردی یافت نشد.
                     </td>
                   </tr>
@@ -1627,10 +1713,22 @@ export default {
         gender: [],
         consultant: [],
         source: [],
+        subsection: [],
         status: [],
         interest: [],
         reason: [],
       },
+      dateFilters: {
+        contactDate: { from: "", to: "" },
+        followUpDate: { from: "", to: "" },
+      },
+      subsectionOptions: [],
+      subsectionsLoading: false,
+      subsectionsLoadError: "",
+      subsectionFilterSearch: "",
+      activeSubsectionRowId: null,
+      subsectionMenuStyle: {},
+      subsectionSearch: "",
 
       colWidths: {
         campaignTitle: 128,
@@ -1642,6 +1740,7 @@ export default {
         gender: 64,
         consultant: 104,
         source: 92,
+        subsection: 120,
         status: 90,
         description: 132,
         interest: 76,
@@ -1739,8 +1838,37 @@ export default {
           return selected.includes(value);
         });
 
-        return inSearch && colMatch;
+        if (!inSearch || !colMatch) return false;
+        if (!this.isGeneralFollowupCampaign(this.activeCampaign)) return true;
+
+        const subsectionMatch = !this.selectedFilters.subsection.length
+          || this.selectedFilters.subsection.includes(this.followupSubsectionFilterValue(r));
+        return subsectionMatch
+          && this.rowMatchesDateFilter(r, "contactDate")
+          && this.rowMatchesDateFilter(r, "followUpDate");
       });
+    },
+
+    filteredSubsectionOptions() {
+      const term = this.normalizeSubsectionSearch(this.subsectionSearch);
+      if (!term) return this.subsectionOptions;
+      return this.subsectionOptions.filter(option => this.normalizeSubsectionSearch(option.name).includes(term));
+    },
+
+    subsectionFilterOptions() {
+      const names = new Set(this.subsectionOptions.map(option => option.name));
+      (this.activeCampaign?.rows || []).forEach(row => {
+        const label = this.followupSubsectionLabel(row);
+        if (label) names.add(label);
+      });
+      const options = [
+        { value: "__none__", label: "بدون بخش" },
+        ...[...names].sort((a, b) => a.localeCompare(b, "fa")).map(name => ({ value: name, label: name })),
+      ];
+      const term = this.normalizeSubsectionSearch(this.subsectionFilterSearch);
+      if (!term) return options;
+      return options.filter(option => this.selectedFilters.subsection.includes(option.value)
+        || this.normalizeSubsectionSearch(option.label).includes(term));
     },
 
     reportAllFilteredRows() {
@@ -1852,6 +1980,7 @@ export default {
     this.loadStaff();
     this.loadDoctors();
     this.loadChannels();
+    this.loadSubsections();
     this.loadLandingSmsTags();
     this.loadCampaignsFromServer();
     this.hydrateFollowupPatientProfiles();
@@ -2284,6 +2413,7 @@ export default {
       this.showArchived = false;
       this.showMissedFollowups = false;
       this.loadChannels();
+      this.loadSubsections();
 
       let campaign = this.generalFollowupCampaign;
       try {
@@ -2431,6 +2561,7 @@ export default {
       this.filterMenuStyle = {};
       this.reportFilterMenuStyle = {};
       this.closeLandingMenu();
+      this.closeSubsectionMenu();
       this.closeFollowupPatientSearch();
     },
 
@@ -2521,7 +2652,104 @@ export default {
     },
 
     isFiltered(key) {
+      if (this.dateFilters[key]) return Boolean(this.dateFilters[key].from || this.dateFilters[key].to);
       return this.selectedFilters[key] && this.selectedFilters[key].length > 0;
+    },
+
+    rowMatchesDateFilter(row, key) {
+      const filter = this.dateFilters[key];
+      const from = this.normalizeDateValue(filter?.from);
+      const to = this.normalizeDateValue(filter?.to);
+      if (!from && !to) return true;
+      const value = this.normalizeDateValue(row?.[key]).slice(0, 10);
+      if (!value) return false;
+      if (from && value < from) return false;
+      if (to && value > to) return false;
+      return true;
+    },
+
+    setDateFilterToday(key) {
+      const today = moment().format("YYYY-MM-DD");
+      this.dateFilters[key] = { from: today, to: today };
+    },
+
+    clearDateFilter(key) {
+      this.dateFilters[key] = { from: "", to: "" };
+    },
+
+    normalizeSubsectionSearch(value) {
+      return this.normalizeDigits(String(value || ""))
+        .replace(/ي/g, "ی")
+        .replace(/ك/g, "ک")
+        .replace(/[\u200c\s]+/g, " ")
+        .trim()
+        .toLowerCase();
+    },
+
+    followupSubsectionLabel(row) {
+      const id = String(row?.subsectionId || "");
+      if (id) {
+        const option = this.subsectionOptions.find(item => String(item.id) === id);
+        if (option) return option.name;
+      }
+      return String(row?.subsectionName || "").trim();
+    },
+
+    followupSubsectionFilterValue(row) {
+      return this.followupSubsectionLabel(row) || "__none__";
+    },
+
+    toggleSubsectionMenu(row, event) {
+      if (this.activeSubsectionRowId === row._localId) {
+        this.closeSubsectionMenu();
+        return;
+      }
+      this.activeFilter = null;
+      this.closeLandingMenu();
+      this.subsectionMenuStyle = { ...this.floatingFilterMenuStyle(event), width: "230px" };
+      this.subsectionSearch = "";
+      this.activeSubsectionRowId = row._localId;
+      if (!this.subsectionOptions.length && !this.subsectionsLoading) this.loadSubsections();
+      this.$nextTick(() => document.querySelector(".subsection-menu-floating .subsection-search-input")?.focus());
+    },
+
+    closeSubsectionMenu() {
+      this.activeSubsectionRowId = null;
+      this.subsectionMenuStyle = {};
+      this.subsectionSearch = "";
+    },
+
+    setRowSubsection(row, option) {
+      row.subsectionId = option ? Number(option.id) : null;
+      row.subsectionName = option ? option.name : "";
+      this.closeSubsectionMenu();
+    },
+
+    selectFirstSubsection(row) {
+      const [first] = this.filteredSubsectionOptions;
+      if (first) this.setRowSubsection(row, first);
+    },
+
+    async loadSubsections() {
+      this.subsectionsLoading = true;
+      this.subsectionsLoadError = "";
+      try {
+        const { data } = await axios.get("/api/campaigns/subsections");
+        const seen = new Set();
+        this.subsectionOptions = (Array.isArray(data) ? data : [])
+          .map(item => ({ id: item?.id, name: String(item?.name || "").trim() }))
+          .filter(item => {
+            if (!item.id || !item.name || seen.has(String(item.id))) return false;
+            seen.add(String(item.id));
+            return true;
+          });
+      } catch (error) {
+        this.subsectionOptions = [];
+        this.subsectionsLoadError = "بارگذاری بخش‌ها انجام نشد.";
+        console.error("Subsections load error", error);
+      } finally {
+        this.subsectionsLoading = false;
+      }
     },
     isReportFiltered(key) {
       return this.selectedReportFilters[key] && this.selectedReportFilters[key].length > 0;
@@ -2533,13 +2761,13 @@ export default {
         this.colWidths[key] = fixed[key];
         return;
       }
-      const fieldMap = { campaignTitle:'campaignTitle', fullName:'fullName', phone:'phone', consultant:'consultant', source:'source', status:'status', description:'description', reason:'reason' };
+      const fieldMap = { campaignTitle:'campaignTitle', fullName:'fullName', phone:'phone', consultant:'consultant', source:'source', subsection:'subsectionName', status:'status', description:'description', reason:'reason' };
       const field = fieldMap[key];
       if (!field) return;
       const rows = this.activeCampaign ? this.activeCampaign.rows : this.reportFilteredRows;
-      const longest = Math.max(String({ campaignTitle:'نام کمپین', fullName:'نام کامل', phone:'شماره تماس', consultant:'مشاور', source:'منبع', status:'وضعیت', description:'توضیحات', reason:'علت' }[key] || '').length, ...(rows || []).map(row => String(row?.[field] || '').length));
+      const longest = Math.max(String({ campaignTitle:'نام کمپین', fullName:'نام کامل', phone:'شماره تماس', consultant:'مشاور', source:'منبع', subsection:'بخش', status:'وضعیت', description:'توضیحات', reason:'علت' }[key] || '').length, ...(rows || []).map(row => String(row?.[field] || '').length));
       const extra = key === 'fullName' ? 54 : 26;
-      const minimum = { campaignTitle:120, fullName:145, phone:110, consultant:110, source:95, status:95, description:135, reason:90 }[key] || 80;
+      const minimum = { campaignTitle:120, fullName:145, phone:110, consultant:110, source:95, subsection:110, status:95, description:135, reason:90 }[key] || 80;
       const maximum = { description:240, fullName:220, campaignTitle:220 }[key] || 170;
       this.colWidths[key] = Math.max(minimum, Math.min(maximum, longest * 7 + extra));
     },
@@ -2674,13 +2902,20 @@ export default {
       this.appointmentTimelineDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       this.campaignSearch = "";
       this.activeFilter = null;
+      this.closeSubsectionMenu();
+      this.subsectionFilterSearch = "";
       this.selectedFilters = {
         gender: [],
         consultant: [],
         source: [],
+        subsection: [],
         status: [],
         interest: [],
         reason: [],
+      };
+      this.dateFilters = {
+        contactDate: { from: "", to: "" },
+        followUpDate: { from: "", to: "" },
       };
       if (this.highlightedFollowupRowId) {
         this.$nextTick(() => this.scrollToHighlightedFollowupRow());
@@ -2832,6 +3067,7 @@ export default {
         ['تاریخ پیگیری', row => this.formatDateFa(row.followUpDate)],
         ['مشاور', row => row.consultant],
         ['منبع', row => row.source || campaign.source],
+        ...(this.isGeneralFollowupCampaign(campaign) ? [['بخش', row => this.followupSubsectionLabel(row)]] : []),
         ['وضعیت', row => row.status],
         ['تمایل', row => interestLabels[String(row.interest ?? '')] || ''],
         ['علت', row => row.reason],
@@ -2992,6 +3228,8 @@ export default {
         consultant: "",
         description: "",
         source: "",
+        subsectionId: null,
+        subsectionName: "",
         status: "",
         landingSms: [],
         landingSmsSent: {},
@@ -3656,6 +3894,8 @@ export default {
                 consultant: r.consultant ?? "",
                 description: r.description ?? "",
                 source: r.source ?? "",
+                subsectionId: r.subsectionId ?? null,
+                subsectionName: r.subsectionName ?? "",
                 status: normalizeStatus(r.status ?? ""),
                 landingSms: Array.isArray(r.landingSms)
                   ? r.landingSms.filter(Boolean)
@@ -5245,6 +5485,7 @@ export default {
   cursor: grab;
 }
 .report-filter-tabs{display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:6px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.report-filter-tabs button{height:40px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#64748b;font-family:inherit;font-weight:900;cursor:pointer}.report-filter-tabs button.active{background:#2563eb;color:#fff;box-shadow:0 7px 18px rgba(37,99,235,.2)}.report-filter-tabs>span{margin-right:auto;padding:5px 10px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:11px;font-weight:900}.report-filter-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.report-filter-group{min-width:0;display:flex;flex-direction:column;gap:8px}.report-filter-group.wide{grid-column:span 2}.report-filter-group>b{color:#334155;font-size:12px}.report-filter-group>input,.report-cost-range input{height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;outline:none}.report-filter-group>input:focus,.report-cost-range input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.report-filter-chips{display:flex;gap:6px;flex-wrap:wrap}.report-filter-chips label{display:flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #dbe3ed;border-radius:999px;background:#fff;color:#475569;font-size:10px;font-weight:900;cursor:pointer}.report-filter-chips label.selected{border-color:#60a5fa;background:#dbeafe;color:#1d4ed8}.report-filter-chips input{display:none}.report-cost-range>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-filter-actions{display:flex;justify-content:flex-end;padding:8px 0}.report-filter-actions button{padding:8px 13px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7;color:#b91c1c;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.filtered-campaign-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-height:52vh;overflow:auto;padding:5px}.filtered-campaign-results article{padding:15px;border:1px solid #e2e8f0;border-radius:15px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);cursor:pointer;transition:.18s}.filtered-campaign-results article:hover{transform:translateY(-2px);border-color:#93c5fd;box-shadow:0 12px 25px rgba(15,23,42,.1)}.filtered-campaign-results header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.filtered-campaign-results header strong{overflow:hidden;color:#0f172a;text-overflow:ellipsis;white-space:nowrap}.filtered-campaign-results header span{padding:4px 7px;border-radius:999px;font-size:9px;font-weight:900}.filtered-campaign-results article>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filtered-campaign-results article>div span{display:flex;justify-content:space-between;padding:7px;border-radius:8px;background:#f8fafc;color:#64748b;font-size:10px}.filtered-campaign-results article>div b{color:#1e293b}@media(max-width:900px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr 1fr}}@media(max-width:640px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr}.report-filter-group.wide{grid-column:auto}.report-filter-tabs button{padding:0 10px}.report-filter-tabs>span{display:none}}
+.subsection-cell{position:relative;overflow:visible!important}.subsection-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#94a3b8;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}.subsection-trigger.active{border-color:#a78bfa;background:#f5f3ff;color:#5b21b6}.subsection-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.subsection-menu-floating{position:fixed!important;z-index:2147483575!important;display:flex;flex-direction:column;gap:6px;max-height:min(330px,calc(100vh - 24px));padding:8px;border:1px solid #ddd6fe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2);direction:rtl;box-sizing:border-box}.subsection-options{display:grid;gap:2px;overflow:auto;max-height:260px}.subsection-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 9px;border:0;border-radius:8px;background:transparent;color:#334155;font-family:inherit;font-size:11px;font-weight:800;text-align:right;cursor:pointer}.subsection-option:hover,.subsection-option.selected{background:#f5f3ff;color:#5b21b6}.subsection-option.clear{color:#b91c1c}.subsection-option.clear:hover{background:#fee2e2}.subsection-option i{color:#16a34a;font-style:normal;font-weight:1000}.subsection-retry{margin-right:4px;border:0;background:none;color:#2563eb;font-family:inherit;font-weight:900;cursor:pointer}.filter-search-input{width:100%;height:32px;margin:0 0 6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#0f172a;font-family:inherit;font-size:11px;box-sizing:border-box}.filter-search-input:focus{outline:none;border-color:#8b5cf6;background:#fff}.filter-empty{padding:9px 6px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}.filter-clear-btn{width:100%;margin-top:6px;padding:7px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-dropdown{min-width:230px!important}.date-filter-title{padding:2px 4px 8px;color:#334155;font-size:11px;font-weight:1000}.date-filter-field{display:grid;grid-template-columns:22px 1fr;align-items:center;gap:6px;margin-bottom:6px;color:#64748b;font-size:11px;font-weight:900}.date-filter-actions{display:flex;gap:6px;margin-top:4px}.date-filter-actions button{flex:1;padding:7px;border:0;border-radius:8px;background:#ede9fe;color:#5b21b6;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-actions button.danger{background:#fee2e2;color:#b91c1c}
 .landing-multi-cell{position:relative;overflow:visible!important}.landing-multi-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer}.landing-multi-trigger.active{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.landing-multi-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.landing-multi-menu{position:absolute;z-index:500;top:calc(100% + 5px);right:4px;width:230px;padding:8px;border:1px solid #dbeafe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2)}.landing-multi-menu-floating{position:fixed!important;z-index:1000005!important;max-height:min(320px,calc(100vh - 24px));overflow:auto}.landing-multi-title{padding:5px 7px 9px;border-bottom:1px solid #eef2f7;color:#334155;font-size:11px;font-weight:1000}.landing-multi-menu label{display:flex;align-items:center;gap:8px;padding:9px 7px;border-radius:8px;color:#475569;font-size:11px;font-weight:800;cursor:pointer}.landing-multi-menu label:hover,.landing-multi-menu label.selected{background:#eff6ff;color:#1d4ed8}.landing-multi-menu input{width:16px!important;height:16px!important;accent-color:#2563eb}.landing-multi-menu label span{flex:1}.landing-multi-menu label i{color:#16a34a;font-style:normal;font-weight:1000}.landing-clear-btn{width:100%;margin-top:5px;padding:8px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
 .landing-multi-empty{padding:13px 7px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}
 

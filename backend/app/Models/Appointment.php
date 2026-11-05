@@ -18,6 +18,43 @@ class Appointment extends Model
     public function serviceBookings() { return $this->hasMany(AppointmentServiceBooking::class); }
     public function automaticSmsItems(): HasMany { return $this->hasMany(AppointmentAutomaticSms::class); }
 
+    /** Only real bookings, not the empty calendar slots older versions persisted. */
+    public function scopeMeaningful($query)
+    {
+        return $query->where(fn ($match) => self::constrainToMeaningful($match));
+    }
+
+    /** Adds OR conditions that match any row carrying real booking data; call inside a nested where. */
+    public static function constrainToMeaningful($query): void
+    {
+        foreach ([
+            'lastname', 'gender', 'phone', 'file_number', 'status',
+            'doctor', 'consultant', 'source', 'description', 'doctor_note',
+            'done', 'payment_method', 'payment_account', 'payment_link',
+            'referrer_phone', 'appointment_sms', 'info_sms',
+        ] as $column) {
+            $query->orWhere(function ($query) use ($column) {
+                $query->whereNotNull($column)->where($column, '<>', '');
+            });
+        }
+        $query->orWhere('new_customer', true)
+            ->orWhere('payment_link_sent_count', '>', 0)
+            ->orWhere('amount', '>', 0)
+            ->orWhere('debt', '>', 0)
+            ->orWhere('discount', '>', 0)
+            ->orWhere(function ($query) {
+                $query->whereNotNull('services');
+                if ($query->getConnection()->getDriverName() === 'mysql') {
+                    $query->whereRaw('services REGEXP ?', ['"name"[[:space:]]*:[[:space:]]*"[^"]+"']);
+                } else {
+                    $query->where('services', 'like', '%"name":"_%');
+                }
+            })
+            ->orWhere(function ($query) {
+                $query->whereNotNull('service_types')->whereNotIn('service_types', ['', '[]', 'null']);
+            });
+    }
+
     protected static function booted(): void
     {
         static::creating(function (Appointment $appointment): void {

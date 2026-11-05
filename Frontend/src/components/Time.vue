@@ -1064,7 +1064,7 @@
                         type="text"
                         placeholder="تعداد / سی‌سی"
                         class="cc-input"
-                        @input="updateRowAmounts(row)"
+                        @input="sanitizeServiceQuantity(service, row)"
                       />
 
                       <span class="service-price-chip">{{ service.name ? `قیمت: ${formatDisplayMoney(serviceLinePrice(service))} تومان` : 'قیمت خدمت' }}</span>
@@ -1095,7 +1095,7 @@
                         <div class="service-addon-head" aria-hidden="true"><span>نام جانبی</span><span>تعداد</span><span>مبلغ</span><span>تخفیف / مازاد</span><span></span></div>
                         <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
                           <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, row)" @remove="onAddonChanged(service, addon, row)" />
-                          <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="updateRowAmounts(row)">
+                          <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="sanitizeServiceQuantity(addon, row)">
                           <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
                           <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
                             <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, row)">
@@ -1855,7 +1855,7 @@
                   <div class="timeline-service-detail-grid">
                     <label><span>پزشک</span><select v-model="service.doctor" :disabled="Boolean(activeTimelineDraft.timelineDoctors?.[0])"><option value="">بدون پزشک</option><option v-if="activeTimelineDraft.timelineDoctors?.[0]" :value="activeTimelineDraft.timelineDoctors[0]">{{ activeTimelineDraft.timelineDoctors[0] }}</option><option v-for="doc in doctorsForService(activeTimelineDraft, service).filter(item => item.name !== activeTimelineDraft.timelineDoctors?.[0])" :key="doc.id" :value="doc.name">{{ doc.name }}</option></select></label>
                     <label><span>مشاور</span><select v-model="service.consultant" @change="calculateRowAmount(activeTimelineDraft)"><option value="">بدون مشاور</option><option v-for="cons in consultantOptions" :key="cons" :value="cons">{{ cons }}</option></select></label>
-                    <label><span>تعداد / سی‌سی</span><input v-model="service.cc" type="text" inputmode="numeric" placeholder="۱" @input="updateRowAmounts(activeTimelineDraft)"></label>
+                    <label><span>تعداد / سی‌سی</span><input v-model="service.cc" type="text" inputmode="numeric" placeholder="۱" @input="sanitizeServiceQuantity(service, activeTimelineDraft)"></label>
                     <label><span>قیمت خدمت</span><input :value="formatDisplayMoney(serviceLinePrice(service))" type="text" disabled></label>
                     <label><span>{{ service.adjustment_mode === 'surcharge' ? 'مبلغ مازاد' : 'مبلغ تخفیف' }}</span><div class="timeline-service-adjustment"><input v-model="service.discount" type="text" inputmode="numeric" placeholder="۰" @input="handleServiceDiscountInput(service, activeTimelineDraft)"><button type="button" title="تغییر بین تخفیف و مازاد" @click.stop="toggleServiceAdjustment(service, activeTimelineDraft)">↻</button></div></label>
                     <label v-if="service.adjustment_mode === 'surcharge'" class="timeline-service-commission"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"><span>محاسبه مازاد در پورسانت پزشک</span></label>
@@ -1866,7 +1866,7 @@
                     <div v-if="expandedAddonServices.has(service)" class="timeline-addon-content">
                       <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="timeline-addon-row">
                         <label><span>نام جانبی</span><select v-model="addon.name" @change="onAddonChanged(service, addon, activeTimelineDraft)"><option value="">انتخاب جانبی</option><option v-for="name in serviceAddonOptions(service, addon)" :key="name" :value="name">{{ name }}</option></select></label>
-                        <label><span>تعداد / سی‌سی</span><input v-model="addon.cc" type="text" inputmode="numeric" placeholder="۱" @input="updateRowAmounts(activeTimelineDraft)"></label>
+                        <label><span>تعداد / سی‌سی</span><input v-model="addon.cc" type="text" inputmode="numeric" placeholder="۱" @input="sanitizeServiceQuantity(addon, activeTimelineDraft)"></label>
                         <label><span>قیمت</span><input :value="formatDisplayMoney(serviceLinePrice(addon))" type="text" disabled></label>
                         <button type="button" class="timeline-addon-remove" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeTimelineDraft)">×</button>
                       </div>
@@ -2328,7 +2328,8 @@
         <section class="financial-accordion-section">
         <button type="button" class="financial-accordion-head" @click="financialDebtOpen = !financialDebtOpen"><span>بدهی</span><b>{{ financialDebtOpen ? '⌃' : '⌄' }}</b></button>
         <div v-if="financialDebtOpen" class="financial-accordion-body financial-debt-body">
-        <section class="financial-debt-lines">
+        <p v-if="!isCompletedAppointmentDone(activeFinancialRow?.done)" class="financial-deposit-empty">این نوبت هنوز انجام نشده؛ پیش‌پرداخت و بیعانه بدون بدهی ثبت می‌شوند و مانده بعد از انجام نوبت تسویه می‌شود.</p>
+        <section v-else class="financial-debt-lines">
           <header><div><strong>ثبت بدهی برای هر خدمت</strong></div><b>{{ formatDisplayMoney(financialDebtLinesTotal()) }} / {{ formatDisplayMoney(financialRemainingDebtPreview()) }} تومان</b></header>
           <p v-if="!financialDebtLines.length" class="financial-deposit-empty">برای این نوبت هنوز خدمتی انتخاب نشده است.</p>
           <div v-else class="financial-debt-line" v-for="line in financialDebtLines" :key="line.key">
@@ -3369,6 +3370,19 @@ export default {
   },
 
   methods: {
+    stableInventoryIdForService(service) {
+      if (service?.inventory_id) return service.inventory_id
+      const matches = this.inventoryItems.filter(item => item.name === service?.name)
+      const sectionId = service?.sectionId || service?.section_id
+      if (sectionId) return matches.find(item => String(item.section_id) === String(sectionId))?.id || null
+      return matches.length === 1 ? matches[0].id : null
+    },
+    sanitizeServiceQuantity(line, row) {
+      const ascii = String(line.cc ?? '').replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+        .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+      line.cc = ascii.split(/[.,٫]/, 1)[0].replace(/[^0-9]/g, '')
+      this.updateRowAmounts(row)
+    },
     async switchAppointmentView(view) {
       if (!['table', 'timeline'].includes(view) || this.appointmentView === view) return;
 
@@ -3709,6 +3723,7 @@ export default {
       const services = Array.isArray(item.services) && item.services.length
         ? item.services.map((service, serviceIndex) => ({
             name: service.name || '',
+            inventory_id: this.stableInventoryIdForService(service),
             sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name),
             rootSectionId: service.rootSectionId || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name)),
             tags: Array.isArray(service.tags) ? service.tags : [],
@@ -4501,6 +4516,7 @@ export default {
       }
       draft.services = draft.services.map(service => ({
         name: service.name || "",
+        inventory_id: this.stableInventoryIdForService(service),
         sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name, draft),
         rootSectionId: service.rootSectionId || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name, draft)),
         tags: Array.isArray(service.tags) ? [...service.tags] : [],
@@ -6184,6 +6200,7 @@ export default {
           const services = item.services?.length
             ? item.services.map((s, serviceIndex) => ({
                 name: s.name || "",
+                inventory_id: this.stableInventoryIdForService(s),
                 sectionId: s.sectionId || s.section_id || this.sectionIdForService(s.name),
                 rootSectionId: s.rootSectionId || this.rootSectionIdFor(s.sectionId || s.section_id || this.sectionIdForService(s.name)),
                 tags: Array.isArray(s.tags) ? s.tags : [],
@@ -6628,7 +6645,7 @@ export default {
     salesSalaryBonus(resource, totalSales) {
       if (!resource?.sales_bonus_enabled) return 0;
       const tier = (resource.sales_bonus_tiers || [])
-        .filter(item => Number(totalSales) > Number(item.sales_from || 0))
+        .filter(item => Number(item.sales_from || 0) > 0 && Number(totalSales) >= Number(item.sales_from || 0))
         .sort((a, b) => Number(b.sales_from) - Number(a.sales_from))[0];
       return Number(tier?.salary_addition || 0);
     },
@@ -6985,6 +7002,7 @@ this.calculateFinalAmount(row)
                   services:
                     row.services.map(s => ({
                       name: s.name || "",
+                      inventory_id: this.stableInventoryIdForService(s),
                       section_id: s.sectionId || this.sectionIdForService(s.name, row) || null,
                       tags: Array.isArray(s.tags) ? s.tags : [],
                       cc: s.cc || "",
@@ -7853,8 +7871,12 @@ this.calculateFinalAmount(row)
         }
       }
 
-      const newDebt = this.financialRemainingDebtPreview();
-      const debtLines = this.financialDebtLines.map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)), reason: String(line.reason || '').trim() })).filter(line => line.amount > 0);
+      // پیش از انجام نوبت بدهی ثبت نمی‌شود؛ فقط پیش‌پرداخت و بیعانه، و مانده بعد از انجام تسویه می‌شود.
+      const visitDone = this.isCompletedAppointmentDone(row.done);
+      const newDebt = visitDone ? this.financialRemainingDebtPreview() : 0;
+      const debtLines = visitDone
+        ? this.financialDebtLines.map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)), reason: String(line.reason || '').trim() })).filter(line => line.amount > 0)
+        : [];
       const debtTotal = debtLines.reduce((total, line) => total + line.amount, 0);
       if (debtTotal < newDebt) {
         const difference = newDebt - debtTotal;
@@ -8754,7 +8776,10 @@ this.calculateFinalAmount(row)
           if (!/^09\d{9}$/.test(this.normalizePhoneDigits(item.row?.phone))) {
             throw new Error('شماره موبایل این ردیف وارد نشده یا معتبر نیست.');
           }
-          const doctors = String(item.row.doctor || '').split('،').map(value => value.trim()).filter(Boolean).slice(0, 2);
+          // اگر پزشک ردیف خالی است، پزشکِ ثبت‌شده روی خدمات همان نوبت فرستاده می‌شود.
+          const rowDoctors = String(item.row.doctor || '').split('،').map(value => value.trim()).filter(Boolean);
+          const serviceDoctors = (item.row.services || []).map(service => String(service?.doctor || '').trim()).filter(Boolean);
+          const doctors = [...new Set(rowDoctors.length ? rowDoctors : serviceDoctors)].slice(0, 2);
           const { data } = await axios.post('/api/sms/appointment', {
             types: [item.type],
             patient_phone: item.row.phone,
@@ -13562,9 +13587,10 @@ tr.data-row td {
   cursor: pointer;
 }
 
+/* فقط پنجرهٔ بازشوی تقویم بالای همه‌چیز است؛ خود فیلد تاریخ (.vpd-main) نباید
+   روی ناوبری، منوی «بیشتر» و منوی کاربری بیفتد. */
 .vpd-wrapper,
 .vpd-container,
-.vpd-main,
 .time-picker-popover {
   z-index: 2147483004 !important;
 }

@@ -2,7 +2,9 @@
 
 namespace App\Reporting\DynamicReports\Resolvers;
 
-use App\Models\ResourceEarningLine;
+use App\Models\AppointmentFinancialTransaction;
+use App\Models\Inventory;
+use App\Models\InventoryAddonDefinition;
 use App\Reporting\DynamicReports\ReportPatientContext;
 
 class FinancialFieldResolver implements ReportFieldResolver
@@ -19,7 +21,8 @@ class FinancialFieldResolver implements ReportFieldResolver
             'income' => $this->incomeAndExpense($appointment),
             'discount' => $appointment ? $this->money($appointment->discount) : null,
             'debt' => $appointment ? $this->money($appointment->debt) : null,
-            'deposit' => $appointment ? $this->money(data_get($appointment?->payment_details, 'deposit')) : null,
+            'deposit' => $appointment ? $this->money(AppointmentFinancialTransaction::query()
+                ->where('appointment_id', $appointment->id)->where('type', 'deposit')->whereNull('voided_at')->sum('amount')) : null,
             'payment' => $appointment?->payment_method,
             'account' => $appointment?->payment_account,
         };
@@ -28,12 +31,25 @@ class FinancialFieldResolver implements ReportFieldResolver
     private function incomeAndExpense(mixed $appointment): ?string
     {
         if (! $appointment) return null;
-        $income = $this->number($appointment->amount ?? $appointment->original_amount ?? 0);
-        // هر خدمت برای پزشک و مشاور ردیف جدا دارد؛ هزینهٔ مواد هر خدمت فقط یک بار شمرده می‌شود.
-        $expense = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->where('status', 'active')->get()
-            ->groupBy(fn (ResourceEarningLine $line) => $line->service_line_index.'-'.(int) $line->is_addon.'-'.$line->service_name)
-            ->sum(fn ($lines) => (float) $lines->max('material_cost'));
+        // همان تعریف گزارش کلینیک: مبلغ نوبت بعد از تخفیف + کیف پول، و هزینهٔ مواد خدمات و جانبی‌ها از انبار.
+        $income = $this->number($appointment->amount ?? 0) + max(0, $this->number($appointment->wallet_applied ?? 0));
+        $expense = collect(is_array($appointment->services) ? $appointment->services : [])
+            ->filter(fn ($service) => is_array($service))
+            ->sum(fn (array $service) => $this->materialCost($service));
         return 'درآمد: '.number_format($income, 0, '.', '٬').' · هزینه: '.number_format((float) $expense, 0, '.', '٬');
+    }
+
+    private function materialCost(array $service): float
+    {
+        static $inventory = null, $addons = null;
+        $inventory ??= Inventory::query()->pluck('price', 'name');
+        $addons ??= InventoryAddonDefinition::query()->pluck('price', 'id');
+        $quantity = max(0, $this->number(array_key_exists('cc', $service) ? ($service['cc'] ?? 0) : ($service['quantity'] ?? 1)));
+        $unit = ! empty($service['addon_definition_id'])
+            ? (float) ($addons[(int) $service['addon_definition_id']] ?? 0)
+            : (float) ($inventory[trim((string) ($service['name'] ?? ''))] ?? 0);
+
+        return $unit * $quantity + collect($service['addons'] ?? [])->filter(fn ($addon) => is_array($addon))->sum(fn (array $addon) => $this->materialCost($addon));
     }
 
     private function number(mixed $value): float
@@ -44,6 +60,6 @@ class FinancialFieldResolver implements ReportFieldResolver
     private function money(mixed $value): ?string
     {
         $number = $this->number($value);
-        return $number > 0 ? number_format($number, 0, '.', '٬') : '۰';
+        return $number > 0 ? number_format($number, 0, '.', '٬') : '0';
     }
 }

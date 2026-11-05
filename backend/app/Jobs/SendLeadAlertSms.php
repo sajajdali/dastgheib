@@ -132,6 +132,6 @@ class SendLeadAlertSms
 
     private function clinicName(): string
     {
-        return (string) AppSetting::getByKey('clinic_name', '');
+        return AppSetting::clinicName();
     }
 }

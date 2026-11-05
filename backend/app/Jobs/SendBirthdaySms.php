@@ -74,7 +74,7 @@ class SendBirthdaySms implements ShouldQueue
                             trim((string) $patient->first_name),
                             (string) ($patient->file_number ?? ''),
                             (string) ($patient->birth_date ?? ''),
-                            (string) AppSetting::getByKey('clinic_name', ''),
+                            AppSetting::clinicName(),
                             $today->format('Y/m/d'),
                         ]);
                     } catch (Throwable $e) {

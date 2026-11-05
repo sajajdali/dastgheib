@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Api\AttendanceMonthController;
 use App\Models\AppSetting;
+use App\Reporting\DynamicReports\JalaliMonthWindow;
 use App\Models\Channel;
 use App\Models\Doctor;
 use App\Models\Staff;
@@ -197,6 +198,7 @@ class HumanResourceController extends Controller
         $deletedIds = $request->validate(['deleted_ids' => ['nullable', 'array'], 'deleted_ids.*' => ['integer', 'distinct']])['deleted_ids'] ?? [];
 
         DB::transaction(function () use ($validated, $deletedIds) {
+        $commissionChanged = false;
         foreach ($validated as $doctor) {
             if (empty($doctor['id']) && empty($doctor['name']) && empty($doctor['user_id'])) {
                 continue;
@@ -242,8 +244,10 @@ class HumanResourceController extends Controller
             $record->fill($values);
             if (! $record->exists || $record->isDirty()) $record->save();
             $this->resyncAttendanceIfRatesChanged('doctor', $record);
+            $commissionChanged = $commissionChanged || $this->commissionSettingsChanged($record);
         }
         foreach ($deletedIds as $id) $this->deleteResourceIfUnused('doctor', (int) $id);
+        if ($commissionChanged) $this->resyncCurrentMonthEarnings();
         });
 
         return response()->json([
@@ -279,6 +283,7 @@ public function saveStaff(Request $request)
         $deletedIds = $request->validate(['deleted_ids' => ['nullable', 'array'], 'deleted_ids.*' => ['integer', 'distinct']])['deleted_ids'] ?? [];
 
         DB::transaction(function () use ($validated, $deletedIds) {
+            $commissionChanged = false;
             foreach ($validated as $staff) {
                 if (empty($staff['id']) && empty($staff['name']) && empty($staff['user_id'])) {
                     continue;
@@ -317,8 +322,10 @@ public function saveStaff(Request $request)
                 $record->fill($values);
                 if (! $record->exists || $record->isDirty()) $record->save();
                 $this->resyncAttendanceIfRatesChanged('staff', $record);
+                $commissionChanged = $commissionChanged || $this->commissionSettingsChanged($record);
             }
             foreach ($deletedIds as $id) $this->deleteResourceIfUnused('staff', (int) $id);
+            if ($commissionChanged) $this->resyncCurrentMonthEarnings();
         });
 
         return response()->json([
@@ -346,6 +353,19 @@ public function saveStaff(Request $request)
         if ($record->wasChanged(['overtime_hourly_rate', 'shortage_hourly_deduction', 'absence_deduction', 'allowed_shortage_hours'])) {
             app(AttendanceMonthController::class)->resyncAttendanceEarnings($type, $record->id);
         }
+    }
+
+    private function commissionSettingsChanged(Doctor|Staff $record): bool
+    {
+        return $record->wasChanged(['bonus', 'commission_customer_scope', 'new_customer_bonus', 'existing_customer_bonus',
+            'commission_after_materials', 'sales_bonus_enabled', 'sales_bonus_tiers']);
+    }
+
+    /** ماه‌های گذشته ممکن است تسویه شده باشند؛ تغییر تنظیمات پورسانت فقط ماه جاری را دوباره حساب می‌کند. */
+    private function resyncCurrentMonthEarnings(): void
+    {
+        $month = substr((new JalaliMonthWindow())->date(now('Asia/Tehran')), 0, 7);
+        app(AppointmentController::class)->resyncMonthEarnings($month);
     }
 
     private function deleteResourceIfUnused(string $type, int $id): void

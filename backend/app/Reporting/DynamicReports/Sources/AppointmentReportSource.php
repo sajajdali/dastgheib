@@ -2,6 +2,7 @@
 
 namespace App\Reporting\DynamicReports\Sources;
 
+use App\Reporting\DynamicReports\AppointmentReportMatch;
 use App\Reporting\DynamicReports\ReportTextMatch;
 use App\Models\Appointment;
 use App\Models\Patient;
@@ -21,17 +22,24 @@ final class AppointmentReportSource implements ReportSource
 
     public function query(array $filters): Builder
     {
-        $query = Appointment::query();
+        // ردیف‌های خالی تقویم (اسلات‌های ذخیره‌شدهٔ نسخه‌های قدیم) نوبت واقعی نیستند و گزارش را پر از صفر می‌کنند.
+        $query = Appointment::query()->meaningful();
         $date = "CONCAT(appointments.month, '-', LPAD(appointments.day_num, 2, '0'))";
         if ($from = data_get($filters, 'reportDate.from')) $query->whereRaw("{$date} >= ?", [$from]);
         if ($to = data_get($filters, 'reportDate.to')) $query->whereRaw("{$date} <= ?", [$to]);
 
-        foreach (['status' => 'status', 'source' => 'source', 'work' => 'done', 'payment' => 'payment_method', 'account' => 'payment_account'] as $key => $column) {
+        foreach (['status' => 'status', 'source' => 'source'] as $key => $column) {
             $values = $this->selected($filters, $key);
             if ($values) $query->whereIn('appointments.'.$column, $values);
         }
-        if ($doctors = $this->selected($filters, 'doctor')) $query->whereIn('appointments.doctor', $doctors);
-        foreach (['section2' => '$[*].section', 'subsection' => '$[*].subsection', 'areas' => '$[*].tags[*]', 'extra' => '$[*].addons[*].name'] as $key => $path) {
+        AppointmentReportMatch::work($query, 'appointments', $this->selected($filters, 'work'));
+        AppointmentReportMatch::payment($query, 'appointments', 'payment_method', $this->selected($filters, 'payment'));
+        AppointmentReportMatch::payment($query, 'appointments', 'payment_account', $this->selected($filters, 'account'));
+        AppointmentReportMatch::person($query, 'appointments', 'doctor', $this->selected($filters, 'doctor'));
+        AppointmentReportMatch::person($query, 'appointments', 'consultant', $this->selected($filters, 'consultant'));
+        AppointmentReportMatch::sections($query, 'appointments', $this->selected($filters, 'section2'), 'subsection');
+        AppointmentReportMatch::sections($query, 'appointments', $this->selected($filters, 'subsection'), 'section');
+        foreach (['areas' => '$[*].tags[*]', 'extra' => '$[*].addons[*].name'] as $key => $path) {
             $values = $this->selected($filters, $key);
             if ($values) $query->where(function (Builder $match) use ($values, $path) {
                 foreach ($values as $value) $match->orWhereRaw("JSON_SEARCH(appointments.services, 'one', ?, NULL, '{$path}') IS NOT NULL", [$value]);
@@ -49,15 +57,16 @@ final class AppointmentReportSource implements ReportSource
         $amount = $this->moneyExpression('appointments.amount');
         $this->compare($query, $amount, '>=', data_get($filters, 'range.amount.from'));
         $this->compare($query, $amount, '<=', data_get($filters, 'range.amount.to'));
-        foreach (['debt' => $this->moneyExpression('appointments.debt'), 'deposit' => $this->moneyExpression("JSON_UNQUOTE(JSON_EXTRACT(appointments.payment_details, '$.deposit'))")] as $key => $expression) {
-            $operator = ['lt' => '<', 'gt' => '>', 'eq' => '='][data_get($filters, 'comparators.'.$key, 'eq')] ?? '=';
-            $this->compare($query, $expression, $operator, data_get($filters, 'values.'.$key));
+        // بیعانه در دفتر مالی ثبت می‌شود؛ تخفیف ستون خود نوبت است.
+        foreach (['debt' => $this->moneyExpression('appointments.debt'), 'discount' => $this->moneyExpression('appointments.discount'), 'deposit' => AppointmentReportMatch::deposit('appointments')] as $key => $expression) {
+            AppointmentReportMatch::compare($query, $expression, data_get($filters, 'comparators.'.$key), data_get($filters, 'values.'.$key));
         }
 
         $patientFields = ['name' => 'first_name', 'family' => 'last_name', 'nationalId' => 'national_id', 'city' => 'city'];
+        $problem = trim((string) data_get($filters, 'values.problem', ''));
         $hasPatientFilters = collect($patientFields)->keys()->contains(fn ($key) => filled(data_get($filters, 'values.'.$key)))
             || data_get($filters, 'birthDate.from') || data_get($filters, 'birthDate.to')
-            || $this->selected($filters, 'finstatus');
+            || $this->selected($filters, 'finstatus') || $problem !== '';
         if ($hasPatientFilters) $query->whereExists(function (QueryBuilder $patients) use ($filters, $patientFields) {
             $patients->selectRaw('1')->from('patients')->whereNull('patients.deleted_at');
             self::linkPatient($patients);
@@ -65,6 +74,10 @@ final class AppointmentReportSource implements ReportSource
             if ($from = data_get($filters, 'birthDate.from')) $patients->where('patients.birth_date', '>=', $from);
             if ($to = data_get($filters, 'birthDate.to')) $patients->where('patients.birth_date', '<=', $to);
             if ($values = $this->selected($filters, 'finstatus')) $patients->whereIn('patients.financial_status', $values);
+            if ($problem !== '') {
+                $pattern = '%'.addcslashes($problem, '%_\\').'%';
+                $patients->where(fn ($match) => $match->where('patients.medical_history', 'like', $pattern)->orWhere('patients.patient_history', 'like', $pattern));
+            }
         });
 
         if ($referrer = trim((string) data_get($filters, 'values.referrer', ''))) {
@@ -83,7 +96,7 @@ final class AppointmentReportSource implements ReportSource
             $window = $this->dates->endingToday($months);
             $query->whereRaw("(
                 SELECT COUNT(*) FROM appointments AS return_appointments
-                WHERE TRIM(return_appointments.status) = ?
+                WHERE (TRIM(return_appointments.status) = ? OR TRIM(return_appointments.done) = 'انجام شد')
                   AND CONCAT(return_appointments.month, '-', LPAD(return_appointments.day_num, 2, '0')) BETWEEN ? AND ?
                   AND ((appointments.file_number IS NOT NULL AND appointments.file_number <> ''
                       AND return_appointments.file_number = appointments.file_number)

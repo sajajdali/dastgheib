@@ -457,10 +457,12 @@
       <div v-if="featureEnabled('patients')" class="accordion customer-level-settings">
         <div class="accordion-header" @click="toggleAccordion('customerLevels')">دسته‌بندی خودکار مشتری‌ها</div>
         <div v-if="openAccordion === 'customerLevels'" class="accordion-body">
-          <p class="level-settings-help">برای هر سطح، فقط معیارهایی را که می‌خواهید در محاسبه لحاظ شوند باز کنید.</p>
+          <p class="level-settings-help">برای هر سطح، فقط معیارهایی را که می‌خواهید در محاسبه لحاظ شوند باز کنید؛ معیار بسته در محاسبه اثری ندارد. سطح‌ها از طلایی به آبی بررسی می‌شوند و رسیدن به یکی از معیارهای باز کافی است.</p>
           <div class="level-settings-columns">
             <section v-for="level in customerLevelColumns" :key="level.key" :class="['level-settings-card', level.key]">
               <h4>{{ level.label }}</h4>
+              <p v-if="level.key === 'silver'" class="level-settings-help">سطح پیش‌فرض: هر مشتری‌ای که به معیارهای آبی یا طلایی نرسد، نقره‌ای است.</p>
+              <template v-else>
               <div v-for="criterion in customerLevelCriteriaFields" :key="criterion.key" class="level-criterion">
                 <button type="button" class="level-criterion-toggle" :class="{ active: customerLevelCriteria[level.key][criterion.key] }" @click="toggleCustomerLevelCriterion(level.key, criterion.key)">
                   <span>{{ criterion.toggle }}</span>
@@ -489,6 +491,7 @@
                 <span>بازه پرداخت {{ customerLevels[`${level.key}_visit_period_months`].toLocaleString("fa-IR") }} ماه می‌باشد</span>
                 <button type="button" @click="customerLevelPeriodModal = level.key">تغییر</button>
               </div>
+              </template>
             </section>
           </div>
           <div v-if="customerLevelPeriodModal" class="level-period-modal-backdrop" @click.self="customerLevelPeriodModal = null">
@@ -1248,14 +1251,15 @@ const customerLevelColumns = [
 ];
 const customerLevelCriteriaFields = [
   { key: "minPayment", toggle: "تعیین حداقل پرداخت", label: "حداقل پرداخت", setting: "min_period_amount", type: "amount" },
-  { key: "maxPayment", toggle: "تعیین حداکثر پرداخت", label: "حداکثر پرداخت", setting: "max_period_amount", type: "amount" },
   { key: "visits", toggle: "تعیین حداقل مراجعه", label: "حداقل مراجعه", setting: "visit_count", type: "number" }
 ];
 const customerLevelMonthOptions = Array.from({ length: 12 }, (_, index) => index + 1);
 const makeCustomerLevelCriteria = () => Object.fromEntries(
-  customerLevelColumns.map(level => [level.key, { minPayment: false, maxPayment: false, visits: false }])
+  customerLevelColumns.map(level => [level.key, Object.fromEntries(customerLevelCriteriaFields.map(criterion => [
+    criterion.key,
+    Number(customerLevels.value?.[`${level.key}_${criterion.setting}`] || 0) > 0
+  ]))])
 );
-const customerLevelCriteria = ref(makeCustomerLevelCriteria());
 const customerLevelPeriodModal = ref(null);
 const customerLevels = ref({
   blue_min_period_amount: 10000000,
@@ -1271,6 +1275,7 @@ const customerLevels = ref({
   gold_visit_count: 3,
   gold_visit_period_months: 3
 });
+const customerLevelCriteria = ref(makeCustomerLevelCriteria());
 const appointmentColumns = ref({ payment_method: true, payment_account: true, payment_link: false, best_staff: false, photo_status: true });
 const walletServices = ref([]);
 const walletSettings = ref({ enabled: false, default_type: "percent", default_value: 0, expiry_days: 30, sms_template: "مبلغ %param1% تومان واریز شد.\nموجودی فعلی %param2% تومان\nتاریخ استفاده تا %param3%\nبا تشکر کلینیک %param4%", service_overrides: [] });
@@ -1365,7 +1370,13 @@ const setCustomerLevelAmount = (key, value) => {
   customerLevels.value[key] = plainNumber(value);
 };
 const toggleCustomerLevelCriterion = (level, criterion) => {
-  customerLevelCriteria.value[level][criterion] = !customerLevelCriteria.value[level][criterion];
+  const open = !customerLevelCriteria.value[level][criterion];
+  customerLevelCriteria.value[level][criterion] = open;
+  // معیار بسته نباید پنهانی در محاسبه بماند.
+  if (!open) {
+    const field = customerLevelCriteriaFields.find(item => item.key === criterion);
+    if (field) customerLevels.value[`${level}_${field.setting}`] = 0;
+  }
 };
 
 const defaultSatisfactionOptions = [
@@ -1897,6 +1908,7 @@ const fetchSettings = async () => {
     if (data.report_staff_target !== undefined) reportStaffTarget.value = Number(data.report_staff_target) || 0;
     if (data.report_monthly_capacity !== undefined) reportMonthlyCapacity.value = Number(data.report_monthly_capacity) || 0;
     customerLevels.value = customerLevelPayload();
+    customerLevelCriteria.value = makeCustomerLevelCriteria();
     if (data.appointment_columns) appointmentColumns.value = { ...appointmentColumns.value, ...data.appointment_columns };
     if (data.wallet_settings) walletSettings.value = { ...walletSettings.value, ...data.wallet_settings, service_overrides: Array.isArray(data.wallet_settings.service_overrides) ? data.wallet_settings.service_overrides : [] };
     walletServices.value = Array.isArray(data.wallet_services) ? data.wallet_services : [];

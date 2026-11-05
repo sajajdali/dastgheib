@@ -459,7 +459,7 @@ const OPT = {
   payment: ['نقدی','کارت‌خوان','کارت به کارت','چک','اقساط'],
   account: ['بانک ملت','بانک ملی','بانک سامان','بانک پاسارگاد','صندوق'],
   finstatus: ['ضعیف','متوسط','خوب','عالی'],
-  custseg: ['آبی','نقره‌ای','طلایی'],
+  custseg: ['نقره‌ای','آبی','طلایی','دردسرساز'],
   doctor: [
     { label: 'دکتر مریم احمدی', meta: '۳۵٪' }, { label: 'دکتر سارا کریمی', meta: '۴۰٪' },
     { label: 'دکتر رضا موسوی', meta: '۳۰٪' }, { label: 'دکتر نگار رستمی', meta: '۴۵٪' },
@@ -494,12 +494,12 @@ const FIELDS = [
   { g: 'خدمات و درمان', id: 'subsection', label: 'زیر بخش', type: 'multi' },
   { g: 'خدمات و درمان', id: 'count', label: 'تعداد (سی‌سی)', type: 'display' },
   { g: 'خدمات و درمان', id: 'areas', label: 'نواحی', type: 'multi' },
-  { g: 'خدمات و درمان', id: 'problem', label: 'مشکل', type: 'multi' },
+  { g: 'خدمات و درمان', id: 'problem', label: 'مشکل (سابقهٔ پزشکی)', type: 'text', ph: 'مثلاً آکنه' },
   { g: 'خدمات و درمان', id: 'extra', label: 'جانبی', type: 'multi' },
 
   { g: 'مالی', id: 'amount', label: 'مبلغ', type: 'range' },
   { g: 'مالی', id: 'income', label: 'درآمد و هزینه', type: 'display' },
-  { g: 'مالی', id: 'discount', label: 'تخفیف', type: 'text', ph: 'تومان' },
+  { g: 'مالی', id: 'discount', label: 'تخفیف', type: 'compare', ph: 'تومان' },
   { g: 'مالی', id: 'finstatus', label: 'وضعیت مالی', type: 'multi' },
   { g: 'مالی', id: 'debt', label: 'بدهی', type: 'compare', ph: 'تومان' },
   { g: 'مالی', id: 'deposit', label: 'بیعانه', type: 'compare', ph: 'تومان' },
@@ -570,13 +570,16 @@ export default {
   },
   data() {
     const vals = {};
-    FIELDS.forEach(f => { if (f.type === 'text') vals[f.id] = ''; if (f.type === 'select') vals[f.id] = f.options[0]; });
+    FIELDS.forEach(f => { if (f.type === 'text' || f.type === 'compare') vals[f.id] = ''; if (f.type === 'select') vals[f.id] = f.options[0]; });
     const initialReportDate = defaultReportDate();
     return {
       JM, FIELDS, reportSources: REPORT_SOURCES, reportScope: 'appointments',
       filtersOpen: false,
       show: { name: true, family: true }, vals, multi: {}, range: { amount: { from: '', to: '' } },
-      appointmentStatuses: ['وقت داده شد','آمد','کنسل شد','پاسخ نداد','پیگیری','انتقال داده شده'], comparators: { debt: 'eq', deposit: 'eq' },
+      appointmentStatuses: ['وقت داده شد','آمد','کنسل شد','پاسخ نداد','پیگیری','انتقال داده شده'], comparators: { debt: 'eq', deposit: 'eq', discount: 'eq' },
+      // گزینه‌های واقعی از /api/report-builder/options خوانده می‌شوند.
+      reportSourceOptions: [], reportSections: [], reportSubsections: [], reportWork: OPT.work.slice(),
+      reportCustomerLevels: OPT.custseg.slice(), reportFinancialStatuses: OPT.finstatus.slice(),
       reportAreas: OPT.areas.slice(),
       reportExtras: OPT.extra.slice(),
       reportPaymentMethods: OPT.payment.slice(),
@@ -650,7 +653,14 @@ export default {
     },
     pickerOptions() {
       if (!this.pickerField) return [];
-      const raw = this.pickerField.id === 'status' ? this.appointmentStatuses : (this.pickerField.id === 'areas' ? this.reportAreas : (this.pickerField.id === 'extra' ? this.reportExtras : (this.pickerField.id === 'payment' ? this.reportPaymentMethods : (this.pickerField.id === 'account' ? this.reportPaymentAccounts : (this.pickerField.id === 'doctor' ? this.reportDoctors : (this.pickerField.id === 'consultant' ? this.reportConsultants : (OPT[this.pickerField.id] || [])))))));
+      const realOptions = {
+        status: this.appointmentStatuses, areas: this.reportAreas, extra: this.reportExtras,
+        payment: this.reportPaymentMethods, account: this.reportPaymentAccounts,
+        doctor: this.reportDoctors, consultant: this.reportConsultants,
+        source: this.reportSourceOptions, section2: this.reportSections, subsection: this.reportSubsections,
+        work: this.reportWork, custseg: this.reportCustomerLevels, finstatus: this.reportFinancialStatuses,
+      };
+      const raw = realOptions[this.pickerField.id] || OPT[this.pickerField.id] || [];
       const q = this.pickerSearch.trim();
       return raw.map(o => (typeof o === 'string' ? { label: o, meta: '' } : o))
         .filter(o => !q || o.label.indexOf(q) > -1);
@@ -701,7 +711,7 @@ export default {
         this.date = { from: validDate(filters.birthDate?.from), to: validDate(filters.birthDate?.to) };
         const from = validDate(filters.reportDate?.from), to = validDate(filters.reportDate?.to);
         if (from && to) { this.reportDate = { from, to }; this.reportCalY = from[0]; this.reportCalM = from[1]; }
-        this.comparators = { debt: filters.comparators?.debt || 'eq', deposit: filters.comparators?.deposit || 'eq' };
+        this.comparators = { debt: filters.comparators?.debt || 'eq', deposit: filters.comparators?.deposit || 'eq', discount: filters.comparators?.discount || 'eq' };
         this.sortDir = filters.sort === 'desc' ? 'desc' : 'asc';
         this.activePreset = null;
         this.page = 1;
@@ -750,6 +760,12 @@ export default {
         if (Array.isArray(payment.data?.accounts) && payment.data.accounts.length) this.reportPaymentAccounts = payment.data.accounts;
         if (Array.isArray(data.doctors) && data.doctors.length) this.reportDoctors = data.doctors;
         if (Array.isArray(data.consultants) && data.consultants.length) this.reportConsultants = data.consultants;
+        if (Array.isArray(data.source_options)) this.reportSourceOptions = data.source_options;
+        if (Array.isArray(data.sections)) this.reportSections = data.sections;
+        if (Array.isArray(data.subsections)) this.reportSubsections = data.subsections;
+        if (Array.isArray(data.work) && data.work.length) this.reportWork = data.work;
+        if (Array.isArray(data.customer_levels) && data.customer_levels.length) this.reportCustomerLevels = data.customer_levels;
+        if (Array.isArray(data.financial_statuses) && data.financial_statuses.length) this.reportFinancialStatuses = data.financial_statuses;
       } catch (error) {
         console.warn('گزینه‌های وضعیت گزارش‌ساز دریافت نشد؛ مقادیر استاندارد استفاده شد.', error);
       }

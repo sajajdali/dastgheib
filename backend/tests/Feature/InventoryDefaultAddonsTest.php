@@ -34,6 +34,7 @@ class InventoryDefaultAddonsTest extends TestCase
             $table->string('price')->nullable();
             $table->integer('count')->default(0);
             $table->integer('stock')->nullable();
+            $table->boolean('track_stock')->default(false);
             $table->integer('min_stock')->default(5);
             $table->boolean('active')->default(true);
             $table->integer('followup_days')->default(0);
@@ -65,6 +66,7 @@ class InventoryDefaultAddonsTest extends TestCase
             $table->string('amount')->nullable();
             $table->string('price')->nullable();
             $table->integer('stock')->nullable();
+            $table->boolean('track_stock')->default(false);
             $table->integer('min_stock')->default(5);
             $table->boolean('active')->default(true);
             $table->integer('sort_order')->default(0);
@@ -76,6 +78,19 @@ class InventoryDefaultAddonsTest extends TestCase
             $table->foreignId('inventory_addon_definition_id');
             $table->timestamps();
             $table->unique(['inventory_id', 'inventory_addon_definition_id']);
+        });
+        Schema::create('inventory_movements', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('inventory_id')->nullable();
+            $table->unsignedBigInteger('inventory_addon_definition_id')->nullable();
+            $table->string('inventory_name');
+            $table->decimal('quantity', 14, 3);
+            $table->string('type');
+            $table->string('source_key')->nullable();
+            $table->unsignedBigInteger('appointment_id')->nullable();
+            $table->string('description')->nullable();
+            $table->timestamp('occurred_at');
+            $table->timestamps();
         });
         Schema::create('doctors', function (Blueprint $table) { $table->id(); $table->string('name'); });
         Schema::create('staff', function (Blueprint $table) { $table->id(); $table->string('name'); });
@@ -343,4 +358,24 @@ class InventoryDefaultAddonsTest extends TestCase
         }
     }
 
+    public function test_direct_stock_changes_are_logged_for_service_and_addon(): void
+    {
+        $root = InventorySection::create(['name' => 'خدمات']);
+        $section = InventorySection::create(['parent_id' => $root->id, 'level' => 2, 'name' => 'ژل']);
+        $this->postJson('/api/inventory', ['items' => [[
+            'section_id' => $section->id, 'name' => 'کالا', 'stock' => 7, 'track_stock' => true,
+        ]]])->assertOk();
+        $item = Inventory::query()->where('name', 'کالا')->firstOrFail();
+        $this->assertDatabaseHas('inventory_movements', [
+            'inventory_id' => $item->id, 'quantity' => 7, 'type' => 'manual_adjustment',
+        ]);
+
+        $this->postJson('/api/inventory/addons', ['items' => [[
+            'name' => 'جانبی', 'stock' => 4, 'track_stock' => true,
+        ]]])->assertOk();
+        $addon = \App\Models\InventoryAddonDefinition::query()->where('name', 'جانبی')->firstOrFail();
+        $this->assertDatabaseHas('inventory_movements', [
+            'inventory_addon_definition_id' => $addon->id, 'quantity' => 4, 'type' => 'manual_adjustment',
+        ]);
+    }
 }

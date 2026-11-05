@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\AppSetting;
 use App\Models\Appointment;
 use App\Models\Patient;
+use App\Reporting\DynamicReports\JalaliMonthWindow;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 class CustomerLevelService
@@ -58,7 +61,7 @@ class CustomerLevelService
                     ->orWhereNotNull('completed_at');
             })
             ->orderByDesc('id')
-            ->get(['id', 'file_number', 'phone', 'month', 'amount', 'done', 'completed_at']);
+            ->get(['id', 'file_number', 'phone', 'month', 'day_num', 'amount', 'done', 'completed_at', 'created_at']);
         $settings = self::settings();
         $byFileNumber = $appointments->filter->file_number->groupBy('file_number');
         $byPhone = $appointments->filter->phone->groupBy('phone');
@@ -77,7 +80,7 @@ class CustomerLevelService
         });
     }
 
-    public function calculate(Collection $appointments, ?array $settings = null): string
+    public function calculate(Collection $appointments, ?array $settings = null, ?CarbonInterface $today = null): string
     {
         $settings ??= self::settings();
         $usedAppointments = $appointments->filter(fn (Appointment $item) => $this->hasUsedService($item))->values();
@@ -87,8 +90,13 @@ class CustomerLevelService
             return 'silver';
         }
 
-        foreach (['gold', 'blue', 'silver'] as $level) {
-            if ($this->matchesLevel($usedAppointments, $settings, $level)) {
+        $currentMonth = substr((new JalaliMonthWindow)->date($today ?? now('Asia/Tehran')), 0, 7);
+
+        // سطح‌ها از بالا به پایین بررسی می‌شوند؛ نقره‌ای سطح پیش‌فرض است و
+        // معیار جداگانه ندارد. چون سطح بالاتر زودتر بررسی می‌شود، «سقف پرداخت»
+        // لازم نیست: مشتری پرخرجی که به طلایی نرسد، دست‌کم آبی می‌ماند.
+        foreach (['gold', 'blue'] as $level) {
+            if ($this->matchesLevel($usedAppointments, $settings, $level, $currentMonth)) {
                 return $level;
             }
         }
@@ -96,38 +104,62 @@ class CustomerLevelService
         return 'silver';
     }
 
-    private function matchesLevel(Collection $appointments, array $settings, string $level): bool
+    private function matchesLevel(Collection $appointments, array $settings, string $level, string $currentMonth): bool
     {
         $minPeriodAmount = (float) ($settings["{$level}_min_period_amount"] ?? $settings["{$level}_min_card_amount"] ?? 0);
-        $maxPeriodAmount = (float) ($settings["{$level}_max_period_amount"] ?? $settings["{$level}_three_month_amount"] ?? 0);
         $visitCount = (int) ($settings["{$level}_visit_count"] ?? 0);
         $periodMonths = max(1, (int) ($settings["{$level}_visit_period_months"] ?? 3));
 
-        $periodAppointments = $this->recentAppointments($appointments, $periodMonths);
+        $periodAppointments = $this->recentAppointments($appointments, $periodMonths, $currentMonth);
         $periodTotal = $periodAppointments->sum(fn (Appointment $item) => $this->amount($item->amount));
-        $hasPeriodPayment = $minPeriodAmount > 0
-            && $periodTotal >= $minPeriodAmount
-            && ($maxPeriodAmount <= 0 || $periodTotal <= $maxPeriodAmount);
+        $hasPeriodPayment = $minPeriodAmount > 0 && $periodTotal >= $minPeriodAmount;
 
-        $recentVisitCount = $periodAppointments->count();
+        // چند خدمت در یک روز یک مراجعه حساب می‌شود.
+        $recentVisitCount = $periodAppointments
+            ->map(fn (Appointment $item) => $this->monthKey($item).'-'.((int) $item->day_num ?: 'id'.$item->id))
+            ->unique()
+            ->count();
         $hasVisits = $visitCount > 0 && $recentVisitCount >= $visitCount;
 
         return $hasPeriodPayment || $hasVisits;
     }
 
-    private function recentAppointments(Collection $appointments, int $months): Collection
+    /**
+     * نوبت‌های N ماه شمسی اخیر تا ماه جاری (مثلاً بازهٔ ۲ ماهه در آبان = مهر و آبان).
+     */
+    private function recentAppointments(Collection $appointments, int $months, string $currentMonth): Collection
     {
-        $monthKeys = $appointments
-            ->sortByDesc(fn (Appointment $item) => $item->id)
-            ->map(fn (Appointment $item) => $item->month ?: $item->created_at?->format('Y-m'))
-            ->filter()
-            ->unique()
-            ->take($months)
-            ->values();
+        [$year, $month] = array_map('intval', explode('-', $currentMonth));
+        $firstIndex = ($year * 12 + $month - 1) - ($months - 1);
+        $fromMonth = sprintf('%04d-%02d', intdiv($firstIndex, 12), ($firstIndex % 12) + 1);
 
-        return $appointments->filter(fn (Appointment $item) =>
-            $monthKeys->contains($item->month ?: $item->created_at?->format('Y-m'))
-        );
+        return $appointments->filter(function (Appointment $item) use ($fromMonth, $currentMonth) {
+            $key = $this->monthKey($item);
+
+            return $key !== null && $key >= $fromMonth && $key <= $currentMonth;
+        });
+    }
+
+    private function monthKey(Appointment $appointment): ?string
+    {
+        $month = trim((string) $appointment->month);
+        if (preg_match('/^(\d{4})-(\d{1,2})/', strtr($month, ['۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9']), $match)) {
+            return sprintf('%04d-%02d', (int) $match[1], (int) $match[2]);
+        }
+
+        // ستون month قدیمی خالی باشد، تاریخ ثبت به ماه شمسی تبدیل می‌شود.
+        $date = $appointment->completed_at ?: $appointment->created_at;
+        if (! $date) {
+            return null;
+        }
+
+        try {
+            $date = $date instanceof CarbonInterface ? $date : Carbon::parse((string) $date);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return substr((new JalaliMonthWindow)->date($date), 0, 7);
     }
 
     private function hasUsedService(Appointment $appointment): bool

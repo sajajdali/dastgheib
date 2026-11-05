@@ -36,12 +36,33 @@ class FinancialCheckoutBalanceService
         int $submittedDebt,
         bool $confirmDebtOverage = false,
         bool $confirmOverpayment = false,
+        bool $visitDone = true,
     ): array {
         $payable = max(0, $payable);
         $receivedTotal = max(0, $receivedTotal);
         $submittedDebt = max(0, $submittedDebt);
         $originalPayable = $payable;
         $calculatedDebt = max(0, $payable - $receivedTotal);
+
+        // پیش از انجام نوبت، خدمتی ارائه نشده که بدهی بسازد؛ پیش‌پرداخت و بیعانه بدون بدهی ثبت می‌شوند
+        // و مانده هنگام تسویهٔ بعد از انجام نوبت، بدهی می‌شود.
+        if (! $visitDone) {
+            if ($submittedDebt > 0) {
+                throw new HttpException(422, 'برای نوبتی که هنوز انجام نشده بدهی ثبت نمی‌شود؛ مانده بعد از انجام نوبت تسویه می‌شود.');
+            }
+            $overpayment = max(0, $receivedTotal - $payable);
+            if ($overpayment > 0 && ! $confirmOverpayment) {
+                throw new HttpException(422, sprintf(
+                    'جمع پرداخت‌ها %s تومان است که %s تومان بیشتر از مبلغ قابل پرداخت %s تومان است؛ برای ثبت اضافه‌پرداخت، تأیید کاربر لازم است.',
+                    number_format($receivedTotal), number_format($overpayment), number_format($payable)
+                ));
+            }
+
+            return [
+                'payable' => $payable, 'calculated_debt' => 0, 'total_debt' => 0, 'confirmed_debt_overage' => 0,
+                'payable_increase' => 0, 'overpayment' => $overpayment, 'balance' => $overpayment > 0 ? -$overpayment : 0,
+            ];
+        }
 
         if ($submittedDebt < $calculatedDebt) {
             $difference = $calculatedDebt - $submittedDebt;

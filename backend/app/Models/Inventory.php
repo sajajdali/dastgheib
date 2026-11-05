@@ -33,6 +33,7 @@ class Inventory extends Model
         'count',
         'time',
         'stock',
+        'track_stock',
         'min_stock',
         'active',
         'followup_days',
@@ -43,6 +44,7 @@ class Inventory extends Model
 
     protected $casts = [
         'active' => 'boolean',
+        'track_stock' => 'boolean',
         'service_tags' => 'array',
         'default_commission_value' => 'decimal:2',
     ];

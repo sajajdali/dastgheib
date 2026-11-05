@@ -95,7 +95,7 @@ class SatisfactionController extends Controller
         if (! $invite->opened_at) $invite->update(['opened_at'=>now()]);
         $form = $invite->form_snapshot;
         $form['title'] = self::form()['title'] ?? 'نظرسنجی کلینیک';
-        $form['clinic_name'] = (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', ''));
+        $form['clinic_name'] = AppSetting::clinicName();
         $logo = (string) AppSetting::getByKey('company_logo', '');
         $form['logo_url'] = $logo === '' ? '' : (parse_url($logo, PHP_URL_PATH) ?: $logo);
         return response()->json(['form'=>$form,'answered'=>filled($invite->answered_at)]);

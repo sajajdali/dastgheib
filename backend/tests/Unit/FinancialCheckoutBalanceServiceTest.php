@@ -105,4 +105,20 @@ class FinancialCheckoutBalanceServiceTest extends TestCase
         // پس از اولین تسویه، دفتر مالی مبنا است حتی اگر همهٔ پرداخت‌ها حذف شده باشند.
         $this->assertSame(0, $this->service->previouslyReceived(null, null, ['ledger_total' => 0, 'cash' => 500_000]));
     }
+
+    public function test_before_the_visit_payments_and_deposits_create_no_debt(): void
+    {
+        $result = $this->service->reconcile(4_500_000, 1_000_000, 0, visitDone: false);
+
+        $this->assertSame(0, $result['total_debt']);
+        $this->assertSame(0, $result['balance']);
+        $this->assertSame(4_500_000, $result['payable']);
+    }
+
+    public function test_before_the_visit_debt_is_refused(): void
+    {
+        $this->expectException(HttpException::class);
+
+        $this->service->reconcile(4_500_000, 0, 4_500_000, visitDone: false);
+    }
 }

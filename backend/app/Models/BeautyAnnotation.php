@@ -9,12 +9,16 @@ class BeautyAnnotation extends Model
 {
     use Auditable;
 
+    public const SOURCE_MEDIA = 'media';
+    public const SOURCE_PROFILE = 'profile';
+
     public function activitySection(): string { return 'زیبایار'; }
     public function activityLabel(): string { return trim(($this->area ?? '').' '.($this->problem ?? '')) ?: 'نقطه زیبایار #'.$this->getKey(); }
 
     protected $fillable = [
         'patient_id',
         'patient_media_id',
+        'photo_source',
         'created_by',
         'x_percent',
         'y_percent',

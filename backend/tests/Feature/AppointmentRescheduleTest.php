@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use App\Events\AppointmentChanged;
 use App\Http\Controllers\AppointmentController;
 use App\Models\Appointment;
+use App\Models\Inventory;
+use App\Models\InventoryAddonDefinition;
 use App\Models\ResourceEarningLine;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Concerns\CreatesPayrollTables;
 use Tests\TestCase;
@@ -39,6 +42,30 @@ class AppointmentRescheduleTest extends TestCase
             $table->timestamps();
         });
         $this->createPayrollTables();
+        Schema::table('inventories', function (Blueprint $table) {
+            $table->integer('stock')->nullable();
+            $table->boolean('track_stock')->default(false);
+        });
+        Schema::create('inventory_movements', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('inventory_id')->nullable();
+            $table->unsignedBigInteger('inventory_addon_definition_id')->nullable();
+            $table->string('inventory_name');
+            $table->decimal('quantity', 14, 3);
+            $table->string('type');
+            $table->string('source_key')->nullable();
+            $table->unsignedBigInteger('appointment_id')->nullable();
+            $table->string('description')->nullable();
+            $table->timestamp('occurred_at');
+            $table->timestamps();
+        });
+        Schema::create('inventory_addon_definitions', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->integer('stock')->nullable();
+            $table->boolean('track_stock')->default(false);
+            $table->timestamps();
+        });
     }
 
     private function appointment(): Appointment
@@ -49,6 +76,115 @@ class AppointmentRescheduleTest extends TestCase
             'services' => [['name' => 'service', 'cc' => 1]],
             'payment_details' => ['deposit' => 500000],
         ]);
+    }
+
+    private function syncStock(?Appointment $previous, ?Appointment $current): void
+    {
+        $method = new \ReflectionMethod(AppointmentController::class, 'syncAppointmentInventoryStock');
+        $method->invoke(app(AppointmentController::class), [['previous' => $previous, 'current' => $current]], collect());
+    }
+
+    public function test_stock_is_optional_and_reconciles_main_and_addon_by_id(): void
+    {
+        $main = Inventory::create(['name' => 'service', 'stock' => 10, 'track_stock' => true]);
+        $addon = InventoryAddonDefinition::create(['name' => 'addon', 'stock' => 5, 'track_stock' => true]);
+        $untracked = Inventory::create(['name' => 'untracked', 'stock' => 9, 'track_stock' => false]);
+        $appointment = $this->appointment();
+        $appointment->services = [
+            ['name' => 'service', 'inventory_id' => $main->id, 'cc' => '', 'addons' => [
+                ['name' => 'addon', 'addon_definition_id' => $addon->id, 'cc' => '2'],
+            ]],
+            ['name' => 'untracked', 'inventory_id' => $untracked->id, 'cc' => '3'],
+        ];
+        $appointment->save();
+        $this->syncStock(null, $appointment);
+        $this->assertSame(10, (int) $main->fresh()->stock);
+        $this->assertSame(5, (int) $addon->fresh()->stock);
+
+        $before = clone $appointment;
+        $appointment->done = 'انجام شد';
+        $appointment->save();
+        $this->syncStock($before, $appointment);
+        $this->assertSame(10, (int) $main->fresh()->stock);
+        $this->assertSame(3, (int) $addon->fresh()->stock);
+        $this->assertSame(9, (int) $untracked->fresh()->stock);
+        $this->syncStock($appointment, $appointment);
+        $this->assertSame(3, (int) $addon->fresh()->stock);
+
+        $before = clone $appointment;
+        $appointment->services = [['name' => 'renamed', 'inventory_id' => $main->id, 'cc' => 2,
+            'addons' => [['name' => 'renamed addon', 'addon_definition_id' => $addon->id, 'cc' => 1]]]];
+        $appointment->save();
+        $this->syncStock($before, $appointment);
+        $this->assertSame(8, (int) $main->fresh()->stock);
+        $this->assertSame(4, (int) $addon->fresh()->stock);
+
+        $method = new \ReflectionMethod(AppointmentController::class, 'syncAppointmentInventoryStock');
+        $method->invoke(app(AppointmentController::class), [], collect([$appointment]));
+        $this->assertSame(10, (int) $main->fresh()->stock);
+        $this->assertSame(5, (int) $addon->fresh()->stock);
+        $this->assertDatabaseHas('inventory_movements', [
+            'inventory_addon_definition_id' => $addon->id, 'appointment_id' => $appointment->id,
+            'type' => 'appointment_reversal', 'quantity' => 1,
+        ]);
+    }
+
+    public function test_moving_completed_appointment_restores_stock(): void
+    {
+        $main = Inventory::create(['name' => 'service', 'stock' => 10, 'track_stock' => true]);
+        $appointment = $this->appointment();
+        $appointment->done = 'انجام شد';
+        $appointment->services = [['name' => 'service', 'inventory_id' => $main->id, 'cc' => 2]];
+        $appointment->save();
+        $this->syncStock(null, $appointment);
+        $this->assertSame(8, (int) $main->fresh()->stock);
+        $this->move($appointment);
+        $this->assertSame(10, (int) $main->fresh()->stock);
+    }
+
+    public function test_old_appointment_restores_after_inventory_rename(): void
+    {
+        $main = Inventory::create(['name' => 'service', 'stock' => 10, 'track_stock' => true]);
+        $appointment = $this->appointment();
+        $appointment->done = 'انجام شد';
+        $appointment->services = [['name' => 'service', 'cc' => 2]];
+        $appointment->save();
+        $this->syncStock(null, $appointment);
+        $this->assertSame(8, (int) $main->fresh()->stock);
+        $main->update(['name' => 'renamed']);
+        $method = new \ReflectionMethod(AppointmentController::class, 'syncAppointmentInventoryStock');
+        $method->invoke(app(AppointmentController::class), [], collect([$appointment]));
+        $this->assertSame(10, (int) $main->fresh()->stock);
+    }
+
+    public function test_enabling_tracking_does_not_restore_stock_for_old_untracked_visit(): void
+    {
+        $main = Inventory::create(['name' => 'service', 'stock' => 10, 'track_stock' => false]);
+        $appointment = $this->appointment();
+        $appointment->done = 'انجام شد';
+        $appointment->save();
+        $this->syncStock(null, $appointment);
+        $main->update(['track_stock' => true]);
+        $method = new \ReflectionMethod(AppointmentController::class, 'syncAppointmentInventoryStock');
+        $method->invoke(app(AppointmentController::class), [], collect([$appointment]));
+        $this->assertSame(10, (int) $main->fresh()->stock);
+    }
+
+    public function test_fractional_quantity_is_rejected_for_main_and_addon(): void
+    {
+        foreach ([
+            [['name' => 'service', 'cc' => '1.5']],
+            [['name' => 'service', 'cc' => 1, 'addons' => [['name' => 'addon', 'cc' => '0.5']]]],
+        ] as $services) {
+            try {
+                app(AppointmentController::class)->saveAppointments(Request::create('/', 'POST', [
+                    'month' => '1405-06', 'appointments' => [['services' => $services]],
+                ]));
+                $this->fail('Fractional quantity was accepted.');
+            } catch (ValidationException $exception) {
+                $this->assertNotEmpty($exception->errors());
+            }
+        }
     }
 
     private function move(Appointment $appointment, int $version = 1, string $month = '1405-07', bool $allowOccupiedSlot = false)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceMonth;
 use App\Models\Doctor;
@@ -69,6 +70,10 @@ class PayrollReportController extends Controller
         $absence = $sum(['attendance_absence']);
         $attendanceAdjustment = $overtime + $shortage + $absence;
         $salary = (float) ($resource->salary ?? 0);
+        // فروش تارگت: همهٔ خدمات انجام‌شدهٔ این نفر در ماه، بعد از تخفیف و کسر مواد.
+        $appointments = app(AppointmentController::class);
+        $targetSales = (float) ($appointments->monthlyTargetSales($data['month'])[$data['resource_type'].'-'.$resource->id] ?? 0);
+        $reachedTier = $resource->sales_bonus_enabled ? $appointments->reachedSalesTier($resource, $targetSales) : null;
 
         return response()->json([
             'resource' => $this->resourcePayload($data['resource_type'], $resource),
@@ -84,6 +89,8 @@ class PayrollReportController extends Controller
                 'attendance_adjustment' => round($attendanceAdjustment),
                 'total_commission' => round($serviceCommission + $inventoryCommission),
                 'total_earned' => round($salary + $serviceCommission + $inventoryCommission + $salesBonus + $attendanceAdjustment),
+                'target_sales' => round($targetSales),
+                'reached_tier' => $reachedTier,
             ],
             'attendance' => [
                 'daily_hours' => (float) ($attendance?->daily_hours ?? 0),

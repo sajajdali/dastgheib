@@ -36,6 +36,8 @@ class StoreDynamicReportRequest extends FormRequest
             'filters.values.referrer' => ['nullable', 'string', 'max:100'],
             'filters.values.debt' => ['nullable', 'string', 'max:30'],
             'filters.values.deposit' => ['nullable', 'string', 'max:30'],
+            'filters.values.discount' => ['nullable', 'string', 'max:30'],
+            'filters.values.problem' => ['nullable', 'string', 'max:100'],
             'filters.values.noreturn' => ['nullable', 'string', Rule::in(['', 'بدون محدودیت', '۱ ماه', '۲ ماه', '۳ ماه', '۴ ماه', '۵ ماه', '۶ ماه'])],
             'filters.birthDate' => ['sometimes', 'array'],
             'filters.birthDate.from' => ['nullable', 'array', 'size:3'],
@@ -51,8 +53,11 @@ class StoreDynamicReportRequest extends FormRequest
             'filters.sort' => ['nullable', Rule::in(['asc', 'desc'])],
             'filters.comparators.debt' => ['nullable', Rule::in(['lt','gt','eq'])],
             'filters.comparators.deposit' => ['nullable', Rule::in(['lt','gt','eq'])],
-            'filters.multi.custseg' => ['sometimes', 'array', 'max:3'],
-            'filters.multi.custseg.*' => ['required', 'string', 'distinct', Rule::in(['آبی', 'نقره‌ای', 'طلایی', 'blue', 'silver', 'gold'])],
+            'filters.comparators.discount' => ['nullable', Rule::in(['lt','gt','eq'])],
+            'filters.multi.custseg' => ['sometimes', 'array', 'max:4'],
+            'filters.multi.custseg.*' => ['required', 'string', 'distinct', Rule::in(['آبی', 'نقره‌ای', 'طلایی', 'دردسرساز', 'blue', 'silver', 'gold', 'problematic'])],
+            'filters.multi.consultant' => ['sometimes', 'array', 'max:20'],
+            'filters.multi.consultant.*' => ['required', 'string', 'distinct', 'max:100'],
             'filters.multi.status' => ['sometimes', 'array', 'max:6'],
             'filters.multi.status.*' => ['required', 'string', 'distinct', Rule::in(config('dynamic_reports.appointment_statuses', []))],
             'filters.multi.doctor' => ['sometimes', 'array', 'max:20'],
@@ -110,6 +115,8 @@ class StoreDynamicReportRequest extends FormRequest
                 'referrer' => $this->digits($this->text($data, 'referrer')),
                 'debt' => $this->money(data_get($data, 'filters.values.debt')),
                 'deposit' => $this->money(data_get($data, 'filters.values.deposit')),
+                'discount' => $this->money(data_get($data, 'filters.values.discount')),
+                'problem' => $this->text($data, 'problem'),
                 'noreturnMonths' => $this->noReturnMonths($this->text($data, 'noreturn')),
             ],
             'birthDate' => $birthDate,
@@ -117,10 +124,11 @@ class StoreDynamicReportRequest extends FormRequest
             'range' => ['amount' => ['from' => $this->money(data_get($data, 'filters.range.amount.from')), 'to' => $this->money(data_get($data, 'filters.range.amount.to'))]],
             'multi' => [
                 'custseg' => collect(data_get($data, 'filters.multi.custseg', []))
-                    ->map(fn ($level) => ['آبی' => 'blue', 'نقره‌ای' => 'silver', 'طلایی' => 'gold'][$level] ?? $level)
+                    ->map(fn ($level) => ['آبی' => 'blue', 'نقره‌ای' => 'silver', 'طلایی' => 'gold', 'دردسرساز' => 'problematic'][$level] ?? $level)
                     ->unique()->values()->all(),
                 'status' => collect(data_get($data, 'filters.multi.status', []))->filter()->unique()->values()->all(),
                 'doctor' => collect(data_get($data, 'filters.multi.doctor', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
+                'consultant' => collect(data_get($data, 'filters.multi.consultant', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'source' => collect(data_get($data, 'filters.multi.source', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'work' => collect(data_get($data, 'filters.multi.work', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'section2' => collect(data_get($data, 'filters.multi.section2', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
@@ -131,7 +139,7 @@ class StoreDynamicReportRequest extends FormRequest
                 'payment' => collect(data_get($data, 'filters.multi.payment', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'account' => collect(data_get($data, 'filters.multi.account', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
             ],
-            'comparators' => ['debt' => data_get($data, 'filters.comparators.debt', 'eq'), 'deposit' => data_get($data, 'filters.comparators.deposit', 'eq')],
+            'comparators' => ['debt' => data_get($data, 'filters.comparators.debt', 'eq'), 'deposit' => data_get($data, 'filters.comparators.deposit', 'eq'), 'discount' => data_get($data, 'filters.comparators.discount', 'eq')],
         ];
     }
 

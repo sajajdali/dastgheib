@@ -163,7 +163,7 @@ Route::get('/patients/upcoming-birthdays', [PatientController::class, 'upcomingB
 Route::get('/patients/search', [PatientController::class, 'search'])->middleware('permission:patients.view');
 Route::put('/patients/{id}', [PatientController::class, 'update'])->middleware('permission:patients.update');
 Route::delete('/patients/{patient}', [PatientController::class, 'destroy'])->middleware('permission:patients.delete');
-Route::patch('/patients/{patient}/customer-level', [PatientController::class, 'updateCustomerLevel']);
+Route::patch('/patients/{patient}/customer-level', [PatientController::class, 'updateCustomerLevel'])->middleware('permission:patients.update');
 Route::post('/patients/{patient}/profile-photo', [PatientController::class, 'uploadProfilePhoto']);
 Route::get('/patients/{patient}/media', [PatientMediaController::class, 'index']);
 Route::post('/patients/{patient}/media/folders', [PatientMediaController::class, 'storeFolder']);
@@ -243,6 +243,7 @@ Route::get('/reports/drilldown/{metric}', [ClinicReportController::class, 'drill
 Route::get('/reports/export', [ClinicReportController::class, 'export'])->middleware('permission:reports.view');
 Route::apiResource('expenses', ExpenseController::class)->middleware('permission:bills.view');
 Route::post('/campaigns/general', [CampaignController::class, 'general'])->middleware('permission:followups.view');
+Route::get('/campaigns/subsections', [CampaignController::class, 'subsections'])->middleware('permission:followups.view');
 Route::apiResource('campaigns', CampaignController::class)->middleware('permission:followups.view');
 Route::get('/payroll/resources', [PayrollReportController::class, 'resources'])->middleware('permission:payroll.view');
 Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middleware('permission:payroll.view');

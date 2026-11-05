@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Services\CustomerLevelService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDynamicReportRequest;
 use App\Jobs\GenerateDynamicReport;
@@ -15,13 +16,25 @@ use App\Http\Controllers\HumanResourceController;
 use App\Models\InventoryAddonDefinition;
 use App\Models\Doctor;
 use App\Models\Staff;
+use App\Models\Appointment;
+use App\Models\Channel;
+use App\Reporting\DynamicReports\ReportServiceSections;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DynamicReportController extends Controller
 {
-    public function options(AppointmentStatusRegistry $statuses, HumanResourceController $humanResources): JsonResponse
+    public function options(AppointmentStatusRegistry $statuses, HumanResourceController $humanResources, ReportServiceSections $sections): JsonResponse
     {
-        return response()->json(['sources' => collect(config('dynamic_reports.sources', []))->map(fn ($source, $id) => ['id' => $id, 'label' => $source['label']])->values(), 'appointment_statuses' => $statuses->all(), 'areas' => collect($humanResources->serviceTags())->map(fn ($v) => trim((string) $v))->filter()->unique()->values(), 'extras' => InventoryAddonDefinition::query()->where('active', true)->orderBy('sort_order')->orderBy('name')->pluck('name')->values(), 'doctors' => Doctor::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')]), 'consultants' => Staff::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')])]);
+        return response()->json(['sources' => collect(config('dynamic_reports.sources', []))->map(fn ($source, $id) => ['id' => $id, 'label' => $source['label']])->values(), 'appointment_statuses' => $statuses->all(), 'areas' => collect($humanResources->serviceTags())->map(fn ($v) => trim((string) $v))->filter()->unique()->values(), 'extras' => InventoryAddonDefinition::query()->where('active', true)->orderBy('sort_order')->orderBy('name')->pluck('name')->values(), 'doctors' => Doctor::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')]), 'consultants' => Staff::query()->orderBy('name')->get(['name','salary'])->map(fn($r)=>['label'=>$r->name,'meta'=>number_format((float)$r->salary,0,'.','٬')]),
+            // گزینه‌های واقعی همین کلینیک، نه فهرست نمونه.
+            'source_options' => Channel::query()->orderBy('name')->pluck('name')
+                ->merge(Appointment::query()->whereNotNull('source')->where('source', '<>', '')->distinct()->pluck('source'))
+                ->map(fn ($v) => trim((string) $v))->filter()->unique()->values(),
+            'sections' => $sections->rootNames(),
+            'subsections' => $sections->childNames(),
+            'work' => ['انجام شد', 'مشاوره', 'انجام نشد'],
+            'customer_levels' => ['نقره‌ای', 'آبی', 'طلایی', 'دردسرساز'],
+            'financial_statuses' => ['ضعیف', 'متوسط', 'خوب', 'عالی']]);
     }
 
     public function store(StoreDynamicReportRequest $request): JsonResponse
@@ -56,8 +69,19 @@ class DynamicReportController extends Controller
         $this->authorizeReport($request, $dynamicReport);
         abort_unless($dynamicReport->status === 'completed', 409, 'گزارش هنوز آماده نشده است.');
         $perPage = min(100, max(10, (int) $request->integer('per_page', 25)));
-        // ردیف‌ها به ترتیب id منبع ساخته می‌شوند؛ «جدیدترین اول» فقط جهت نمایش را برعکس می‌کند.
-        $rows = $dynamicReport->rows()->orderBy('id', data_get($dynamicReport->filters, 'sort') === 'desc' ? 'desc' : 'asc')->paginate($perPage);
+        // «قدیمی‌ترین/جدیدترین اول» در گزارش نوبت‌ها یعنی تاریخ نوبت، نه id (id نوبت‌ها به ترتیب تاریخ نیست).
+        $direction = data_get($dynamicReport->filters, 'sort') === 'desc' ? 'desc' : 'asc';
+        $rowsQuery = $dynamicReport->rows()->select('dynamic_report_rows.*');
+        if (data_get($dynamicReport->filters, 'scope', 'appointments') === 'appointments') {
+            $rowsQuery->leftJoin('appointments', function ($join) {
+                $join->on('appointments.id', '=', 'dynamic_report_rows.source_id')
+                    ->where('dynamic_report_rows.source_type', '=', 'appointments');
+            })
+                ->orderBy('appointments.month', $direction)
+                ->orderBy('appointments.day_num', $direction)
+                ->orderBy('appointments.time', $direction);
+        }
+        $rows = $rowsQuery->orderBy('dynamic_report_rows.id', $direction)->paginate($perPage);
         $amountTotal = 0;
         if (in_array('amount', $dynamicReport->columns ?? [], true)) {
             $amountTotal = $dynamicReport->rows()->cursor()->sum(function ($row) {
@@ -66,8 +90,8 @@ class DynamicReportController extends Controller
         }
         $patients = Patient::query()
             ->whereKey($rows->getCollection()->pluck('patient_id')->filter()->unique())
-            ->get(['id', 'file_number', 'first_name', 'last_name', 'customer_level', 'profile_photo_path', 'profile_thumbnail_path'])
-            ->keyBy('id');
+            ->get(['id', 'file_number', 'phone', 'first_name', 'last_name', 'customer_level', 'profile_photo_path', 'profile_thumbnail_path']);
+        $patients = app(CustomerLevelService::class)->decorate($patients)->keyBy('id');
 
         return response()->json([
             'columns' => collect($dynamicReport->columns)->map(fn ($key) => ['key' => $key, 'label' => $fields->label($key)])->values(),

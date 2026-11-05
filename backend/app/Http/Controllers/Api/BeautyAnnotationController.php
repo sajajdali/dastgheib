@@ -8,6 +8,7 @@ use App\Models\AppSetting;
 use App\Models\BeautyAnnotation;
 use App\Models\Patient;
 use App\Models\PatientMedia;
+use App\Services\CustomerLevelService;
 use App\Support\PatientPhoneVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -85,7 +86,7 @@ class BeautyAnnotationController extends Controller
             ->all();
     }
 
-    public function index(Request $request)
+    public function index(Request $request, CustomerLevelService $levels)
     {
         $applyFilters = function ($query) use ($request) {
             $query->where('status', 'pending');
@@ -118,63 +119,100 @@ class BeautyAnnotationController extends Controller
             ->latest();
 
         $patientCount = (clone $query)->count();
+        $annotations = $query->limit(100)->get();
+        // سطح مشتری ذخیره نمی‌شود و باید مثل بقیهٔ صفحه‌ها زنده محاسبه شود.
+        $levels->decorate($annotations->pluck('patient')->filter()->unique('id')->values());
 
         return response()->json([
             'patient_count' => $patientCount,
-            'annotations' => $query->limit(100)->get()->map(fn (BeautyAnnotation $annotation) => [
+            'annotations' => $annotations->map(fn (BeautyAnnotation $annotation) => [
                 ...$this->formatAnnotation($annotation),
                 'patient' => $this->hidePatientPhones($annotation->patient, $request),
                 'media' => $annotation->media,
             ]),
         ]);
     }
-    public function show(Request $request, Patient $patient)
+    public function show(Request $request, Patient $patient, CustomerLevelService $levels)
     {
-        $frontPhotos = PatientMedia::query()
+        // New beauty points are placed only on the patient's profile photo.
+        $profilePhoto = $this->profilePhotoPayload($patient);
+
+        // Older points were saved on regular patient photos. Those photos stay
+        // reachable (only the ones that actually carry points) so the saved
+        // points keep loading; they are not offered as new annotation targets.
+        $legacyMediaIds = BeautyAnnotation::query()
             ->where('patient_id', $patient->id)
-            ->where('media_type', 'image')
-            ->whereIn('photo_angle_key', [
-                'front', 'left_profile', 'right_profile',
-                'left_three_quarter_60', 'left_three_quarter_30',
-                'right_three_quarter_30', 'right_three_quarter_60',
-                'other', 'body_shape',
-            ])
-            ->latest()
-            ->get();
+            ->where('photo_source', BeautyAnnotation::SOURCE_MEDIA)
+            ->whereNotNull('patient_media_id')
+            ->distinct()
+            ->pluck('patient_media_id');
 
-        // A newly opened beauty record starts on the required front-facing
-        // "after" photo so the operator can place treatment annotations on it.
-        $frontFacingPhotos = $frontPhotos->where('photo_angle_key', 'front');
-        $selectedPhoto = $frontFacingPhotos->firstWhere('comparison_stage', 'after')
-            ?: $frontFacingPhotos->first()
-            ?: $frontPhotos->firstWhere('comparison_stage', 'after')
-            ?: $frontPhotos->first();
+        $legacyPhotos = $legacyMediaIds->isEmpty()
+            ? collect()
+            : PatientMedia::query()
+                ->where('patient_id', $patient->id)
+                ->where('media_type', 'image')
+                ->whereIn('id', $legacyMediaIds)
+                ->latest()
+                ->get()
+                ->map(fn (PatientMedia $media) => [...$media->toArray(), 'source' => BeautyAnnotation::SOURCE_MEDIA])
+                ->values();
 
-        $selectedPhotoId = $request->integer('media_id') ?: $selectedPhoto?->id;
-        if ($selectedPhotoId) {
-            $selectedPhoto = $frontPhotos->firstWhere('id', $selectedPhotoId) ?: $selectedPhoto;
+        $requestedMediaId = $request->integer('media_id');
+        $selectedPhoto = ($requestedMediaId ? $legacyPhotos->firstWhere('id', $requestedMediaId) : null)
+            ?: $profilePhoto;
+
+        $annotations = collect();
+        if ($selectedPhoto) {
+            $annotationsQuery = BeautyAnnotation::query()
+                ->with('creator:id,name')
+                ->where('patient_id', $patient->id)
+                ->latest();
+
+            if ($selectedPhoto['source'] === BeautyAnnotation::SOURCE_PROFILE) {
+                $annotationsQuery->where('photo_source', BeautyAnnotation::SOURCE_PROFILE);
+            } else {
+                $annotationsQuery
+                    ->where('photo_source', BeautyAnnotation::SOURCE_MEDIA)
+                    ->where('patient_media_id', $selectedPhoto['id']);
+            }
+
+            if ($request->filled('date_from')) {
+                $annotationsQuery->whereDate('created_at', '>=', $request->date_from);
+            }
+
+            if ($request->filled('date_to')) {
+                $annotationsQuery->whereDate('created_at', '<=', $request->date_to);
+            }
+
+            $annotations = $annotationsQuery->get();
         }
 
-        $annotationsQuery = BeautyAnnotation::query()
-            ->with('creator:id,name')
-            ->where('patient_id', $patient->id)
-            ->when($selectedPhoto?->id, fn ($query) => $query->where('patient_media_id', $selectedPhoto->id))
-            ->latest();
-
-        if ($request->filled('date_from')) {
-            $annotationsQuery->whereDate('created_at', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $annotationsQuery->whereDate('created_at', '<=', $request->date_to);
-        }
+        $levels->decorate(collect([$patient]));
 
         return response()->json([
             'patient' => $this->hidePatientPhones($patient, $request),
-            'front_photos' => $frontPhotos,
+            'profile_photo' => $profilePhoto,
+            'legacy_photos' => $legacyPhotos,
             'selected_photo' => $selectedPhoto,
-            'annotations' => $annotationsQuery->get()->map(fn (BeautyAnnotation $annotation) => $this->formatAnnotation($annotation)),
+            'annotations' => $annotations->map(fn (BeautyAnnotation $annotation) => $this->formatAnnotation($annotation))->values(),
         ]);
+    }
+
+    private function profilePhotoPayload(Patient $patient): ?array
+    {
+        if (! $patient->profile_photo_path) {
+            return null;
+        }
+
+        return [
+            'id' => BeautyAnnotation::SOURCE_PROFILE,
+            'source' => BeautyAnnotation::SOURCE_PROFILE,
+            'url' => $patient->profile_photo_url,
+            'thumbnail_url' => $patient->profile_thumbnail_url,
+            'photo_angle_label' => 'عکس پروفایل',
+            'created_at' => optional($patient->updated_at)->toDateTimeString(),
+        ];
     }
 
     private function hidePatientPhones(?Patient $patient, Request $request): ?Patient
@@ -192,7 +230,8 @@ class BeautyAnnotationController extends Controller
     public function store(Request $request, Patient $patient)
     {
         $data = $request->validate([
-            'patient_media_id' => 'required|integer|exists:patient_media,id',
+            'photo_source' => 'nullable|in:'.BeautyAnnotation::SOURCE_MEDIA.','.BeautyAnnotation::SOURCE_PROFILE,
+            'patient_media_id' => 'required_unless:photo_source,'.BeautyAnnotation::SOURCE_PROFILE.'|nullable|integer|exists:patient_media,id',
             'x_percent' => 'required|numeric|min:0|max:100',
             'y_percent' => 'required|numeric|min:0|max:100',
             'area' => 'nullable|string|max:120',
@@ -204,10 +243,21 @@ class BeautyAnnotationController extends Controller
             'annotation_date' => 'nullable|date',
         ]);
 
-        PatientMedia::query()
-            ->where('patient_id', $patient->id)
-            ->where('media_type', 'image')
-            ->findOrFail($data['patient_media_id']);
+        $data['photo_source'] = $data['photo_source'] ?? BeautyAnnotation::SOURCE_MEDIA;
+
+        if ($data['photo_source'] === BeautyAnnotation::SOURCE_PROFILE) {
+            if (! $patient->profile_photo_path) {
+                return response()->json([
+                    'message' => 'برای ثبت نقطه، ابتدا عکس پروفایل بیمار را آپلود کنید.',
+                ], 422);
+            }
+            $data['patient_media_id'] = null;
+        } else {
+            PatientMedia::query()
+                ->where('patient_id', $patient->id)
+                ->where('media_type', 'image')
+                ->findOrFail($data['patient_media_id']);
+        }
 
         $voicePath = $request->hasFile('voice')
             ? $request->file('voice')->store('beauty-annotations/voice', 'public')
@@ -274,6 +324,7 @@ class BeautyAnnotationController extends Controller
             'id' => $annotation->id,
             'patient_id' => $annotation->patient_id,
             'patient_media_id' => $annotation->patient_media_id,
+            'photo_source' => $annotation->photo_source ?: BeautyAnnotation::SOURCE_MEDIA,
             'x_percent' => $annotation->x_percent,
             'y_percent' => $annotation->y_percent,
             'area' => $annotation->area,

@@ -242,6 +242,52 @@ class PayrollCalculationTest extends TestCase
         $this->assertSame(360000.0, $this->commission($lineDiscount));
     }
 
+    public function test_sales_target_counts_every_done_service_after_materials_and_reaching_the_tier_is_enough(): void
+    {
+        $this->doctor->update(['sales_bonus_enabled' => true, 'sales_bonus_tiers' => [
+            ['sales_from' => 1000000, 'salary_addition' => 200000],
+            ['sales_from' => 1500000, 'salary_addition' => 500000],
+        ]]);
+        $filler = Inventory::query()->create(['name' => 'فیلر', 'amount' => 1000000, 'price' => 400000]);
+        InventoryCommission::query()->create(['inventory_id' => $filler->id, 'recipient_type' => 'doctor', 'recipient_id' => $this->doctor->id, 'recipient_name' => $this->doctor->name, 'commission_type' => 'fixed', 'commission_value' => 0]);
+        Inventory::query()->create(['name' => 'لیزر', 'amount' => 1000000, 'price' => 100000]);
+        $this->visit(['name' => 'فیلر']);
+        $this->visit(['name' => 'لیزر', 'discount' => 100000]);
+        $this->visit(['name' => 'لیزر'], null);
+
+        $this->resync();
+        $summary = $this->payroll()['summary'];
+
+        $this->assertSame(0.0, $this->commission(Appointment::query()->first()));
+        $this->assertSame(1400000.0, (float) $summary['target_sales']);
+        $this->assertSame(200000.0, (float) $summary['sales_bonus']);
+
+        $this->visit(['name' => 'لیزر', 'discount' => 0, 'cc' => 1, 'adjustment_mode' => 'discount']);
+        Inventory::query()->where('name', 'لیزر')->update(['price' => 0]);
+        $this->resync();
+        $summary = $this->payroll()['summary'];
+        $this->assertSame(2500000.0, (float) $summary['target_sales']);
+        $this->assertSame(500000.0, (float) $summary['sales_bonus']);
+        $this->assertSame(1500000.0, (float) $summary['reached_tier']['sales_from']);
+    }
+
+    public function test_sales_target_exactly_reached_and_manual_bonus_edits_are_kept(): void
+    {
+        $this->doctor->update(['sales_bonus_enabled' => true, 'sales_bonus_tiers' => [['sales_from' => 600000, 'salary_addition' => 150000]]]);
+        Inventory::query()->create(['name' => 'میکرو', 'amount' => 1000000, 'price' => 400000]);
+        $this->visit(['name' => 'میکرو']);
+
+        $this->resync();
+        $bonus = ResourceEarningLine::query()->where('earning_type', 'sales_bonus')->where('resource_type', 'doctor')->firstOrFail();
+        $this->assertSame(150000.0, (float) $bonus->amount);
+        $this->assertSame(600000.0, (float) $bonus->commission_base);
+
+        app(PayrollReportController::class)->updateLine(Request::create('/', 'PATCH', ['amount' => 175000]), $bonus);
+        $this->resync();
+        $this->assertSame(1, ResourceEarningLine::query()->where('earning_type', 'sales_bonus')->where('resource_type', 'doctor')->count());
+        $this->assertSame(175000.0, (float) $bonus->fresh()->amount);
+    }
+
     public function test_allowed_shortage_hours_are_taken_from_the_first_short_days_of_the_month(): void
     {
         $this->doctor->update(['shortage_hourly_deduction' => 100000, 'absence_deduction' => 700000, 'allowed_shortage_hours' => 2.5]);

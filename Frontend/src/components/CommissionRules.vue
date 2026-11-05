@@ -21,11 +21,11 @@
         </div>
       </div>
     </div>
-    <label class="check-card materials-card"><input v-model="model.commission_after_materials" type="checkbox"><span><b>پس از کسر مواد مصرفی</b><small>پورسانت از مبلغ خالص محاسبه شود</small></span></label>
-    <label class="sales-switch"><input v-model="model.sales_bonus_enabled" type="checkbox"><span><b>افزایش حقوق در صورت فروش</b><small>تعریف پله‌های تشویقی فروش</small></span></label>
+    <label class="check-card materials-card"><input v-model="model.commission_after_materials" type="checkbox"><span><b>پس از کسر مواد مصرفی</b><small>هزینهٔ مواد از مبنای همهٔ پورسانت‌های درصدی کم شود</small></span></label>
+    <label class="sales-switch"><input v-model="model.sales_bonus_enabled" type="checkbox"><span><b>افزایش حقوق در صورت فروش</b><small>فروش ماه = همهٔ خدمات انجام‌شده، بعد از تخفیف و کسر مواد</small></span></label>
     <div v-if="model.sales_bonus_enabled" class="tier-list">
       <div v-for="(tier,index) in model.sales_bonus_tiers" :key="index" class="tier-row">
-        <span>اگر بیشتر از</span><input :value="money(tier.sales_from)" inputmode="numeric" @input="setMoney(tier,'sales_from',$event)"><span>تومان فروخت،</span>
+        <span>اگر فروش ماه به</span><input :value="money(tier.sales_from)" inputmode="numeric" @input="setMoney(tier,'sales_from',$event)"><span>تومان رسید،</span>
         <input :value="money(tier.salary_addition)" inputmode="numeric" @input="setMoney(tier,'salary_addition',$event)"><span>تومان به حقوق اضافه شود</span>
         <button type="button" @click="removeTier(index)">×</button>
       </div>

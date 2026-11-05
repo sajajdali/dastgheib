@@ -4,6 +4,7 @@ namespace App\Reporting\DynamicReports\Resolvers;
 
 use App\Reporting\DynamicReports\ReportPatientContext;
 use App\Models\ResourceEarningLine;
+use App\Reporting\DynamicReports\ReportServiceSections;
 
 class AppointmentFieldResolver implements ReportFieldResolver
 {
@@ -20,16 +21,20 @@ class AppointmentFieldResolver implements ReportFieldResolver
             'appointmentCreatedDate' => $this->createdDate($appointment),
             'appointmentDate' => $this->appointmentDate($appointment),
             'source' => $appointment?->source,
-            'work' => ! $appointment ? null : ($appointment->done ? 'انجام شده' : ($appointment->status ?: 'انجام نشده')),
-            'section2' => $this->join($appointment?->service_types),
-            'subsection' => $this->serviceNames($appointment?->services),
+            'work' => ! $appointment ? null : (trim((string) $appointment->done) === 'انجام شد' ? 'انجام شده' : (trim((string) $appointment->done) ?: ($appointment->status ?: 'انجام نشده'))),
+            // service_types فقط شناسهٔ بخش‌هاست؛ نام بخش و زیر بخش از درخت بخش‌های انبار خوانده می‌شود.
+            'section2' => $this->join(app(ReportServiceSections::class)->namesForServices($appointment?->services)['roots']),
+            'subsection' => $this->join(app(ReportServiceSections::class)->namesForServices($appointment?->services)['children'])
+                ?? $this->serviceNames($appointment?->services),
             'count' => $this->serviceCc($appointment?->services),
             'doctor' => $appointment?->doctor,
             'consultant' => $appointment?->consultant,
             'salary' => $this->salary($appointment),
             'overtime' => $this->overtime($appointment),
             'areas' => $this->serviceTags($appointment?->services),
-            'problem', 'extra' => null,
+            'extra' => $this->addonNames($appointment?->services),
+            'problem' => collect([$context->patient->medical_history, $context->patient->patient_history])
+                ->map(fn ($value) => trim((string) $value))->filter()->unique()->implode(' — ') ?: null,
         };
     }
 
@@ -44,6 +49,14 @@ class AppointmentFieldResolver implements ReportFieldResolver
         $names = collect(is_array($services) ? $services : [])->map(fn ($service) =>
             is_array($service) ? ($service['name'] ?? $service['title'] ?? null) : $service
         )->filter(fn ($value) => is_scalar($value));
+        return $names->isEmpty() ? null : $names->implode('، ');
+    }
+
+    private function addonNames(mixed $services): ?string
+    {
+        $names = collect(is_array($services) ? $services : [])
+            ->flatMap(fn ($service) => is_array($service) && is_array($service['addons'] ?? null) ? $service['addons'] : [])
+            ->map(fn ($addon) => trim((string) (is_array($addon) ? ($addon['name'] ?? '') : $addon)))->filter()->unique()->values();
         return $names->isEmpty() ? null : $names->implode('، ');
     }
 
@@ -110,19 +123,24 @@ class AppointmentFieldResolver implements ReportFieldResolver
         // پورسانت فعال همهٔ پزشکان و مشاوران خدمات این نوبت (پزشک هر خدمت ممکن است با پزشک نوبت فرق کند).
         $value = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->where('status', 'active')
             ->whereIn('earning_type', ResourceEarningLine::COMMISSION_TYPES)->sum('amount');
-        return $value ? number_format((float)$value, 0, '.', '٬') : '۰';
+        return $value ? number_format((float)$value, 0, '.', '٬') : '0';
     }
     private function overtime(mixed $appointment): ?string
     {
         if (!$appointment) return null;
-        $value = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->where('earning_type', 'attendance_overtime')->sum('quantity');
-        return $value ? number_format((float)$value, 2, '.', '٬') : '۰';
+        // اضافه‌کاری ماهانه است و به نوبت وصل نیست: ساعت اضافه‌کاری تأییدشدهٔ پزشک و مشاور این نوبت در همان ماه.
+        $names = collect(preg_split('/[،,]+/u', (string) $appointment->doctor))->push($appointment->consultant)
+            ->map(fn ($name) => trim((string) $name))->filter()->unique()->values();
+        if ($names->isEmpty()) return '0';
+        $value = ResourceEarningLine::query()->where('month', $appointment->month)->where('earning_type', 'attendance_overtime')
+            ->where('status', 'active')->whereIn('resource_name', $names)->sum('quantity');
+        return $value ? number_format((float)$value, 2, '.', '٬') : '0';
     }
 
     private function lastAttendance(ReportPatientContext $context): ?string
     {
         $appointment = $context->appointmentHistory
-            ->first(fn ($item) => trim((string) $item->status) === 'آمد');
+            ->first(fn ($item) => trim((string) $item->status) === 'آمد' || trim((string) $item->done) === 'انجام شد');
         if (! $appointment?->month || ! $appointment?->day_num) return null;
         return sprintf('%s/%02d', str_replace('-', '/', (string) $appointment->month), (int) $appointment->day_num);
     }

@@ -120,6 +120,12 @@
     </section>
 
     <section v-if="activePatient" class="beauty-flow-record">
+      <PatientProfilePhotoUploader
+        ref="profileUploader"
+        :patient-id="activePatient.id"
+        @uploaded="onProfilePhotoUploaded"
+        @error="message => searchError = message"
+      />
       <header class="beauty-flow-record-header">
         <div>
           <h2>زیبایار پرونده</h2>
@@ -148,13 +154,42 @@
 
           <section class="beauty-flow-side-block">
             <label>عکس برنامه زیبایی</label>
-            <select v-model="selectedPhotoId" @change="loadRecord">
-              <option v-for="photo in photoNavigationPhotos" :key="photo.id" :value="photo.id">
-                {{ photoLabel(photo) }}
-              </option>
-            </select>
-            <small v-if="frontPhotos.length" class="beauty-flow-default-photo-note">
-              زیبایار به‌صورت پیش‌فرض آخرین عکس «تمام‌رخ بعد» را برای نقطه‌گذاری باز می‌کند.
+            <button
+              v-if="profilePhoto"
+              type="button"
+              :class="['beauty-flow-profile-pick', { 'beauty-flow-profile-pick-active': isProfileSelected }]"
+              :aria-pressed="isProfileSelected"
+              @click="selectProfilePhoto"
+            >
+              <img :src="profilePhoto.thumbnail_url || profilePhoto.url" alt="عکس پروفایل بیمار">
+              <span>
+                <strong>عکس پروفایل</strong>
+                <small>{{ isProfileSelected ? 'انتخاب شده برای نقطه‌گذاری' : 'برای نقطه‌گذاری انتخاب کنید' }}</small>
+              </span>
+            </button>
+            <div v-else class="beauty-flow-profile-missing">
+              <strong>عکس پروفایل ثبت نشده است.</strong>
+              <span>برای نقطه‌گذاری در زیبایار، ابتدا عکس پروفایل بیمار را آپلود کنید.</span>
+              <button type="button" class="beauty-flow-upload-profile-btn" :disabled="recordLoading" @click="openProfileUpload">آپلود عکس پروفایل</button>
+            </div>
+            <small class="beauty-flow-default-photo-note">
+              نقاط زیبایار فقط روی عکس پروفایل بیمار ثبت می‌شوند.
+            </small>
+          </section>
+
+          <section v-if="legacyPhotos.length" class="beauty-flow-side-block beauty-flow-legacy-block">
+            <label>نقاط ثبت‌شده روی عکس‌های قبلی</label>
+            <button
+              v-for="photo in legacyPhotos"
+              :key="photo.id"
+              type="button"
+              :class="['beauty-flow-legacy-pick', { 'beauty-flow-legacy-pick-active': String(selectedPhotoId) === String(photo.id) }]"
+              @click="selectLegacyPhoto(photo)"
+            >
+              {{ photoLabel(photo) }}
+            </button>
+            <small class="beauty-flow-default-photo-note">
+              این عکس‌ها فقط برای مشاهده و پیگیری نقاط قبلی نمایش داده می‌شوند.
             </small>
           </section>
 
@@ -244,34 +279,20 @@
         </aside>
 
         <section class="beauty-flow-photo-panel">
+          <p v-if="searchError && !recordLoading" class="beauty-flow-error">{{ searchError }}</p>
           <div v-if="recordLoading" class="beauty-flow-photo-empty">در حال دریافت پرونده...</div>
 
           <div v-else-if="!selectedPhoto" class="beauty-flow-photo-empty">
-            <strong>عکسی برای برنامه زیبایی ثبت نشده است.</strong>
-            <span>در پرونده بیمار یک عکس تمام‌رخ، نیم‌رخ، سایر یا شیپ بدن آپلود کنید.</span>
-            <button type="button" class="beauty-flow-add-photo-btn" @click="$emit('open-patient-media', activePatient)">درج عکس</button>
+            <strong>عکس پروفایل برای این بیمار ثبت نشده است.</strong>
+            <span>نقاط زیبایار فقط روی عکس پروفایل ثبت می‌شوند؛ ابتدا عکس پروفایل بیمار را آپلود کنید.</span>
+            <button type="button" class="beauty-flow-add-photo-btn" @click="openProfileUpload">آپلود عکس پروفایل</button>
           </div>
 
           <template v-else>
             <header class="beauty-flow-photo-header">
               <div>
-                <h3>{{ selectedPhoto.photo_angle_label || 'تمام‌رخ' }}</h3>
-                <p>{{ selectedPhoto.comparison_stage === 'before' ? 'عکس قبل' : selectedPhoto.comparison_stage === 'after' ? 'عکس بعد' : 'عکس پرونده' }}</p>
-              </div>
-              <div v-if="photoNavigationPhotos.length > 1" class="beauty-flow-photo-navigation">
-                <button
-                  type="button"
-                  title="عکس قبلی"
-                  aria-label="عکس قبلی"
-                  @click.stop="selectAdjacentPhoto(-1)"
-                >→</button>
-                <span>{{ currentPhotoPosition }} از {{ photoNavigationPhotos.length }}</span>
-                <button
-                  type="button"
-                  title="عکس بعدی"
-                  aria-label="عکس بعدی"
-                  @click.stop="selectAdjacentPhoto(1)"
-                >←</button>
+                <h3>{{ isProfileSelected ? 'عکس پروفایل' : (selectedPhoto.photo_angle_label || 'عکس قبلی') }}</h3>
+                <p>{{ isProfileSelected ? 'برای ثبت نقطه روی عکس کلیک کنید' : 'عکس قبلی · فقط مشاهده و پیگیری نقاط ثبت‌شده' }}</p>
               </div>
               <div class="beauty-flow-point-count">
                 <span>{{ annotations.length }} نقطه</span>
@@ -288,8 +309,8 @@
               </button>
             </header>
 
-            <div class="beauty-flow-photo-stage" @click="startPoint">
-              <img :src="selectedPhoto.url" alt="عکس تمام‌رخ بیمار">
+            <div :class="['beauty-flow-photo-stage', { 'beauty-flow-photo-stage-readonly': !isProfileSelected }]" @click="startPoint">
+              <img :src="selectedPhoto.url" :alt="isProfileSelected ? 'عکس پروفایل بیمار' : 'عکس قبلی بیمار'">
               <button
                 v-for="point in annotations"
                 :key="point.id"
@@ -357,12 +378,13 @@
 
 <script>
 import DatePicker from 'vue3-persian-datetime-picker'
+import PatientProfilePhotoUploader from './PatientProfilePhotoUploader.vue'
 
 const API = '/api'
 
 export default {
   name: 'Dermatracker',
-  components: { DatePicker },
+  components: { DatePicker, PatientProfilePhotoUploader },
   props: {
     permissions: {
       type: Array,
@@ -382,7 +404,8 @@ export default {
     patients: [],
     activePatient: null,
     recordLoading: false,
-    frontPhotos: [],
+    profilePhoto: null,
+    legacyPhotos: [],
     selectedPhotoId: '',
     selectedPhoto: null,
     annotations: [],
@@ -419,29 +442,8 @@ export default {
     doneCount() {
       return this.annotations.filter(item => item.status === 'done').length
     },
-    photoNavigationPhotos() {
-      const angleOrder = {
-        right_profile: 0,
-        right_three_quarter_60: 1,
-        right_three_quarter_30: 2,
-        front: 3,
-        left_three_quarter_30: 4,
-        left_three_quarter_60: 5,
-        left_profile: 6,
-        other: 7,
-        body_shape: 8,
-      }
-      const stageOrder = { after: 0, before: 1 }
-
-      return [...this.frontPhotos].sort((first, second) => {
-        const byAngle = (angleOrder[first.photo_angle_key] ?? 99) - (angleOrder[second.photo_angle_key] ?? 99)
-        if (byAngle) return byAngle
-        return (stageOrder[first.comparison_stage] ?? 2) - (stageOrder[second.comparison_stage] ?? 2)
-      })
-    },
-    currentPhotoPosition() {
-      const index = this.photoNavigationPhotos.findIndex(photo => String(photo.id) === String(this.selectedPhotoId))
-      return index >= 0 ? index + 1 : 1
+    isProfileSelected() {
+      return this.selectedPhoto?.source === 'profile'
     },
     visibleServiceHistory() {
       return this.servicesExpanded ? this.serviceHistory : this.serviceHistory.slice(0, 3)
@@ -501,14 +503,24 @@ export default {
       const date = photo.created_at ? new Date(photo.created_at).toLocaleDateString('fa-IR') : 'بدون تاریخ'
       return `${photo.photo_angle_label || 'سایر'} · ${stage} · ${date}`
     },
-    async selectAdjacentPhoto(offset) {
-      const photos = this.photoNavigationPhotos
-      if (photos.length < 2) return
-
-      const currentIndex = photos.findIndex(photo => String(photo.id) === String(this.selectedPhotoId))
-      const startIndex = currentIndex >= 0 ? currentIndex : 0
-      const nextIndex = (startIndex + offset + photos.length) % photos.length
-      this.selectedPhotoId = photos[nextIndex].id
+    openProfileUpload() {
+      this.searchError = ''
+      this.$refs.profileUploader?.pick()
+    },
+    async onProfilePhotoUploaded(data) {
+      if (data?.patient) this.activePatient = { ...this.activePatient, ...data.patient }
+      // بعد از آپلود، عکس پروفایل مستقیم برای نقطه‌گذاری باز می‌شود.
+      this.selectedPhotoId = ''
+      await this.loadRecord()
+    },
+    async selectProfilePhoto() {
+      if (!this.profilePhoto || this.isProfileSelected) return
+      this.selectedPhotoId = ''
+      await this.loadRecord()
+    },
+    async selectLegacyPhoto(photo) {
+      if (!photo?.id || String(this.selectedPhotoId) === String(photo.id)) return
+      this.selectedPhotoId = photo.id
       await this.loadRecord()
     },
     annotationFullText(point) {
@@ -697,32 +709,20 @@ export default {
     },
     async loadRecord() {
       if (!this.activePatient?.id) return
-      const explicitlySelectedPhotoId = this.selectedPhotoId
       this.recordLoading = true
       this.searchError = ''
       try {
         const params = new URLSearchParams()
-        if (this.selectedPhotoId) params.set('media_id', this.selectedPhotoId)
+        // فقط عکس‌های قبلیِ دارای نقطه شناسه عددی دارند؛ پیش‌فرض عکس پروفایل است.
+        if (/^\d+$/.test(String(this.selectedPhotoId || ''))) params.set('media_id', this.selectedPhotoId)
         const res = await fetch(`${API}/patients/${this.activePatient.id}/beauty?${params}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.message || 'دریافت پرونده زیبایار انجام نشد.')
         this.activePatient = data.patient || this.activePatient
-        this.frontPhotos = data.front_photos || []
-        if (!explicitlySelectedPhotoId) {
-          const latestFrontAfter = [...this.frontPhotos]
-            .filter(photo => photo.photo_angle_key === 'front' && photo.comparison_stage === 'after')
-            .sort((first, second) => {
-              const byDate = new Date(second.created_at || 0) - new Date(first.created_at || 0)
-              return byDate || Number(second.id || 0) - Number(first.id || 0)
-            })[0]
-          if (latestFrontAfter && String(data.selected_photo?.id || '') !== String(latestFrontAfter.id)) {
-            this.selectedPhotoId = latestFrontAfter.id
-            await this.loadRecord()
-            return
-          }
-        }
+        this.profilePhoto = data.profile_photo || null
+        this.legacyPhotos = Array.isArray(data.legacy_photos) ? data.legacy_photos : []
         this.selectedPhoto = data.selected_photo || null
-        this.selectedPhotoId = this.selectedPhoto?.id || ''
+        this.selectedPhotoId = this.selectedPhoto?.source === 'media' ? this.selectedPhoto.id : ''
         this.annotations = data.annotations || []
         this.draftPoint = null
         this.selectedAnnotation = null
@@ -734,8 +734,15 @@ export default {
     },
     startPoint(event) {
       if (!this.selectedPhoto) return
+      if (!this.isProfileSelected) {
+        this.searchError = this.profilePhoto
+          ? 'نقطه جدید فقط روی عکس پروفایل ثبت می‌شود. عکس پروفایل را انتخاب کنید.'
+          : 'برای ثبت نقطه جدید، ابتدا عکس پروفایل بیمار را آپلود کنید.'
+        return
+      }
       const rect = event.currentTarget.getBoundingClientRect()
       this.selectedAnnotation = null
+      this.searchError = ''
       this.draftPoint = {
         x_percent: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
         y_percent: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)),
@@ -747,11 +754,11 @@ export default {
       this.clearDraftVoice()
     },
     async savePoint() {
-      if (!this.activePatient?.id || !this.selectedPhoto?.id || !this.draftPoint) return
+      if (!this.activePatient?.id || !this.isProfileSelected || !this.draftPoint) return
       this.savingPoint = true
       try {
         const form = new FormData()
-        form.append('patient_media_id', this.selectedPhoto.id)
+        form.append('photo_source', 'profile')
         Object.entries(this.draftPoint).forEach(([key, value]) => {
           form.append(key, value ?? '')
         })
@@ -928,7 +935,9 @@ export default {
     closeRecord() {
       this.clearDraftVoice()
       this.activePatient = null
-      this.frontPhotos = []
+      this.profilePhoto = null
+      this.legacyPhotos = []
+      this.selectedPhotoId = ''
       this.selectedPhoto = null
       this.annotations = []
       this.serviceHistory = []
@@ -1370,6 +1379,75 @@ export default {
   font-size: 10px;
   font-weight: 800;
   line-height: 1.8;
+}
+/* انتخاب عکس پروفایل به‌عنوان تنها هدف نقطه‌گذاری */
+.beauty-flow .beauty-flow-profile-pick {
+  height: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 2px solid #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+  text-align: right;
+}
+.beauty-flow .beauty-flow-profile-pick-active {
+  border-color: #0f766e;
+  background: #f0fdfa;
+  cursor: default;
+}
+.beauty-flow-profile-pick img {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.beauty-flow-profile-pick span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.beauty-flow-profile-pick strong {
+  font-size: 12px;
+}
+.beauty-flow-profile-pick-active small {
+  color: #0f766e !important;
+}
+.beauty-flow-profile-missing {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.beauty-flow .beauty-flow-upload-profile-btn {
+  height: 36px;
+  margin-top: 4px;
+  background: #2563eb;
+}
+.beauty-flow .beauty-flow-legacy-pick {
+  height: auto;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 11px;
+  text-align: right;
+}
+.beauty-flow .beauty-flow-legacy-pick-active {
+  border-color: #64748b;
+  background: #e2e8f0;
+}
+.beauty-flow-photo-stage-readonly {
+  cursor: default !important;
 }
 .beauty-flow-services-head {
   display: flex;

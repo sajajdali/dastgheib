@@ -64,6 +64,12 @@
           <input v-model="node.section.name" :title="node.section.name || treePlaceholder(node.level)" :placeholder="treePlaceholder(node.level)" @click.stop @focus="selectTreeNode(node.section)">
           <div class="tree-color-picker"><button type="button" class="tree-color-btn" title="رنگ فعلی این آیتم؛ برای بازکردن پالت کلیک کنید" @click.stop="toggleSectionColorMenu(sectionKey(node.section))"><span :style="{ background: sectionColor(node.section) }"></span></button><div v-if="colorPickerSectionKey === sectionKey(node.section)" class="section-color-menu tree-color-menu" @click.stop><button v-for="color in sectionColorsList" :key="color" type="button" class="section-color-swatch" :style="{ background: color }" :title="`انتخاب رنگ ${color}`" @click="setSectionColorFor(sectionKey(node.section), color)"></button><button type="button" class="section-color-reset" @click="setSectionColorFor(sectionKey(node.section), '')">حذف رنگ</button></div></div>
           <span class="tree-count">{{ treeNodeCount(node.section).toLocaleString('fa-IR') }}</span>
+          <span
+            v-if="treeLowStock(node.section).count"
+            class="tree-low-count"
+            :class="{ zero: treeLowStock(node.section).zero }"
+            :title="`${treeLowStock(node.section).count.toLocaleString('fa-IR')} آیتم به حداقل موجودی رسیده${treeLowStock(node.section).zero ? '؛ بعضی تمام شده‌اند' : ''}`"
+          >{{ treeLowStock(node.section).count.toLocaleString('fa-IR') }}</span>
           <span class="tree-spacer" aria-hidden="true"></span>
           <button
             type="button"
@@ -86,7 +92,7 @@
 
     <main class="inventory-main" :class="{ 'chart-mode': inventoryView === 'chart', 'movement-mode': inventoryView === 'movements', 'service-tags-mode': inventoryView === 'service-tags' }">
       <section v-if="inventoryView !== 'movements' && inventoryView !== 'service-tags'" class="inventory-toolbar">
-        <div class="inventory-search">
+        <div class="inventory-search" :class="{ 'has-low-stock': lowStockRows.length || lowStockOnly }">
           <span class="search-icon" aria-hidden="true">⌕</span>
           <input
             v-model.trim="searchQuery"
@@ -104,6 +110,18 @@
             aria-label="پاک کردن جست‌وجو"
             @click="searchQuery = ''"
           >×</button>
+          <button
+            v-if="lowStockRows.length || lowStockOnly"
+            type="button"
+            class="low-stock-toggle"
+            :class="{ active: lowStockOnly }"
+            :title="lowStockOnly ? 'بازگشت به نمایش عادی' : `نمایش همهٔ آیتم‌های کم‌موجودی (${lowStockRows.length.toLocaleString('fa-IR')})`"
+            :aria-label="lowStockOnly ? 'بازگشت به نمایش عادی' : 'نمایش همهٔ آیتم‌های کم‌موجودی'"
+            :aria-pressed="lowStockOnly"
+            @click="lowStockOnly = !lowStockOnly"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 3 19h18z"/><path d="M12 10v4M12 16.5h.01"/></svg>
+          </button>
         </div>
 
         <div class="inventory-inline-tabs" role="tablist" aria-label="نوع نمایش خدمات">
@@ -188,8 +206,8 @@
 
         <div v-if="!needsCompletedHierarchy || isRootSelection || searchQuery" class="panel-head">
           <div>
-            <h3>{{ searchQuery ? 'نتایج جست‌وجو در کل خدمات' : isRootSelection ? `گروه کلی ${activeSectionName}` : inventoryTableTitle }}</h3>
-            <p>{{ searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : isRootSelection ? 'پورسانت کلی، روی همه آیتم‌های زیرگروه‌های این گروه اعمال می‌شود.' : inventoryTableSubtitle }}</p>
+            <h3>{{ lowStockOnly ? `آیتم‌های کم‌موجودی (${displayedRows.length.toLocaleString('fa-IR')})` : searchQuery ? 'نتایج جست‌وجو در کل خدمات' : isRootSelection ? `گروه کلی ${activeSectionName}` : inventoryTableTitle }}</h3>
+            <p>{{ lowStockOnly ? 'از همهٔ بخش‌ها؛ تمام‌شده‌ها اول. با کلیک روی نام بخش به همان زیرخدمت می‌روید.' : searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : isRootSelection ? 'پورسانت کلی، روی همه آیتم‌های زیرگروه‌های این گروه اعمال می‌شود.' : inventoryTableSubtitle }}</p>
           </div>
           <div class="panel-actions">
             <button class="text-btn ghost" type="button" @click="openCommissionModal(isRootSelection ? null : selectedRow, isRootSelection ? 'group' : 'section')">
@@ -217,7 +235,7 @@
         </div>
 
         <div v-else class="table-wrap">
-          <table>
+          <table aria-label="فهرست خدمات">
             <colgroup>
               <col class="name-col">
               <col class="tags-col">
@@ -253,15 +271,17 @@
               <tr
                 v-for="(row, index) in displayedRows"
                 :key="row.localId"
-                :title="searchQuery ? `بخش: ${sectionNameForRow(row)}` : ''"
-                :class="{ selected: selectedRow?.localId === row.localId, 'stock-low-row': stockClass(row.stock, row.minStock) === 'stock-low' }"
+                :title="searchQuery || lowStockOnly ? `بخش: ${sectionNameForRow(row)}` : ''"
+                :data-row-id="row.localId"
+                :class="{ selected: selectedRow?.localId === row.localId, 'stock-low-row': row.trackStock && stockClass(row.stock, row.minStock) === 'stock-low', 'row-flash': flashRowId === row.localId }"
                 @click="selectRow(row)"
               >
-                <td>
+                <td data-label="نام کالا / خدمت" class="mobile-service-name">
                   <input v-model="row.name" type="text" placeholder="نام کالا">
-                  <small v-if="searchQuery" class="row-section-name">{{ sectionNameForRow(row) }}</small>
+                  <button v-if="lowStockOnly" type="button" class="row-section-name row-section-link" title="رفتن به همین زیرخدمت" @click.stop="goToLowStockRow(row)">{{ sectionNameForRow(row) }} ←</button>
+                  <small v-else-if="searchQuery" class="row-section-name">{{ sectionNameForRow(row) }}</small>
                 </td>
-                <td>
+                <td data-label="نواحی" class="mobile-service-tags">
                   <div class="service-tags-editor" @click.stop>
                     <span v-for="(tag, tagIndex) in row.serviceTags" :key="`${row.localId}-tag-${tagIndex}`">
                       {{ tag }}
@@ -278,34 +298,35 @@
                     </div>
                   </div>
                 </td>
-                <td>
+                <td data-label="جانبی‌ها">
                   <button class="inventory-addons-btn" type="button" @click.stop="openDefaultAddonsModal(row)">
                     <b>{{ row.addonDefinitionIds.length.toLocaleString('fa-IR') }}</b><span>+</span>
                   </button>
                 </td>
-                <td>
+                <td data-label="قیمت کالا">
                   <input
                     type="text"
                     :value="formatNumberWithCommas(row.amount)"
                     @input="e => onMoneyInput(e, row, 'amount')"
                   >
                 </td>
-                <td>
+                <td data-label="هزینه مواد">
                   <input
                     type="text"
                     :value="formatNumberWithCommas(row.price)"
                     @input="e => onMoneyInput(e, row, 'price')"
                   >
                 </td>
-                <td>
+                <td data-label="موجودی">
                   <div class="stock-cell">
-                    <strong :class="stockClass(row.stock, row.minStock)">{{ Number(row.stock || 0).toLocaleString('fa-IR') }}</strong>
+                    <strong :class="row.trackStock ? stockClass(row.stock, row.minStock) : ''">{{ row.trackStock ? Number(row.stock || 0).toLocaleString('fa-IR') : 'بدون پیگیری' }}</strong>
                     <button type="button" title="افزایش یا کاهش موجودی" @click.stop="openStockMovement(row)">±</button>
+                    <label><input v-model="row.trackStock" type="checkbox"> پیگیری</label>
                   </div>
                 </td>
-                <td><input v-model.number="row.minStock" type="number" min="0"></td>
-                <td><input v-model.number="row.followupDays" type="number" min="0" placeholder="۰"></td>
-                <td>
+                <td data-label="حداقل موجودی"><input v-model.number="row.minStock" type="number" min="0" step="1" @input="sanitizeStockInput($event, row, 'minStock')"></td>
+                <td data-label="دوره پیگیری (روز)"><input v-model.number="row.followupDays" type="number" min="0" placeholder="۰"></td>
+                <td data-label="پورسانت کلی">
                   <button
                     class="commission-chip"
                     type="button"
@@ -316,14 +337,14 @@
                     <strong>{{ commissionLabel(row.defaultCommissionType, row.defaultCommissionValue) }}</strong>
                   </button>
                 </td>
-                <td><input class="check" type="checkbox" v-model="row.active"></td>
-                <td>
+                <td data-label="فعال"><input class="check" type="checkbox" v-model="row.active"></td>
+                <td data-label="وقت‌دهی">
                   <button class="booking-table-cell" :class="{ enabled: row.bookingSetting?.booking_enabled }" type="button" title="بازکردن تنظیمات وقت‌دهی" @click.stop="openBookingSettings(row)">
                     <span class="booking-table-icon">{{ row.bookingSetting?.booking_enabled ? '✓' : '◷' }}</span>
                     <span><b>{{ row.bookingSetting?.booking_enabled ? 'فعال' : 'تنظیم نشده' }}</b><small>{{ row.bookingSetting?.booking_enabled ? 'مشاهده تنظیمات' : 'تنظیم وقت‌دهی' }}</small></span>
                   </button>
                 </td>
-                <td>
+                <td data-label="عملیات" class="mobile-service-actions">
                   <div class="row-actions">
                     <button class="row-duplicate" type="button" title="کپی کامل خدمت" aria-label="کپی کامل خدمت" @click.stop="duplicateRow(row)">⧉</button>
                   <button class="row-remove" type="button" @click.stop="removeRow(row, index)">×</button>
@@ -331,7 +352,7 @@
                 </td>
               </tr>
 
-              <tr v-if="displayedRows.length === 0">
+              <tr v-if="displayedRows.length === 0" class="inventory-empty-row">
                 <td colspan="12" class="empty-cell">
                   {{ inventoryEmptyMessage }}
                 </td>
@@ -491,7 +512,7 @@
         <div class="modal-head"><div><h3>گردش موجودی</h3><p>{{ stockMovement.row?.name }}</p></div><button class="modal-close" type="button" @click="closeStockMovement">×</button></div>
         <div class="stock-current">موجودی فعلی: <strong>{{ Number(stockMovement.row?.stock || 0).toLocaleString('fa-IR') }}</strong></div>
         <div class="stock-direction"><button type="button" :class="{ active: stockMovement.direction === 'increase' }" @click="stockMovement.direction = 'increase'">افزایش موجودی</button><button type="button" :class="{ active: stockMovement.direction === 'decrease' }" @click="stockMovement.direction = 'decrease'">کاهش موجودی</button></div>
-        <div class="modal-grid"><label>تعداد<input v-model.number="stockMovement.quantity" type="number" inputmode="numeric" min="1" step="1"></label><label>توضیحات<textarea v-model.trim="stockMovement.description" placeholder="مثلاً خرید جدید یا اصلاح شمارش"></textarea></label></div>
+        <div class="modal-grid"><label>تعداد<input v-model.number="stockMovement.quantity" type="number" inputmode="numeric" min="1" step="1" @input="sanitizeStockInput($event, stockMovement, 'quantity')"></label><label>توضیحات<textarea v-model.trim="stockMovement.description" placeholder="مثلاً خرید جدید یا اصلاح شمارش"></textarea></label></div>
         <div class="movement-history"><div class="movement-history-head"><strong>۴ گردش آخر</strong><button type="button" @click="openMovementList(stockMovement.row)">لیست کامل</button></div><p v-if="stockMovement.loading">در حال دریافت...</p><p v-else-if="!stockMovement.history.length">هنوز گردشی ثبت نشده است.</p><div v-for="movement in stockMovement.history.slice(0, 4)" :key="movement.id" :class="['movement-row', Number(movement.quantity) < 0 ? 'out' : 'in']"><b>{{ Number(movement.quantity) > 0 ? '+' : '' }}{{ Number(movement.quantity).toLocaleString('fa-IR') }}</b><span>{{ movement.description }}</span><time>{{ formatMovementDate(movement.occurred_at) }}</time></div></div>
         <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeStockMovement">انصراف</button><button class="text-btn primary" :disabled="stockMovement.saving || !stockMovement.quantity" type="button" @click="saveStockMovement">{{ stockMovement.saving ? 'در حال ثبت...' : 'ثبت گردش' }}</button></div>
       </section>
@@ -517,7 +538,7 @@
     </div>
 
     <div v-if="addonManager.open" class="modal-backdrop" @click.self="closeAddonManager">
-      <section class="commission-modal addon-manager-modal" role="dialog" aria-modal="true"><div class="modal-head"><div><h3>مدیریت جانبی‌ها</h3><p>برای هر جانبی قیمت، هزینه مواد و موجودی مستقل ثبت کنید.</p></div><button class="modal-close" type="button" @click="closeAddonManager">×</button></div><div class="addon-manager-table"><div class="addon-manager-row addon-manager-head"><span>نام جانبی</span><span>قیمت کالا</span><span>هزینه مواد</span><span>موجودی</span><span>حداقل</span><span>فعال</span><span></span></div><div v-for="(item,index) in addonManager.items" :key="item._key" class="addon-manager-row"><input v-model.trim="item.name" placeholder="مثلاً ژل بی‌حسی"><input v-model.number="item.amount" type="number" min="0"><input v-model.number="item.price" type="number" min="0"><input v-model.number="item.stock" type="number" min="0"><input v-model.number="item.min_stock" type="number" min="0"><label class="addon-active"><input v-model="item.active" type="checkbox"><span>فعال</span></label><button class="addon-delete" type="button" title="حذف" @click="addonManager.items.splice(index,1)">×</button></div><p v-if="!addonManager.items.length" class="inventory-addons-empty">هنوز جانبی تعریف نشده است.</p></div><button class="text-btn ghost addon-add-btn" type="button" @click="addAddonDefinition">+ افزودن جانبی</button><div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeAddonManager">انصراف</button><button class="text-btn primary" type="button" @click="saveAddonManager">ذخیره جانبی‌ها</button></div></section>
+      <section class="commission-modal addon-manager-modal" role="dialog" aria-modal="true"><div class="modal-head"><div><h3>مدیریت جانبی‌ها</h3><p>برای هر جانبی قیمت، هزینه مواد و موجودی مستقل ثبت کنید.</p></div><button class="modal-close" type="button" @click="closeAddonManager">×</button></div><div class="addon-manager-table"><div class="addon-manager-row addon-manager-head"><span>نام جانبی</span><span>قیمت کالا</span><span>هزینه مواد</span><span>موجودی</span><span>حداقل</span><span>فعال</span><span></span></div><div v-for="(item,index) in addonManager.items" :key="item._key" class="addon-manager-row"><input v-model.trim="item.name" placeholder="مثلاً ژل بی‌حسی"><input v-model.number="item.amount" type="number" min="0"><input v-model.number="item.price" type="number" min="0"><div><input v-model.number="item.stock" type="number" min="0" step="1" @input="sanitizeStockInput($event, item, 'stock')"><label><input v-model="item.track_stock" type="checkbox"> پیگیری موجودی</label></div><input v-model.number="item.min_stock" type="number" min="0" step="1" @input="sanitizeStockInput($event, item, 'min_stock')"><label class="addon-active"><input v-model="item.active" type="checkbox"><span>فعال</span></label><button class="addon-delete" type="button" title="حذف" @click="addonManager.items.splice(index,1)">×</button></div><p v-if="!addonManager.items.length" class="inventory-addons-empty">هنوز جانبی تعریف نشده است.</p></div><button class="text-btn ghost addon-add-btn" type="button" @click="addAddonDefinition">+ افزودن جانبی</button><div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeAddonManager">انصراف</button><button class="text-btn primary" type="button" @click="saveAddonManager">ذخیره جانبی‌ها</button></div></section>
     </div>
 
     <div v-if="bookingModal.open" class="modal-backdrop" @click.self="closeBookingSettings">
@@ -611,6 +632,8 @@ export default {
       activeSubKey: "",
       activeSectionKey: "",
       activeTreeKey: "",
+      lowStockOnly: false,
+      flashRowId: null,
       expandedSectionKeys: [],
       sectionColors: {},
       colorPickerSectionKey: "",
@@ -703,6 +726,7 @@ export default {
     },
 
     inventoryEmptyMessage() {
+      if (this.lowStockOnly && !this.searchQuery) return "هیچ خدمتی به حداقل موجودی نرسیده است."
       if (this.searchQuery) return "نتیجه‌ای برای این جست‌وجو در خدمات پیدا نشد."
       if (this.needsCompletedHierarchy) return "برای تعریف خدمت باید یک زیر‌بخش انتخاب کنید."
       return "برای این بخش هنوز آیتمی ثبت نشده است."
@@ -740,11 +764,35 @@ export default {
       return this.rows.filter(row => this.rowSectionKey(row) === this.activeSectionKey)
     },
 
+    // آیتم‌های فعالی که به حداقل موجودی رسیده یا تمام شده‌اند؛ تمام‌شده‌ها اول، بعد بیشترین کمبود.
+    lowStockRows() {
+      return this.rows
+        .filter(row => String(row.name || '').trim() && row.active !== false && this.isLowStockRow(row))
+        .sort((a, b) => {
+          const zeroA = this.inventoryStockValue(a) <= 0 ? 0 : 1
+          const zeroB = this.inventoryStockValue(b) <= 0 ? 0 : 1
+          if (zeroA !== zeroB) return zeroA - zeroB
+          return (this.inventoryStockValue(a) - this.inventoryMinStockValue(a)) - (this.inventoryStockValue(b) - this.inventoryMinStockValue(b))
+        })
+    },
+
+    lowStockBySection() {
+      const counts = {}
+      this.lowStockRows.forEach(row => {
+        const key = this.rowSectionKey(row)
+        counts[key] ??= { count: 0, zero: false }
+        counts[key].count += 1
+        if (this.inventoryStockValue(row) <= 0) counts[key].zero = true
+      })
+      return counts
+    },
+
     displayedRows() {
       const query = this.normalizeSearchText(this.searchQuery)
-      if (!query) return this.activeSectionRows
+      const baseRows = this.lowStockOnly ? this.lowStockRows : this.rows
+      if (!query) return this.lowStockOnly ? this.lowStockRows : this.activeSectionRows
 
-      return this.rows.filter(row => {
+      return baseRows.filter(row => {
         const commissionRecipients = (row.commissions || [])
           .map(commission => commission.recipient_name)
           .join(" ")
@@ -769,7 +817,7 @@ export default {
 
     chartData() {
       return this.displayedRows
-        .filter(row => row.name !== "" && row.active)
+        .filter(row => row.name !== "" && row.active && row.trackStock)
         .map(row => ({
           ...row,
           chartStock: this.inventoryStockValue(row),
@@ -899,6 +947,11 @@ export default {
   },
 
   methods: {
+    sanitizeStockInput(event, target, key) {
+      const normalized = String(event.target.value ?? '').split(/[.,٫]/, 1)[0].replace(/[^0-9]/g, '')
+      target[key] = normalized === '' ? null : Number(normalized)
+      event.target.value = normalized
+    },
     sectionColor(section) {
       let current = section
       const visited = new Set()
@@ -1356,6 +1409,7 @@ export default {
         price: Number(item.price) || 0,
         count: Number(item.count) || 0,
         stock: Math.trunc(Number(item.stock) || 0),
+        trackStock: Boolean(item.track_stock),
         minStock: Number(item.min_stock ?? item.minStock ?? 5),
         active: item.active === undefined ? true : Boolean(item.active),
         followupDays: Math.max(0, Number(item.followup_days ?? item.followupDays ?? 0) || 0),
@@ -1434,6 +1488,7 @@ export default {
         price: row.price,
         count: row.count,
         stock: row.stock,
+        track_stock: row.trackStock,
         min_stock: row.minStock,
         active: row.active,
         followup_days: row.followupDays,
@@ -1719,6 +1774,34 @@ export default {
       else this.expandedSectionKeys.push(key)
     },
 
+    isLowStockRow(row) {
+      return row.trackStock && ["stock-low", "stock-zero"].includes(this.stockClass(this.inventoryStockValue(row), this.inventoryMinStockValue(row)))
+    },
+
+    // تعداد کم‌موجودی‌های یک بخش با همهٔ زیرشاخه‌هایش، برای عدد کنار درخت.
+    treeLowStock(section) {
+      const key = this.sectionKey(section)
+      return [key, ...this.descendantSectionKeys(key)].reduce((total, sectionKey) => {
+        const entry = this.lowStockBySection[sectionKey]
+        if (!entry) return total
+        return { count: total.count + entry.count, zero: total.zero || entry.zero }
+      }, { count: 0, zero: false })
+    },
+
+    goToLowStockRow(row) {
+      const section = this.sections.find(item => this.sectionKey(item) === this.rowSectionKey(row))
+      this.lowStockOnly = false
+      this.searchQuery = ""
+      if (section) this.selectHierarchyForLeaf(section)
+      this.selectRow(row)
+      this.flashRowId = row.localId
+      this.$nextTick(() => {
+        this.$el?.querySelector?.(`[data-row-id="${row.localId}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" })
+      })
+      clearTimeout(this.flashTimer)
+      this.flashTimer = setTimeout(() => { this.flashRowId = null }, 2400)
+    },
+
     treeNodeCount(section) {
       return this.childSections(this.sectionKey(section)).length
         ? this.childSections(this.sectionKey(section)).length
@@ -1792,6 +1875,7 @@ export default {
         price: 0,
         count: 0,
         stock: 0,
+        trackStock: false,
         minStock: 5,
         active: true,
         followupDays: 0,
@@ -1827,7 +1911,7 @@ export default {
 
       const result = await Swal.fire({
         title: 'کپی کامل خدمت',
-        text: `تمام مشخصات و تنظیمات وقت‌دهی «${row.name || 'خدمت'}» کپی می‌شود.`,
+        text: `تنظیمات «${row.name || 'خدمت'}» کپی می‌شود و موجودی کالای جدید از صفر شروع می‌شود.`,
         input: 'text',
         inputLabel: 'نام خدمت جدید',
         inputPlaceholder: 'نام دلخواه را وارد کنید',
@@ -1941,7 +2025,7 @@ export default {
     closeAddonManager() { this.addonManager.open = false },
 
     addAddonDefinition() {
-      this.addonManager.items.push({ _key: `addon-${Date.now()}-${Math.random()}`, name: '', amount: 0, price: 0, stock: 0, min_stock: 5, active: true })
+      this.addonManager.items.push({ _key: `addon-${Date.now()}-${Math.random()}`, name: '', amount: 0, price: 0, stock: 0, track_stock: false, min_stock: 5, active: true })
     },
 
     addonDefinitionPayload(item) {
@@ -1953,6 +2037,7 @@ export default {
         amount: item.amount,
         price: item.price,
         stock: item.stock,
+        track_stock: Boolean(item.track_stock),
         min_stock: item.min_stock,
         active: item.active,
         sort_order: item.sort_order
@@ -2843,6 +2928,87 @@ p {
 
 .tree-node.active input {
   color: #1d4ed8;
+}
+
+/* عدد کوچک کم‌موجودی کنار درخت؛ قرمز یعنی آیتمی تمام شده است. */
+.tree-low-count {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #fef9c3;
+  color: #a16207;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.tree-low-count.zero {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* دکمهٔ کوچک و کم‌رنگ نمایش همهٔ کم‌موجودی‌ها */
+.inventory-search.has-low-stock input { padding-left: 146px; }
+.inventory-search.has-low-stock .search-clear { left: 40px; }
+.inventory-search.has-low-stock .search-result-count { left: 73px; }
+
+.low-stock-toggle {
+  position: absolute;
+  left: 10px;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #d4b106;
+  opacity: .55;
+  cursor: pointer;
+  transition: opacity .15s ease, background .15s ease;
+}
+
+.low-stock-toggle:hover,
+.low-stock-toggle.active {
+  opacity: 1;
+  background: #fefce8;
+}
+
+.low-stock-toggle svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.row-section-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #2563eb;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.row-section-link:hover {
+  text-decoration: underline;
+}
+
+tbody tr.row-flash td {
+  animation: row-flash 2.4s ease;
+}
+
+@keyframes row-flash {
+  0%, 35% { background: #fde68a; }
+  100% { background: inherit; }
 }
 
 .tree-count {
@@ -3791,7 +3957,15 @@ tr.selected.stock-low-row td {
 @media (max-width: 1100px) {
   .inventory-page,
   .inventory-main {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inventory-page > *,
+  .inventory-main > *,
+  .section-panel,
+  .table-section,
+  .chart-section {
+    min-width: 0;
   }
 
   .inventory-view-switch {
@@ -3821,6 +3995,8 @@ tr.selected.stock-low-row td {
 
   .inventory-save-actions {
     width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap;
   }
 
   .save-status,
@@ -3842,5 +4018,173 @@ tr.selected.stock-low-row td {
   .availability-card { grid-template-columns: 1fr 1fr; }
   .booking-pane { padding-inline: 16px; }
   .booking-wizard-footer { padding-inline: 16px; }
+}
+
+@media (max-width: 700px) {
+  .inventory-page {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .section-panel,
+  .table-section,
+  .chart-section {
+    padding: 12px;
+  }
+
+  .inventory-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .inventory-toolbar .inventory-search,
+  .inventory-toolbar .inventory-search input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .inventory-search input {
+    font-size: 12px;
+  }
+
+  .inventory-save-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-save-actions button,
+  .inventory-save-actions .save-status {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: center;
+  }
+
+  .inventory-save-actions .save-reminder,
+  .inventory-save-actions .save-inventory-btn {
+    grid-column: 1 / -1;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .panel-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .panel-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .panel-actions button {
+    min-width: 0;
+  }
+
+  .table-section .table-wrap {
+    overflow: visible;
+    border: 0;
+  }
+
+  .table-section .table-wrap table,
+  .table-section .table-wrap tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .table-section .table-wrap colgroup,
+  .table-section .table-wrap thead {
+    display: none;
+  }
+
+  .table-section .table-wrap tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 12px;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid #dfe7f2;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
+  }
+
+  .table-section .table-wrap tbody tr.selected {
+    border-color: #93c5fd;
+    background: #edf6ff;
+  }
+
+  .table-section .table-wrap tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+    padding: 9px 0;
+    border-bottom: 1px solid #edf2f7;
+    text-align: right;
+    background: transparent;
+  }
+
+  .table-section .table-wrap tbody td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .table-section .table-wrap tbody td.mobile-service-name,
+  .table-section .table-wrap tbody td.mobile-service-tags,
+  .table-section .table-wrap tbody td.mobile-service-actions {
+    grid-column: 1 / -1;
+  }
+
+  .table-section .table-wrap tbody td.mobile-service-name input,
+  .table-section .table-wrap tbody td input:not(.check) {
+    min-width: 0;
+    text-align: right;
+  }
+
+  .table-section .table-wrap tbody td.mobile-service-actions {
+    border-bottom: 0;
+  }
+
+  .table-section .table-wrap .row-actions,
+  .table-section .table-wrap .service-tags-editor {
+    justify-content: flex-start;
+  }
+
+  .table-section .table-wrap .booking-table-cell {
+    min-width: 0;
+  }
+
+  .table-section .table-wrap .booking-table-cell span:last-child {
+    min-width: 0;
+  }
+
+  .table-section .table-wrap .booking-table-cell b,
+  .table-section .table-wrap .booking-table-cell small {
+    white-space: normal;
+  }
+
+  .table-section .table-wrap tbody tr.inventory-empty-row {
+    display: block;
+  }
+
+  .table-section .table-wrap tbody tr.inventory-empty-row td {
+    display: block;
+    border: 0;
+  }
+
+  .table-section .table-wrap tbody tr.inventory-empty-row td::before {
+    content: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .table-section .table-wrap tbody tr {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

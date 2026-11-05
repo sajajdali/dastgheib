@@ -20,7 +20,7 @@ final class NoReturnFilter implements DynamicReportQueryFilter
         $query->whereRaw("(
             SELECT COUNT(*)
             FROM appointments AS return_appointments
-            WHERE TRIM(return_appointments.status) = ?
+            WHERE (TRIM(return_appointments.status) = ? OR TRIM(return_appointments.done) = 'انجام شد')
               AND {$appointmentDate} BETWEEN ? AND ?
               AND (
                 (patients.file_number IS NOT NULL AND patients.file_number <> ''

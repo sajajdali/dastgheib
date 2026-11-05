@@ -27,12 +27,30 @@ class DynamicReportExportTest extends TestCase
         Schema::create('patients', function (Blueprint $table) {
             $table->id();
             $table->string('file_number')->nullable();
+            $table->string('phone')->nullable();
             $table->string('first_name')->nullable();
             $table->string('last_name')->nullable();
             $table->string('customer_level')->nullable();
             $table->string('profile_photo_path')->nullable();
             $table->string('profile_thumbnail_path')->nullable();
             $table->softDeletes();
+        });
+        Schema::create('app_settings', function (Blueprint $table) {
+            $table->id();
+            $table->string('key')->unique();
+            $table->text('value')->nullable();
+            $table->timestamps();
+        });
+        Schema::create('appointments', function (Blueprint $table) {
+            $table->id();
+            $table->string('file_number')->nullable();
+            $table->string('phone')->nullable();
+            $table->string('month')->nullable();
+            $table->unsignedTinyInteger('day_num')->nullable();
+            $table->string('amount')->nullable();
+            $table->string('done')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamps();
         });
         $user = new User();
         $user->id = 1;
@@ -144,6 +162,11 @@ class DynamicReportExportTest extends TestCase
             'profile_photo_path' => 'patients/42/photo.webp',
             'profile_thumbnail_path' => 'patients/42/thumb.webp',
         ]);
+        // سطح مشتری از نوبت‌های انجام‌شده محاسبه می‌شود، نه از ستون ذخیره‌شده.
+        $month = substr((new \App\Reporting\DynamicReports\JalaliMonthWindow)->date(now('Asia/Tehran')), 0, 7);
+        foreach ([1, 2, 3] as $day) {
+            DB::table('appointments')->insert(['file_number' => '1042', 'month' => $month, 'day_num' => $day, 'amount' => '100', 'done' => 'انجام شد']);
+        }
         $report = DynamicReport::query()->create([
             'user_id' => 1,
             'status' => 'completed',

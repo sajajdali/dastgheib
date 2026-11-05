@@ -118,7 +118,7 @@
             <div :draggable="true" @dragstart="v.dh.ctype" @dragover="v.dv.ctype" @drop="v.dp.ctype" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.ctype) + ';order:' + (v.o.ctype)" data-screen-label="دسته‌بندی مشتریان">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc" title="جابجایی">⠿</span>
-                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">دسته‌بندی مشتریان (معمولی / خوب / CIP / مشکل‌ساز)</span>
+                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">دسته‌بندی مشتریان (نقره‌ای / آبی / طلایی / دردسرساز)</span>
                 <small v-if="v.ctCompletedAt" style="color:#64748b;font-size:10px;white-space:nowrap">محاسبه: {{ v.ctCompletedAt }}</small>
                 <button v-if="v.ctReady" type="button" :disabled="v.ctBusy" @click="calculateCustomerSegments" title="محاسبه مجدد" aria-label="محاسبه مجدد گزارش دسته‌بندی مشتریان" class="report-refresh-button">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
@@ -594,7 +594,7 @@
               </div>
               <div style="background:linear-gradient(135deg,#f8fafc,#eff6ff);border-radius:14px;padding:18px;text-align:center;display:flex;flex-direction:column;gap:4px">
                 <span style="font-size:28px;font-weight:800;color:#1d4ed8">{{ v.cacPer }}</span>
-                <span style="font-size:11.5px;color:#94a3b8">هزینه ثبت‌شده روی کمپین ÷ مشتریان یکتای «وقت داده شد»</span>
+                <span style="font-size:11.5px;color:#94a3b8">هزینهٔ تبلیغات ثبت‌شده در بازه ÷ مشتریان یکتای «وقت داده شد»</span>
               </div>
               <div style="display:flex;gap:10px;flex-wrap:wrap">
                 <div style="flex:1;min-width:100px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">هزینه کمپین‌ها</span><span style="font-size:15px;font-weight:800;color:#b91c1c">{{ v.cacCost }}</span></div>
@@ -1026,9 +1026,6 @@ export default {
 
     // filters
     const fCount = Object.values(S.filters).filter(Boolean).length + (S.bdFrom?1:0) + (S.bdTo?1:0);
-    const ff = Math.max(0.45, 1 - 0.05 * fCount);
-    const MF = [0.85, 0.95, 0.9, 1];
-    const k = MF[S.monthSel] * ff;
 
     const togF = key => () => this.set(s => ({filters: {...s.filters, [key]: !s.filters[key]}}));
     const mkGroups = defs => defs.map(g => ({
@@ -1112,13 +1109,15 @@ export default {
     const dashboardKpis = S.reportSummary?.kpis || {};
     const kpiMoney = value => dashboardReady ? reportMoney(Number(value || 0) / 1000000) : '--';
     const kpis = [
-      {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? 'از نوبت‌های انجام‌شده' : '--', ...gUp, bg:'#eff6ff', bd:'#bfdbfe', tc:'#1d4ed8', ...lg},
-      {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'پس از کسر هزینه‌های ثبت‌شده' : '--', ...gUp, bg:'#f0fdf4', bd:'#bbf7d0', tc:'#15803d', ...lg},
+      {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده، پس از تخفیف' : '--', ...gUp, bg:'#eff6ff', bd:'#bfdbfe', tc:'#1d4ed8', ...lg},
+      {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'درآمد − هزینه‌ها − پزشک و پرسنل − مواد مصرفی' : '--', ...gUp, bg:'#f0fdf4', bd:'#bbf7d0', tc:'#15803d', ...lg},
+      {t:'دریافتی', v:kpiMoney(dashboardKpis.cash_collected), g:dashboardReady ? 'نقد، کارت، چک و کیف پول' : '--', ...gUp, bg:'#ecfeff', bd:'#a5f3fc', tc:'#0e7490', ...sm},
+      {t:'بدهی بیماران', v:kpiMoney(dashboardKpis.receivables), g:dashboardReady ? 'ماندهٔ نوبت‌های انجام‌شده' : '--', ...gDn, bg:'#fefce8', bd:'#fde047', tc:'#a16207', ...sm},
       {t:'تبلیغات', v:kpiMoney(advertisingCost), g:dashboardReady ? 'هزینه تبلیغات ثبت‌شده' : '--', ...gDn, bg:'#fff7ed', bd:'#fed7aa', tc:'#c2410c', ...sm},
       {t:'هزینه پزشک', v:kpiMoney(dashboardKpis.doctor_cost), g:dashboardReady ? 'حقوق و پورسانت پزشکان' : '--', ...gDn, bg:'#f0f9ff', bd:'#bae6fd', tc:'#0369a1', ...sm},
       {t:'حقوق پرسنل', v:kpiMoney(dashboardKpis.staff_cost), g:dashboardReady ? 'حقوق و پورسانت پرسنل' : '--', gb:'#f1f5f9', gc:'#64748b', bg:'#faf5ff', bd:'#e9d5ff', tc:'#7c3aed', ...sm},
-      {t:'مواد مصرفی', v:kpiMoney(dashboardKpis.materials_cost), g:dashboardReady ? 'مصرف ثبت‌شده در خدمات' : '--', ...gUp, bg:'#fffbeb', bd:'#fde68a', tc:'#b45309', ...sm},
-      {t:'هزینه‌ها', v:kpiMoney(dashboardKpis.expenses), g:dashboardReady ? 'جمع هزینه‌های ثبت‌شده در بازه' : '--', ...gDn, bg:'#fff1f2', bd:'#fecdd3', tc:'#be123c', ...sm},
+      {t:'مواد مصرفی', v:kpiMoney(dashboardKpis.materials_cost), g:dashboardReady ? 'مواد خدمات انجام‌شده (از انبار)' : '--', ...gUp, bg:'#fffbeb', bd:'#fde68a', tc:'#b45309', ...sm},
+      {t:'هزینه‌ها', v:kpiMoney(dashboardKpis.expenses), g:dashboardReady ? (Number(dashboardKpis.material_purchases || 0) > 0 ? `شامل ${kpiMoney(dashboardKpis.material_purchases)} خرید مواد که از سود کم نمی‌شود` : 'جمع هزینه‌های ثبت‌شده در بازه') : '--', ...gDn, bg:'#fff1f2', bd:'#fecdd3', tc:'#be123c', ...sm},
       {t:'میزان تخفیف‌ها', v:kpiMoney(dashboardKpis.discount_total), g:dashboardReady ? 'تخفیف نوبت‌های انجام‌شده' : '--', ...gDn, bg:'#fdf2f8', bd:'#fbcfe8', tc:'#be185d', ...sm},
       {t:'تعداد مراجعین', v:dashboardReady ? fa(dashboardKpis.visitors_count || 0)+' نفر' : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده' : '--', ...gUp, bg:'#f0fdfa', bd:'#99f6e4', tc:'#0d9488', ...sm}
     ];
@@ -1204,7 +1203,7 @@ export default {
       : [0.52, 0.16, 0.22, 0.10];
     const [cs1, cs2, cs3, cs4] = segs(ctP);
     const ctCols = ['#94a3b8','#93c5fd','#f59e0b','#dc2626'];
-    const ctNames = ['معمولی','خوب','CIP','مشکل‌ساز'];
+    const ctNames = ['نقره‌ای','آبی','طلایی (CIP)','دردسرساز'];
     const ctLegend = ctP.map((p, i) => ({
       n: ctNames[i],
       c: ctCols[i],
@@ -1308,7 +1307,7 @@ export default {
     const adRows = ADS.map(row => {
       const ratio = row.ratio == null ? null : Number(row.ratio);
       return {n:row.name,lg:row.icon_url || channelIcon(row.name),cnt:row.sample?'--':fa(row.completed || 0),cost:row.sample?'--':(Number(row.cost || 0)>0?adMoney(row.cost):'—'),rev:row.sample?'--':adMoney(row.revenue || 0),
-        roi:row.sample?'--':(ratio == null?'∞':ratio.toLocaleString('fa-IR',{maximumFractionDigits:2})+'x'),
+        roi:row.sample?'--':(ratio == null?'—':ratio.toLocaleString('fa-IR',{maximumFractionDigits:2})+'x'),
         rc:ratio == null?'#64748b':(ratio>=1?'#15803d':'#b91c1c'),w:Math.round(Number(row.completed || 0)/adMaxCompleted*100)+'%'};
     });
 
@@ -1401,16 +1400,19 @@ export default {
     const ageMax = ageReady ? Math.max(1, ...ageData.map(a => a.count || 0)) : 198;
     const ageRows = ageData.map(a => ({rng: a.range || a.rng, cnt: ageReady ? fa(a.count || 0) : '—', pay: ageReady ? mm((a.payment || 0) / 1000000) : '—', svc: ageReady ? (a.top_service || '—') : '—', w: Math.round((a.count ?? ({'زیر ۳۰':142,'۳۰ تا ۴۰':198,'۴۰ تا ۵۰':118,'بالای ۵۰':54}[a.rng] || 0)) / ageMax * 100)+'%'}));
 
-    // sections
-    const SE = [
-      {n:'لیفت با نخ', rev:780, prof:340},
-      {n:'ژل لب', rev:420, prof:160},
-      {n:'هایفو', rev:360, prof:130},
-      {n:'کرایو', rev:290, prof:95}
-    ];
-    const seTot = 1850;
-    const sectRows = SE.map(s => ({n: s.n, rev: mm(s.rev*k), prof: mm(s.prof*k), p: pc(Math.round(s.rev/seTot*100)),
-      wp: Math.round(s.prof/seTot*100)+'%', wr: Math.round((s.rev-s.prof)/seTot*100)+'%'}));
+    // sections: درآمد و سود واقعی هر بخش اصلی، از همان محاسبهٔ «پردرآمدترین خدمات»
+    const sectionsReady = this.topServicesSnapshot?.status === 'completed' && Array.isArray(this.topServicesSnapshot?.result?.sections);
+    const SE = sectionsReady ? this.topServicesSnapshot.result.sections : [];
+    const seSum = SE.reduce((total, section) => total + Math.max(0, Number(section.revenue) || 0), 0) || 1;
+    const seMax = Math.max(1, ...SE.map(section => Math.max(0, Number(section.revenue) || 0)));
+    const sectRows = sectionsReady
+      ? SE.map(section => {
+          const revenue = Number(section.revenue) || 0;
+          const profit = Number(section.profit) || 0;
+          return {n: section.name, rev: reportMoney(revenue / 1000000), prof: reportMoney(profit / 1000000), p: pc(Math.round(Math.max(0, revenue) / seSum * 100)),
+            wp: Math.round(Math.max(0, profit) / seMax * 100) + '%', wr: Math.round(Math.max(0, revenue - Math.max(0, profit)) / seMax * 100) + '%'};
+        })
+      : [{n: 'برای دیدن درآمد بخش‌ها، «پردرآمدترین خدمات» را محاسبه کنید', rev: '—', prof: '—', p: '', wp: '0%', wr: '0%'}];
 
     // top services
     const topServicesReady = this.topServicesSnapshot?.status === 'completed';
@@ -1463,7 +1465,7 @@ export default {
       return {id:row.campaign_id,n:row.name,leads:row.sample?'--':fa(row.leads || 0),appointments:row.sample?'--':fa(row.appointments || 0),rate:row.sample?'--':pc(rate),w:rate+'%',c:rate>=50?'#15803d':rate>=25?'#d97706':'#dc2626',bar:rate>=50?'linear-gradient(90deg,#4ade80,#16a34a)':rate>=25?'linear-gradient(90deg,#fbbf24,#f59e0b)':'linear-gradient(90deg,#fca5a5,#ef4444)'};
     });
     const interestMax = Math.max(1,...CAMPS.flatMap(c => [c.d1,c.d2,c.d3]));
-    const cdRows = CAMPS.map(c => ({n: c.n, cost: cacMoney(c.cost),
+    const cdRows = CAMPS.map(c => ({n: c.n, cost: dashboardReady ? cacMoney(c.cost) : '--',
       h1: Math.round(c.d1/interestMax*120)+'px', h2: Math.round(c.d2/interestMax*120)+'px', h3: Math.round(c.d3/interestMax*120)+'px'}));
 
     // staff appointments, attributed to the user who originally registered each appointment

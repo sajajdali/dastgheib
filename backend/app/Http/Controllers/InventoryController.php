@@ -55,8 +55,10 @@ class InventoryController extends Controller
             'items.*.name' => ['required', 'string', 'max:255'],
             'items.*.amount' => ['nullable'],
             'items.*.price' => ['nullable'],
-            'items.*.stock' => ['nullable', 'integer', 'min:0'],
+            'items.*.stock' => ['nullable', 'integer'],
+            'items.*.track_stock' => ['nullable', 'boolean'],
             'items.*.min_stock' => ['nullable', 'integer', 'min:0'],
+            'items.*.minStock' => ['nullable', 'integer', 'min:0'],
             'items.*.active' => ['nullable', 'boolean'],
             'deleted_ids' => ['nullable', 'array'],
             'deleted_ids.*' => ['integer', 'distinct'],
@@ -74,22 +76,28 @@ class InventoryController extends Controller
                     throw ValidationException::withMessages(['items' => 'این جانبی در صفحهٔ دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.']);
                 }
                 if (! $record) $record = new InventoryAddonDefinition();
+                $previousStock = (int) ($record->stock ?? 0);
                 $record->fill([
                     'name' => trim($item['name']),
                     'amount' => $item['amount'] ?? 0,
                     'price' => $item['price'] ?? 0,
-                    'stock' => isset($item['stock']) ? (int) $item['stock'] : 0,
+                    'stock' => isset($item['stock']) ? (int) $item['stock'] : ($record->stock ?? 0),
+                    'track_stock' => $item['track_stock'] ?? ($record->track_stock ?? ((int) ($item['stock'] ?? 0) !== 0)),
                     'min_stock' => $item['min_stock'] ?? $item['minStock'] ?? 5,
                     'active' => $item['active'] ?? true,
                     'sort_order' => $item['sort_order'] ?? $index,
                 ]);
                 if (! $record->exists || $record->isDirty()) $record->save();
+                $this->recordSetStockMovement($record, $previousStock);
             }
             foreach ($data['deleted_ids'] ?? [] as $id) {
                 $record = InventoryAddonDefinition::query()->lockForUpdate()->find($id);
                 if (! $record) continue;
                 if ($record->inventories()->exists()) {
                     throw ValidationException::withMessages(['items' => "جانبی «{$record->name}» در خدمات استفاده می‌شود؛ ابتدا ارتباط آن را بردارید."]);
+                }
+                if (InventoryMovement::query()->where('inventory_addon_definition_id', $record->id)->exists()) {
+                    throw ValidationException::withMessages(['items' => "جانبی «{$record->name}» سابقهٔ گردش موجودی دارد؛ آن را غیرفعال کنید."]);
                 }
                 $record->delete();
             }
@@ -117,6 +125,9 @@ class InventoryController extends Controller
             'deleted_section_ids.*' => ['integer', 'distinct'],
             // موجودی منفی نشان‌دهنده کمبود ثبت‌شده توسط خدمات انجام‌شده است.
             'items.*.stock' => ['nullable', 'integer'],
+            'items.*.track_stock' => ['nullable', 'boolean'],
+            'items.*.min_stock' => ['nullable', 'integer', 'min:0'],
+            'items.*.minStock' => ['nullable', 'integer', 'min:0'],
         ]);
         $items = $request->input('items', []);
         $sections = $request->input('sections', []);
@@ -190,6 +201,7 @@ class InventoryController extends Controller
                     }
                 }
                 if (! $inventory) $inventory = new Inventory();
+                $previousStock = (int) ($inventory->stock ?? 0);
                 $attributes = [
                     'section_id' => $this->resolveSectionId($sectionKey, $sectionIdMap),
                     'name' => $item['name'] ?? null,
@@ -200,6 +212,7 @@ class InventoryController extends Controller
                     'price' => $item['price'] ?? null,
                     'count' => $item['count'] ?? 0,
                     'stock' => isset($item['stock']) ? (int) $item['stock'] : null,
+                    'track_stock' => $item['track_stock'] ?? ((int) ($item['stock'] ?? 0) !== 0),
                     'min_stock' => $item['min_stock'] ?? $item['minStock'] ?? 5,
                     'active' => $item['active'] ?? true,
                     'followup_days' => max(0, (int) ($item['followup_days'] ?? $item['followupDays'] ?? 0)),
@@ -211,7 +224,7 @@ class InventoryController extends Controller
                     $aliases = [
                         'section_id' => ['section_id', 'sectionId'], 'name' => ['name'],
                         'service_tags' => ['service_tags', 'serviceTags'], 'amount' => ['amount'],
-                        'price' => ['price'], 'count' => ['count'], 'stock' => ['stock'],
+                        'price' => ['price'], 'count' => ['count'], 'stock' => ['stock'], 'track_stock' => ['track_stock'],
                         'min_stock' => ['min_stock', 'minStock'], 'active' => ['active'],
                         'followup_days' => ['followup_days', 'followupDays'], 'sort_order' => ['sort_order'],
                         'default_commission_type' => ['default_commission_type', 'defaultCommissionType'],
@@ -222,6 +235,7 @@ class InventoryController extends Controller
                 }
                 $inventory->fill($attributes);
                 if (! $inventory->exists || $inventory->isDirty()) $inventory->save();
+                $this->recordSetStockMovement($inventory, $previousStock);
 
                 foreach (['id', 'client_id', 'clientId'] as $key) {
                     if (! empty($item[$key])) {
@@ -364,6 +378,9 @@ class InventoryController extends Controller
 
             $copy = $inventory->replicate();
             $copy->name = trim($data['name']);
+            // A copied service is a new inventory item, not a second copy of
+            // the physical units held by the source service.
+            $copy->stock = 0;
             $copy->sort_order = (int) Inventory::query()->max('sort_order') + 1;
             $copy->save();
 
@@ -484,6 +501,7 @@ class InventoryController extends Controller
             }
 
             $item->update(['stock' => $previousStock + $change]);
+            if (! $item->track_stock) $item->update(['track_stock' => true]);
             $movement = InventoryMovement::create([
                 'inventory_id' => $item->id,
                 'inventory_name' => $item->name,
@@ -502,6 +520,23 @@ class InventoryController extends Controller
         });
     }
 
+    private function recordSetStockMovement(Inventory|InventoryAddonDefinition $item, int $previousStock): void
+    {
+        $change = (int) $item->stock - $previousStock;
+        if ($change === 0 || ! Schema::hasTable('inventory_movements')) return;
+        $addon = $item instanceof InventoryAddonDefinition;
+        if ($addon && ! Schema::hasColumn('inventory_movements', 'inventory_addon_definition_id')) return;
+        InventoryMovement::create([
+            'inventory_id' => $addon ? null : $item->id,
+            'inventory_addon_definition_id' => $addon ? $item->id : null,
+            'inventory_name' => $item->name,
+            'quantity' => $change,
+            'type' => 'manual_adjustment',
+            'description' => 'ثبت مستقیم موجودی در تنظیمات انبار',
+            'occurred_at' => now(),
+        ]);
+    }
+
     public function movements(Request $request, Inventory $inventory)
     {
         $data = $request->validate([
@@ -513,7 +548,9 @@ class InventoryController extends Controller
         $query = InventoryMovement::query()
             ->where(function ($query) use ($inventory) {
                 $query->where('inventory_id', $inventory->id)
-                    ->orWhere('inventory_name', $inventory->name);
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('inventory_id')
+                        ->whereNull('inventory_addon_definition_id')
+                        ->where('inventory_name', $inventory->name));
             });
         if (! empty($data['date_from'])) $query->whereDate('occurred_at', '>=', $data['date_from']);
         if (! empty($data['date_to'])) $query->whereDate('occurred_at', '<=', $data['date_to']);

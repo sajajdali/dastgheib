@@ -19,6 +19,20 @@ class AppSetting extends Model
     // ];
 
     // اصلاح متد برای هماهنگی با کستینگ لاراول
+    /**
+     * نام مجموعه برای پیامک‌ها و فرم‌ها. صفحهٔ تنظیمات آن را با کلید company_name ذخیره می‌کند؛
+     * clinic_name فقط برای داده‌های قدیمی خوانده می‌شود.
+     */
+    public static function clinicName(): string
+    {
+        foreach (['company_name', 'clinic_name'] as $key) {
+            $name = trim((string) self::getByKey($key, ''));
+            if ($name !== '') return $name;
+        }
+
+        return '';
+    }
+
     public static function getByKey($key, $default = null)
     {
         $setting = self::where('key', $key)->first();

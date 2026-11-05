@@ -503,7 +503,7 @@ class PatientController extends Controller
         return $patients->each($hideOne);
     }
 
-    public function updateCustomerLevel(Request $request, Patient $patient)
+    public function updateCustomerLevel(Request $request, Patient $patient, CustomerLevelService $levels)
     {
         $data = $request->validate([
             'customer_level' => ['nullable', 'in:problematic,blue,silver,gold'],
@@ -513,9 +513,13 @@ class PatientController extends Controller
             'customer_level' => $data['customer_level'] ?? null,
         ]);
 
+        // با برداشتن برچسب دردسرساز، سطح خودکار (نقره‌ای/آبی/طلایی) برگردانده می‌شود.
+        $patient = $patient->fresh();
+        $levels->decorate(collect([$patient]));
+
         return response()->json([
             'success' => true,
-            'patient' => $patient->fresh(),
+            'patient' => $this->hidePatientPhones($patient, $request),
         ]);
     }
 

@@ -42,8 +42,33 @@ class CompletionSmsController extends Controller
         return $template;
     }
 
-    private function sendTemplateSms(string $recipient, string $template, array $params): void
+    /** نام پارامترهای هر الگو، برای پیام خطای روشن وقتی یکی خالی است. */
+    private const PARAM_LABELS = [
+        'appointment' => ['نام مراجع', 'تاریخ نوبت', 'ساعت نوبت', 'نام پزشک', 'نام مجموعه'],
+        'info' => ['نام مراجع', 'آدرس مجموعه', 'اینستاگرام مجموعه', 'تلفن مجموعه', 'لینک مسیریابی'],
+        'welcome' => ['نام مراجع', 'نام مجموعه', 'لینک رضایت‌مندی'],
+        'referral_credit' => ['نام مراجع', 'مبلغ واریز', 'موجودی کیف پول'],
+        'treatment_care' => ['نام مراجع', 'لینک مراقبت'],
+        'payment_link' => ['نام مراجع', 'لینک پرداخت', 'مبلغ'],
+    ];
+
+    /**
+     * SHSMS پارامتر خالی را رد می‌کند (خطای 422 بدون توضیح)؛ پیش از ارسال بررسی می‌شود و
+     * دقیقاً گفته می‌شود چه چیزی ثبت نشده است.
+     */
+    private function sendTemplateSms(string $recipient, string $template, array $params, array $labels = []): void
     {
+        $missing = collect($params)->map(fn ($value, $index) => trim((string) $value) === '' ? ($labels[$index] ?? 'پارامتر '.($index + 1)) : null)->filter()->values();
+        if ($missing->isNotEmpty()) {
+            $hints = [
+                'نام پزشک' => 'پزشک نوبت را انتخاب کنید',
+                'نام مجموعه' => 'نام مجموعه را در تنظیمات > اطلاعات مجموعه وارد کنید',
+                'نام مراجع' => 'نام مراجع را در ردیف نوبت وارد کنید',
+            ];
+            $hint = $missing->map(fn ($label) => $hints[$label] ?? null)->filter()->implode('؛ ');
+            throw new \RuntimeException('پیامک ارسال نشد؛ '.$missing->implode('، ').' خالی است.'.($hint ? ' '.$hint.'.' : ''));
+        }
+
         $this->sms->sendTemplate($recipient, $template, $params);
     }
 
@@ -86,7 +111,7 @@ class CompletionSmsController extends Controller
                     'amount' => number_format($amount),
                     'balance' => number_format($balance),
                     'link' => $link,
-                ]));
+                ]), self::PARAM_LABELS[$type] ?? []);
                 ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
                     'type' => $type,
                     'recipient' => $recipient,
@@ -122,7 +147,7 @@ class CompletionSmsController extends Controller
                 'name' => $data['patient_name'] ?? '',
                 'link' => $data['payment_link'],
                 'amount' => number_format((float) ($data['amount'] ?? 0)),
-            ]));
+            ]), self::PARAM_LABELS['payment_link']);
             ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
                 'type' => 'payment_link',
                 'recipient' => $data['patient_phone'],
@@ -169,12 +194,12 @@ class CompletionSmsController extends Controller
                     'time' => $data['time'] ?? '',
                     'doctor' => implode('، ', $data['doctors'] ?? []),
                     'consultant' => $data['consultant'] ?? '',
-                    'clinic' => (string) AppSetting::getByKey('clinic_name', ''),
+                    'clinic' => AppSetting::clinicName(),
                     'clinic_address' => (string) AppSetting::getByKey('clinic_address', ''),
                     'clinic_instagram_url' => (string) AppSetting::getByKey('clinic_instagram_url', ''),
                     'clinic_phone' => (string) AppSetting::getByKey('clinic_phone', ''),
                     'clinic_location_url' => (string) AppSetting::getByKey('clinic_location_url', ''),
-                ]));
+                ]), self::PARAM_LABELS[$type] ?? []);
                 ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
                     'type' => $type,
                     'recipient' => $data['patient_phone'],
@@ -219,8 +244,8 @@ class CompletionSmsController extends Controller
 
                 $this->sendTemplateSms($data['patient_phone'], $template, [
                     $data['patient_name'] ?? '',
-                    (string) AppSetting::getByKey('clinic_name', ''),
-                ]);
+                    AppSetting::clinicName(),
+                ], ['نام مراجع', 'نام مجموعه']);
                 ActivityLogger::manual('sms_sent', 'پیگیری', null, [], [
                     'type' => 'landing', 'tag' => $tag, 'recipient' => $data['patient_phone'],
                     'patient_name' => $data['patient_name'] ?? '',
@@ -243,7 +268,7 @@ class CompletionSmsController extends Controller
         return match($type) {
             'appointment' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? '', $values['doctor'] ?? '', $values['clinic'] ?? ''],
             'info' => [$values['name'] ?? '', $values['clinic_address'] ?? '', $values['clinic_instagram_url'] ?? '', $values['clinic_phone'] ?? '', $values['clinic_location_url'] ?? ''],
-            'welcome' => [$values['name'] ?? '', (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', '')), $values['link'] ?? ''],
+            'welcome' => [$values['name'] ?? '', AppSetting::clinicName(), $values['link'] ?? ''],
             'referral_credit' => [$values['name'] ?? '', $values['amount'] ?? '', $values['balance'] ?? ''],
             'treatment_care' => [$values['name'] ?? '', $values['link'] ?? ''],
             'payment_link' => [$values['name'] ?? '', $values['link'] ?? '', $values['amount'] ?? ''],
@@ -264,7 +289,7 @@ class CompletionSmsController extends Controller
             $integration = SatisfactionIntegration::settings();
             $form = SatisfactionController::form();
             $form['patient_name'] = trim((string) ($patient ? $patient->first_name.' '.$patient->last_name : $appointment->lastname));
-            $form['clinic_name'] = (string) AppSetting::getByKey('company_name', AppSetting::getByKey('clinic_name', ''));
+            $form['clinic_name'] = AppSetting::clinicName();
             $form['logo_url'] = (string) AppSetting::getByKey('company_logo', '');
             $invite->fill([
                 'token'=>$token, 'patient_id'=>$patient?->id, 'form_snapshot'=>$form,

@@ -429,18 +429,35 @@ class SettingController extends Controller
         if ($request->has('customer_levels')) {
             $levels = $request->validate([
                 'customer_levels.blue_min_period_amount' => ['required', 'numeric', 'min:0'],
-                'customer_levels.blue_max_period_amount' => ['required', 'numeric', 'min:0'],
+                'customer_levels.blue_max_period_amount' => ['nullable', 'numeric', 'min:0'],
                 'customer_levels.blue_visit_count' => ['required', 'integer', 'min:0'],
                 'customer_levels.blue_visit_period_months' => ['required', 'integer', 'min:1', 'max:60'],
-                'customer_levels.silver_min_period_amount' => ['required', 'numeric', 'min:0'],
-                'customer_levels.silver_max_period_amount' => ['required', 'numeric', 'min:0'],
-                'customer_levels.silver_visit_count' => ['required', 'integer', 'min:0'],
-                'customer_levels.silver_visit_period_months' => ['required', 'integer', 'min:1', 'max:60'],
+                'customer_levels.silver_min_period_amount' => ['nullable', 'numeric', 'min:0'],
+                'customer_levels.silver_max_period_amount' => ['nullable', 'numeric', 'min:0'],
+                'customer_levels.silver_visit_count' => ['nullable', 'integer', 'min:0'],
+                'customer_levels.silver_visit_period_months' => ['nullable', 'integer', 'min:1', 'max:60'],
                 'customer_levels.gold_min_period_amount' => ['required', 'numeric', 'min:0'],
-                'customer_levels.gold_max_period_amount' => ['required', 'numeric', 'min:0'],
-                'customer_levels.gold_visit_count' => ['required', 'integer', 'min:1'],
+                'customer_levels.gold_max_period_amount' => ['nullable', 'numeric', 'min:0'],
+                'customer_levels.gold_visit_count' => ['required', 'integer', 'min:0'],
                 'customer_levels.gold_visit_period_months' => ['required', 'integer', 'min:1', 'max:60'],
             ])['customer_levels'];
+            foreach (['blue' => 'آبی', 'gold' => 'طلایی'] as $level => $label) {
+                if ((float) $levels["{$level}_min_period_amount"] <= 0 && (int) $levels["{$level}_visit_count"] <= 0) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        "customer_levels.{$level}_min_period_amount" => "برای سطح {$label} دست‌کم «حداقل پرداخت» یا «حداقل مراجعه» را تعیین کنید.",
+                    ]);
+                }
+            }
+            // نقره‌ای سطح پیش‌فرض است و سطح‌ها از بالا به پایین بررسی می‌شوند؛
+            // بنابراین معیارهای نقره‌ای و «سقف پرداخت» در محاسبه اثری ندارند.
+            $levels = array_merge($levels, [
+                'blue_max_period_amount' => 0,
+                'gold_max_period_amount' => 0,
+                'silver_min_period_amount' => 0,
+                'silver_max_period_amount' => 0,
+                'silver_visit_count' => 0,
+                'silver_visit_period_months' => (int) ($levels['silver_visit_period_months'] ?? 3) ?: 3,
+            ]);
             AppSetting::updateOrCreate(
                 ['key' => 'customer_level_settings'],
                 ['value' => json_encode($levels, JSON_UNESCAPED_UNICODE)]

@@ -11,9 +11,9 @@ class InventoryAddonDefinition extends Model
     use HasSaveVersion;
 
     protected $appends = ['save_version'];
-    protected $fillable = ['name', 'amount', 'price', 'stock', 'min_stock', 'active', 'sort_order'];
+    protected $fillable = ['name', 'amount', 'price', 'stock', 'track_stock', 'min_stock', 'active', 'sort_order'];
 
-    protected $casts = ['active' => 'boolean'];
+    protected $casts = ['active' => 'boolean', 'track_stock' => 'boolean'];
 
     public function inventories(): BelongsToMany
     {

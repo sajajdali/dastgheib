@@ -3,6 +3,9 @@
 use App\Reporting\DynamicReports\Filters\BirthDateFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentStatusFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentDoctorFilter;
+use App\Reporting\DynamicReports\Filters\AppointmentConsultantFilter;
+use App\Reporting\DynamicReports\Filters\AppointmentDiscountCompareFilter;
+use App\Reporting\DynamicReports\Filters\MedicalProblemFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentSourceFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentWorkFilter;
 use App\Reporting\DynamicReports\Filters\AppointmentSectionFilter;
@@ -63,6 +66,7 @@ return [
         NoReturnFilter::class,
         AppointmentStatusFilter::class,
         AppointmentDoctorFilter::class,
+        AppointmentConsultantFilter::class,
         AppointmentSourceFilter::class,
         AppointmentWorkFilter::class,
         AppointmentSectionFilter::class,
@@ -72,6 +76,8 @@ return [
         AppointmentAmountRangeFilter::class,
         FinancialStatusFilter::class,
         AppointmentDebtCompareFilter::class,
+        AppointmentDiscountCompareFilter::class,
+        MedicalProblemFilter::class,
         AppointmentDepositCompareFilter::class,
         AppointmentPaymentMethodFilter::class,
         AppointmentPaymentAccountFilter::class,

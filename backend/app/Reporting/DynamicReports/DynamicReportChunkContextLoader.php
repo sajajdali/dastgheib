@@ -16,14 +16,19 @@ final class DynamicReportChunkContextLoader
     /** @return Collection<int, ReportPatientContext> */
     public function load(Collection $patients, array $filters = []): Collection
     {
-        $index = $this->appointmentIndex($patients, $filters);
+        $index = $this->appointmentIndex($patients);
         $selectedStatuses = collect(data_get($filters, 'multi.status', []))->filter();
+        $from = data_get($filters, 'reportDate.from');
+        $to = data_get($filters, 'reportDate.to');
 
-        return $patients->map(function (Patient $patient) use ($index, $selectedStatuses) {
+        return $patients->map(function (Patient $patient) use ($index, $selectedStatuses, $from, $to) {
+            // کل سابقه برای درجهٔ مشتری و آخرین مراجعه؛ «آخرین نوبت» گزارش از نوبت‌های همان بازه (به ترتیب تاریخ).
             $history = $this->historyFor($patient, $index);
-            $latest = $selectedStatuses->isEmpty()
-                ? $history->first()
-                : $history->first(fn (Appointment $appointment) => $selectedStatuses->contains(trim((string) $appointment->status)));
+            $latest = $history->first(function (Appointment $appointment) use ($selectedStatuses, $from, $to) {
+                $date = sprintf('%s-%02d', $appointment->month, (int) $appointment->day_num);
+                return (! $from || $date >= $from) && (! $to || $date <= $to)
+                    && ($selectedStatuses->isEmpty() || $selectedStatuses->contains(trim((string) $appointment->status)));
+            });
             $level = $patient->customer_level === 'problematic'
                 ? 'problematic'
                 : $this->levels->calculate($history, $this->levelSettings ??= CustomerLevelService::settings());
@@ -38,7 +43,7 @@ final class DynamicReportChunkContextLoader
         });
     }
 
-    private function appointmentIndex(Collection $patients, array $filters): array
+    private function appointmentIndex(Collection $patients): array
     {
         $fileNumbers = $patients->pluck('file_number')->filter()->unique()->values();
         $phones = $patients->pluck('phone')->filter()->unique()->values();
@@ -51,9 +56,7 @@ final class DynamicReportChunkContextLoader
                 if ($fileNumbers->isNotEmpty()) $query->whereIn('file_number', $fileNumbers);
                 if ($phones->isNotEmpty()) $query->{$fileNumbers->isNotEmpty() ? 'orWhereIn' : 'whereIn'}('phone', $phones);
             })
-            ->when(data_get($filters, 'reportDate.from'), fn ($query, $from) => $query->whereRaw("CONCAT(month, '-', LPAD(day_num, 2, '0')) >= ?", [$from]))
-            ->when(data_get($filters, 'reportDate.to'), fn ($query, $to) => $query->whereRaw("CONCAT(month, '-', LPAD(day_num, 2, '0')) <= ?", [$to]))
-            ->orderByDesc('id')
+            ->orderByDesc('month')->orderByDesc('day_num')->orderByDesc('time')->orderByDesc('id')
             ->get();
 
         $referrers = Patient::query()

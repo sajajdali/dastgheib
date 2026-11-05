@@ -59,6 +59,15 @@ class SafeCollectionPersistenceTest extends TestCase
                 $table->string('profile_photo_path')->nullable(); $table->string('profile_thumbnail_path')->nullable(); $table->timestamps();
             });
         }
+        // تغییر درصد پورسانت در منابع، حقوق ماه جاری را دوباره حساب می‌کند.
+        Schema::create('appointments', function (Blueprint $table) {
+            $table->id(); $table->string('month')->nullable(); $table->json('services')->nullable(); $table->timestamps();
+        });
+        Schema::create('resource_earning_lines', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('appointment_id')->nullable(); $table->string('month', 7);
+            $table->string('resource_type'); $table->unsignedBigInteger('resource_id')->nullable(); $table->string('earning_type');
+            $table->string('status')->default('active'); $table->boolean('manually_edited')->default(false); $table->timestamps();
+        });
         Schema::create('inventory_booking_settings', function (Blueprint $table) {
             $table->id(); $table->unsignedBigInteger('inventory_id')->unique();
             foreach (['booking_enabled', 'use_default_schedule', 'requires_doctor', 'requires_operator', 'conflict_check_enabled', 'online_enabled', 'online_payment_enabled', 'online_cancellation_enabled'] as $name) $table->boolean($name)->default(false);
