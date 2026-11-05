@@ -422,8 +422,8 @@
 
     <AiAssistant :dark="isDark" :user="user" @navigate="openAssistantPage" />
     <IncomingCallStack
-      v-if="user?.permissions?.includes('patients.view') && user?.permissions?.includes('patients.view_phone') && !user?.permissions?.includes('patients.hide_phone') && featureEnabledForTenant('patients')"
-      :can-create="user?.permissions?.includes('patients.create')"
+      v-if="user?.permissions?.includes('patients.view') && featureEnabledForTenant('patients')"
+      :can-create="user?.permissions?.includes('patients.create') && user?.permissions?.includes('patients.view_phone') && !user?.permissions?.includes('patients.hide_phone')"
       @open-file="openIncomingCallPatient"
       @create-file="createIncomingCallPatient"
     />
@@ -1534,12 +1534,14 @@ export default {
     },
 
     openIncomingCallPatient(call) {
-      if (!call?.patient || (!call.patient.fileNo && !call.phone)) return;
+      // شمارهٔ پوشیده (برای کاربر بدون دسترسی به شماره) برای جست‌وجوی پرونده به کار نمی‌آید.
+      const phone = /[•*]/.test(String(call?.phone || '')) ? '' : (call?.phone || '');
+      if (!call?.patient || (!call.patient.fileNo && !phone)) return;
       this.changePage('Parvande').then(() => {
         if (this.currentPage === 'Parvande') {
           this.pendingPatientProfileRequest = {
             file_number: String(call.patient.fileNo || ''),
-            phone: call.phone || '',
+            phone,
             requestedAt: Date.now(),
           };
         }

@@ -1016,6 +1016,32 @@
               <small>متد POST · بدنه JSON · برای این وب‌هوک توکن یا هدر Authorization لازم نیست. شناسهٔ مطب در آدرس قرار دارد.</small>
               <small>در مرکز تماس دست‌کم رویدادهای call.started و call.ended را فعال کنید؛ برای نمایش وضعیت لحظه‌ای، call.queued، call.ringing و call.answered را هم روشن کنید. رویداد آزمایشی پاسخ ۲۰۰ می‌گیرد و وارد فهرست تماس‌های واقعی نمی‌شود.</small>
             </div>
+            <div class="voip-user-toggles">
+              <div class="voip-incoming-list-head">
+                <strong>نمایش تماس برای کاربران</strong>
+                <small>به‌صورت پیش‌فرض برای همه روشن است؛ برای هر کاربری که نمی‌خواهید خاموشش کنید.</small>
+              </div>
+              <p v-if="voipUsersError" class="voip-off">{{ voipUsersError }}</p>
+              <div v-if="voipUsers.length" class="voip-user-list">
+                <label v-for="item in voipUsers" :key="item.id" class="voip-user-row" :class="{ off: !item.incoming_calls_enabled }">
+                  <span class="voip-user-avatar">
+                    <img v-if="item.avatar_url" :src="item.avatar_url" alt="">
+                    <template v-else>{{ (item.nickname || item.name || '؟').charAt(0) }}</template>
+                  </span>
+                  <span class="voip-user-name">
+                    <strong>{{ item.nickname || item.name }}</strong>
+                    <small v-if="item.access_blocked">دسترسی بسته است</small>
+                    <small v-else-if="!item.can_receive">به پرونده‌ها دسترسی ندارد؛ تماسی نمی‌بیند</small>
+                    <small v-else-if="item.phone_hidden" class="voip-user-masked">نام را می‌بیند، شماره پوشیده است</small>
+                  </span>
+                  <span class="satisfaction-integration-switch voip-user-switch">
+                    <input type="checkbox" :checked="item.incoming_calls_enabled" :disabled="voipUserSaving === item.id" @change="setVoipUserIncomingCalls(item, $event.target.checked)">
+                    <i></i>
+                    <b>{{ item.incoming_calls_enabled ? 'روشن' : 'خاموش' }}</b>
+                  </span>
+                </label>
+              </div>
+            </div>
             <div class="voip-incoming-list-head">
               <strong>تماس‌های ورودی اخیر</strong>
               <button type="button" :disabled="voipCallsLoading" @click="loadVoipCalls">به‌روزرسانی</button>
@@ -1159,7 +1185,7 @@ const birthdaySmsTemplateReady = computed(() => Boolean(smsSettings.value.birthd
 const leadRecipientDraft = ref("");
 const leadAlertKeys = ["inventory_empty", "active_tickets", "daily_appointments", "daily_financial"];
 const leadAlertDefinitions = [
-  { key: "inventory_empty", templateKey: "inventory_empty_template", title: "اتمام موجودی انبار", description: "برای هر کالایی که موجودی آن تمام شود", parameters: ["نام کالا", "موجودی فعلی", "نام کلینیک"] },
+  { key: "inventory_empty", templateKey: "inventory_empty_template", title: "اتمام موجودی انبار", description: "یک پیامک روزانه برای همهٔ کالاهای تمام‌شده‌ای که موجودی‌شان پیگیری می‌شود", parameters: ["نام کالاها (حداکثر سه نام و تعداد بقیه)", "تعداد کالاهای تمام‌شده", "نام کلینیک"] },
   { key: "active_tickets", templateKey: "active_tickets_template", title: "تیکت فعال", description: "اعلام تعداد تیکت‌های فعال", parameters: ["تعداد تیکت فعال", "نام کلینیک"] },
   { key: "daily_appointments", templateKey: "daily_appointments_template", title: "نوبت‌های امروز، ساعت ۹ صبح", description: "فقط اگر نوبتی وجود داشته باشد، تعداد کل ارسال می‌شود", parameters: ["تعداد نوبت‌های امروز", "تاریخ روز", "نام کلینیک"] },
   { key: "daily_financial", templateKey: "daily_financial_template", title: "درآمد و سود روزانه، هر شب", description: "فقط اگر درآمدی ثبت شده باشد", parameters: ["درآمد روز", "سود تقریبی روز", "تاریخ روز", "نام کلینیک"] }
@@ -1172,7 +1198,7 @@ const smsTemplateTextSamples = {
   treatment_care: "%param1% عزیز\nراهنمای مراقبت پس از درمان:\n%param2%",
   payment_link: "%param1% عزیز\nبرای پرداخت مبلغ %param3% تومان از لینک زیر استفاده کنید:\n%param2%",
   birthday: "%param1% عزیز، روز تولدتان مبارک.\n%param2% جان، کلینیک %param5% این روز زیبا را به شما تبریک می‌گوید.",
-  inventory_empty: "موجودی %param1% در حال اتمام است\nموجودی فعلی %param2% عدد می‌باشد\nکلینیک %param3%",
+  inventory_empty: "موجودی %param1% تمام شده است\nتعداد کالاهای تمام‌شده: %param2%\nکلینیک %param3%",
   active_tickets: "تعداد تیکت‌های فعال: %param1%\nکلینیک %param2%",
   daily_appointments: "امروز شما %param1% نوبت در تاریخ %param2% در کلینیک %param3% دارید.",
   daily_financial: "گزارش مالی %param3%\nدرآمد: %param1% تومان\nسود تقریبی: %param2% تومان\nکلینیک %param4%"
@@ -1510,6 +1536,34 @@ const voipIncomingIsLocal = ['localhost', '127.0.0.1', '::1'].includes(window.lo
 const voipCalls = ref([]);
 const voipCallsLoading = ref(false);
 const voipCallsError = ref("");
+const voipUsers = ref([]);
+const voipUsersError = ref("");
+const voipUserSaving = ref(null);
+const loadVoipUsers = async () => {
+  voipUsersError.value = "";
+  try {
+    const { data } = await axios.get('/api/settings/voip/incoming-calls/users');
+    voipUsers.value = data.users || [];
+  } catch (error) {
+    voipUsersError.value = error.response?.data?.message || "فهرست کاربران خوانده نشد.";
+  }
+};
+const setVoipUserIncomingCalls = async (item, enabled) => {
+  const previous = item.incoming_calls_enabled;
+  item.incoming_calls_enabled = enabled;
+  voipUserSaving.value = item.id;
+  voipMessage.value = "";
+  try {
+    const { data } = await axios.put(`/api/settings/voip/incoming-calls/users/${item.id}`, { enabled });
+    item.incoming_calls_enabled = Boolean(data.incoming_calls_enabled);
+    voipMessage.value = data.message;
+  } catch (error) {
+    item.incoming_calls_enabled = previous;
+    voipMessage.value = error.response?.data?.message || "ذخیرهٔ تنظیم این کاربر انجام نشد.";
+  } finally {
+    voipUserSaving.value = null;
+  }
+};
 const formatVoipCallTime = (value) => value ? new Date(value).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" }) : "—";
 let voipCallsTimer;
 const voipCreatedAt = computed(() => voip.value.created_at ? new Date(voip.value.created_at).toLocaleString("fa-IR", { dateStyle: "medium", timeStyle: "short" }) : "");
@@ -1517,7 +1571,10 @@ const loadVoip = async () => {
   try {
     const { data } = await axios.get('/api/settings/voip');
     voip.value = data.voip;
-    if (voip.value.incoming_calls_enabled) loadVoipCalls();
+    if (voip.value.incoming_calls_enabled) {
+      loadVoipCalls();
+      loadVoipUsers();
+    }
   } catch {
     voipMessage.value = "تنظیمات ارتباط با VoIP خوانده نشد.";
   }
@@ -1542,8 +1599,10 @@ const setIncomingCallsEnabled = async (enabled) => {
     const { data } = await axios.put('/api/settings/voip/incoming-calls', { enabled });
     voip.value = data.voip;
     voipMessage.value = data.message;
-    if (enabled) loadVoipCalls();
-    else voipCalls.value = [];
+    if (enabled) {
+      loadVoipCalls();
+      loadVoipUsers();
+    } else voipCalls.value = [];
   } catch (error) {
     voipMessage.value = error.response?.data?.message || "ذخیره تنظیمات تماس‌های ورودی انجام نشد.";
   } finally {
@@ -2780,6 +2839,20 @@ textarea{ min-height:120px; resize:none; }
 .voip-incoming-card{margin-top:18px}
 .voip-incoming-endpoint{display:grid;gap:8px}
 .voip-incoming-endpoint>small{color:#64748b;font-size:11px;line-height:1.8}
+.voip-user-toggles{margin-top:14px}
+.voip-user-toggles .voip-incoming-list-head{flex-direction:column;align-items:flex-start;gap:3px;margin-top:0}
+.voip-user-toggles .voip-incoming-list-head small{color:#64748b;font-size:11px}
+.voip-user-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:10px}
+.voip-user-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer}
+.voip-user-row.off{background:#f8fafc}
+.voip-user-row.off .voip-user-name strong{color:#94a3b8}
+.voip-user-avatar{width:32px;height:32px;flex:0 0 32px;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:12px;font-weight:900}
+.voip-user-avatar img{width:100%;height:100%;object-fit:cover}
+.voip-user-name{min-width:0;flex:1;display:grid;gap:2px}
+.voip-user-name strong{overflow:hidden;color:#1e293b;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.voip-user-name small{color:#b45309;font-size:10px}
+.voip-user-name small.voip-user-masked{color:#64748b}
+.voip-user-switch{flex:0 0 auto}
 .voip-incoming-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:#243b5b}
 .voip-incoming-list-head button{border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;color:#1d4ed8;padding:7px 11px;font:inherit;font-size:11px;cursor:pointer}
 .voip-incoming-list{display:grid;gap:8px;max-height:380px;overflow:auto;margin-top:10px}

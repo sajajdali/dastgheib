@@ -104,7 +104,7 @@ export default {
     activeReportSrc() {
       const src = this.reports.find((report) => report.key === this.activeReport)?.src || "/reports/leads.html";
       const separator = src.includes("?") ? "&" : "?";
-      return `${src}${separator}v=20260810-real-appointments`;
+      return `${src}${separator}v=20261105-server-leads`;
     },
     visibleUsers() {
       return this.presence.users.slice(0, 10);

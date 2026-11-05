@@ -114,6 +114,8 @@ export default {
       notificationTimer: null,
       inventoryZeroCount: 0,
       inventoryLowStockCount: 0,
+      followupCampaigns: [],
+      followupCampaignsRequest: null,
       overflowOpen: false,
       permissionMap: {
         Parvande: 'patients.view',
@@ -292,6 +294,39 @@ export default {
       const now = new Date()
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     },
+    // کمپین‌ها (سرنخ‌ها) از سرور خوانده می‌شوند تا نشان‌ها برای هر کاربر و مرورگری درست باشد؛
+    // کمپین‌هایی که هنوز به سرور نرسیده‌اند از نسخهٔ محلی همین مرورگر اضافه می‌شوند.
+    async loadFollowupCampaigns() {
+      if (this.followupCampaignsRequest) return this.followupCampaignsRequest
+      this.followupCampaignsRequest = (async () => {
+        const unsyncedLocal = this.readLocalArray('campaigns_flwup_v1').filter(campaign => !campaign?._serverPersisted)
+        try {
+          const response = await fetch(`${API}/campaigns?summary=1`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+          if (!response.ok) return []
+          const data = await response.json()
+          const server = (Array.isArray(data) ? data : []).map(item => {
+            const payload = item?.ui_payload || {}
+            return {
+              ...payload,
+              id: item.id,
+              title: payload.title || item.name || '',
+              date: payload.date || item.starts_on || '',
+              campaignStatus: payload.campaignStatus || (item.active ? 'active' : 'archived'),
+              rows: Array.isArray(payload.rows) ? payload.rows : []
+            }
+          })
+          return [...server, ...unsyncedLocal]
+        } catch {
+          return this.readLocalArray('campaigns_flwup_v1')
+        }
+      })()
+      try {
+        this.followupCampaigns = await this.followupCampaignsRequest
+      } finally {
+        this.followupCampaignsRequest = null
+      }
+      return this.followupCampaigns
+    },
     readLocalArray(key) {
       try {
         const value = JSON.parse(localStorage.getItem(key) || '[]')
@@ -317,7 +352,7 @@ export default {
       const jalaliToday = this.jalaliToday()
       const gregorianToday = this.gregorianToday()
       let count = 0
-      this.readLocalArray('campaigns_flwup_v1').forEach(campaign => {
+      this.followupCampaigns.forEach(campaign => {
         if (!this.isActiveFollowupCampaign(campaign)) return
         ;(Array.isArray(campaign.rows) ? campaign.rows : []).forEach(row => {
           if (!this.isPendingFollowup(row)) return
@@ -333,7 +368,7 @@ export default {
       const now = Date.now()
       let count = 0
 
-      this.readLocalArray('campaigns_flwup_v1').forEach(campaign => {
+      this.followupCampaigns.forEach(campaign => {
         ;(Array.isArray(campaign.rows) ? campaign.rows : []).forEach(row => {
           if (row.status !== 'پاسخ داد' || String(row.interest || '').trim()) return
           const answeredAt = Date.parse(row.answeredWithoutInterestAt || '')
@@ -372,7 +407,7 @@ export default {
     countUncalledCampaignLeadWarnings() {
       let count = 0
 
-      this.readLocalArray('campaigns_flwup_v1').forEach(campaign => {
+      this.followupCampaigns.forEach(campaign => {
         if (this.daysSince(campaign.date) < 4) return
 
         const hasUncalled = (Array.isArray(campaign.rows) ? campaign.rows : [])
@@ -885,6 +920,7 @@ export default {
       }
     },
     async refreshNotificationCounts() {
+      await this.loadFollowupCampaigns()
       const delayedInterestFollowups = this.countDelayedInterestFollowups()
       const uncalledCampaignLeadWarnings = this.countUncalledCampaignLeadWarnings()
       // نشانِ پیگیری فقط تعداد پیگیری‌های واقعیِ سررسید امروز است؛

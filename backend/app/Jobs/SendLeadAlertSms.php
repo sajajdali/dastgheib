@@ -55,8 +55,16 @@ class SendLeadAlertSms
         }
 
         if ($settings['inventory_empty'] ?? false) {
-            Inventory::query()->where('active', true)->whereRaw('COALESCE(stock, 0) <= 0')->get(['name', 'stock'])
-                ->each(fn ($item) => $messages[] = ['key' => 'inventory_empty', 'params' => [(string) $item->name, number_format((int) $item->stock), $this->clinicName()]]);
+            // فقط کالاهایی که موجودی‌شان پیگیری می‌شود؛ همه در یک پیامک تا برای هر کالا جدا پیامک نرود.
+            $emptyItems = Inventory::query()->where('active', true)->where('track_stock', true)
+                ->whereRaw('COALESCE(stock, 0) <= 0')->orderBy('name')->get(['name', 'stock']);
+            if ($emptyItems->isNotEmpty()) {
+                $messages[] = ['key' => 'inventory_empty', 'params' => [
+                    $this->itemNames($emptyItems->pluck('name')->map(fn ($name) => trim((string) $name))->filter()->values()->all()),
+                    number_format($emptyItems->count()),
+                    $this->clinicName(),
+                ]];
+            }
         }
 
         if (($settings['active_tickets'] ?? false) && ($count = Ticket::query()->where('status', 'active')->count()) > 0) {
@@ -97,6 +105,16 @@ class SendLeadAlertSms
             'key' => 'daily_financial',
             'params' => [number_format($revenue), number_format($profit), $this->jalaliDate($year, $month, $day), $this->clinicName()],
         ]];
+    }
+
+    /** حداکثر سه نام کالا و تعداد بقیه، تا متن پیامک کوتاه بماند. */
+    private function itemNames(array $names): string
+    {
+        $shown = array_slice($names, 0, 3);
+        $rest = count($names) - count($shown);
+        $text = implode('، ', $shown);
+
+        return $rest > 0 ? $text.' و '.number_format($rest).' قلم دیگر' : $text;
     }
 
     private function number(mixed $value): float

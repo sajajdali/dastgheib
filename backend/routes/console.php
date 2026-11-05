@@ -18,8 +18,21 @@ Schedule::call(function () {
         }
     });
 })->name('birthday-sms-all-tenants')->dailyAt('09:00')->timezone('Asia/Tehran')->withoutOverlapping();
-Schedule::call(fn () => (new SendLeadAlertSms('morning'))->handle(app(ShsmsService::class)))->name('lead-alert-sms-morning')->dailyAt('09:00')->timezone('Asia/Tehran')->withoutOverlapping();
-Schedule::call(fn () => (new SendLeadAlertSms('night'))->handle(app(ShsmsService::class)))->name('lead-alert-sms-night')->dailyAt('23:00')->timezone('Asia/Tehran')->withoutOverlapping();
+// پیامک سرنخ باید با تنظیمات و دادهٔ هر کلینیک اجرا شود، نه دیتابیس مرکزی.
+$leadAlertsForAllTenants = function (string $report): void {
+    Tenant::query()->get()->each(function (Tenant $tenant) use ($report) {
+        try {
+            tenancy()->initialize($tenant);
+            (new SendLeadAlertSms($report))->handle(app(ShsmsService::class));
+        } catch (Throwable $exception) {
+            report($exception);
+        } finally {
+            tenancy()->end();
+        }
+    });
+};
+Schedule::call(fn () => $leadAlertsForAllTenants('morning'))->name('lead-alert-sms-morning')->dailyAt('09:00')->timezone('Asia/Tehran')->withoutOverlapping();
+Schedule::call(fn () => $leadAlertsForAllTenants('night'))->name('lead-alert-sms-night')->dailyAt('23:00')->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('modules:expire-subscriptions')->hourly()->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('subscriptions:expire')->hourly()->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('storage:reconcile')->dailyAt('03:00')->timezone('Asia/Tehran')->withoutOverlapping();

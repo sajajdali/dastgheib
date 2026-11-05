@@ -46,10 +46,19 @@ class VoipCallEventController extends Controller
 
     public function live(Request $request, VoipIncomingCallService $calls): JsonResponse
     {
-        abort_unless($request->user()?->can('patients.view') && PatientPhoneVisibility::canView($request), 403);
+        abort_unless($request->user()?->can('patients.view'), 403);
         $settings = VoipIntegration::settings();
-        $enabled = $settings['enabled'] && $settings['incoming_calls_enabled'];
+        // روشن بودن کلی + روشن بودن برای همین کاربر (پیش‌فرض روشن است).
+        $enabled = $settings['enabled'] && $settings['incoming_calls_enabled']
+            && VoipIntegration::incomingCallsEnabledForUser($request->user()?->id);
+        $live = $enabled ? $calls->live() : [];
 
-        return response()->json(['enabled' => $enabled, 'calls' => $enabled ? $calls->live() : []]);
+        // کاربری که به شمارهٔ بیماران دسترسی ندارد تماس را با نام می‌بیند، ولی شماره پوشیده است.
+        $phoneVisible = PatientPhoneVisibility::canView($request);
+        if (! $phoneVisible) {
+            $live = array_map(fn (array $call) => [...$call, 'phone' => PatientPhoneVisibility::mask($call['phone'] ?? null)], $live);
+        }
+
+        return response()->json(['enabled' => $enabled, 'phone_visible' => $phoneVisible, 'calls' => $live]);
     }
 }

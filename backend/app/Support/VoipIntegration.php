@@ -15,6 +15,9 @@ class VoipIntegration
 {
     private const KEY = 'voip_integration';
 
+    /** کاربرانی که نمایش تماس ورودی برایشان خاموش شده؛ بقیه (و کاربران جدید) به‌صورت پیش‌فرض روشن‌اند. */
+    private const DISABLED_USERS_KEY = 'voip_incoming_disabled_users';
+
     public static function settings(): array
     {
         $raw = AppSetting::getByKey(self::KEY, '{}');
@@ -53,6 +56,30 @@ class VoipIntegration
         self::store(true, self::settings()['incoming_calls_enabled'], $token, now()->toIso8601String());
 
         return self::settings();
+    }
+
+    /** @return array<int, int> */
+    public static function incomingDisabledUserIds(): array
+    {
+        $raw = AppSetting::getByKey(self::DISABLED_USERS_KEY, '[]');
+        $ids = is_string($raw) ? json_decode($raw, true) : $raw;
+
+        return collect(is_array($ids) ? $ids : [])
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()->values()->all();
+    }
+
+    public static function incomingCallsEnabledForUser(?int $userId): bool
+    {
+        return $userId !== null && ! in_array($userId, self::incomingDisabledUserIds(), true);
+    }
+
+    public static function setIncomingCallsForUser(int $userId, bool $enabled): void
+    {
+        $ids = collect(self::incomingDisabledUserIds())->reject(fn ($id) => $id === $userId);
+        if (! $enabled) $ids->push($userId);
+        AppSetting::updateOrCreate(['key' => self::DISABLED_USERS_KEY], ['value' => json_encode($ids->unique()->values()->all())]);
     }
 
     /** Tenant id written at the start of a token, or null when the token is not ours. */

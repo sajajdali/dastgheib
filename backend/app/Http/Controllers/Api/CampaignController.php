@@ -5,15 +5,29 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\InventorySection;
+use App\Services\CampaignRowMerger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class CampaignController extends Controller
 {
     private const GENERAL_FOLLOWUP_MARKER = '__system_general_followups__';
 
-    public function index()
+    public function index(Request $request)
     {
-        return Campaign::query()->orderByDesc('active')->orderBy('name')->get();
+        $campaigns = Campaign::query()->orderByDesc('active')->orderBy('name')->get();
+
+        // نسخهٔ سبک برای فید «سرنخ‌ها»: بنرها و فایل‌های پیوست حذف می‌شوند.
+        if ($request->boolean('summary')) {
+            $campaigns->each(function (Campaign $campaign): void {
+                $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
+                unset($payload['banners'], $payload['attachmentData']);
+                $campaign->setAttribute('ui_payload', $payload);
+            });
+        }
+
+        return $campaigns;
     }
 
     public function general()
@@ -68,16 +82,77 @@ class CampaignController extends Controller
             ->values();
     }
 
-    public function store(Request $request)
+    /**
+     * بنر کمپین به‌صورت فایل ذخیره می‌شود و فقط نشانی‌اش در ui_payload می‌ماند؛
+     * عکس base64 داخل JSON کمپین هم از حد بستهٔ MySQL رد می‌شد و هم با هر ویرایش سرنخ دوباره ارسال می‌شد.
+     */
+    public function uploadBanner(Request $request)
     {
-        return response()->json(Campaign::create($this->data($request)), 201);
+        $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:2048'],
+        ], [
+            'image.max' => 'حجم بنر بعد از فشرده‌سازی نباید بیشتر از ۲ مگابایت باشد.',
+            'image.image' => 'فایل انتخاب‌شده تصویر نیست.',
+            'image.mimes' => 'فقط تصویر JPG، PNG، WEBP یا GIF قابل بارگذاری است.',
+        ]);
+
+        $file = $request->file('image');
+        $path = $file->store('campaign-banners', 'public');
+
+        return response()->json([
+            'name' => $file->getClientOriginalName(),
+            'path' => $path,
+            'url' => '/tenant-files/'.ltrim($path, '/'),
+        ], 201);
     }
 
+    public function store(Request $request)
+    {
+        $data = $this->data($request);
+        if (is_array($data['ui_payload']['rows'] ?? null)) {
+            $data['ui_payload']['rows'] = app(CampaignRowMerger::class)->withIds($data['ui_payload']['rows']);
+        }
+
+        return response()->json(Campaign::create($data), 201);
+    }
+
+    /**
+     * اگر base_rows فرستاده شود، ردیف‌ها با نسخهٔ فعلی سرور ادغام می‌شوند تا
+     * تغییرات هم‌زمان کاربرهای دیگر پاک نشود. تداخل روی یک فیلد از یک ردیف = 409.
+     */
     public function update(Request $request, Campaign $campaign)
     {
-        $campaign->update($this->data($request));
+        $data = $this->data($request);
+        $request->validate(['base_rows' => ['nullable', 'array']]);
 
-        return $campaign->fresh();
+        if (! $request->exists('base_rows') || ! is_array($data['ui_payload']['rows'] ?? null)) {
+            $campaign->update($data);
+
+            return $campaign->fresh();
+        }
+
+        return DB::transaction(function () use ($request, $campaign, $data) {
+            $current = Campaign::query()->lockForUpdate()->findOrFail($campaign->getKey());
+            $serverPayload = is_array($current->ui_payload) ? $current->ui_payload : [];
+            $result = app(CampaignRowMerger::class)->merge(
+                (array) $request->input('base_rows', []),
+                is_array($serverPayload['rows'] ?? null) ? $serverPayload['rows'] : [],
+                $data['ui_payload']['rows'],
+            );
+
+            if ($result['conflicts']) {
+                return response()->json([
+                    'message' => 'این سرنخ هم‌زمان توسط کاربر دیگری تغییر کرده است.',
+                    'conflicts' => $result['conflicts'],
+                    'campaign' => $current,
+                ], 409);
+            }
+
+            $data['ui_payload']['rows'] = $result['rows'];
+            $current->update($data);
+
+            return $current->fresh();
+        });
     }
 
     public function destroy(Campaign $campaign)

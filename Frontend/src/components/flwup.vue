@@ -354,6 +354,7 @@
           <div class="field">
             <label>بنرهای کمپین</label>
             <input type="file" accept="image/*" multiple @change="handleCampaignAttachment" />
+            <small v-if="bannerUploadError" class="banner-upload-error" role="alert">{{ bannerUploadError }}</small>
             <small v-if="newCampaign.banners.length" class="field-hint">{{ newCampaign.banners.length.toLocaleString('fa-IR') }} بنر انتخاب شده</small>
             <div v-if="newCampaign.banners.length" class="campaign-form-banners">
               <div v-for="(banner, index) in newCampaign.banners" :key="banner.id || index">
@@ -1387,7 +1388,7 @@
                 v-model.number="rowCount"
                 class="row-input"
               />
-              <button class="btn minus" style="    text-align: center !important;" @click="removeRowsFromActive">-</button>
+              <button class="btn minus" style="    text-align: center !important;" title="حذف ردیف‌های خالی از انتهای جدول" @click="removeRowsFromActive">-</button>
             </div>
             <div v-if="bulkPhonePasteNotice" class="bulk-phone-paste-notice" role="status">
               {{ bulkPhonePasteNotice }}
@@ -1514,6 +1515,7 @@
             <small>گالری کمپین</small>
             <h2>{{ bannerGalleryCampaign.title || 'کمپین بدون عنوان' }}</h2>
             <p>{{ campaignBanners(bannerGalleryCampaign).length.toLocaleString('fa-IR') }} بنر ذخیره شده</p>
+            <p v-if="bannerUploadError" class="banner-upload-error" role="alert">{{ bannerUploadError }}</p>
           </div>
           <div class="banner-gallery-actions">
             <label class="campaign-icon-action banner-upload-action" title="افزودن بنر" aria-label="افزودن بنر">
@@ -1589,6 +1591,88 @@ function normalizeInterest(val) {
   if (["3", "زیاد", "high"].includes(text)) return "3";
   if (["ok", "وقت داده شد", "وقت داده‌شد", "نوبت داده شد"].includes(text)) return "ok";
   return "";
+}
+
+// مقایسهٔ ردیف‌ها مثل سرور: ""/null، فاصلهٔ اضافه، عدد/رشته و ترتیب کلیدها مهم نیست.
+function normalizeMergeValue(value) {
+  if (value === undefined || value === null) return null;
+  if (Array.isArray(value)) return value.length ? value.map(normalizeMergeValue) : null;
+  if (typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    if (!keys.length) return null;
+    return keys.reduce((result, key) => ({ ...result, [key]: normalizeMergeValue(value[key]) }), {});
+  }
+  if (typeof value === "string") return value.trim() === "" ? null : value.trim();
+  if (typeof value === "number") return String(value);
+  return value;
+}
+
+function sameMergeValue(left, right) {
+  return JSON.stringify(normalizeMergeValue(left)) === JSON.stringify(normalizeMergeValue(right));
+}
+
+function cloneRows(rows) {
+  return JSON.parse(JSON.stringify(Array.isArray(rows) ? rows : []));
+}
+
+/**
+ * ادغام سه‌طرفهٔ ردیف‌ها (همان قواعد CampaignRowMerger سرور). ردیف‌های mine درجا به‌روز
+ * می‌شوند تا ورودی‌ای که کاربر در حال تایپ آن است عوض نشود. در تداخل یک فیلد، prefer تعیین می‌کند
+ * کدام نسخه بماند.
+ */
+function mergeRowLists(base, theirs, mine, prefer = "mine") {
+  const byId = rows => new Map((rows || []).filter(row => row?._localId).map(row => [String(row._localId), row]));
+  const baseById = byId(base);
+  const theirsById = byId(theirs);
+  const mineById = byId(mine);
+  const result = [];
+  const conflicts = [];
+
+  (mine || []).forEach(row => {
+    const id = String(row?._localId || "");
+    const baseRow = baseById.get(id);
+    const theirRow = theirsById.get(id);
+    if (!id || !theirRow) {
+      if (id && baseRow && sameMergeValue(row, baseRow)) return;
+      result.push(row);
+      return;
+    }
+    const reference = baseRow || theirRow;
+    const keys = new Set([...Object.keys(reference), ...Object.keys(theirRow), ...Object.keys(row)]);
+    keys.forEach(key => {
+      const baseValue = reference[key];
+      const theirValue = theirRow[key];
+      const myValue = row[key];
+      let value;
+      if (sameMergeValue(myValue, baseValue)) value = theirValue;
+      else if (sameMergeValue(theirValue, baseValue) || sameMergeValue(myValue, theirValue)) value = myValue;
+      else {
+        conflicts.push({ rowId: id, field: key });
+        value = prefer === "theirs" ? theirValue : myValue;
+      }
+      if (!sameMergeValue(value, myValue) || (value !== undefined && !(key in row))) {
+        row[key] = value === undefined ? null : JSON.parse(JSON.stringify(value));
+      }
+    });
+    result.push(row);
+  });
+
+  let previousId = null;
+  (theirs || []).forEach(row => {
+    const id = String(row?._localId || "");
+    if (!id) return;
+    if (mineById.has(id)) {
+      previousId = id;
+      return;
+    }
+    const baseRow = baseById.get(id);
+    if (baseRow && sameMergeValue(row, baseRow)) return;
+    const index = previousId === null ? 0 : result.findIndex(item => String(item?._localId) === previousId) + 1;
+    result.splice(index > 0 ? index : (previousId === null ? 0 : result.length), 0, JSON.parse(JSON.stringify(row)));
+    previousId = id;
+  });
+
+  return { rows: result, conflicts };
 }
 
 export default {
@@ -1705,6 +1789,7 @@ export default {
       campaignDateError: "",
       bannerGalleryCampaignId: null,
       bannerUploadLoading: false,
+      bannerUploadError: "",
       landingSmsOptions: [],
       landingSmsLoading: false,
       landingSmsLoadError: "",
@@ -1751,6 +1836,9 @@ export default {
 
       debouncedSaveLocal: null,
       campaignPersistedFingerprints: {},
+      // آخرین ردیف‌هایی که از سرور تأیید شده‌اند؛ پایهٔ ادغام سه‌طرفه هنگام ذخیره.
+      campaignServerRows: {},
+      pendingAppointmentResult: null,
       campaignSaveInProgress: false,
       campaignSaveQueued: false,
       followupConsultantPhoneRestricted: false,
@@ -2177,6 +2265,11 @@ export default {
     applyAppointmentResult(result) {
       const followup = result?.followup;
       if (!followup?.campaignId || !followup?.rowId) return;
+      // اگر کمپین‌ها هنوز از سرور نرسیده‌اند، دادهٔ سرور این علامت را رونویسی می‌کند؛ پس صبر می‌کنیم.
+      if (this.campaignsLoadingFromServer) {
+        this.pendingAppointmentResult = result;
+        return;
+      }
       let campaign = this.campaigns.find(item => String(item.id) === String(followup.campaignId));
       let row = campaign?.rows?.find(item => String(item._localId) === String(followup.rowId));
       // برای ردیف‌های قدیمی که شناسهٔ محلی‌شان هنگام بارگذاری دوباره ساخته شده است.
@@ -2205,6 +2298,7 @@ export default {
       this.campaignSearch = "";
       this.activeFilter = null;
       this.saveCampaignsToLocal();
+      this.debouncedSaveLocal?.();
     },
 
     openRequestedFollowups(request) {
@@ -2299,23 +2393,76 @@ export default {
       this.patientLookupTimers[key] = setTimeout(() => this.fillPatientByPhone(row), 350);
     },
 
+    // عکس بزرگ (مثل عکس گوشی) قبل از ارسال کوچک و فشرده می‌شود تا محدودیت حجم سرور رد نشود.
+    async compressBannerImage(file) {
+      const maxBytes = 1.5 * 1024 * 1024;
+      if (file.type === "image/gif") return file;
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        bitmap = await new Promise((resolve, reject) => {
+          const url = URL.createObjectURL(file);
+          const image = new Image();
+          image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+          image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unreadable")); };
+          image.src = url;
+        });
+      }
+      const width = bitmap.width || bitmap.naturalWidth;
+      const height = bitmap.height || bitmap.naturalHeight;
+      const scale = Math.min(1, 1920 / Math.max(width, height));
+      if (scale === 1 && file.size <= maxBytes && ["image/jpeg", "image/png", "image/webp"].includes(file.type)) return file;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close?.();
+
+      let blob = null;
+      for (const quality of [0.86, 0.78, 0.7, 0.6, 0.5]) {
+        blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+        if (blob && blob.size <= maxBytes) break;
+      }
+      if (!blob) throw new Error("compress");
+      const name = String(file.name || "banner").replace(/\.[^.]+$/, "") + ".jpg";
+      return new File([blob], name, { type: "image/jpeg" });
+    },
+
+    // هر بنر به‌صورت فایل روی سرور ذخیره می‌شود و فقط نشانی آن داخل کمپین می‌ماند.
     async filesToCampaignBanners(files) {
+      this.bannerUploadError = "";
       const selectedFiles = Array.from(files || []);
-      const invalid = selectedFiles.find(file => !file.type.startsWith("image/") || file.size > 2 * 1024 * 1024);
-      if (invalid) {
-        this.campaignFormError = "هر بنر باید تصویر و کمتر از ۲ مگابایت باشد.";
+      if (selectedFiles.some(file => !String(file.type || "").startsWith("image/"))) {
+        this.bannerUploadError = "فقط فایل تصویری را می‌توان به‌عنوان بنر انتخاب کرد.";
         return [];
       }
 
-      return Promise.all(selectedFiles.map(file => new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => resolve({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          name: file.name,
-          data: String(reader.result || "")
-        });
-        reader.readAsDataURL(file);
-      })));
+      const banners = [];
+      const failed = [];
+      for (const file of selectedFiles) {
+        try {
+          const image = await this.compressBannerImage(file);
+          const form = new FormData();
+          form.append("image", image);
+          const { data } = await axios.post("/api/campaigns/banners", form);
+          banners.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            name: file.name || data.name || "بنر کمپین",
+            data: data.url,
+          });
+        } catch (error) {
+          console.error("Campaign banner upload error", error);
+          const message = error.response?.data?.errors?.image?.[0] || error.response?.data?.message || "";
+          failed.push(`«${file.name}»${message ? `: ${message}` : ""}`);
+        }
+      }
+      if (failed.length) this.bannerUploadError = `بارگذاری این بنرها انجام نشد: ${failed.join("، ")}`;
+      return banners;
     },
 
     async handleCampaignAttachment(event) {
@@ -2348,6 +2495,7 @@ export default {
     },
 
     openBannerGallery(campaign) {
+      this.bannerUploadError = "";
       this.campaignBanners(campaign);
       this.bannerGalleryCampaignId = campaign.id;
     },
@@ -2360,10 +2508,28 @@ export default {
       if (!event.target.files?.length) return;
       this.bannerUploadLoading = true;
       try {
+        const campaign = this.bannerGalleryCampaign;
         const banners = await this.filesToCampaignBanners(event.target.files);
-        if (banners.length && this.bannerGalleryCampaign) {
-          this.campaignBanners(this.bannerGalleryCampaign).push(...banners);
+        if (banners.length && campaign) {
+          const list = this.campaignBanners(campaign);
+          list.push(...banners);
+          campaign.attachmentName = list[0]?.name || "";
+          campaign.attachmentData = list[0]?.data || "";
           this.saveCampaignsToLocal();
+          if (campaign._serverPersisted) {
+            try {
+              await this.putCampaign(campaign);
+              this.saveCampaignsToLocal();
+            } catch (error) {
+              if (error.response?.status !== 409) {
+                campaign.banners = list.filter(banner => !banners.includes(banner));
+                campaign.attachmentName = campaign.banners[0]?.name || "";
+                campaign.attachmentData = campaign.banners[0]?.data || "";
+                this.saveCampaignsToLocal();
+                this.bannerUploadError = error.response?.data?.message || "بنر بارگذاری شد ولی ذخیرهٔ آن در کمپین انجام نشد؛ دوباره تلاش کنید.";
+              }
+            }
+          }
         }
       } finally {
         this.bannerUploadLoading = false;
@@ -2432,6 +2598,8 @@ export default {
         const index = this.campaigns.findIndex(item => String(item.id) === String(serverCampaign.id));
         if (index >= 0) this.campaigns.splice(index, 1, serverCampaign);
         else this.campaigns.unshift(serverCampaign);
+        this.rememberServerRows(serverCampaign, serverCampaign.rows);
+        this.markCampaignPersisted(serverCampaign);
         campaign = serverCampaign;
         this.saveCampaignsToLocal();
       } catch (error) {
@@ -2463,6 +2631,7 @@ export default {
     },
 
     async openCreateCampaignModal() {
+      this.bannerUploadError = "";
       this.editingCampaignId = null;
       this.newCampaign = this.emptyCampaignForm();
       this.campaignFormError = "";
@@ -2472,6 +2641,7 @@ export default {
     },
 
     async openEditCampaignModal(campaign) {
+      this.bannerUploadError = "";
       if (!campaign || this.isGeneralFollowupCampaign(campaign)) return;
       this.editingCampaignId = campaign.id;
       const banners = Array.isArray(campaign.banners) && campaign.banners.length
@@ -2501,6 +2671,7 @@ export default {
     },
 
     closeCampaignForm() {
+      this.bannerUploadError = "";
       if (this.campaignFormSaving) return;
       this.showCampaignModal = false;
       this.editingCampaignId = null;
@@ -2837,22 +3008,21 @@ export default {
         pinned: existing?.pinned || false,
         rows: existing?.rows || [],
       };
-      const requestFingerprint = this.campaignFingerprint(campaign);
 
       this.campaignFormSaving = true;
       try {
         if (existing) {
           if (existing._serverPersisted) {
-            await axios.put(`/api/campaigns/${existing.id}`, this.campaignApiPayload(campaign));
-            Object.assign(existing, formChanges);
-            this.campaignPersistedFingerprints[this.campaignStorageKey(existing)] = requestFingerprint;
+            await this.putCampaign(existing, formChanges);
           } else {
             const previousKey = this.campaignStorageKey(existing);
             const { data } = await axios.post('/api/campaigns', this.campaignApiPayload(campaign));
             campaign.id = data.id;
             delete this.campaignPersistedFingerprints[previousKey];
+            delete this.campaignServerRows[previousKey];
             if (String(this.activeCampaignId) === String(existing.id)) this.activeCampaignId = data.id;
             Object.assign(existing, formChanges, { id: data.id, _serverPersisted: true });
+            this.rememberServerRows(existing, data?.ui_payload?.rows);
             this.markCampaignPersisted(existing);
           }
         } else {
@@ -2860,6 +3030,7 @@ export default {
           campaign.id = data.id;
           campaign._serverPersisted = true;
           this.campaigns.unshift(campaign);
+          this.rememberServerRows(campaign, data?.ui_payload?.rows);
           this.markCampaignPersisted(campaign);
         }
         this.saveCampaignsToLocal();
@@ -3309,11 +3480,34 @@ export default {
       }
     },
 
+    // ردیفی که جز تاریخ/ساعت تماسِ خودکار چیزی ندارد؛ فقط این ردیف‌ها با دکمهٔ «−» حذف می‌شوند.
+    isEmptyFollowupRow(row) {
+      if (!row || row.appointmentRegistered || row.patient_id) return false;
+      return ![
+        row.fullName, row.phone, row.followUpDate, row.gender, row.consultant, row.description,
+        row.source, row.status, row.interest, row.reason, row.subsectionId, row.file_number,
+      ].some(value => String(value ?? "").trim());
+    },
+
     removeRowsFromActive() {
       if (!this.activeCampaign) return;
       const count = Math.max(0, Number(this.rowCount) || 0);
       if (!count) return;
-      this.activeCampaign.rows.splice(-count);
+      const rows = this.activeCampaign.rows;
+      const removable = [];
+      for (let index = rows.length - 1; index >= 0 && removable.length < count; index--) {
+        if (this.isEmptyFollowupRow(rows[index])) removable.push(rows[index]);
+      }
+      if (!removable.length) {
+        window.alert("ردیف خالی برای حذف وجود ندارد. برای حذف یک سرنخ از دکمهٔ حذف همان ردیف استفاده کنید.");
+        return;
+      }
+      const shortfall = count - removable.length;
+      const message = `${removable.length.toLocaleString("fa-IR")} ردیف خالی از انتهای جدول حذف شود؟`
+        + (shortfall > 0 ? `\nبقیهٔ ردیف‌ها اطلاعات دارند و حذف نمی‌شوند.` : "");
+      if (!window.confirm(message)) return;
+      const removeSet = new Set(removable);
+      this.activeCampaign.rows = rows.filter(row => !removeSet.has(row));
     },
 
     async deleteFollowupRow(row) {
@@ -3333,9 +3527,10 @@ export default {
       if (!campaign._serverPersisted) return;
 
       try {
-        await axios.put(`/api/campaigns/${campaign.id}`, this.campaignApiPayload(campaign));
-        this.markCampaignPersisted(campaign);
+        await this.putCampaign(campaign);
+        this.saveCampaignsToLocal();
       } catch (error) {
+        if (error.response?.status === 409) return;
         campaign.rows.splice(index, 0, removedRow);
         this.saveCampaignsToLocal();
         window.alert(error.response?.data?.message || 'حذف پیگیری روی سرور انجام نشد؛ ردیف به جدول برگردانده شد.');
@@ -3669,9 +3864,16 @@ export default {
     normalizeDateValue(value) {
       if (!value) return "";
       if (value instanceof Date) return moment(value).format("YYYY-MM-DD");
+      // تقویم در رویداد change یک شیء moment می‌فرستد؛ متد format آن نباید به‌جای مقدار تاریخ خوانده شود.
+      if (moment.isMoment(value) || (typeof value === "object" && typeof value.isValid === "function" && typeof value.format === "function")) {
+        return value.isValid() ? value.format("YYYY-MM-DD") : "";
+      }
+      if (typeof value === "function") return "";
       if (typeof value === "object") {
-        const candidate = value.format || value.date || value.value || value.display || value._d || value.target?.value;
+        const candidate = [value.format, value.date, value.value, value.display, value._d, value.target?.value]
+          .find(item => item && typeof item !== "function");
         if (candidate && candidate !== value) return this.normalizeDateValue(candidate);
+        return "";
       }
 
       const normalized = this.normalizeDigits(String(value).trim())
@@ -3748,9 +3950,9 @@ export default {
     },
 
     campaignFingerprint(campaign) {
-      return JSON.stringify(campaign, (key, value) => (
-        key === "_serverPersisted" ? undefined : value
-      ));
+      // نرمال‌شده تا تفاوت ""/null و ترتیب کلیدها بین نسخهٔ محلی و سرور، ذخیرهٔ بی‌پایان نسازد.
+      const { _serverPersisted, ...rest } = campaign || {};
+      return JSON.stringify(normalizeMergeValue(rest));
     },
 
     markCampaignPersisted(campaign) {
@@ -3761,6 +3963,46 @@ export default {
 
     markCampaignsPersisted(campaigns = this.campaigns) {
       (campaigns || []).forEach(campaign => this.markCampaignPersisted(campaign));
+    },
+
+    rememberServerRows(campaign, rows) {
+      const key = this.campaignStorageKey(campaign);
+      if (key) this.campaignServerRows[key] = cloneRows(rows);
+    },
+
+    /**
+     * ذخیرهٔ کمپین روی سرور با ادغام ردیف‌ها؛ تغییر هم‌زمان کاربرهای دیگر پاک نمی‌شود.
+     * overrides تغییرات فرم کمپین است که فقط بعد از ذخیرهٔ موفق روی خود کمپین می‌نشیند.
+     */
+    async putCampaign(campaign, overrides = {}) {
+      const key = this.campaignStorageKey(campaign);
+      const baseRows = cloneRows(this.campaignServerRows[key]);
+      const snapshot = JSON.parse(JSON.stringify({ ...campaign, ...overrides }));
+      const payload = { ...this.campaignApiPayload(snapshot), base_rows: baseRows };
+
+      try {
+        const { data } = await axios.put(`/api/campaigns/${campaign.id}`, payload);
+        Object.assign(campaign, overrides);
+        const serverRows = Array.isArray(data?.ui_payload?.rows) ? data.ui_payload.rows : [];
+        campaign.rows = mergeRowLists(snapshot.rows, serverRows, campaign.rows, "mine").rows;
+        this.rememberServerRows(campaign, serverRows);
+        this.campaignPersistedFingerprints[key] = this.campaignFingerprint({ ...snapshot, ...overrides, rows: serverRows });
+        return data;
+      } catch (error) {
+        const serverCampaign = error.response?.status === 409 ? error.response.data?.campaign : null;
+        if (serverCampaign) {
+          const serverRows = Array.isArray(serverCampaign.ui_payload?.rows) ? serverCampaign.ui_payload.rows : [];
+          campaign.rows = mergeRowLists(baseRows, serverRows, campaign.rows, "theirs").rows;
+          this.rememberServerRows(campaign, serverRows);
+          const names = (error.response.data?.conflicts || [])
+            .map(conflict => serverRows.find(row => String(row._localId) === String(conflict.row_id)))
+            .map(row => String(row?.fullName || row?.phone || '').trim())
+            .filter(Boolean);
+          window.alert(`${names.length ? `«${names.join('، ')}»` : 'یکی از سرنخ‌ها'} هم‌زمان توسط کاربر دیگری تغییر کرده بود؛ نسخهٔ ذخیره‌شدهٔ آن نمایش داده شد. لطفاً دوباره بررسی کنید.`);
+          this.saveCampaignsToLocal();
+        }
+        throw error;
+      }
     },
 
     async saveCampaignsToServer() {
@@ -3780,21 +4022,19 @@ export default {
       this.campaignSaveInProgress = true;
       try {
         for (const campaign of changedCampaigns) {
-          const requestFingerprint = this.campaignFingerprint(campaign);
           try {
-          const payload = this.campaignApiPayload(campaign);
           if (campaign._serverPersisted) {
-            await axios.put(`/api/campaigns/${campaign.id}`, payload);
-            const key = this.campaignStorageKey(campaign);
-            this.campaignPersistedFingerprints[key] = requestFingerprint;
+            await this.putCampaign(campaign);
           } else {
             const previousKey = this.campaignStorageKey(campaign);
-            const { data } = await axios.post('/api/campaigns', payload);
+            const { data } = await axios.post('/api/campaigns', this.campaignApiPayload(campaign));
             campaign.id = data.id;
             campaign._serverPersisted = true;
             if (previousKey && previousKey !== this.campaignStorageKey(campaign)) {
               delete this.campaignPersistedFingerprints[previousKey];
+              delete this.campaignServerRows[previousKey];
             }
+            this.rememberServerRows(campaign, data?.ui_payload?.rows);
             this.markCampaignPersisted(campaign);
           }
           } catch (error) {
@@ -3833,6 +4073,7 @@ export default {
             !campaign._serverPersisted && !serverIds.has(String(campaign.id))
           );
           this.campaigns = [...sharedCampaigns, ...unsyncedLocalCampaigns];
+          sharedCampaigns.forEach(campaign => this.rememberServerRows(campaign, campaign.rows));
           this.markCampaignsPersisted(sharedCampaigns);
           this.saveCampaignsToLocal();
           return;
@@ -3847,6 +4088,12 @@ export default {
         if (this.campaigns.some(campaign => !campaign._serverPersisted)) {
           await this.saveCampaignsToServer();
           this.saveCampaignsToLocal();
+        }
+        // نتیجهٔ نوبتی که حین بارگذاری رسیده، حالا روی دادهٔ سرور اعمال می‌شود.
+        if (this.pendingAppointmentResult) {
+          const pendingResult = this.pendingAppointmentResult;
+          this.pendingAppointmentResult = null;
+          this.applyAppointmentResult(pendingResult);
         }
         await this.hydrateFollowupPatientProfiles();
         if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
@@ -5669,6 +5916,23 @@ export default {
 /* مدال اصلی پیگیری باید روی منوی سراسری باز شود؛ پنجره‌های داخلی یک لایه بالاترند. */
 .modal-overlay {
   z-index: 2147483570 !important;
+}
+
+/* گالری بنر از داخل جدول کمپین هم باز می‌شود؛ باید روی همان پنجره (و پنجره‌های داخل جدول) بیاید. */
+.banner-gallery-page {
+  z-index: 2147483590 !important;
+}
+
+.banner-upload-error {
+  display: block;
+  margin-top: 6px !important;
+  color: #dc2626 !important;
+  font-size: 11px !important;
+  font-weight: 800;
+}
+
+.banner-upload-loading-overlay {
+  z-index: 2147483595 !important;
 }
 .campaign-table-modal .contacts-table .followup-phone-input {
   font-size: 14px;
