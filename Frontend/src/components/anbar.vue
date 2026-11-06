@@ -43,7 +43,18 @@
         <div class="structure-title-wrap"><h3>ساختار خدمات</h3></div>
       </div>
 
-      <div class="inventory-tree">
+      <!-- درخت در حالت عادی ارتفاع محدود و اسکرول دارد؛ با نگه‌داشتن موس یا
+           فوکوس روی آن، کاملش روی صفحه باز می‌شود بی‌آنکه چیدمان صفحه جابه‌جا شود. -->
+      <div
+        class="inventory-tree-frame"
+        :class="{ expanded: treeExpanded }"
+        :style="treeExpanded ? { height: `${treeFrameHeight}px`, '--tree-expand-offset': `${treeExpandOffset}px` } : null"
+        @mouseenter="onTreeHoverStart"
+        @mouseleave="onTreeHoverEnd"
+        @focusin="onTreeFocusIn"
+        @focusout="onTreeFocusOut"
+      >
+      <div ref="inventoryTree" class="inventory-tree">
         <div
           v-for="node in inventoryTreeNodes"
           :key="sectionKey(node.section)"
@@ -82,6 +93,7 @@
         </div>
 
             <small v-if="!inventoryTreeNodes.length" class="tree-empty">اولین خدمت را بسازید</small>
+      </div>
       </div>
 
       <button v-if="false" class="delete-section-btn" type="button" @click="removeActiveSection">
@@ -619,6 +631,11 @@ export default {
 
   data() {
     return {
+      treeExpanded: false,
+      treeFrameHeight: 0,
+      treeExpandOffset: 0,
+      treeHovered: false,
+      treeFocused: false,
       sections: [],
       savedSectionPayloads: {},
       serviceTagOptions: [],
@@ -946,7 +963,57 @@ export default {
     this.fetchData()
   },
 
+  beforeUnmount() {
+    clearTimeout(this.treeHoverTimer)
+  },
+
   methods: {
+    onTreeHoverStart() {
+      this.treeHovered = true
+      clearTimeout(this.treeHoverTimer)
+      this.treeHoverTimer = setTimeout(() => this.expandTree(), 250)
+    },
+
+    onTreeHoverEnd() {
+      this.treeHovered = false
+      clearTimeout(this.treeHoverTimer)
+      if (!this.treeFocused) this.collapseTree()
+    },
+
+    onTreeFocusIn() {
+      this.treeFocused = true
+      clearTimeout(this.treeHoverTimer)
+      this.expandTree()
+    },
+
+    onTreeFocusOut(event) {
+      if (event.currentTarget?.contains(event.relatedTarget)) return
+      this.treeFocused = false
+      if (!this.treeHovered) this.collapseTree()
+    },
+
+    // فقط وقتی درخت واقعاً از ارتفاع محدودش بلندتر است باز می‌شود.
+    expandTree() {
+      const tree = this.$refs.inventoryTree
+      if (this.treeExpanded || !tree || tree.scrollHeight <= tree.clientHeight + 1) return
+      this.treeFrameHeight = tree.offsetHeight
+      this.treeExpandOffset = tree.scrollTop
+      this.treeExpanded = true
+    },
+
+    collapseTree() {
+      if (!this.treeExpanded) return
+      const offset = this.treeExpandOffset
+      this.treeExpanded = false
+      this.$nextTick(() => {
+        const tree = this.$refs.inventoryTree
+        if (!tree) return
+        tree.scrollTop = offset
+        const active = document.activeElement
+        if (active && tree.contains(active)) active.scrollIntoView({ block: 'nearest' })
+      })
+    },
+
     sanitizeStockInput(event, target, key) {
       const normalized = String(event.target.value ?? '').split(/[.,٫]/, 1)[0].replace(/[^0-9]/g, '')
       target[key] = normalized === '' ? null : Number(normalized)
@@ -2813,10 +2880,42 @@ p {
   line-height: 1;
 }
 
+.inventory-tree-frame {
+  position: relative;
+}
+
+/* با زیرشاخه‌های زیاد درخت بلند نمی‌شود و اسکرول خودش را دارد. */
 .inventory-tree {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  max-height: min(430px, 60vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/* نگه‌داشتن موس: درخت کامل روی محتوای زیرش نمایش داده می‌شود. */
+.inventory-tree-frame.expanded .inventory-tree {
+  position: absolute;
+  top: calc(-7px - var(--tree-expand-offset, 0px));
+  right: -7px;
+  left: -7px;
+  z-index: 40;
+  max-height: none;
+  overflow: visible;
+  padding: 6px;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 22px 50px rgba(15, 23, 42, .18);
+}
+
+.inventory-tree-frame.expanded .tree-node input {
+  max-width: none;
+  field-sizing: content;
 }
 
 .tree-node {
@@ -2826,7 +2925,8 @@ p {
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  padding-right: calc(10px + (var(--tree-depth) * 16px));
+  /* تورفتگی زیرشاخه‌های خیلی عمیق محدود می‌شود تا ردیف پهن نشود. */
+  padding-right: calc(10px + (min(var(--tree-depth), 6) * 16px));
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;

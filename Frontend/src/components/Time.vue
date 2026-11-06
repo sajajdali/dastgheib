@@ -485,7 +485,7 @@
               class="sticky-header photo-status-col"
               :class="{ 'filtered-header': selectedBeforePhotoStates.length > 0 }"
             >
-              <div class="header-with-filter"><span>عکس قبل</span><button type="button" class="filter-btn" title="فیلتر وضعیت عکس قبل" @click.stop="togglePhotoFilter('before')">⚙</button></div>
+              <div class="header-with-filter"><span>عکس<br>قبل</span><button type="button" class="filter-btn" title="فیلتر وضعیت عکس قبل" @click.stop="togglePhotoFilter('before')">⚙</button></div>
               <div v-if="showBeforePhotoFilter" class="filter-dropdown photo-filter-dropdown" @click.stop>
                 <label v-for="option in photoStateOptions" :key="option.value"><input v-model="selectedBeforePhotoStates" type="checkbox" :value="option.value"><i :class="`photo-filter-dot ${option.value}`"></i>{{ option.label }}</label>
               </div>
@@ -496,7 +496,7 @@
               class="sticky-header photo-status-col"
               :class="{ 'filtered-header': selectedAfterPhotoStates.length > 0 }"
             >
-              <div class="header-with-filter"><span>عکس بعد</span><button type="button" class="filter-btn" title="فیلتر وضعیت عکس بعد" @click.stop="togglePhotoFilter('after')">⚙</button></div>
+              <div class="header-with-filter"><span>عکس<br>بعد</span><button type="button" class="filter-btn" title="فیلتر وضعیت عکس بعد" @click.stop="togglePhotoFilter('after')">⚙</button></div>
               <div v-if="showAfterPhotoFilter" class="filter-dropdown photo-filter-dropdown" @click.stop>
                 <label v-for="option in photoStateOptions" :key="option.value"><input v-model="selectedAfterPhotoStates" type="checkbox" :value="option.value"><i :class="`photo-filter-dot ${option.value}`"></i>{{ option.label }}</label>
               </div>
@@ -513,6 +513,7 @@
           v-for="day in days"
           :key="day.id"
           :data-day-number="day.dayNum"
+          :data-day-rows-key="dayRowsKey(day)"
         >
 
           <tr
@@ -612,8 +613,22 @@
 
           <template v-if="!day.collapsed">
 
+          <!-- وقتی ردیف‌های باز ماه زیاد است فقط روزهای نزدیک صفحه رندر می‌شوند
+               و بقیه یک ردیف هم‌ارتفاع جای‌نگهدار دارند؛ وگرنه هر تغییر کوچک
+               کل ردیف‌های ماه را دوباره می‌سازد و صفحه گیر می‌کند. -->
           <tr
-            v-for="row in getFilteredRows(day)"
+            v-if="!isDayRowsRendered(day)"
+            class="day-rows-placeholder"
+            aria-hidden="true"
+          >
+            <td
+              :colspan="appointmentTableColspan"
+              :style="{ height: dayRowsPlaceholderHeight(day) + 'px' }"
+            ></td>
+          </tr>
+
+          <tr
+            v-for="row in (isDayRowsRendered(day) ? getFilteredRows(day) : [])"
             :key="row._rowId"
             :id="'row-' + row._rowId"
             :class="[
@@ -1245,7 +1260,6 @@
                   @click.stop="toggleRowActionMenu(row)"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-                  <span>عملیات</span>
                 </button>
 
                 <div v-if="activeRowActionMenu === row._rowId" class="row-actions-menu" role="menu" @click.stop>
@@ -1559,7 +1573,7 @@
       <section class="timeline-modal" role="dialog" aria-modal="true" aria-labelledby="timeline-modal-title" @click.stop>
         <header class="timeline-modal-header">
           <div>
-            <span>{{ activeTimelineDay?.dateLabel || 'نوبت‌دهی' }}</span>
+            <span class="timeline-modal-date">{{ activeTimelineDay?.dateLabel || 'نوبت‌دهی' }}</span>
             <h3 id="timeline-modal-title">{{ timelineModalTitle }}</h3>
           </div>
           <button type="button" title="بستن" @click="closeTimelineModal()">×</button>
@@ -1719,45 +1733,6 @@
             </label>
           </div>
 
-          <section class="timeline-quick-team">
-            <label>
-              انتخاب پزشک
-              <Multiselect
-                v-model="activeTimelineDraft.timelineDoctors"
-                :options="doctorOptions.map(item => item.name)"
-                :multiple="true"
-                :max="1"
-                :searchable="true"
-                :close-on-select="false"
-                :clear-on-select="false"
-                placeholder="پزشک را انتخاب کنید"
-                select-label="انتخاب"
-                selected-label="انتخاب شد"
-                deselect-label="حذف"
-                class="timeline-doctor-multiselect"
-                @select="syncTimelineDoctorToServices"
-                @remove="syncTimelineDoctorToServices"
-              />
-            </label>
-            <label>
-              نام مشاور
-              <select v-model="activeTimelineDraft.timelineConsultant">
-                <option value="">بدون مشاور</option>
-                <option v-for="consultant in consultantOptions" :key="consultant" :value="consultant">{{ consultant }}</option>
-              </select>
-            </label>
-          </section>
-
-          <section class="timeline-sms-options">
-            <label :class="{ active: activeTimelineDraft.sendAppointmentSms }">
-              <input v-model="activeTimelineDraft.sendAppointmentSms" type="checkbox">
-              <span><b>پیامک وقت‌دهی</b><small>در انتظار ارسال قرار بگیرد</small></span>
-            </label>
-            <label :class="{ active: activeTimelineDraft.sendInfoSms }">
-              <input v-model="activeTimelineDraft.sendInfoSms" type="checkbox">
-              <span><b>پیامک اطلاعات</b><small>در انتظار ارسال قرار بگیرد</small></span>
-            </label>
-          </section>
 
           <section class="timeline-service-panel">
             <div class="service-popup-header">
@@ -1795,7 +1770,11 @@
             <div v-if="activeTimelineDraft.serviceTypes?.length" class="timeline-service-list">
               <article v-for="(service, sIndex) in activeTimelineDraft.services" :key="sIndex" class="timeline-service-row">
                 <header>
-                  <strong>خدمت {{ sIndex + 1 }}</strong>
+                  <span class="timeline-service-index">{{ (sIndex + 1).toLocaleString('fa-IR') }}</span>
+                  <div class="timeline-service-heading">
+                    <strong>{{ service.name || `خدمت ${(sIndex + 1).toLocaleString('fa-IR')}` }}</strong>
+                    <small v-if="service.doctor || service.consultant">{{ [service.doctor && `پزشک: ${service.doctor}`, service.consultant && `مشاور: ${service.consultant}`].filter(Boolean).join(' · ') }}</small>
+                  </div>
                   <button v-if="activeTimelineDraft.services.length > 1" type="button" title="حذف خدمت" @click.stop="removeService(activeTimelineDraft, sIndex)">×</button>
                 </header>
                 <div class="timeline-service-fields">
@@ -1837,6 +1816,22 @@
                       <template #noOptions>خدمتی در این زیر‌بخش ثبت نشده است.</template>
                     </Multiselect>
                   </label>
+                  <label>
+                    <span>پزشک</span>
+                    <select v-model="service.doctor" @change="calculateRowAmount(activeTimelineDraft)">
+                      <option value="">بدون پزشک</option>
+                      <option v-if="service.doctor && !doctorsForService(activeTimelineDraft, service).some(item => item.name === service.doctor)" :value="service.doctor">{{ service.doctor }}</option>
+                      <option v-for="doc in doctorsForService(activeTimelineDraft, service)" :key="doc.id" :value="doc.name">{{ doc.name }}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>مشاور</span>
+                    <select v-model="service.consultant" @change="calculateRowAmount(activeTimelineDraft)">
+                      <option value="">بدون مشاور</option>
+                      <option v-if="service.consultant && !consultantOptions.includes(service.consultant)" :value="service.consultant">{{ service.consultant }}</option>
+                      <option v-for="cons in consultantOptions" :key="cons" :value="cons">{{ cons }}</option>
+                    </select>
+                  </label>
                 </div>
                 <div v-if="service.name" class="timeline-service-tags">
                   <span>نواحی</span>
@@ -1849,12 +1844,10 @@
                   <small v-else>برای این خدمت ناحیه‌ای تعریف نشده است.</small>
                 </div>
                 <button v-if="service.name" type="button" class="timeline-service-details-toggle" :class="{ active: service._timelineDetailsOpen }" @click.stop="service._timelineDetailsOpen = !service._timelineDetailsOpen">
-                  <span>جزئیات همین خدمت</span><b>{{ service._timelineDetailsOpen ? '⌃' : '⌄' }}</b>
+                  <span>تعداد، قیمت، تخفیف و خدمات جانبی</span><b>{{ service._timelineDetailsOpen ? '⌃' : '⌄' }}</b>
                 </button>
                 <div v-if="service.name && service._timelineDetailsOpen" class="timeline-service-details">
                   <div class="timeline-service-detail-grid">
-                    <label><span>پزشک</span><select v-model="service.doctor" :disabled="Boolean(activeTimelineDraft.timelineDoctors?.[0])"><option value="">بدون پزشک</option><option v-if="activeTimelineDraft.timelineDoctors?.[0]" :value="activeTimelineDraft.timelineDoctors[0]">{{ activeTimelineDraft.timelineDoctors[0] }}</option><option v-for="doc in doctorsForService(activeTimelineDraft, service).filter(item => item.name !== activeTimelineDraft.timelineDoctors?.[0])" :key="doc.id" :value="doc.name">{{ doc.name }}</option></select></label>
-                    <label><span>مشاور</span><select v-model="service.consultant" @change="calculateRowAmount(activeTimelineDraft)"><option value="">بدون مشاور</option><option v-for="cons in consultantOptions" :key="cons" :value="cons">{{ cons }}</option></select></label>
                     <label><span>تعداد / سی‌سی</span><input v-model="service.cc" type="text" inputmode="numeric" placeholder="۱" @input="sanitizeServiceQuantity(service, activeTimelineDraft)"></label>
                     <label><span>قیمت خدمت</span><input :value="formatDisplayMoney(serviceLinePrice(service))" type="text" disabled></label>
                     <label><span>{{ service.adjustment_mode === 'surcharge' ? 'مبلغ مازاد' : 'مبلغ تخفیف' }}</span><div class="timeline-service-adjustment"><input v-model="service.discount" type="text" inputmode="numeric" placeholder="۰" @input="handleServiceDiscountInput(service, activeTimelineDraft)"><button type="button" title="تغییر بین تخفیف و مازاد" @click.stop="toggleServiceAdjustment(service, activeTimelineDraft)">↻</button></div></label>
@@ -1912,10 +1905,22 @@
             </label>
           </div>
 
-          <label v-if="false" class="timeline-wide-field">
+          <!-- توضیحات همان ستون «توضیحات» جدول نوبت‌ها است. -->
+          <label class="timeline-wide-field timeline-description-field">
             توضیحات
-            <textarea v-model="activeTimelineDraft.description" rows="3"></textarea>
+            <textarea v-model="activeTimelineDraft.description" rows="2" placeholder="توضیحات این نوبت (در ستون توضیحات جدول هم نمایش داده می‌شود)"></textarea>
           </label>
+
+          <section class="timeline-sms-options timeline-sms-options--compact">
+            <label :class="{ active: activeTimelineDraft.sendAppointmentSms }">
+              <input v-model="activeTimelineDraft.sendAppointmentSms" type="checkbox">
+              <span><b>پیامک وقت‌دهی</b><small>در انتظار ارسال قرار بگیرد</small></span>
+            </label>
+            <label :class="{ active: activeTimelineDraft.sendInfoSms }">
+              <input v-model="activeTimelineDraft.sendInfoSms" type="checkbox">
+              <span><b>پیامک اطلاعات</b><small>در انتظار ارسال قرار بگیرد</small></span>
+            </label>
+          </section>
         </div>
 
         <footer class="timeline-modal-footer">
@@ -2622,6 +2627,10 @@ const directAppointmentSaves = new WeakMap();
 const tableFileNumberLookupTimers = new WeakMap();
 const patientFileLookupRequests = new WeakMap();
 
+// ردیف‌های باز بیشتر از این تعداد → فقط روزهای نزدیک صفحه رندر می‌شوند.
+const DAY_ROWS_WINDOWING_THRESHOLD = 120;
+const DAY_ROW_ESTIMATED_HEIGHT = 38;
+
 export default {
   props: {
     permissions: { type: Array, default: () => [] },
@@ -2640,6 +2649,7 @@ export default {
   data() {
     return {
       expandedAddonServices: new WeakSet(),
+      dayRowsRenderedKeys: {},
       appointmentView: "table",
       bookingFiltersOpen: false,
       appointmentReady: false,
@@ -2960,6 +2970,30 @@ export default {
   },
 
   computed: {
+    // با تعداد کم ردیف همه روزهای باز کامل رندر می‌شوند؛ فقط وقتی ردیف‌های
+    // باز ماه زیاد است رندر به روزهای نزدیک صفحه محدود می‌شود.
+    dayRowsWindowingActive() {
+      if (this.appointmentView !== 'table') return false;
+      let openRows = 0;
+      for (const day of this.days || []) {
+        if (!day.collapsed) openRows += day.rows?.length || 0;
+      }
+      return openRows > DAY_ROWS_WINDOWING_THRESHOLD;
+    },
+
+    // هر تغییری در فیلترها ارتفاع اندازه‌گیری‌شدهٔ روزهای دور از صفحه را باطل می‌کند.
+    dayRowsFilterSignature() {
+      return JSON.stringify([
+        this.appliedSearchQuery, this.selectedStatuses, this.selectedSources, this.selectedDone,
+        this.selectedGenders, this.selectedAppointmentSms, this.selectedInfoSms,
+        this.selectedBeforePhotoStates, this.selectedAfterPhotoStates, this.selectedServiceSections,
+        this.selectedServiceDoctors, this.selectedServiceConsultants, this.selectedServiceSubsections,
+        this.amountFilterMin, this.amountFilterMax, this.amountFilterCardOnly, this.amountFilterDebtorsOnly,
+        this.bookingRootSectionFilter, this.bookingServiceFilter, this.bookingResourceFilter,
+        this.timelineSlotFilter, this.emptyTimeFilterActive, this.emptyTimeFilterFrom, this.emptyTimeFilterTo
+      ]);
+    },
+
     canSeeDoctorNoteAlert() {
       return !this.roles.some(role => /پزشک|doctor/i.test(String(role)));
     },
@@ -3306,6 +3340,8 @@ export default {
   },
 
   async mounted() {
+    window.addEventListener('scroll', this.scheduleDayRowsWindowUpdate, { passive: true });
+    window.addEventListener('resize', this.scheduleDayRowsWindowUpdate, { passive: true });
     document.addEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges = subscribeAppointmentChanges(this.handleRealtimeAppointmentChange);
@@ -3352,7 +3388,18 @@ export default {
     });
   },
 
+  updated() {
+    if (this.dayRowsWindowingActive || Object.keys(this.dayRowsRenderedKeys).length) {
+      this.scheduleDayRowsWindowUpdate();
+    }
+  },
+
   beforeUnmount() {
+    window.removeEventListener('scroll', this.scheduleDayRowsWindowUpdate);
+    window.removeEventListener('resize', this.scheduleDayRowsWindowUpdate);
+    if (this._dayRowsWindowFrame) cancelAnimationFrame(this._dayRowsWindowFrame);
+    clearTimeout(this._dayRowsWindowTimer);
+    this._dayRowsWindowFrame = null;
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges?.();
@@ -4490,6 +4537,7 @@ export default {
 
       this.appointmentView = "table";
       day.collapsed = false;
+      this.forceDayRowsRendered(day);
       this.flashRowHighlight(row._rowId);
 
       this.$nextTick(() => {
@@ -4532,13 +4580,18 @@ export default {
       draft.timelineDoctors = Array.isArray(draft.timelineDoctors)
         ? draft.timelineDoctors.slice(0, 1)
         : [...new Set(draft.services.map(service => service.doctor).filter(Boolean))].slice(0, 1);
+      // پزشک و مشاور در فرم تایم‌لاین برای هر خدمت جدا انتخاب می‌شود؛ مقدار
+      // کلی نوبت فقط خدمت‌هایی را پر می‌کند که هنوز پزشک یا مشاور ندارند.
       if (draft.timelineDoctors[0]) {
-        draft.services.forEach(service => { service.doctor = draft.timelineDoctors[0]; });
+        draft.services.forEach(service => { if (!String(service.doctor || '').trim()) service.doctor = draft.timelineDoctors[0]; });
       }
       draft.timelineConsultant = draft.timelineConsultant
         || draft.services.find(service => service.consultant)?.consultant
         || draft.consultant
         || '';
+      if (draft.timelineConsultant) {
+        draft.services.forEach(service => { if (!String(service.consultant || '').trim()) service.consultant = draft.timelineConsultant; });
+      }
       draft.sendAppointmentSms = false;
       draft.sendInfoSms = false;
       return draft;
@@ -4661,6 +4714,9 @@ export default {
       draft.source = followup.source || followup.campaignSource || followup.sourceName || draft.source || "";
       draft.consultant = followup.consultant || draft.consultant || "";
       draft.timelineConsultant = followup.consultant || draft.timelineConsultant || "";
+      if (draft.timelineConsultant) {
+        (draft.services || []).forEach(service => { if (!String(service.consultant || '').trim()) service.consultant = draft.timelineConsultant; });
+      }
       if (followup.avatarUrl && !draft.profileThumbnailUrl && !draft.profilePhotoUrl) {
         draft.profileThumbnailUrl = followup.avatarUrl;
         draft.profilePhotoUrl = followup.avatarUrl;
@@ -4711,19 +4767,17 @@ export default {
         await Swal.fire({ icon:'warning', title:'اطلاعات نوبت کامل نیست', text:this.timelineValidationSummary || 'لطفا فیلدهای اجباری را کامل کنید.' });
         return;
       }
-      const doctors = [...new Set((draft.timelineDoctors || []).filter(Boolean))].slice(0, 1);
-      const consultant = draft.timelineConsultant || '';
+      // پزشک و مشاور فقط داخل هر خدمت انتخاب می‌شوند؛ پزشک و مشاور کلی نوبت
+      // از اولین خدمتی گرفته می‌شود که آن را دارد.
+      const serviceDoctors = [...new Set((draft.services || []).map(service => String(service.doctor || '').trim()).filter(Boolean))];
+      const serviceConsultants = [...new Set((draft.services || []).map(service => String(service.consultant || '').trim()).filter(Boolean))];
+      const doctors = serviceDoctors.slice(0, 1);
+      const consultant = serviceConsultants[0] || '';
       draft.status = draft.status || 'وقت داده شد';
       draft.doctor = doctors.join('، ');
       draft.consultant = consultant;
-      // In the timeline form the consultant is selected once for the whole
-      // appointment. Keep an explicitly selected per-service consultant, but
-      // copy the appointment consultant to service lines that have none so
-      // commission calculations and server-side earning lines use it too.
-      (draft.services || []).forEach(service => {
-        if (doctors[0]) service.doctor = doctors[0];
-        if (!String(service.consultant || '').trim()) service.consultant = consultant;
-      });
+      draft.timelineDoctors = doctors;
+      draft.timelineConsultant = consultant;
 
       const timelineOccupants = this.slotOccupants(this.activeTimelineDay, draft, this.activeTimelineRow);
       const timelineKey = this.slotConfirmKey(this.activeTimelineDay, draft);
@@ -8346,8 +8400,13 @@ this.calculateFinalAmount(row)
         addedService.rootSectionId = selectedRoots[0];
         addedService.sectionId = this.defaultServiceSectionId(this.activeTimelineDraft);
       }
-      if (addedService && this.activeTimelineDraft.timelineDoctors?.[0]) {
-        addedService.doctor = this.activeTimelineDraft.timelineDoctors[0];
+      // خدمت تازه پزشک و مشاور خدمت قبلی را پیش‌فرض می‌گیرد و قابل تغییر است.
+      const previousService = this.activeTimelineDraft.services[this.activeTimelineDraft.services.length - 2];
+      if (addedService && !addedService.doctor) {
+        addedService.doctor = previousService?.doctor || this.activeTimelineDraft.timelineDoctors?.[0] || '';
+      }
+      if (addedService && !addedService.consultant) {
+        addedService.consultant = previousService?.consultant || this.activeTimelineDraft.timelineConsultant || '';
       }
       this.$nextTick(() => {
         const rows = this.$el.querySelectorAll('.timeline-service-row');
@@ -8474,6 +8533,107 @@ this.calculateFinalAmount(row)
       this.sortDayRowsByTime(newDay);
       this.days.push(newDay);
       this.days.sort((a, b) => Number(a.dayNum) - Number(b.dayNum));
+    },
+
+    dayRowsKey(day) {
+      return String(day?.id ?? day?.dayNum ?? '');
+    },
+
+    isDayRowsRendered(day) {
+      return !this.dayRowsWindowingActive || Boolean(this.dayRowsRenderedKeys[this.dayRowsKey(day)]);
+    },
+
+    // ارتفاع جای‌نگهدار فقط روی اسکرول اثر دارد؛ اگر روز قبلاً اندازه گرفته
+    // شده و تعداد ردیف‌هایش عوض نشده، فیلتر سنگین ردیف‌ها دوباره اجرا نمی‌شود.
+    dayRowsPlaceholderHeight(day) {
+      const cached = this._dayRowsHeightCache?.get(this.dayRowsKey(day));
+      const rowsLength = day.rows?.length || 0;
+      if (cached && cached.rowsLength === rowsLength && cached.filters === this.dayRowsFilterSignature) return cached.height;
+      const count = this.getFilteredRows(day).length;
+      return Math.round(count * (this._dayRowsAverageHeight || DAY_ROW_ESTIMATED_HEIGHT));
+    },
+
+    // روزی که باید به ردیفش اسکرول کنیم (جست‌وجو، رفتن از تایم‌لاین) حتی اگر
+    // دور از صفحه باشد چند ثانیه رندر می‌ماند تا ردیفش در DOM پیدا شود.
+    forceDayRowsRendered(day) {
+      const key = this.dayRowsKey(day);
+      if (!key) return;
+      if (!this._dayRowsPins) this._dayRowsPins = new Map();
+      this._dayRowsPins.set(key, Date.now() + 4000);
+      if (!this.dayRowsRenderedKeys[key]) {
+        this.dayRowsRenderedKeys = { ...this.dayRowsRenderedKeys, [key]: true };
+      }
+    },
+
+    // requestAnimationFrame در تب پس‌زمینه اجرا نمی‌شود؛ تایمر پشتیبان باعث
+    // می‌شود ردیف‌ها آنجا هم بعد از لحظه‌ای رندر شوند.
+    scheduleDayRowsWindowUpdate() {
+      if (this._dayRowsWindowFrame) return;
+      const run = () => {
+        if (!this._dayRowsWindowFrame) return;
+        cancelAnimationFrame(this._dayRowsWindowFrame);
+        clearTimeout(this._dayRowsWindowTimer);
+        this._dayRowsWindowFrame = null;
+        this.updateDayRowsWindow();
+      };
+      this._dayRowsWindowFrame = requestAnimationFrame(run);
+      this._dayRowsWindowTimer = setTimeout(run, 150);
+    },
+
+    updateDayRowsWindow() {
+      if (!this.dayRowsWindowingActive) {
+        if (Object.keys(this.dayRowsRenderedKeys).length) this.dayRowsRenderedKeys = {};
+        return;
+      }
+      const table = this.$el?.querySelector?.('.main-schedule-table');
+      if (!table) return;
+
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+      const margin = Math.max(400, Math.round(viewportHeight * 0.75));
+      const now = Date.now();
+      const activeElement = document.activeElement;
+      const busyRowIds = new Set([
+        this.activeRowActionMenu,
+        this.tablePatientSearchRowId,
+        this.editingPatientNameRowId,
+        this.highlightedRowId
+      ].filter(Boolean));
+      const daysByKey = new Map((this.days || []).map(day => [this.dayRowsKey(day), day]));
+      if (!this._dayRowsHeightCache) this._dayRowsHeightCache = new Map();
+      const next = {};
+      let measuredHeight = 0;
+      let measuredRows = 0;
+
+      table.querySelectorAll(':scope > tbody[data-day-rows-key]').forEach(tbody => {
+        const key = tbody.dataset.dayRowsKey;
+        const day = daysByKey.get(key);
+        if (!day || day.collapsed) return;
+
+        const rect = tbody.getBoundingClientRect();
+        const rows = tbody.querySelectorAll(':scope > tr.data-row');
+        if (rows.length) {
+          const separatorHeight = tbody.querySelector(':scope > tr.day-separator-row')?.getBoundingClientRect().height || 0;
+          const height = Math.max(0, Math.round(rect.height - separatorHeight));
+          this._dayRowsHeightCache.set(key, { height, rowsLength: day.rows?.length || 0, filters: this.dayRowsFilterSignature });
+          measuredHeight += height;
+          measuredRows += rows.length;
+        }
+
+        const nearViewport = rect.bottom >= -margin && rect.top <= viewportHeight + margin;
+        const pinned = (this._dayRowsPins?.get(key) || 0) > now;
+        const holdsFocus = activeElement && activeElement !== document.body && tbody.contains(activeElement);
+        const busy = busyRowIds.size && (day.rows || []).some(row => busyRowIds.has(row._rowId));
+        if (nearViewport || pinned || holdsFocus || busy) next[key] = true;
+      });
+
+      if (measuredRows) this._dayRowsAverageHeight = measuredHeight / measuredRows;
+
+      const current = this.dayRowsRenderedKeys;
+      const currentKeys = Object.keys(current);
+      const nextKeys = Object.keys(next);
+      if (currentKeys.length !== nextKeys.length || nextKeys.some(key => !current[key])) {
+        this.dayRowsRenderedKeys = next;
+      }
     },
 
     toggleDay(day) {
@@ -8687,6 +8847,7 @@ this.calculateFinalAmount(row)
       const result = this.searchResults[this.searchResultIndex];
       clearTimeout(this.highlightedRowTimer);
       result.day.collapsed = false;
+      this.forceDayRowsRendered(result.day);
       this.syncAllDaysCollapsedState();
       this.highlightedRowId = result.row._rowId;
 
@@ -9921,7 +10082,9 @@ this.calculateFinalAmount(row)
 
       return (day.rows || []).some(appointment => {
         const duration = Number(appointment.durationMinutes || 0);
-        if (this.isEmptyAppointmentRow(appointment) || duration <= baseInterval) return false;
+        // شرط ارزان اول: این تابع برای هر ردیف روی همهٔ ردیف‌های روز صدا زده
+        // می‌شود و بررسی خالی‌بودن ردیف برای هر جفت، باز کردن روزها را کند می‌کرد.
+        if (duration <= baseInterval || this.isEmptyAppointmentRow(appointment)) return false;
         const start = String(appointment.time || '').slice(0, 5);
         if (!start) return false;
         const startMinute = this.minutesFromTime(start);
@@ -10530,6 +10693,12 @@ smsColor(val) {
 .main-schedule-table tbody[data-day-number],
 .timeline-day-row[data-day-number] {
   scroll-margin-top: 92px;
+}
+
+.main-schedule-table tr.day-rows-placeholder > td {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
 }
 
 .amount-finance-cell{display:flex;align-items:center;justify-content:center;gap:6px}.amount-finance-cell .auto-amount-input{min-width:0;flex:1}.finance-chat-trigger{position:relative;width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;padding:0;border:1px solid #bfdbfe;border-radius:50%;background:#eff6ff;color:#2563eb;box-shadow:0 5px 13px rgba(37,99,235,.13);transition:.16s}.finance-chat-trigger:hover{background:#dbeafe;transform:translateY(-1px)}.finance-chat-trigger svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.finance-chat-trigger>span{position:absolute;top:-6px;left:-5px;width:18px;height:18px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#dc2626;color:#fff;font-size:11px;font-weight:1000;animation:debtorPulse 1.8s infinite}.finance-chat-trigger.danger{border-color:#fca5a5;background:#fee2e2;color:#dc2626;box-shadow:0 5px 15px rgba(220,38,38,.2)}.finance-chat-trigger.credit,.finance-chat-trigger.paid{border-color:#86efac;background:#dcfce7;color:#15803d;box-shadow:0 5px 15px rgba(22,163,74,.18)}
@@ -11422,6 +11591,74 @@ smsColor(val) {
 .timeline-wide-field {
   display: flex;
 }
+
+/* تاریخ نوبت در سربرگ فرم تایم‌لاین درشت و خوانا. */
+.timeline-modal-header .timeline-modal-date {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 16px;
+  font-weight: 1000;
+}
+
+/* هر خدمت یک کارت جدا با شماره، نام خدمت و پزشک/مشاورش در سربرگ. */
+.timeline-modal .timeline-service-list { gap: 16px; }
+.timeline-modal .timeline-service-row {
+  padding: 0 0 14px;
+  overflow: visible;
+  border: 1px solid #c7d7f2;
+  border-right: 4px solid #2563eb;
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+}
+.timeline-modal .timeline-service-row:nth-child(even) { border-right-color: #0d9488; }
+.timeline-modal .timeline-service-row > :not(header) { width: auto; margin: 0 14px; }
+.timeline-modal .timeline-service-row > header {
+  justify-content: flex-start;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(135deg, #f8fbff, #f1f5f9);
+}
+.timeline-modal .timeline-service-row > header > button { margin-right: auto; }
+.timeline-service-index {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 1000;
+}
+.timeline-service-row:nth-child(even) .timeline-service-index { background: #0d9488; }
+.timeline-service-heading { min-width: 0; display: grid; gap: 2px; }
+.timeline-service-heading strong { overflow: hidden; color: #0f172a !important; font-size: 13px !important; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-service-heading small { overflow: hidden; color: #64748b; font-size: 10px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+
+.timeline-description-field textarea { min-height: 64px; resize: vertical; }
+
+/* تیک‌های پیامک در انتهای فرم، کوچک و کنار هم. */
+.timeline-modal .timeline-sms-options--compact { display: flex; flex-wrap: wrap; gap: 8px; }
+.timeline-modal .timeline-sms-options--compact > label {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.timeline-modal .timeline-sms-options--compact input { width: 16px !important; height: 16px !important; min-height: 16px !important; flex: 0 0 16px; margin: 0; }
+.timeline-modal .timeline-sms-options--compact span { flex-direction: row; }
+.timeline-modal .timeline-sms-options--compact b { font-size: 11px; }
+.timeline-modal .timeline-sms-options--compact small { display: none; }
 
 .timeline-modal-footer {
   display: flex;
@@ -12426,6 +12663,21 @@ th.sms-col .header-with-filter > span:first-child {
 .photo-status-col{width:76px;min-width:76px;max-width:76px;text-align:center!important;position:relative}.photo-status-col .header-with-filter>span:first-child{font-size:10px}.appointment-photo-light{position:relative;width:34px!important;height:34px!important;min-width:34px!important;display:inline-grid!important;place-items:center!important;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;cursor:pointer;transition:transform .18s ease,filter .18s ease}.appointment-photo-light span{display:block;width:22px;height:22px;border:3px solid rgba(255,255,255,.9);border-radius:50%;box-shadow:0 2px 7px rgba(15,23,42,.25),inset 0 0 0 1px rgba(15,23,42,.1)}.appointment-photo-light.gray span{background:#94a3b8}.appointment-photo-light.red span{background:#fca5a5;box-shadow:0 0 0 4px #fee2e2,0 2px 8px rgba(220,38,38,.3);animation:photo-status-pulse 1.8s infinite}.appointment-photo-light.green span{background:#22c55e;box-shadow:0 0 0 4px #dcfce7,0 2px 8px rgba(22,163,74,.3)}.appointment-photo-light.red:hover,.appointment-photo-light.green:hover{transform:scale(1.13);filter:saturate(1.15)}.appointment-photo-light:disabled{opacity:1;cursor:default}.appointment-photo-light::before{content:"";position:absolute;right:50%;bottom:calc(100% + 5px);z-index:1602;border:6px solid transparent;border-top-color:#0f172a;transform:translateX(50%);opacity:0;visibility:hidden;pointer-events:none;transition:.15s ease}.appointment-photo-light::after{content:attr(data-tooltip);position:absolute;right:50%;bottom:calc(100% + 16px);z-index:1601;width:max-content;max-width:260px;padding:8px 11px;border-radius:9px;background:#0f172a;color:#fff;font-family:inherit;font-size:10px;font-weight:700;line-height:1.8;white-space:normal;text-align:right!important;direction:rtl;box-shadow:0 9px 24px rgba(15,23,42,.3);transform:translateX(50%) translateY(4px);opacity:0;visibility:hidden;pointer-events:none;transition:.15s ease}.appointment-photo-light:hover::before,.appointment-photo-light:hover::after,.appointment-photo-light:focus-visible::before,.appointment-photo-light:focus-visible::after{opacity:1;visibility:visible}.appointment-photo-light:hover::after,.appointment-photo-light:focus-visible::after{transform:translateX(50%) translateY(0)}.photo-filter-dropdown{right:auto;left:4px;min-width:125px}.photo-filter-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(15,23,42,.12)}.photo-filter-dot.gray{background:#94a3b8}.photo-filter-dot.red{background:#fca5a5}.photo-filter-dot.green{background:#22c55e}@keyframes photo-status-pulse{0%,100%{box-shadow:0 0 0 3px #fee2e2,0 2px 8px rgba(220,38,38,.25)}50%{box-shadow:0 0 0 6px rgba(254,226,226,.65),0 2px 10px rgba(220,38,38,.35)}}
 .row-history-btn{width:26px;height:26px;display:inline-grid;place-items:center;flex:0 0 26px;margin:0;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;color:#4f46e5;cursor:pointer;transition:.2s}.row-history-btn:hover{border-color:#a5b4fc;background:#e0e7ff}.row-history-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .appointment-history-overlay{position:fixed;inset:0;z-index:1000020;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.appointment-history-modal{width:min(720px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.32);direction:rtl}.appointment-history-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#eff6ff,#f0fdf4)}.appointment-history-modal header small{color:#2563eb;font-size:10px;font-weight:900}.appointment-history-modal h3{margin:4px 0;font-size:20px}.appointment-history-modal header p{margin:0;color:#64748b;font-size:11px}.appointment-history-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:#64748b;font-size:22px;cursor:pointer}.appointment-history-filters{display:flex;gap:7px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid #e2e8f0;background:#fff}.appointment-history-filters button{height:32px;padding:0 12px;border:1px solid #dbeafe;border-radius:999px;background:#f8fbff;color:#475569;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.appointment-history-filters button.active{border-color:#2563eb;background:#2563eb;color:#fff}.appointment-history-empty{min-height:220px;display:grid;place-items:center;color:#64748b;font-size:12px;font-weight:900}.appointment-history-timeline{overflow:auto;padding:18px 22px}.appointment-history-timeline article{position:relative;display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding-bottom:14px}.appointment-history-timeline article:not(:last-child)::before{content:"";position:absolute;right:8px;top:18px;bottom:-2px;width:2px;background:#dbeafe}.appointment-history-timeline article>i{position:relative;z-index:1;width:16px;height:16px;border:3px solid #bfdbfe;border-radius:50%;background:#2563eb;box-shadow:0 0 0 3px #fff}.appointment-history-timeline article>div{padding:11px 13px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}.appointment-history-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.appointment-history-card-head strong{color:#1e293b;font-size:13px}.appointment-history-card-head time{color:#64748b;font-size:10px;direction:ltr}.appointment-history-timeline p{margin:5px 0 0;color:#64748b;font-size:10px}.appointment-history-timeline p b{color:#1d4ed8}.appointment-history-timeline small{display:block;margin-top:7px;padding-top:7px;border-top:1px solid #f1f5f9;color:#475569;font-size:10px;line-height:1.8;word-break:break-word}
+
+/* ستون عملیات فقط دکمهٔ سه‌نقطه دارد و ستون‌های عکس قبل/بعد مثل ستون‌های
+   پیامک، تیتر دوخطی دارند تا هر سه ستون جمع‌تر باشند. */
+/* products.vue یک min-width سراسری 92px با !important روی .row-action-col دارد. */
+.main-schedule-table .row-action-col { width: 50px !important; min-width: 50px !important; max-width: 50px !important; }
+.main-schedule-table th.row-action-col { padding-right: 2px !important; padding-left: 2px !important; font-size: 10px; }
+.main-schedule-table .row-actions-trigger { width: 32px; padding: 0; gap: 0; }
+.main-schedule-table .photo-status-col { width: 60px; min-width: 60px; max-width: 60px; }
+.main-schedule-table th.photo-status-col .header-with-filter { gap: 3px; }
+.main-schedule-table th.photo-status-col .header-with-filter > span:first-child {
+  min-width: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: normal;
+}
 
 td.row-action-col {
   white-space: nowrap;

@@ -594,6 +594,12 @@
                   :title="appointmentRegistrationTooltip(item)"
                 >
                   <td>{{ formatServices(item.services) }}</td>
+                  <td class="profile-quantity-cell">
+                    <div v-if="appointmentServiceQuantities(item).length" class="profile-section-list">
+                      <span v-for="(entry, entryIndex) in appointmentServiceQuantities(item)" :key="`quantity-${entryIndex}`" :title="entry.name">{{ entry.label }}</span>
+                    </div>
+                    <span v-else>-</span>
+                  </td>
                   <td>
                     <div v-if="appointmentSectionPaths(item).length" class="profile-section-list">
                       <span v-for="(path, pathIndex) in appointmentSectionPaths(item)" :key="`section-${pathIndex}`">{{ path.section }}</span>
@@ -1955,6 +1961,7 @@ export default {
       activeAppointmentFilter: null,
       selectedAppointmentFilters: {
         services: [],
+        quantity: [],
         doctors: [],
         consultants: [],
         amount: [],
@@ -2339,6 +2346,7 @@ export default {
     appointmentFilterColumns() {
       return [
         { key: 'services', label: 'خدمات' },
+        { key: 'quantity', label: 'تعداد' },
         { key: 'sections', label: 'بخش' },
         { key: 'subsections', label: 'زیربخش' },
         { key: 'doctors', label: 'پزشک' },
@@ -4451,6 +4459,25 @@ export default {
       this.$nextTick(() => this.$refs.profileAutomaticSmsCard?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     },
 
+    // تعداد / سی‌سی هر خدمت همان عددی است که هنگام نوبت‌دهی ثبت می‌شود؛ خالی یعنی ۱.
+    appointmentServiceQuantities(item) {
+      let services = item?.services
+      if (typeof services === 'string') {
+        try { services = JSON.parse(services) } catch { return [] }
+      }
+      if (!Array.isArray(services)) return []
+      return services
+        .filter(service => service?.name)
+        .map(service => {
+          const raw = String(service.cc ?? '').trim()
+          const number = Number(raw.replace(/[۰-۹]/g, digit => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+          const label = raw
+            ? (Number.isFinite(number) && raw !== '' ? number.toLocaleString('fa-IR') : raw)
+            : '۱'
+          return { name: service.name, label }
+        })
+    },
+
     formatServices(services) {
       if (!services) return '-'
       if (typeof services === 'string') {
@@ -4471,6 +4498,10 @@ export default {
     },
 
     appointmentFilterTexts(item, key) {
+      if (key === 'quantity') {
+        const values = [...new Set(this.appointmentServiceQuantities(item).map(entry => entry.label))]
+        return values.length ? values : ['-']
+      }
       if (key === 'sections' || key === 'subsections') {
         const field = key === 'sections' ? 'section' : 'subsection'
         const values = [...new Set(this.appointmentSectionPaths(item).map(path => path[field] || '-'))]
@@ -4482,6 +4513,7 @@ export default {
     appointmentFilterText(item, key) {
       const map = {
         services: this.formatServices(item.services),
+        quantity: this.appointmentFilterTexts(item, 'quantity').join('، '),
         sections: this.appointmentFilterTexts(item, 'sections').join('، '),
         subsections: this.appointmentFilterTexts(item, 'subsections').join('، '),
         doctors: this.appointmentDoctors(item),
@@ -6304,6 +6336,15 @@ select:focus {
 .profile-section-list span {
   display: block;
   white-space: nowrap;
+}
+
+.profile-quantity-cell .profile-section-list {
+  min-width: 42px;
+  text-align: center;
+}
+
+.profile-quantity-cell .profile-section-list span {
+  font-weight: 900;
 }
 
 .profile-check-warning-row td {

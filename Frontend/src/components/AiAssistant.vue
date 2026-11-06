@@ -149,14 +149,13 @@
         :aria-expanded="open"
         aria-controls="ai-assistant-preview-panel"
         :aria-label="open ? 'بستن دستیار هوش مصنوعی' : 'باز کردن دستیار هوش مصنوعی'"
-        :title="open ? 'بستن دستیار' : undefined"
+        :title="open ? 'بستن دستیار' : 'دستیار هوش مصنوعی'"
         @click="togglePanel"
       >
         <span class="ai-preview-launcher-icon" aria-hidden="true">
           <svg v-if="!open" viewBox="0 0 24 24" fill="none"><path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></svg>
           <svg v-else viewBox="0 0 24 24" fill="none"><path d="M5 5 19 19M19 5 5 19"/></svg>
         </span>
-        <span v-if="!open" class="ai-preview-launcher-label">دستیار هوش مصنوعی</span>
       </button>
     </div>
   </Teleport>
@@ -585,6 +584,11 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onKeydown); discar
   .ai-preview-header { min-height: 77px; padding-top: 18px; }
   .ai-preview-thread { padding-bottom: 16px; }
   .ai-preview-compose-area { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+}
+/* دکمهٔ شناور دستیار فقط آیکون ستاره دارد و متن ندارد. */
+.ai-preview-launcher:not(.ai-preview-launcher--open) { width: 58px; min-height: 58px; justify-content: center; gap: 0; padding: 7px; border-radius: 18px; }
+@media (max-width: 600px) {
+  .ai-preview-launcher:not(.ai-preview-launcher--open) { width: 53px; min-height: 53px; padding: 5px; border-radius: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ai-preview-launcher, .ai-preview-fade-enter-active, .ai-preview-fade-leave-active, .ai-preview-panel-enter-active, .ai-preview-panel-leave-active { transition: none; }

@@ -136,23 +136,56 @@
 
         <div class="doctor-settings-modal-body">
           <section class="doctor-services-panel">
-            <div class="modal-section-title">
+            <div class="modal-section-title doctor-services-head">
               <div>
                 <h4>خدمات قابل ارائه</h4>
-                <small>{{ activeDoctor.service_section_ids.length.toLocaleString('fa-IR') }} بخش انتخاب شده</small>
+                <small v-if="doctorServicesAllSelected(activeDoctor)">همهٔ خدمات فعال است؛ تیک هر بخش یا زیربخشی را که این پزشک انجام نمی‌دهد بردارید.</small>
+                <small v-else>{{ doctorSelectedServiceCount(activeDoctor).toLocaleString('fa-IR') }} از {{ doctorServiceNodeCount.toLocaleString('fa-IR') }} بخش و زیربخش فعال است.</small>
+              </div>
+              <div v-if="doctorServiceGroups.length" class="doctor-services-tools">
+                <input v-if="doctorServiceNodeCount > 8" v-model.trim="doctorServiceSearch" type="search" class="doctor-services-search" placeholder="جست‌وجوی خدمت...">
+                <button type="button" class="doctor-services-all-btn" :disabled="doctorServicesAllSelected(activeDoctor)" @click="selectAllDoctorServices(activeDoctor)">انتخاب همه</button>
               </div>
             </div>
-            <div v-if="inventorySections.length" class="doctor-services-grid">
-              <label
-                v-for="section in inventorySections"
-                :key="section.id"
-                class="doctor-service-option"
-                :class="{ selected: doctorHasService(activeDoctor, section.id) }"
+            <p v-if="doctorServiceHint" class="doctor-services-hint" role="status">{{ doctorServiceHint }}</p>
+            <div v-if="doctorServiceGroups.length" class="doctor-services-groups">
+              <article
+                v-for="group in visibleDoctorServiceGroups"
+                :key="group.root.id"
+                class="doctor-service-group"
+                :class="`is-${doctorServiceNodeState(activeDoctor, group.root)}`"
               >
-                <input v-model="activeDoctor.service_section_ids" type="checkbox" :value="section.id">
-                <span class="service-option-check">✓</span>
-                <strong>{{ section.name }}</strong>
-              </label>
+                <label class="doctor-service-group-head">
+                  <input
+                    type="checkbox"
+                    :checked="doctorServiceNodeState(activeDoctor, group.root) === 'checked'"
+                    :indeterminate.prop="doctorServiceNodeState(activeDoctor, group.root) === 'partial'"
+                    @change="toggleDoctorServiceNode(activeDoctor, group.root, $event)"
+                  >
+                  <span class="service-option-check" aria-hidden="true"></span>
+                  <strong :title="group.root.name">{{ group.root.name || 'بدون نام' }}</strong>
+                  <small v-if="group.items.length">{{ doctorServiceGroupCount(activeDoctor, group).toLocaleString('fa-IR') }} از {{ group.items.length.toLocaleString('fa-IR') }}</small>
+                </label>
+                <div v-if="group.items.length" class="doctor-service-children">
+                  <label
+                    v-for="item in group.items"
+                    :key="item.id"
+                    class="doctor-service-child"
+                    :class="`is-${doctorServiceNodeState(activeDoctor, item)}`"
+                    :style="{ '--service-depth': Math.min(item.level - 2, 4) }"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="doctorServiceNodeState(activeDoctor, item) === 'checked'"
+                      :indeterminate.prop="doctorServiceNodeState(activeDoctor, item) === 'partial'"
+                      @change="toggleDoctorServiceNode(activeDoctor, item, $event)"
+                    >
+                    <span class="service-option-check" aria-hidden="true"></span>
+                    <span class="doctor-service-child-name" :title="item.name">{{ item.name || 'بدون نام' }}</span>
+                  </label>
+                </div>
+              </article>
+              <div v-if="!visibleDoctorServiceGroups.length" class="doctor-services-empty">خدمتی با این نام پیدا نشد.</div>
             </div>
             <div v-else class="doctor-services-empty">ابتدا گروه‌بندی خدمات را در بخش انبار ثبت کنید.</div>
           </section>
@@ -363,6 +396,8 @@ export default {
     users: [],
     roles: [],
     inventorySections: [],
+    doctorServiceSearch: '',
+    doctorServiceHint: '',
 
     saveTimeout: null,
     channelSaveTimeout: null,
@@ -442,6 +477,49 @@ export default {
     activeDoctor() {
       return this.activeDoctorIndex === null ? null : this.doctorRows[this.activeDoctorIndex];
     },
+    // درخت بخش‌های خدمات به همان ترتیب صفحهٔ خدمات: هر بخش اصلی با زیربخش‌هایش.
+    doctorServiceTree() {
+      const byParent = new Map();
+      this.inventorySections.forEach(section => {
+        const parent = String(section.parent_id || '');
+        if (!byParent.has(parent)) byParent.set(parent, []);
+        byParent.get(parent).push(section);
+      });
+      byParent.forEach(list => list.sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id) - Number(b.id)));
+      const nodes = new Map();
+      const build = (section, level, parentId, seen) => {
+        const id = String(section.id);
+        if (seen.has(id)) return null;
+        seen.add(id);
+        const node = { id, name: String(section.name || '').trim(), level, parentId, children: [] };
+        nodes.set(id, node);
+        node.children = (byParent.get(id) || []).map(child => build(child, level + 1, id, seen)).filter(Boolean);
+        return node;
+      };
+      const seen = new Set();
+      const roots = (byParent.get('') || []).map(section => build(section, 1, '', seen)).filter(Boolean);
+      // بخشی که والدش حذف شده، به‌عنوان بخش اصلی نمایش داده می‌شود.
+      this.inventorySections.forEach(section => {
+        if (!seen.has(String(section.id))) roots.push(build(section, 1, '', seen));
+      });
+      return { roots: roots.filter(Boolean), nodes };
+    },
+    doctorServiceGroups() {
+      const flatten = node => node.children.flatMap(child => [child, ...flatten(child)]);
+      return this.doctorServiceTree.roots.map(root => ({ root, items: flatten(root) }));
+    },
+    doctorServiceNodeCount() {
+      return this.doctorServiceTree.nodes.size;
+    },
+    visibleDoctorServiceGroups() {
+      const query = String(this.doctorServiceSearch || '').trim();
+      if (!query) return this.doctorServiceGroups;
+      return this.doctorServiceGroups
+        .map(group => group.root.name.includes(query)
+          ? group
+          : { ...group, items: group.items.filter(item => item.name.includes(query)) })
+        .filter(group => group.root.name.includes(query) || group.items.length);
+    },
     activeStaff() {
       return this.activeStaffIndex === null ? null : this.staffRows[this.activeStaffIndex];
     },
@@ -502,6 +580,8 @@ export default {
     },
 
     openDoctorSettings(index) {
+      this.doctorServiceSearch = '';
+      this.doctorServiceHint = '';
       this.activeDoctorIndex = index;
     },
 
@@ -605,9 +685,77 @@ export default {
       const names = this.inventorySections
         .filter(section => selectedIds.some(id => String(id) === String(section.id)))
         .map(section => section.name);
+      if (!selectedIds.length) return 'همهٔ خدمات';
       if (!names.length) return 'خدمتی انتخاب نشده';
       if (names.length <= 2) return names.join('، ');
       return `${names.slice(0, 2).join('، ')} و ${names.length - 2} مورد دیگر`;
+    },
+
+    // لیست خالی یعنی پزشک محدودیت ندارد و همهٔ خدمات را انجام می‌دهد
+    // (نوبت‌دهی هم همین را می‌فهمد)؛ پس «همه تیک‌خورده» همان لیست خالی است.
+    doctorSelectedServiceIds(row) {
+      const nodes = this.doctorServiceTree.nodes;
+      const ids = Array.isArray(row?.service_section_ids) ? row.service_section_ids.map(String) : [];
+      if (!ids.length) return new Set(nodes.keys());
+      const selected = new Set();
+      const addBranch = node => {
+        selected.add(node.id);
+        node.children.forEach(addBranch);
+      };
+      ids.forEach(id => { const node = nodes.get(id); if (node) addBranch(node); });
+      return selected;
+    },
+    doctorServicesAllSelected(row) {
+      return !(Array.isArray(row?.service_section_ids) && row.service_section_ids.length);
+    },
+    doctorSelectedServiceCount(row) {
+      return this.doctorSelectedServiceIds(row).size;
+    },
+    doctorServiceGroupCount(row, group) {
+      const selected = this.doctorSelectedServiceIds(row);
+      return group.items.filter(item => selected.has(item.id)).length;
+    },
+    doctorServiceNodeState(row, node) {
+      const selected = this.doctorSelectedServiceIds(row);
+      if (!node.children.length) return selected.has(node.id) ? 'checked' : 'unchecked';
+      const leaves = [];
+      const collect = item => { if (item.children.length) item.children.forEach(collect); else leaves.push(item.id); };
+      collect(node);
+      const count = leaves.filter(id => selected.has(id)).length;
+      if (count === leaves.length) return 'checked';
+      return count ? 'partial' : 'unchecked';
+    },
+    toggleDoctorServiceNode(row, node, event) {
+      if (!row) return;
+      const nodes = this.doctorServiceTree.nodes;
+      const selected = this.doctorSelectedServiceIds(row);
+      const turnOn = this.doctorServiceNodeState(row, node) !== 'checked';
+      const branch = item => [item.id, ...item.children.flatMap(branch)];
+      branch(node).forEach(id => (turnOn ? selected.add(id) : selected.delete(id)));
+      // هر بخش اصلی فقط وقتی تیک دارد که همهٔ زیربخش‌هایش تیک داشته باشند.
+      const settle = item => {
+        if (!item.children.length) return selected.has(item.id);
+        const allOn = item.children.map(settle).every(Boolean);
+        if (allOn) selected.add(item.id); else selected.delete(item.id);
+        return allOn;
+      };
+      this.doctorServiceTree.roots.forEach(settle);
+
+      const leafIds = [...nodes.values()].filter(item => !item.children.length).map(item => item.id);
+      if (!leafIds.some(id => selected.has(id))) {
+        this.doctorServiceHint = 'حداقل یک خدمت باید برای پزشک فعال بماند.';
+        if (event?.target) event.target.checked = true;
+        return;
+      }
+      this.doctorServiceHint = '';
+      row.service_section_ids = selected.size >= nodes.size
+        ? []
+        : [...nodes.keys()].filter(id => selected.has(id)).map(Number);
+    },
+    selectAllDoctorServices(row) {
+      if (!row) return;
+      this.doctorServiceHint = '';
+      row.service_section_ids = [];
     },
 
     doctorHasService(row, sectionId) {
@@ -1573,10 +1721,12 @@ select {
   white-space: nowrap;
 }
 
+/* منوی بالا، دکمهٔ منو و دکمهٔ دستیار z-index تا 2147483007 دارند؛ پنجره‌های
+   این صفحه باید بالای آن‌ها باشند ولی زیر تماس ورودی و پیام‌های Swal بمانند. */
 .resource-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 2147483008;
   display: grid;
   place-items: center;
   padding: 22px;
@@ -1585,7 +1735,7 @@ select {
 }
 
 .channel-delete-backdrop {
-  z-index: 1300;
+  z-index: 2147483009;
 }
 
 .channel-delete-modal {
@@ -1788,6 +1938,43 @@ select {
   border-color: #2563eb;
   background: #2563eb;
   color: #fff;
+}
+
+/* خدمات پزشک: هر بخش اصلی یک کارت با زیربخش‌هایش به ترتیب صفحهٔ خدمات. */
+.doctor-services-head { align-items: flex-start; gap: 12px; }
+.doctor-services-head small { display: block; line-height: 1.8; }
+.doctor-services-tools { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.doctor-services-search { width: 170px; height: 36px; padding: 0 11px; border: 1px solid #dbe4ef; border-radius: 10px; background: #fff; font-size: 12px; outline: none; }
+.doctor-services-search:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.doctor-services-all-btn { height: 36px; padding: 0 13px; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 900; cursor: pointer; white-space: nowrap; }
+.doctor-services-all-btn:disabled { border-color: #e2e8f0; background: #f1f5f9; color: #94a3b8; cursor: default; }
+.doctor-services-hint { margin: -4px 0 11px; padding: 8px 11px; border-radius: 10px; background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; }
+.doctor-services-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; align-items: start; }
+.doctor-service-group { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; transition: border-color .16s ease, box-shadow .16s ease; }
+.doctor-service-group.is-checked, .doctor-service-group.is-partial { border-color: #bfdbfe; box-shadow: 0 6px 16px rgba(37, 99, 235, .07); }
+.doctor-service-group-head, .doctor-service-child { position: relative; display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
+.doctor-service-group-head input, .doctor-service-child input { position: absolute; opacity: 0; pointer-events: none; }
+.doctor-service-group-head { min-height: 46px; padding: 9px 11px; background: #f8fafc; }
+.doctor-service-group.is-checked .doctor-service-group-head, .doctor-service-group.is-partial .doctor-service-group-head { background: #eff6ff; }
+.doctor-service-group-head strong { min-width: 0; flex: 1 1 auto; overflow: hidden; color: #1e293b; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.doctor-service-group-head small { flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; background: #e2e8f0; color: #475569; font-size: 10px; font-weight: 900; }
+.doctor-service-group.is-checked .doctor-service-group-head small { background: #2563eb; color: #fff; }
+.doctor-service-group.is-partial .doctor-service-group-head small { background: #dbeafe; color: #1d4ed8; }
+.doctor-service-children { display: grid; gap: 2px; padding: 6px; border-top: 1px solid #eef2f7; }
+.doctor-service-child { min-height: 34px; padding: 5px 7px; padding-right: calc(7px + var(--service-depth, 0) * 16px); border-radius: 9px; color: #64748b; font-size: 12px; transition: background-color .14s ease, color .14s ease; }
+.doctor-service-child:hover, .doctor-service-group-head:hover { background: #f1f5f9; }
+.doctor-service-child.is-checked { color: #1e3a8a; font-weight: 800; }
+.doctor-service-child-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doctor-service-group .service-option-check { position: relative; width: 20px; height: 20px; flex: 0 0 20px; border-width: 2px; border-radius: 6px; background: #fff; transition: .14s ease; }
+.doctor-service-group .is-checked > .service-option-check, .doctor-service-group.is-checked > .doctor-service-group-head > .service-option-check { border-color: #2563eb; background: #2563eb; }
+.doctor-service-group .is-checked > .service-option-check::after, .doctor-service-group.is-checked > .doctor-service-group-head > .service-option-check::after { content: ""; position: absolute; top: 2px; right: 5px; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.doctor-service-group .is-partial > .service-option-check, .doctor-service-group.is-partial > .doctor-service-group-head > .service-option-check { border-color: #2563eb; background: #dbeafe; }
+.doctor-service-group .is-partial > .service-option-check::after, .doctor-service-group.is-partial > .doctor-service-group-head > .service-option-check::after { content: ""; position: absolute; top: 7px; right: 3px; left: 3px; height: 2px; border-radius: 2px; background: #2563eb; }
+.doctor-service-group-head input:focus-visible + .service-option-check, .doctor-service-child input:focus-visible + .service-option-check { box-shadow: 0 0 0 3px rgba(37, 99, 235, .25); }
+@media (max-width: 640px) {
+  .doctor-services-head { flex-direction: column; }
+  .doctor-services-tools { width: 100%; }
+  .doctor-services-search { flex: 1; width: auto; }
 }
 
 .doctor-services-empty {
