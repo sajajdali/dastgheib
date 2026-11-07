@@ -8948,7 +8948,8 @@ this.calculateFinalAmount(row)
             date: item.day.dateLabel || '',
             time: item.row.time || '',
             doctors,
-            consultant: item.row.consultant || ''
+            consultant: item.row.consultant || '',
+            appointment_id: item.row.appointmentId || null
           });
           const result = data.results?.[item.type];
           if (!result?.success) throw new Error(result?.message || 'ارسال پیامک ناموفق بود.');

@@ -42,34 +42,10 @@ class CompletionSmsController extends Controller
         return $template;
     }
 
-    /** نام پارامترهای هر الگو، برای پیام خطای روشن وقتی یکی خالی است. */
-    private const PARAM_LABELS = [
-        'appointment' => ['نام مراجع', 'تاریخ نوبت', 'ساعت نوبت', 'نام پزشک', 'نام مجموعه'],
-        'info' => ['نام مراجع', 'آدرس مجموعه', 'اینستاگرام مجموعه', 'تلفن مجموعه', 'لینک مسیریابی'],
-        'welcome' => ['نام مراجع', 'نام مجموعه', 'لینک رضایت‌مندی'],
-        'referral_credit' => ['نام مراجع', 'مبلغ واریز', 'موجودی کیف پول'],
-        'treatment_care' => ['نام مراجع', 'لینک مراقبت'],
-        'payment_link' => ['نام مراجع', 'لینک پرداخت', 'مبلغ'],
-    ];
-
-    /**
-     * SHSMS پارامتر خالی را رد می‌کند (خطای 422 بدون توضیح)؛ پیش از ارسال بررسی می‌شود و
-     * دقیقاً گفته می‌شود چه چیزی ثبت نشده است.
-     */
-    private function sendTemplateSms(string $recipient, string $template, array $params, array $labels = []): void
+    /** پارامتر خالی (مثلاً پزشک یا نام مجموعه) هم همان‌طور خالی به SHSMS فرستاده می‌شود و ارسال را متوقف نمی‌کند. */
+    private function sendTemplateSms(string $recipient, string $template, array $params): void
     {
-        $missing = collect($params)->map(fn ($value, $index) => trim((string) $value) === '' ? ($labels[$index] ?? 'پارامتر '.($index + 1)) : null)->filter()->values();
-        if ($missing->isNotEmpty()) {
-            $hints = [
-                'نام پزشک' => 'پزشک نوبت را انتخاب کنید',
-                'نام مجموعه' => 'نام مجموعه را در تنظیمات > اطلاعات مجموعه وارد کنید',
-                'نام مراجع' => 'نام مراجع را در ردیف نوبت وارد کنید',
-            ];
-            $hint = $missing->map(fn ($label) => $hints[$label] ?? null)->filter()->implode('؛ ');
-            throw new \RuntimeException('پیامک ارسال نشد؛ '.$missing->implode('، ').' خالی است.'.($hint ? ' '.$hint.'.' : ''));
-        }
-
-        $this->sms->sendTemplate($recipient, $template, $params);
+        $this->sms->sendTemplate($recipient, $template, array_map(fn ($value) => (string) ($value ?? ''), $params));
     }
 
     public function send(Request $request)
@@ -111,7 +87,7 @@ class CompletionSmsController extends Controller
                     'amount' => number_format($amount),
                     'balance' => number_format($balance),
                     'link' => $link,
-                ]), self::PARAM_LABELS[$type] ?? []);
+                ]));
                 ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
                     'type' => $type,
                     'recipient' => $recipient,
@@ -147,7 +123,7 @@ class CompletionSmsController extends Controller
                 'name' => $data['patient_name'] ?? '',
                 'link' => $data['payment_link'],
                 'amount' => number_format((float) ($data['amount'] ?? 0)),
-            ]), self::PARAM_LABELS['payment_link']);
+            ]));
             ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
                 'type' => 'payment_link',
                 'recipient' => $data['patient_phone'],
@@ -178,6 +154,7 @@ class CompletionSmsController extends Controller
             'date' => ['nullable', 'string', 'max:50'], 'time' => ['nullable', 'string', 'max:20'],
             'doctors' => ['nullable', 'array', 'max:2'], 'doctors.*' => ['string', 'max:255'],
             'consultant' => ['nullable', 'string', 'max:255'],
+            'appointment_id' => ['nullable', 'integer'],
         ], [
             'patient_phone.required' => 'شماره موبایل مراجعه‌کننده وارد نشده است.',
             'patient_phone.regex' => 'شماره موبایل مراجعه‌کننده باید ۱۱ رقم و با ۰۹ شروع شود.',
@@ -185,6 +162,7 @@ class CompletionSmsController extends Controller
         if (! $this->sms->hasCredentials()) {
             return response()->json(['message'=>'اتصال SHSMS برای این کلینیک تنظیم نشده است. توکن API را از تنظیمات پیامک وارد کنید.'], 422);
         }
+        $data = $this->fillAppointmentSmsGaps($data);
         $results = [];
         foreach ($data['types'] as $type) {
             try {
@@ -199,7 +177,7 @@ class CompletionSmsController extends Controller
                     'clinic_instagram_url' => (string) AppSetting::getByKey('clinic_instagram_url', ''),
                     'clinic_phone' => (string) AppSetting::getByKey('clinic_phone', ''),
                     'clinic_location_url' => (string) AppSetting::getByKey('clinic_location_url', ''),
-                ]), self::PARAM_LABELS[$type] ?? []);
+                ]));
                 ActivityLogger::manual('sms_sent', 'پیامک', null, [], [
                     'type' => $type,
                     'recipient' => $data['patient_phone'],
@@ -245,7 +223,7 @@ class CompletionSmsController extends Controller
                 $this->sendTemplateSms($data['patient_phone'], $template, [
                     $data['patient_name'] ?? '',
                     AppSetting::clinicName(),
-                ], ['نام مراجع', 'نام مجموعه']);
+                ]);
                 ActivityLogger::manual('sms_sent', 'پیگیری', null, [], [
                     'type' => 'landing', 'tag' => $tag, 'recipient' => $data['patient_phone'],
                     'patient_name' => $data['patient_name'] ?? '',
@@ -261,6 +239,32 @@ class CompletionSmsController extends Controller
         }
 
         return response()->json(['results' => $results]);
+    }
+
+    /**
+     * نام مراجع و پزشک اگر از ردیف صفحه خالی رسیده باشد، از خود نوبت ذخیره‌شده (پزشک خدمات) و
+     * پروندهٔ بیمار خوانده می‌شود؛ پیامک فقط وقتی متوقف می‌شود که واقعاً جایی ثبت نشده باشد.
+     */
+    private function fillAppointmentSmsGaps(array $data): array
+    {
+        $appointment = ! empty($data['appointment_id']) ? Appointment::query()->find($data['appointment_id']) : null;
+        if (trim((string) ($data['patient_name'] ?? '')) === '') {
+            $patient = Patient::query()
+                ->when($appointment?->file_number, fn ($query, $file) => $query->where('file_number', $file))
+                ->when(! $appointment?->file_number, fn ($query) => $query->where('phone', $data['patient_phone']))
+                ->first();
+            $data['patient_name'] = trim((string) ($appointment?->lastname ?? ''))
+                ?: trim((string) ($patient ? $patient->first_name.' '.$patient->last_name : ''));
+        }
+        $doctors = collect($data['doctors'] ?? [])->map(fn ($name) => trim((string) $name))->filter();
+        if ($doctors->isEmpty() && $appointment) {
+            $doctors = collect(preg_split('/[،,]+/u', (string) $appointment->doctor))
+                ->merge(collect($appointment->services ?: [])->map(fn ($service) => is_array($service) ? ($service['doctor'] ?? '') : ''))
+                ->map(fn ($name) => trim((string) $name))->filter()->unique()->take(2);
+        }
+        $data['doctors'] = $doctors->values()->all();
+
+        return $data;
     }
 
     private function paramsFor(string $type, array $values): array

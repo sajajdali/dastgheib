@@ -1181,6 +1181,9 @@ export default {
 .rb-table td { padding: 12px 14px; color: #2B3845; border-bottom: 1px solid #F2F5F7; }
 .rb-tdnum { color: #9AA6B1 !important; }
 .rb-table tbody tr:hover { background: #FAFCFD; }
+/* ردیف «جمع کل» پایین جدول ثابت می‌ماند و با اسکرول جابه‌جا نمی‌شود؛ خط بالای آن
+   سایه است چون حاشیهٔ جدولِ collapse همراه سلول sticky نمی‌ماند. */
+.rb-table tfoot .rb-total-row td { position: sticky; bottom: 0; z-index: 3; border-top: 0 !important; box-shadow: inset 0 2px 0 #0E6B5E, 0 -6px 14px rgba(15, 23, 42, .06); }
 .rb-patient-link{appearance:none;display:inline-flex;align-items:center;gap:9px;min-height:36px;padding:0;border:0;background:transparent;color:#0f6b5e;font:inherit;font-weight:800;cursor:pointer;text-align:right}.rb-patient-link>span{border-bottom:1px dashed transparent}.rb-patient-link>small{color:#94a3b8;font-size:11px;transition:.15s}.rb-patient-link:not(:disabled):hover>span{border-bottom-color:#0f6b5e}.rb-patient-link:not(:disabled):hover>small{color:#0f6b5e;transform:translate(-1px,-1px)}.rb-patient-link.is-disabled{color:#2B3845;cursor:default}.rb-patient-link:focus-visible{outline:2px solid #0E6B5E;outline-offset:4px;border-radius:8px}
 .rb-empty { border: 1px dashed #DCE4E9; border-radius: 14px; padding: 54px; text-align: center;
   color: #5A6675; font-size: 13.5px; }
