@@ -69,7 +69,7 @@
           <section class="kpi-summary-section" data-screen-label="شاخص‌های کلیدی گزارش">
             <div class="kpi-summary-toolbar">
               <div><strong>شاخص‌های کلیدی</strong><small>{{ v.kpiSubtitle }}</small></div>
-              <button type="button" :disabled="v.kpiCalculating" @click="calculateDashboardSummary" :title="v.kpiReady ? 'محاسبه مجدد شاخص‌ها' : 'محاسبه شاخص‌ها'" aria-label="محاسبه شاخص‌های کلیدی گزارش" class="report-refresh-button">
+              <button type="button" :disabled="v.kpiCalculating" @click="overviewLoadingSource = null; calculateDashboardSummary()" :title="v.kpiReady ? 'محاسبه مجدد شاخص‌ها' : 'محاسبه شاخص‌ها'" aria-label="محاسبه شاخص‌های کلیدی گزارش" class="report-refresh-button">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
               </button>
             </div>
@@ -77,13 +77,13 @@
             <template v-for="(kp, kpI) in v.kpis" :key="kpI">
               <div :style="'background:' + (kp.bg) + ';border:1px solid ' + (kp.bd) + ';border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:16px;display:flex;flex-direction:column;gap:8px;justify-content:center;grid-column:' + (kp.sp)">
                 <span :style="'font-size:' + (kp.ts) + ';font-weight:600;color:' + (kp.tc)">{{ kp.t }}</span>
-                <span :style="'font-size:' + (kp.vs) + ';font-weight:800;color:#0f172a;white-space:nowrap'">{{ kp.v }}</span>
+                <span class="rpt-money" :style="'font-size:' + (kp.vs) + ';font-weight:800;color:#0f172a;white-space:nowrap'">{{ kp.v }}</span>
                 <span :style="'align-self:flex-start;background:' + (kp.gb) + ';color:' + (kp.gc) + ';border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800'">{{ kp.g }}</span>
               </div>
             </template>
             <div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);border-radius:16px;box-shadow:0 4px 14px rgba(37,99,235,0.35);padding:16px;display:flex;flex-direction:column;gap:8px;color:#ffffff">
               <span style="font-size:12px;font-weight:600;opacity:0.85">تخمین درآمد آینده</span>
-              <span style="font-size:21px;font-weight:800;white-space:nowrap">{{ v.estV }}</span>
+              <span class="rpt-money" style="font-size:clamp(14px,1.3vw,18px);font-weight:800;white-space:nowrap">{{ v.estV }}</span>
               <span style="font-size:11px;opacity:0.8">{{ v.estNote }}</span>
             </div>
             </div>
@@ -103,7 +103,7 @@
                   <span style="font-size:13.5px;font-weight:800;color:#0f172a">{{ mo.name }}</span>
                   <span :style="'color:' + (mo.col) + ';font-weight:800;font-size:13px;direction:ltr'">{{ mo.arrow }} {{ mo.g }}</span>
                 </div>
-                <span style="font-size:16px;font-weight:800;color:#334155">{{ mo.val }}</span>
+                <span class="rpt-money" style="font-size:clamp(12px,1vw,14px);font-weight:800;color:#334155">{{ mo.val }}</span>
                 <svg width="100%" height="30" viewBox="0 0 60 30" preserveAspectRatio="none" style="display:block">
                   <polyline :points="mo.pts" fill="none" :stroke="mo.col" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
                 </svg>
@@ -158,7 +158,7 @@
                       <div style="display:flex;align-items:center;gap:8px;font-size:12.5px">
                         <span :style="'width:10px;height:10px;border-radius:3px;background:' + (r.c) + ';flex-shrink:0'"></span>
                         <span style="flex:1;color:#334155;font-weight:600">{{ r.n }}</span>
-                        <span style="color:#64748b;font-size:11.5px">درآمد: <b style="color:#334155">{{ r.rev }}</b></span>
+                        <span style="color:#64748b;font-size:11.5px">درآمد: <b class="rpt-money" style="color:#334155">{{ r.rev }}</b></span>
                         <span style="color:#0f172a;font-weight:800">{{ r.cnt }}</span>
                         <span style="color:#94a3b8;width:40px;text-align:left">{{ r.p }}</span>
                       </div>
@@ -302,7 +302,7 @@
                 </div>
                 <template v-for="(b, bI) in v.staffBars" :key="bI">
                   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;z-index:2">
-                    <span :style="'font-size:11.5px;font-weight:800;color:' + (b.vc)">{{ b.v }}</span>
+                    <span class="rpt-money" :style="'font-size:9.5px;font-weight:800;color:' + (b.vc)">{{ b.v }}</span>
                     <span v-if="b.reached" style="padding:2px 7px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:9px;font-weight:900">رسیده به تارگت</span>
                     <img v-if="b.ph" :src="b.ph" :style="'width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ' + (b.c)" alt="">
                     <span v-else :style="'width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#e2e8f0;color:#475569;font-size:10px;font-weight:900;border:2px solid ' + (b.c)">{{ b.initial }}</span>
@@ -312,7 +312,7 @@
                 </template>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border-radius:12px;padding:10px 16px;flex-wrap:wrap;gap:8px">
-                <span style="font-size:12.5px;color:#475569;font-weight:600">جمع کل: <b style="color:#0f172a;font-size:15px">{{ v.staffSum }}</b></span>
+                <span style="font-size:12.5px;color:#475569;font-weight:600">جمع کل: <b class="rpt-money" style="color:#0f172a;font-size:13.5px">{{ v.staffSum }}</b></span>
                 <span style="font-size:12px;color:#b45309;font-weight:700">{{ v.staffOverTxt }}</span>
               </div>
               <div v-if="v.staffIncomeCalculating" class="staff-income-loading" aria-live="polite">
@@ -381,14 +381,15 @@
                 <div style="display:grid;grid-template-columns:140px 85px 115px 115px 80px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:12px;padding:12px 4px">
                   <span style="font-weight:800;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:8px"><img :src="r.lg" style="width:22px;height:22px;object-fit:contain;flex-shrink:0" alt="">{{ r.n }}</span>
                   <span style="color:#334155;font-weight:600">{{ r.cnt }}</span>
-                  <span style="color:#b91c1c;font-weight:800">{{ r.cost }}</span>
-                  <span style="color:#15803d;font-weight:800">{{ r.rev }}</span>
+                  <span class="rpt-money" style="color:#b91c1c;font-weight:800">{{ r.cost }}</span>
+                  <span class="rpt-money" style="color:#15803d;font-weight:800">{{ r.rev }}</span>
                   <span :style="'font-weight:900;color:' + r.rc">{{ r.roi }}</span>
                   <div style="height:9px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-left:8px"><div :style="'height:100%;width:' + (r.w) + ';background:#2563eb;border-radius:999px'"></div></div>
                 </div>
               </template>
               <div v-if="v.adChannelsReady && !v.adRows.length" class="report-widget-empty">در این بازه مراجعه انجام‌شده یا کمپین کانال‌دار ثبت نشده است.</div>
               </div></div>
+              <div v-if="v.adChannelsCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آمار کانال‌های تبلیغاتی</strong><small>هزینهٔ کمپین‌ها و درآمد هر کانال بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.docs" @dragover="v.dv.docs" @drop="v.dp.docs" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:1/-1;display:' + (v.dsp.docs) + ';order:' + (v.o.docs)" data-screen-label="پزشکان">
@@ -408,10 +409,10 @@
               <template v-for="(r, rI) in v.docRows" :key="rI">
                 <div style="display:grid;grid-template-columns:130px 90px 80px 80px 90px 70px 70px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:10px 4px">
                   <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img :src="r.ph" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e2e8f0" alt="">{{ r.n }}<span :style="'display:' + (r.bd) + ';background:#dcfce7;color:#15803d;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:800'">برترین</span></span>
-                  <span style="color:#0f172a;font-weight:700">{{ r.bring }}</span>
-                  <span style="color:#334155">{{ r.pors }}</span>
-                  <span style="color:#334155">{{ r.fix }}</span>
-                  <span style="color:#b91c1c;font-weight:700">{{ r.pay }}</span>
+                  <span class="rpt-money" style="color:#0f172a;font-weight:700">{{ r.bring }}</span>
+                  <span class="rpt-money" style="color:#334155">{{ r.pors }}</span>
+                  <span class="rpt-money" style="color:#334155">{{ r.fix }}</span>
+                  <span class="rpt-money" style="color:#b91c1c;font-weight:700">{{ r.pay }}</span>
                   <span style="color:#334155">{{ r.cons }}</span>
                   <span style="color:#334155">{{ r.done }}</span>
                   <div style="display:flex;align-items:center;gap:8px;margin-left:8px">
@@ -482,7 +483,7 @@
                       <span style="width:62px;color:#334155;font-weight:700">{{ r.n }}</span>
                       <div style="flex:1;height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:#2563eb;border-radius:999px'"></div></div>
                       <span style="width:44px;color:#0f172a;font-weight:800;text-align:left">{{ r.cnt }}</span>
-                      <span style="width:54px;color:#64748b;text-align:left">{{ r.rev }}</span>
+                      <span class="rpt-money" style="min-width:54px;color:#64748b;text-align:left;font-size:11px">{{ r.rev }}</span>
                     </div>
                   </template>
                   <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;font-size:10.5px;color:#94a3b8"><span>تعداد</span><span>درآمد</span></div>
@@ -509,14 +510,14 @@
                     <span style="font-weight:700;color:#0f172a">{{ r.rng }}</span>
                     <div style="height:12px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + (r.w) + ';background:linear-gradient(90deg,#60a5fa,#2563eb);border-radius:999px'"></div></div>
                     <span style="font-weight:800;color:#0f172a">{{ r.cnt }}</span>
-                    <span style="color:#334155">{{ r.pay }}</span>
+                    <span class="rpt-money" style="color:#334155">{{ r.pay }}</span>
                     <span style="color:#64748b">{{ r.svc }}</span>
                   </div>
                 </template>
               </div>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.sect" @dragover="v.dv.sect" @drop="v.dp.sect" :style="'background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.sect) + ';order:' + (v.o.sect)" data-screen-label="درآمد بخش‌ها">
+            <div :draggable="true" @dragstart="v.dh.sect" @dragover="v.dv.sect" @drop="v.dp.sect" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.sect) + ';order:' + (v.o.sect)" data-screen-label="درآمد بخش‌ها">
               <div style="display:flex;align-items:center;gap:10px">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">درآمد و سود بخش‌ها</span>
@@ -527,7 +528,7 @@
                   <div style="display:flex;flex-direction:column;gap:5px">
                     <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
                       <span style="font-weight:700;color:#0f172a">{{ r.n }} <span style="color:#94a3b8;font-weight:600;font-size:11px">{{ r.p }}</span></span>
-                      <span style="color:#64748b">درآمد <b style="color:#0f172a">{{ r.rev }}</b> · سود <b style="color:#15803d">{{ r.prof }}</b></span>
+                      <span style="color:#64748b">درآمد <b class="rpt-money" style="color:#0f172a">{{ r.rev }}</b> · سود <b class="rpt-money" style="color:#15803d">{{ r.prof }}</b></span>
                     </div>
                     <div style="height:11px;background:#f1f5f9;border-radius:999px;overflow:hidden;display:flex">
                       <div :style="'height:100%;width:' + (r.wp) + ';background:#16a34a'"></div>
@@ -563,8 +564,8 @@
                       <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wr + ';background:#2563eb;border-radius:999px'"></div></div>
                       <div style="height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.wp + ';background:#16a34a;border-radius:999px'"></div></div>
                     </div>
-                    <span style="color:#1d4ed8;font-weight:700">{{ r.rev }}</span>
-                    <span style="color:#15803d;font-weight:700">{{ r.prof }}</span>
+                    <span class="rpt-money" style="color:#1d4ed8;font-weight:700">{{ r.rev }}</span>
+                    <span class="rpt-money" style="color:#15803d;font-weight:700">{{ r.prof }}</span>
                   </div>
                 </template>
               </div>
@@ -593,17 +594,17 @@
                 <input type="checkbox" :checked="v.ck.cac" @change="v.hide.cac" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="background:linear-gradient(135deg,#f8fafc,#eff6ff);border-radius:14px;padding:18px;text-align:center;display:flex;flex-direction:column;gap:4px">
-                <span style="font-size:28px;font-weight:800;color:#1d4ed8">{{ v.cacPer }}</span>
+                <span class="rpt-money" style="font-size:clamp(16px,1.5vw,21px);font-weight:800;color:#1d4ed8">{{ v.cacPer }}</span>
                 <span style="font-size:11.5px;color:#94a3b8">هزینهٔ تبلیغات ثبت‌شده در بازه ÷ مشتریان یکتای «وقت داده شد»</span>
               </div>
               <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <div style="flex:1;min-width:100px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">هزینه کمپین‌ها</span><span style="font-size:15px;font-weight:800;color:#b91c1c">{{ v.cacCost }}</span></div>
+                <div style="flex:1;min-width:100px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">هزینه کمپین‌ها</span><span class="rpt-money" style="font-size:13px;font-weight:800;color:#b91c1c">{{ v.cacCost }}</span></div>
                 <div style="flex:1;min-width:110px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">وقت داده شد</span><span style="font-size:15px;font-weight:800;color:#0f172a">{{ v.cacAppointments }}</span></div>
                 <div style="flex:1;min-width:90px;background:#f8fafc;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:#94a3b8">نرخ جذب</span><span style="font-size:15px;font-weight:800;color:#15803d">{{ v.cacRate }}</span></div>
               </div>
               <div v-if="v.cacCampaignRows.length" class="report-card-scroll cac-campaign-scroll">
                 <div v-for="row in v.cacCampaignRows" :key="row.id" class="cac-campaign-row">
-                  <span>{{ row.name }}</span><small>{{ row.cost }} ÷ {{ row.appointments }} · جذب {{ row.rate }}</small><b>{{ row.per }}</b>
+                  <span>{{ row.name }}</span><small>{{ row.cost }} ÷ {{ row.appointments }} · جذب {{ row.rate }}</small><b class="rpt-money">{{ row.per }}</b>
                 </div>
               </div>
               <div v-if="v.cacCalculating" class="staff-income-loading" aria-live="polite">
@@ -638,6 +639,7 @@
                 </template>
               </div>
               <div v-if="v.campaignPerformanceReady && !v.cpRows.length" class="report-widget-empty">در این بازه کمپینی با لید دارای شماره تماس ثبت نشده است.</div>
+              <div v-if="v.campaignPerformanceCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه بازدهی کمپین‌ها</strong><small>سرنخ‌ها، تمایل و نوبت‌های هر کمپین بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
             <div v-if="false">
@@ -683,10 +685,10 @@
                 <template v-for="r in v.aptRows" :key="r.id">
                   <div style="display:grid;grid-template-columns:150px 100px 90px 90px 110px 90px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:10px 4px">
                     <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img :src="r.ph" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e2e8f0" alt="">{{ r.n }}</span>
-                    <span style="color:#0f172a;font-weight:700">{{ r.bring }}</span>
-                    <span style="color:#334155">{{ r.pors }}</span>
-                    <span style="color:#334155">{{ r.fix }}</span>
-                    <span style="color:#b91c1c;font-weight:700">{{ r.pay }}</span>
+                    <span class="rpt-money" style="color:#0f172a;font-weight:700">{{ r.bring }}</span>
+                    <span class="rpt-money" style="color:#334155">{{ r.pors }}</span>
+                    <span class="rpt-money" style="color:#334155">{{ r.fix }}</span>
+                    <span class="rpt-money" style="color:#b91c1c;font-weight:700">{{ r.pay }}</span>
                     <span style="color:#334155;font-weight:700">{{ r.cnt }}</span>
                     <div style="display:flex;align-items:center;gap:8px;margin-left:8px" :title="r.rateTitle">
                       <div style="flex:1;height:9px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div :style="'height:100%;width:' + r.w + ';background:' + r.color + ';border-radius:999px'"></div></div>
@@ -712,7 +714,7 @@
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">گنجایش مجموعه</span>
                 <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
-                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('capacity')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش گنجایش مجموعه" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
+                <button type="button" :disabled="v.capacityCalculating" @click="calculateCustomerOverview('capacity')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش گنجایش مجموعه" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.cap" @change="v.hide.cap" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -731,8 +733,8 @@
                   <div style="width:8px;height:34px;background:#c4b5fd;border-radius:0 6px 6px 0;margin-left:2px"></div>
                 </div>
                 <div style="flex:1;min-width:190px;display:flex;flex-direction:column;gap:10px">
-                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="color:#64748b">درآمد فعلی</span><b style="color:#0f172a">{{ v.capFilled }}</b></div>
-                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="color:#64748b">تا تکمیل گنجایش</span><b style="color:#7c3aed">{{ v.capRemain }}</b></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="color:#64748b">درآمد فعلی</span><b class="rpt-money" style="color:#0f172a">{{ v.capFilled }}</b></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="color:#64748b">تا تکمیل گنجایش</span><b class="rpt-money" style="color:#7c3aed">{{ v.capRemain }}</b></div>
                   <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;background:#f8fafc;border-radius:12px;padding:10px 12px">
                     گنجایش (میلیون تومان):
                     <input type="text" inputmode="numeric" :value="v.capV" @input="v.onCap" style="flex:1;width:80px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;color:#0f172a;outline:none;direction:ltr;text-align:center">
@@ -747,7 +749,7 @@
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">ترکیب جنسیتی مراجعین</span>
                 <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
-                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('gender')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش ترکیب جنسیتی" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
+                <button type="button" :disabled="v.genderCalculating" @click="calculateCustomerOverview('gender')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش ترکیب جنسیتی" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.gender" @change="v.hide.gender" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;justify-content:space-around;align-items:flex-end;gap:16px">
@@ -791,7 +793,7 @@
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">مشتریان جدید و قدیم</span>
                 <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
-                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('newold')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش مشتریان جدید و قدیم" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
+                <button type="button" :disabled="v.newOldCalculating" @click="calculateCustomerOverview('newold')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش مشتریان جدید و قدیم" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.newold" @change="v.hide.newold" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -827,7 +829,7 @@
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">وضعیت مشتری‌ها</span>
                 <small v-if="v.overviewCompletedAt" class="report-calculated-at">محاسبه: {{ v.overviewCompletedAt }}</small>
-                <button type="button" :disabled="v.overviewBusy" @click="calculateCustomerOverview('status')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش وضعیت مشتری‌ها" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
+                <button type="button" :disabled="v.statusCalculating" @click="calculateCustomerOverview('status')" title="ایجاد یا محاسبه مجدد گزارش" aria-label="ایجاد گزارش وضعیت مشتری‌ها" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.status" @change="v.hide.status" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
@@ -1017,7 +1019,10 @@ export default {
     v() {
     const S = this.s;
     const fa = n => Math.round(n).toLocaleString('fa-IR');
-    const mm = n => fa(n) + ' میلیون';
+    // همهٔ مبلغ‌های گزارش کامل و با «تومان» نوشته می‌شوند (نه «۲۴۸٫۴ میلیون»).
+    const toman = value => (value === null || value === undefined || value === '' || Number.isNaN(Number(value)))
+      ? '--' : Math.round(Number(value)).toLocaleString('fa-IR') + ' تومان';
+    const mm = n => toman(Number(n || 0) * 1000000);
     const pc = n => fa(n) + '٪';
     const C = 2 * Math.PI * 54;
 
@@ -1098,12 +1103,15 @@ export default {
 
     // KPIs
     const gUp = {gb:'#dcfce7', gc:'#15803d'}, gDn = {gb:'#fee2e2', gc:'#b91c1c'};
-    const sm = {sp:'auto', vs:'21px', ts:'12px'}, lg = {sp:'span 2', vs:'30px', ts:'13.5px'};
+    // مبلغ کامل طولانی‌تر است؛ اندازهٔ عدد کارت‌ها متناسب کوچک شده تا در یک خط بماند.
+    const sm = {sp:'auto', vs:'clamp(13px,1.15vw,16px)', ts:'12px'}, lg = {sp:'span 2', vs:'clamp(16px,1.6vw,22px)', ts:'13.5px'};
     const dashboardSnapshot = this.dashboardSnapshot;
-    const dashboardReady = dashboardSnapshot?.status === 'completed' && Number(dashboardSnapshot?.result?.schema_version || 0) >= 3;
+    // هنگام محاسبهٔ مجدد، نتیجهٔ قبلی تا رسیدن نتیجهٔ تازه نمایش داده می‌شود و باکس‌های دیگر خالی نمی‌شوند.
+    const dashboardReady = (dashboardSnapshot?.status === 'completed' || (['queued','processing'].includes(dashboardSnapshot?.status) && !!S.reportSummary))
+      && Number((dashboardSnapshot?.result || S.reportSummary)?.schema_version || 0) >= 3;
     const actualRevenue = dashboardReady ? Number(S.reportSummary?.kpis?.recognized_revenue || 0) / 1000000 : null;
-    const actualRevenueText = actualRevenue === null ? '—' : actualRevenue.toLocaleString('fa-IR', {minimumFractionDigits: actualRevenue % 1 ? 1 : 0, maximumFractionDigits: 1}) + ' میلیون';
-    const reportMoney = value => Number(value || 0).toLocaleString('fa-IR', {minimumFractionDigits: Number(value || 0) % 1000000 ? 1 : 0, maximumFractionDigits: 1}) + ' میلیون';
+    const actualRevenueText = actualRevenue === null ? '—' : toman(S.reportSummary?.kpis?.recognized_revenue || 0);
+    const reportMoney = value => toman(Number(value || 0) * 1000000);
     const advertisingCost = S.reportSummary?.expenses?.advertising_total;
     const netProfit = S.reportSummary?.kpis?.net_profit;
     const dashboardKpis = S.reportSummary?.kpis || {};
@@ -1126,7 +1134,7 @@ export default {
     const expenses = this.expenseSnapshot?.status === 'completed' ? this.expenseSnapshot.result : null;
     const billItems = expenses?.items || [];
     const billMax = Math.max(0, ...billItems.map(item => Number(item.amount) || 0));
-    const billMoney = value => Number(value || 0).toLocaleString('fa-IR') + ' تومان';
+    const billMoney = value => toman(value || 0);
     const billRows = billItems.map(item => ({
       n: item.category || 'بدون دسته‌بندی',
       v: billMoney(item.amount),
@@ -1229,8 +1237,7 @@ export default {
       rc: row.placeholder ? '#94a3b8' : '#22c55e'
     }));
     const roiMoney = value => {
-      const millions = Number(value || 0) / 1000000;
-      return millions.toLocaleString('fa-IR', {maximumFractionDigits: 1}) + ' میلیون';
+      return toman(value || 0);
     };
 
     // loyal
@@ -1297,8 +1304,7 @@ export default {
     const adMaxCompleted = Math.max(1,...ADS.map(row => Number(row.completed || 0)));
     const adMoney = value => {
       const amount = Number(value || 0);
-      if (Math.abs(amount) >= 1000000) return (amount / 1000000).toLocaleString('fa-IR', {maximumFractionDigits:1}) + ' میلیون';
-      return amount.toLocaleString('fa-IR') + ' تومان';
+      return toman(amount);
     };
     const channelIcon = name => String(name || '').includes('اینستاگرام') ? 'https://cdn.simpleicons.org/instagram/E4405F'
       : String(name || '').includes('گوگل') ? 'https://cdn.simpleicons.org/google'
@@ -1433,7 +1439,7 @@ export default {
     // cac
     const acquisitionReady = this.customerAcquisitionSnapshot?.status === 'completed';
     const acquisition = acquisitionReady ? this.customerAcquisitionSnapshot.result : null;
-    const cacMoney = value => value == null ? '--' : Number(value).toLocaleString('fa-IR') + ' تومان';
+    const cacMoney = value => value == null ? '--' : toman(value);
     const cacPer = acquisition ? cacMoney(acquisition.cost_per_appointment) : '--';
     const cacCampaignRows = (acquisition?.campaigns || []).map(row => ({
       id: row.campaign_id,
@@ -1554,7 +1560,8 @@ export default {
       // kpis & months
       kpis, estV, estNote, monthsV,
       kpiReady: !!dashboardReady,
-      kpiCalculating: ['queued','processing'].includes(dashboardSnapshot?.status),
+      // وقتی یکی از باکس‌های مشتریان (گنجایش، جنسیت، ...) محاسبه را شروع کرده، فقط همان باکس لودینگ می‌گیرد.
+      kpiCalculating: !this.overviewLoadingSource && ['queued','processing'].includes(dashboardSnapshot?.status),
       kpiProgress: Number(dashboardSnapshot?.progress || 0),
       kpiStage: dashboardSnapshot?.stage || '',
       kpiCompletedAt: this.formatSnapshotDate(dashboardSnapshot?.completed_at),
@@ -1974,6 +1981,8 @@ export default {
     async calculateCustomerSegments() {
       if (['queued','processing'].includes(this.customerSegmentSnapshot?.status)) return;
       this._customerSegmentRequestId = (this._customerSegmentRequestId || 0) + 1;
+      // محاسبه روی سرور داخل همین درخواست انجام می‌شود؛ وضعیت همان لحظه «در حال محاسبه» می‌شود تا لودینگ دیده شود.
+      this.customerSegmentSnapshot = {...(this.customerSegmentSnapshot || {}), status:'processing', progress:0, stage:'در حال محاسبه…'};
       clearTimeout(this.customerSegmentPollingTimer);
       this.customerSegmentLoading = true;
       try {
@@ -2039,14 +2048,22 @@ export default {
     async calculateDashboardSummary() {
       if (['queued','processing'].includes(this.dashboardSnapshot?.status)) return;
       this._dashboardRequestId = (this._dashboardRequestId || 0) + 1;
+      // محاسبه روی سرور داخل همین درخواست انجام می‌شود؛ وضعیت همان لحظه «در حال محاسبه» می‌شود تا لودینگ دیده شود.
+      this.dashboardSnapshot = {...(this.dashboardSnapshot || {}), status:'processing', progress:0, stage:'در حال محاسبه شاخص‌ها…'};
       clearTimeout(this.dashboardPollingTimer);
       this.dashboardLoading = true;
       try {
         const { data } = await axios.post('/api/reports/widgets/dashboard-summary/calculate', {from:this.s.from,to:this.s.to});
         this.dashboardSnapshot = data.snapshot;
-        this.set({reportSummary:null, reportError:''});
-        this.watchDashboardSnapshot(data.snapshot?.id);
-        this.dashboardPollingTimer = setTimeout(() => this.loadDashboardSnapshot(), 10000);
+        // سرور نتیجهٔ کامل را همین‌جا برمی‌گرداند؛ تا ۱۰ ثانیه منتظر بررسی دوره‌ای نمی‌مانیم.
+        if (data.snapshot?.status === 'completed' && data.snapshot?.result) {
+          this.set({reportSummary:data.snapshot.result, reportError:''});
+          this.overviewLoadingSource = null;
+        } else {
+          this.set({reportSummary:null, reportError:''});
+          this.watchDashboardSnapshot(data.snapshot?.id);
+          this.dashboardPollingTimer = setTimeout(() => this.loadDashboardSnapshot(), 10000);
+        }
       } catch (error) {
         this.dashboardSnapshot = {status:'failed', error:error.response?.data?.message || 'شروع محاسبه شاخص‌ها انجام نشد.'};
         this.set({reportError:this.dashboardSnapshot.error});
@@ -2109,6 +2126,8 @@ export default {
     async calculateStaffIncome() {
       if (['queued','processing'].includes(this.staffIncomeSnapshot?.status)) return;
       this._staffIncomeRequestId = (this._staffIncomeRequestId || 0) + 1;
+      // محاسبه روی سرور داخل همین درخواست انجام می‌شود؛ وضعیت همان لحظه «در حال محاسبه» می‌شود تا لودینگ دیده شود.
+      this.staffIncomeSnapshot = {...(this.staffIncomeSnapshot || {}), status:'processing', progress:0, stage:'در حال محاسبه…'};
       clearTimeout(this.staffIncomePollingTimer);
       this.staffIncomeLoading = true;
       try {
@@ -2216,6 +2235,8 @@ export default {
     async calculateLoyalty() {
       if (['queued','processing'].includes(this.loyaltySnapshot?.status)) return;
       this._loyaltyRequestId=(this._loyaltyRequestId||0)+1;
+      // محاسبه روی سرور داخل همین درخواست انجام می‌شود؛ وضعیت همان لحظه «در حال محاسبه» می‌شود تا لودینگ دیده شود.
+      this.loyaltySnapshot = {...(this.loyaltySnapshot || {}), status:'processing', progress:0, stage:'در حال محاسبه…'};
       clearTimeout(this.loyaltyPollingTimer);
       this.loyaltyLoading=true;
       try {
@@ -2558,4 +2579,10 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .loyalty-calculate-button{width:32px;height:32px;padding:0;border:1px solid #bbf7d0;border-radius:9px;background:#f0fdf4;color:#15803d;cursor:pointer;display:grid;place-items:center}.loyalty-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.8);backdrop-filter:blur(4px)}.loyalty-loading-card{width:min(290px,calc(100% - 28px));padding:17px 18px;border:1px solid #bbf7d0;border-radius:17px;background:linear-gradient(145deg,#fff,#f0fdf4);box-shadow:0 15px 34px rgba(21,128,61,.17);display:grid;justify-items:center;gap:8px;text-align:center}.loyalty-loading-card strong{color:#14532d;font-size:12px}.loyalty-loading-card small{color:#64748b;font-size:9.5px;font-weight:700}.loyalty-loading-ring{width:58px;height:58px;border:5px solid #dcfce7;border-top-color:#22c55e;border-right-color:#0d9488;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.loyalty-loading-ring span{color:#15803d;font-size:10.5px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.loyalty-loading-track{width:100%;height:8px;border-radius:999px;background:#dcfce7;overflow:hidden}.loyalty-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#22c55e,#0d9488);transition:width .45s ease}
 .age-statistics-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.78);backdrop-filter:blur(4px)}.age-statistics-loading-card{width:min(320px,calc(100% - 32px));padding:18px 20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 16px 38px rgba(30,64,175,.2);display:grid;justify-items:center;gap:9px;text-align:center}.age-statistics-loading-card strong{color:#172554;font-size:12.5px}.age-statistics-loading-card small{min-height:17px;color:#64748b;font-size:9.5px;font-weight:700}.age-statistics-loading-ring{width:62px;height:62px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#14b8a6;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.age-statistics-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.age-statistics-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.age-statistics-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#14b8a6);transition:width .45s ease}
 .city-statistics-loading{position:absolute;z-index:7;inset:55px 0 0;display:grid;place-items:center;border-radius:0 0 16px 16px;background:rgba(248,250,252,.78);backdrop-filter:blur(4px)}.city-statistics-loading-card{width:min(320px,calc(100% - 32px));padding:18px 20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 16px 38px rgba(30,64,175,.2);display:grid;justify-items:center;gap:9px;text-align:center}.city-statistics-loading-card strong{color:#172554;font-size:12.5px}.city-statistics-loading-card small{min-height:17px;color:#64748b;font-size:9.5px;font-weight:700}.city-statistics-loading-ring{width:62px;height:62px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#14b8a6;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.city-statistics-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.city-statistics-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.city-statistics-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#14b8a6);transition:width .45s ease}
+.rpt-money{white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:-.15px}
+.expense-money{font-size:11.5px;white-space:nowrap;max-width:none;font-variant-numeric:tabular-nums}
+.expense-summary-value{font-size:clamp(11px,.95vw,13.5px)}
+.report-refresh-button:disabled svg{animation:report-refresh-spin .8s linear infinite}
+@keyframes report-refresh-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.report-refresh-button:disabled svg{animation:none}}
 </style>

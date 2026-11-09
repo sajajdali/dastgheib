@@ -199,8 +199,8 @@
                 </td>
               </tr>
             </tbody>
-            <tfoot v-if="cols.some(column => column.key === 'amount')">
-              <tr class="rb-total-row"><td class="rb-tdnum">جمع کل</td><td v-for="c in cols" :key="c.key">{{ c.key === 'amount' ? formatReportTotal(reportTotals.amount) : '—' }}</td></tr>
+            <tfoot v-if="cols.some(column => hasReportTotal(column.key))">
+              <tr class="rb-total-row" title="جمع همهٔ ردیف‌های گزارش در همهٔ صفحه‌ها"><td class="rb-tdnum">جمع کل</td><td v-for="c in cols" :key="c.key">{{ reportTotalLabel(c.key) }}</td></tr>
             </tfoot>
           </table>
         </div>
@@ -505,21 +505,27 @@ const FIELDS = [
   { g: 'مالی', id: 'deposit', label: 'بیعانه', type: 'compare', ph: 'تومان' },
   { g: 'مالی', id: 'payment', label: 'روش پرداخت', type: 'multi' },
   { g: 'مالی', id: 'account', label: 'حساب واریزی', type: 'multi' },
+  { g: 'مالی', id: 'walletDeposit', label: 'واریز کیف پول', type: 'compare', ph: 'جمع در بازهٔ گزارش (تومان)' },
+  { g: 'مالی', id: 'walletWithdraw', label: 'برداشت کیف پول', type: 'compare', ph: 'جمع در بازهٔ گزارش (تومان)' },
 
   { g: 'پرسنل', id: 'doctor', label: 'پزشک', type: 'table' },
   { g: 'پرسنل', id: 'consultant', label: 'مشاور', type: 'table' },
+  { g: 'پرسنل', id: 'doctorCommission', label: 'پورسانت پزشک', type: 'compare', ph: 'تومان' },
+  { g: 'پرسنل', id: 'consultantCommission', label: 'پورسانت مشاور', type: 'compare', ph: 'تومان' },
   { g: 'پرسنل', id: 'salary', label: 'حقوق', type: 'display' },
   { g: 'پرسنل', id: 'overtime', label: 'اضافه کار', type: 'display' }
 ];
 
 const PRESETS = [
   { id: 'files', label: 'لیست پرونده‌ها', scope: 'patients', fields: ['fileNo','name','family','phone','gender','birth','city','custseg'] },
-  { id: 'fin', label: 'مالی', scope: 'appointments', fields: ['amount','income','discount','finstatus','debt','deposit','payment','account'] },
-  { id: 'pay', label: 'حقوق', scope: 'appointments', fields: ['doctor','consultant','salary','overtime','work','amount'] },
+  { id: 'fin', label: 'مالی', scope: 'appointments', fields: ['amount','income','discount','finstatus','debt','deposit','payment','account','walletDeposit','walletWithdraw'] },
+  { id: 'pay', label: 'حقوق', scope: 'appointments', fields: ['doctor','consultant','doctorCommission','consultantCommission','salary','overtime','work','amount'] },
   { id: 'cli', label: 'مراجعین', scope: 'appointments', fields: ['name','family','gender','phone','city','birth','custseg'] },
   { id: 'trt', label: 'عملکرد درمان', scope: 'appointments', fields: ['section2','subsection','areas','problem','extra','count'] },
   { id: 'mkt', label: 'بازاریابی', scope: 'appointments', fields: ['source','referrer','custseg','noreturn','city'] }
 ];
+// همهٔ فیلدهای «کمتر/بیشتر/برابر» با پیش‌فرض «برابر».
+const defaultComparators = () => Object.fromEntries(FIELDS.filter(f => f.type === 'compare').map(f => [f.id, 'eq']));
 const REPORT_SOURCES = [
   { id: 'appointments', label: 'نوبت‌دهی' },
   { id: 'patients', label: 'پرونده‌ها' }
@@ -576,7 +582,7 @@ export default {
       JM, FIELDS, reportSources: REPORT_SOURCES, reportScope: 'appointments',
       filtersOpen: false,
       show: { name: true, family: true }, vals, multi: {}, range: { amount: { from: '', to: '' } },
-      appointmentStatuses: ['وقت داده شد','آمد','کنسل شد','پاسخ نداد','پیگیری','انتقال داده شده'], comparators: { debt: 'eq', deposit: 'eq', discount: 'eq' },
+      appointmentStatuses: ['وقت داده شد','آمد','کنسل شد','پاسخ نداد','پیگیری','انتقال داده شده'], comparators: defaultComparators(),
       // گزینه‌های واقعی از /api/report-builder/options خوانده می‌شوند.
       reportSourceOptions: [], reportSections: [], reportSubsections: [], reportWork: OPT.work.slice(),
       reportCustomerLevels: OPT.custseg.slice(), reportFinancialStatuses: OPT.finstatus.slice(),
@@ -595,7 +601,7 @@ export default {
       busy: null, busyStep: '', timer: null,
       reportId: null, reportProgress: 0, reportError: '', resultRows: [], totalRows: 0,
       unsubscribeReport: null,
-      pageMeta: { from: 0, to: 0 }, page: 1, pageSize: 10, reportTotals: { amount: 0 },
+      pageMeta: { from: 0, to: 0 }, page: 1, pageSize: 10, reportTotals: {},
       assistantTitle: '', scrollToResults: false, sortDir: 'asc'
     };
   },
@@ -711,7 +717,7 @@ export default {
         this.date = { from: validDate(filters.birthDate?.from), to: validDate(filters.birthDate?.to) };
         const from = validDate(filters.reportDate?.from), to = validDate(filters.reportDate?.to);
         if (from && to) { this.reportDate = { from, to }; this.reportCalY = from[0]; this.reportCalM = from[1]; }
-        this.comparators = { debt: filters.comparators?.debt || 'eq', deposit: filters.comparators?.deposit || 'eq', discount: filters.comparators?.discount || 'eq' };
+        this.comparators = Object.fromEntries(Object.keys(defaultComparators()).map(key => [key, filters.comparators?.[key] || 'eq']));
         this.sortDir = filters.sort === 'desc' ? 'desc' : 'asc';
         this.activePreset = null;
         this.page = 1;
@@ -976,7 +982,8 @@ export default {
         this.resultRows = data.data || [];
         this.totalRows = Number(data.meta?.total || 0);
         this.pageMeta = { from: data.meta?.from || 0, to: data.meta?.to || 0 };
-        this.reportTotals = { amount: Number(data.summary?.amount_total || 0) };
+        // جمع ستون‌های مبلغی از سرور و روی همهٔ صفحه‌های گزارش است، نه فقط ردیف‌های همین صفحه.
+        this.reportTotals = data.summary?.totals || { amount: Number(data.summary?.amount_total || 0) };
         if (this.scrollToResults) { this.scrollToResults = false; this.revealResults(); }
       } catch (error) {
         this.reportError = error.response?.data?.message || 'دریافت ردیف‌های گزارش ناموفق بود.';
@@ -990,6 +997,13 @@ export default {
       this.$nextTick(() => this.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     },
     formatReportTotal(value) { return Number(value || 0).toLocaleString('en-US'); },
+    hasReportTotal(key) { return Object.prototype.hasOwnProperty.call(this.reportTotals || {}, key); },
+    reportTotalLabel(key) {
+      if (!this.hasReportTotal(key)) return '—';
+      const total = this.reportTotals[key];
+      if (total && typeof total === 'object') return `درآمد: ${this.formatReportTotal(total.income)} · هزینه: ${this.formatReportTotal(total.expense)}`;
+      return this.formatReportTotal(total);
+    },
     goToPage(page) {
       const next = Math.min(this.pageCount, Math.max(1, Number(page) || 1));
       if (next === this.page) return;

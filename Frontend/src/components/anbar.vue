@@ -1625,15 +1625,20 @@ export default {
 
     async saveData(showFeedback = false) {
       if (this.isSaving || this.isFetching) return
+      // فقط ردیف‌هایی که همین حالا ذخیره می‌شوند (جدید یا تغییرکرده) بررسی می‌شوند؛ خدمت قدیمی‌ای که
+      // در بخش اصلی مانده نباید جلوی ذخیرهٔ تغییر خدمت‌های دیگر (مثل دورهٔ پیگیری) را بگیرد.
       const invalidRows = this.rows.filter(row => {
+        const payload = this.itemPayload(row)
+        if (payload.id && this.savedItemPayloads[String(payload.id)] === JSON.stringify(payload)) return false
         const section = this.sections.find(item => this.sectionKey(item) === this.rowSectionKey(row))
         return !this.isSubsection(section)
       })
       if (invalidRows.length) {
+        const names = invalidRows.map(row => row.name || "خدمت بدون نام").slice(0, 5).join("، ")
         await Swal.fire({
           icon: "warning",
           title: "انتخاب زیر‌بخش الزامی است",
-          text: "خدمت را نمی‌توان در بخش اصلی تعریف کرد؛ برای هر خدمت باید یک زیر‌بخش انتخاب یا ایجاد کنید."
+          text: `خدمت را نمی‌توان در بخش اصلی تعریف کرد؛ برای این خدمت‌ها یک زیر‌بخش انتخاب یا ایجاد کنید: ${names}`
         })
         return
       }

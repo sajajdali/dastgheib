@@ -8,6 +8,7 @@ use App\Models\AppSetting;
 use App\Models\BeautyAnnotation;
 use App\Models\Patient;
 use App\Models\PatientMedia;
+use App\Models\PatientMediaFolder;
 use App\Services\CustomerLevelService;
 use App\Support\PatientPhoneVisibility;
 use Illuminate\Http\Request;
@@ -196,7 +197,82 @@ class BeautyAnnotationController extends Controller
             'legacy_photos' => $legacyPhotos,
             'selected_photo' => $selectedPhoto,
             'annotations' => $annotations->map(fn (BeautyAnnotation $annotation) => $this->formatAnnotation($annotation))->values(),
+            'photo_timeline' => $this->photoTimeline($patient),
         ]);
+    }
+
+    /**
+     * زیر عکس پروفایل زیبایار: اولین عکس «قبل» و آخرین عکس «بعد» برای هر زاویه (برای چرخش هم‌زمان)،
+     * و پوشه‌های تاریخ عکس‌های بیمار، جدیدترین اول.
+     */
+    private function photoTimeline(Patient $patient): array
+    {
+        $folders = PatientMediaFolder::query()->where('patient_id', $patient->id)
+            ->get(['id', 'parent_id', 'name', 'folder_type', 'folder_date', 'created_at'])->keyBy('id');
+        $media = PatientMedia::query()->where('patient_id', $patient->id)->where('media_type', 'image')
+            ->orderBy('created_at')->orderBy('id')->get();
+
+        $rootOf = function (?int $folderId) use ($folders): ?PatientMediaFolder {
+            $folder = $folderId ? $folders->get($folderId) : null;
+            for ($guard = 0; $folder && $folder->parent_id && $guard < 10; $guard++) {
+                $folder = $folders->get($folder->parent_id) ?? $folder;
+            }
+            return $folder;
+        };
+        $stageOf = function (PatientMedia $item) use ($folders): ?string {
+            if (in_array($item->comparison_stage, ['before', 'after'], true)) return $item->comparison_stage;
+            return match ($folders->get($item->folder_id)?->folder_type) {
+                'before_photo' => 'before',
+                'after_photo' => 'after',
+                default => null,
+            };
+        };
+        // تاریخ هر عکس: تاریخ پوشهٔ روز (شمسی، مثل 1405-08-08)؛ عکس بدون پوشهٔ تاریخ با زمان بارگذاری.
+        $items = $media->map(function (PatientMedia $item) use ($rootOf, $stageOf) {
+            $root = $rootOf($item->folder_id);
+            return [
+                'media' => $item,
+                'root' => $root,
+                'stage' => $stageOf($item),
+                'sort' => ($root?->folder_date ?: '0000').'|'.optional($item->created_at)->format('Y-m-d H:i:s').'|'.str_pad((string) $item->id, 10, '0', STR_PAD_LEFT),
+            ];
+        });
+        $photo = fn (?array $entry) => $entry ? [
+            'id' => $entry['media']->id,
+            'url' => $entry['media']->url,
+            'date' => $entry['root']?->folder_date,
+            'folder_id' => $entry['root']?->id,
+            'created_at' => optional($entry['media']->created_at)->toDateTimeString(),
+        ] : null;
+
+        $angles = collect(PatientMediaController::PHOTO_ANGLES)->map(function (array $angle, string $key) use ($items, $photo) {
+            $forAngle = $items->filter(fn ($entry) => ($entry['media']->photo_angle_key ?: 'other') === $key)->sortBy('sort');
+            $before = $forAngle->where('stage', 'before')->first();
+            $after = $forAngle->where('stage', 'after')->last();
+            if (! $before && ! $after) return null;
+            return ['key' => $key, 'label' => $angle['label'], 'before' => $photo($before), 'after' => $photo($after)];
+        })->filter()->values();
+
+        $dateFolders = $folders->filter(fn (PatientMediaFolder $folder) => ! $folder->parent_id)
+            ->map(function (PatientMediaFolder $folder) use ($folders, $items) {
+                $inside = $items->filter(fn ($entry) => $entry['root']?->id === $folder->id)->sortBy('sort');
+                $services = $folders->filter(fn ($child) => (int) $child->parent_id === (int) $folder->id && $child->folder_type === 'service')
+                    ->pluck('name')->map(fn ($name) => trim((string) $name))->filter()->values();
+                return [
+                    'id' => $folder->id,
+                    'name' => $folder->name,
+                    'date' => $folder->folder_date ?: $folder->name,
+                    'services' => $services,
+                    'photo_count' => $inside->count(),
+                    'before_count' => $inside->where('stage', 'before')->count(),
+                    'after_count' => $inside->where('stage', 'after')->count(),
+                    'cover_url' => $inside->first()['media']->url ?? null,
+                ];
+            })
+            ->sortByDesc(fn (array $folder) => (string) $folder['date'])
+            ->values();
+
+        return ['angles' => $angles, 'folders' => $dateFolders];
     }
 
     private function profilePhotoPayload(Patient $patient): ?array

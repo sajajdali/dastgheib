@@ -118,6 +118,33 @@ class DynamicReportFilterPipelineTest extends TestCase
         $this->assertContains('صورت', $query->getBindings());
     }
 
+    public function test_commission_and_wallet_filters_use_payroll_lines_and_the_gregorian_report_range(): void
+    {
+        $query = app(DynamicReportFilterPipeline::class)->query([
+            'reportDate' => ['from' => '1405-07-01', 'to' => '1405-07-30'],
+            'values' => ['doctorCommission' => '100000', 'consultantCommission' => '0', 'walletDeposit' => '500000', 'walletWithdraw' => ''],
+            'comparators' => ['doctorCommission' => 'gt', 'consultantCommission' => 'eq', 'walletDeposit' => 'lt'],
+        ]);
+
+        $sql = $query->toSql();
+        $this->assertStringContainsString("commission_lines.resource_type = 'doctor'", $sql);
+        $this->assertStringContainsString("commission_lines.resource_type = 'staff'", $sql);
+        $this->assertStringContainsString("commission_lines.status = 'active'", $sql);
+        $this->assertStringContainsString("'inventory_default_commission'", $sql);
+        $this->assertStringContainsString('wallet_ledger.patient_id = patients.id', $sql);
+        $this->assertSame(1, substr_count($sql, 'FROM wallet_transactions AS wallet_ledger'));
+        $this->assertContains('2026-09-23 00:00:00', $query->getBindings());
+        $this->assertContains('2026-10-22 23:59:59', $query->getBindings());
+    }
+
+    public function test_jalali_dates_convert_to_gregorian(): void
+    {
+        $dates = app(JalaliMonthWindow::class);
+        $this->assertSame('2026-03-21', $dates->toGregorian('1405-01-01'));
+        $this->assertSame('2025-03-20', $dates->toGregorian('1403-12-30'));
+        $this->assertSame('2026-10-22', $dates->toGregorian('1405-07-30'));
+    }
+
     public function test_jalali_month_window_is_rolling_from_today(): void
     {
         $window = app(JalaliMonthWindow::class)->endingToday(

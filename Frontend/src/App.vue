@@ -257,7 +257,7 @@
         @open-appointments-timeline="openAppointmentsTimeline"
         @open-service-followups="changePage('ServiceFollowups')"
       />
-      <ServiceFollowups v-if="currentPage === 'ServiceFollowups'" @back-to-followups="changePage('Peygiri')" />
+      <ServiceFollowups v-if="currentPage === 'ServiceFollowups'" @back-to-followups="changePage('Peygiri')" @open-appointment="openAppointmentInTable" />
 
       <Notif
         v-if="legacyLeadsEnabled && currentPage === 'Notif'"
@@ -1669,6 +1669,18 @@ export default {
         view: "timeline",
         date: payload.date || "",
         followup: payload.followup || null,
+        requestedAt: Date.now()
+      };
+      this.currentPage = "Vaghtdahi";
+    },
+
+    // باز کردن یک نوبت مشخص در نوبت‌دهی جدولی؛ مثل جستجوی دستی، ردیفش زرد می‌شود.
+    openAppointmentInTable(payload = {}) {
+      this.pendingAppointmentViewRequest = {
+        view: "table",
+        search: payload.search || "",
+        date: payload.date || "",
+        appointmentId: payload.appointmentId || null,
         requestedAt: Date.now()
       };
       this.currentPage = "Vaghtdahi";

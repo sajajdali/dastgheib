@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
-use App\Services\AppointmentAutomaticSmsService;
+use App\Services\FollowupAutomaticSmsService;
 use App\Services\ShsmsService;
 use Illuminate\Console\Command;
 use Throwable;
@@ -11,7 +11,7 @@ use Throwable;
 class SendDueAutomaticSms extends Command
 {
     protected $signature = 'automatic-sms:send-due {--tenant=}';
-    protected $description = 'Send due automatic appointment SMS messages for tenant clinics';
+    protected $description = 'Send due automatic follow-up scenario SMS messages for tenant clinics';
 
     public function handle(): int
     {
@@ -22,7 +22,7 @@ class SendDueAutomaticSms extends Command
         foreach ($tenants as $tenant) {
             try {
                 tenancy()->initialize($tenant);
-                $stats = app(AppointmentAutomaticSmsService::class)->sendDueForCurrentTenant(app(ShsmsService::class));
+                $stats = app(FollowupAutomaticSmsService::class)->sendDueForCurrentTenant(app(ShsmsService::class));
                 $this->line(sprintf('%s: sent=%d failed=%d skipped=%d', $tenant->getTenantKey(), $stats['sent'], $stats['failed'], $stats['skipped']));
             } catch (Throwable $error) {
                 report($error);

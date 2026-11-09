@@ -117,6 +117,8 @@ export default {
       followupCampaigns: [],
       followupCampaignsRequest: null,
       overflowOpen: false,
+      // چند گزینهٔ اصلی در عرض فعلی منو جا می‌شود؛ بقیه به «بیشتر» می‌روند تا منو در گوشی بیرون نزند.
+      primaryCapacity: 8,
       permissionMap: {
         Parvande: 'patients.view',
         Photos: 'photos.view',
@@ -184,12 +186,17 @@ export default {
 
     primaryItems() {
       const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Gozaresh', 'Anbar', 'Ticket']
-      return this.visibleItems.filter(item => primaryValues.includes(item.value))
+      const primary = this.visibleItems.filter(item => primaryValues.includes(item.value))
+      if (primary.length <= this.primaryCapacity) return primary
+      // صفحهٔ باز همیشه در نوار دیده می‌شود.
+      const shown = primary.slice(0, this.primaryCapacity)
+      const current = primary.find(item => item.value === this.currentPage)
+      if (current && !shown.includes(current)) shown.splice(shown.length - 1, 1, current)
+      return primary.filter(item => shown.includes(item))
     },
 
     overflowItems() {
-      const primaryValues = ['Parvande', 'Vaghtdahi', 'Peygiri', 'dermatracker', 'Photos', 'Gozaresh', 'Anbar', 'Ticket']
-      return this.visibleItems.filter(item => !primaryValues.includes(item.value))
+      return this.visibleItems.filter(item => !this.primaryItems.includes(item))
     },
 
     overflowActive() {
@@ -207,9 +214,18 @@ export default {
     window.addEventListener('storage', this.refreshNotificationCounts)
     window.addEventListener('app:notifications-changed', this.refreshNotificationCounts)
     document.addEventListener('pointerdown', this.closeOverflowOnOutsidePointer, true)
+    this.measurePrimaryCapacity()
+    if (window.ResizeObserver) {
+      this.menuResizeObserver = new ResizeObserver(() => this.measurePrimaryCapacity())
+      this.menuResizeObserver.observe(this.$el)
+    } else {
+      window.addEventListener('resize', this.measurePrimaryCapacity)
+    }
   },
 
   beforeUnmount() {
+    this.menuResizeObserver?.disconnect()
+    window.removeEventListener('resize', this.measurePrimaryCapacity)
     window.clearInterval(this.notificationTimer)
     window.removeEventListener('storage', this.refreshNotificationCounts)
     window.removeEventListener('app:notifications-changed', this.refreshNotificationCounts)
@@ -217,6 +233,13 @@ export default {
   },
 
   methods: {
+    // عرض تقریبی هر گزینه ~۸۶px (موبایل ~۷۴px) و دکمهٔ «بیشتر» ~۵۲px.
+    measurePrimaryCapacity() {
+      const width = this.$el?.clientWidth || window.innerWidth
+      const itemWidth = width < 520 ? 74 : 86
+      const capacity = Math.floor((width - 60) / itemWidth)
+      this.primaryCapacity = Math.max(2, Math.min(8, capacity))
+    },
     closeOverflowOnOutsidePointer(event) {
       if (!this.overflowOpen) return
 

@@ -25,6 +25,32 @@ final class JalaliMonthWindow
         return $this->format(...$this->fromGregorian($date));
     }
 
+    /** تاریخ شمسی «YYYY-MM-DD» به میلادی «Y-m-d» (همان الگوریتم j2g گزارش‌ساز). */
+    public function toGregorian(string $jalali): string
+    {
+        [$jy, $jm, $jd] = array_map('intval', explode('-', $jalali));
+        $jy += 1595;
+        $days = -355668 + 365 * $jy + intdiv($jy, 33) * 8 + intdiv(($jy % 33) + 3, 4) + $jd
+            + ($jm < 7 ? ($jm - 1) * 31 : ($jm - 7) * 30 + 186);
+        $gy = 400 * intdiv($days, 146097);
+        $days %= 146097;
+        if ($days > 36524) {
+            $gy += 100 * intdiv(--$days, 36524);
+            $days %= 36524;
+            if ($days >= 365) $days++;
+        }
+        $gy += 4 * intdiv($days, 1461);
+        $days %= 1461;
+        if ($days > 365) {
+            $gy += intdiv($days - 1, 365);
+            $days = ($days - 1) % 365;
+        }
+        $gd = $days + 1;
+        $monthLengths = [0, 31, ($gy % 4 === 0 && $gy % 100 !== 0) || $gy % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        for ($gm = 1; $gm <= 12 && $gd > $monthLengths[$gm]; $gm++) $gd -= $monthLengths[$gm];
+        return sprintf('%04d-%02d-%02d', $gy, $gm, $gd);
+    }
+
     /** @return array{int, int, int} */
     private function fromGregorian(CarbonInterface $date): array
     {

@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\PayrollReportController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AutomaticSmsScenarioController;
 use App\Http\Controllers\Api\AppointmentAutomaticSmsController;
+use App\Http\Controllers\Api\FollowupAutomaticSmsController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ClinicReportController;
 use App\Http\Controllers\Api\DynamicReportController;
@@ -128,6 +129,12 @@ Route::post('/automatic-sms-scenarios', [AutomaticSmsScenarioController::class, 
 Route::put('/automatic-sms-scenarios/{automaticSmsScenario}', [AutomaticSmsScenarioController::class, 'update'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::delete('/automatic-sms-scenarios/{automaticSmsScenario}', [AutomaticSmsScenarioController::class, 'destroy'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::patch('/appointments/{appointment}/automatic-sms/{automaticSms}', [AppointmentAutomaticSmsController::class, 'update'])->middleware('permission:appointments.update');
+// پیامک اتوماتیک از پیگیری فعال می‌شود و هنگام ثبت نوبت قابل خاموش کردن است.
+Route::get('/followup-automatic-sms/scenarios', [FollowupAutomaticSmsController::class, 'scenarios'])->middleware('permission:followups.view');
+Route::get('/followup-automatic-sms', [FollowupAutomaticSmsController::class, 'index'])->middleware('permission:followups.view');
+Route::put('/followup-automatic-sms', [FollowupAutomaticSmsController::class, 'sync'])->middleware('permission:followups.view');
+Route::get('/followup-automatic-sms/person', [FollowupAutomaticSmsController::class, 'person'])->middleware('permission:followups.view|appointments.view');
+Route::patch('/followup-automatic-sms/enrollments/{enrollmentKey}', [FollowupAutomaticSmsController::class, 'toggle'])->middleware('permission:followups.view|appointments.create|appointments.update');
 Route::post('/sms/completion', [CompletionSmsController::class, 'send']);
 Route::post('/sms/payment-link', [CompletionSmsController::class, 'sendPaymentLink']);
 Route::post('/sms/appointment', [CompletionSmsController::class, 'sendAppointment']);

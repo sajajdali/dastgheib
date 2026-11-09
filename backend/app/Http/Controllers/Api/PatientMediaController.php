@@ -22,7 +22,8 @@ class PatientMediaController extends Controller
         private readonly PatientImageOptimizer $imageOptimizer,
     ) {}
 
-    private const PHOTO_ANGLES = [
+    // ترتیب زوایا از نیم‌رخ راست تا نیم‌رخ چپ؛ زیبایار هم برای چرخش قبل/بعد از همین ترتیب استفاده می‌کند.
+    public const PHOTO_ANGLES = [
         'right_profile' => ['label' => 'نیم‌رخ راست', 'degrees' => 90],
         'right_three_quarter_60' => ['label' => 'سه‌رخ اول راست', 'degrees' => 60],
         'right_three_quarter_30' => ['label' => 'سه‌رخ دوم راست', 'degrees' => 30],

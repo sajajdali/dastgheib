@@ -12,15 +12,24 @@ class ServiceFollowupController extends Controller {
     ->whereIn('phone', $followups->pluck('patient_phone')->filter()->unique())
     ->get(['id', 'first_name', 'last_name', 'phone', 'file_number', 'profile_photo_path', 'profile_thumbnail_path'])
     ->keyBy('phone');
-  $appointmentFileNumbers = \App\Models\Appointment::query()
+  // نوبتی که پیگیری از آن آمده: برای نمایش «نوبتش چه روزی بوده» و باز کردنش در نوبت‌دهی.
+  $appointments = \App\Models\Appointment::query()
     ->whereIn('id', $followups->pluck('appointment_id')->filter()->unique())
-    ->pluck('file_number', 'id');
+    ->get(['id', 'month', 'day_num', 'time', 'file_number'])
+    ->keyBy('id');
+  $appointmentFileNumbers = $appointments->map(fn ($appointment) => $appointment->file_number);
   $patientsByFileNumber = \App\Models\Patient::query()
     ->whereIn('file_number', $appointmentFileNumbers->filter()->unique())
     ->get(['id', 'first_name', 'last_name', 'phone', 'file_number', 'profile_photo_path', 'profile_thumbnail_path'])
     ->keyBy('file_number');
 
-  $followups->each(function (ServiceFollowup $followup) use ($patients, $patientsByFileNumber, $appointmentFileNumbers) {
+  $followups->each(function (ServiceFollowup $followup) use ($patients, $patientsByFileNumber, $appointmentFileNumbers, $appointments) {
+    $appointment = $appointments->get($followup->appointment_id);
+    $followup->setAttribute('appointment', $appointment && $appointment->month && $appointment->day_num ? [
+      'id' => $appointment->id,
+      'date' => sprintf('%s-%02d', $appointment->month, (int) $appointment->day_num),
+      'time' => $appointment->time ? substr((string) $appointment->time, 0, 5) : null,
+    ] : null);
     $patient = $patients->get($followup->patient_phone)
       ?? $patientsByFileNumber->get($appointmentFileNumbers->get($followup->appointment_id));
     $followup->setAttribute('patient', $patient ? [

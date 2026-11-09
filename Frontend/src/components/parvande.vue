@@ -2844,6 +2844,8 @@ export default {
           if (request?.open_media) {
             await this.$nextTick()
             await this.openMediaModal(rows[0])
+            // از زیبایار: همان پوشهٔ تاریخ عکس‌ها باز می‌شود.
+            if (this.showMediaModal && request?.folder_id) await this.loadPatientMedia(request.folder_id, false)
             if (this.showMediaModal && request?.media_id) {
               const mediaResponse = await fetch(`/api/patients/${rows[0].id}/media?all=1`)
               if (mediaResponse.ok) {

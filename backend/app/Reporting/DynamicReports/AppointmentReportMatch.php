@@ -87,7 +87,8 @@ final class AppointmentReportMatch
     {
         if ($value === null || $value === '' || ! is_numeric($value)) return;
         $operator = ['lt' => '<', 'gt' => '>', 'eq' => '='][$operator ?? 'eq'] ?? '=';
-        $query->whereRaw("{$expression} {$operator} ?", [(float) $value]);
+        // CAST: مقدار bind‌شده در SQLite متن است و با عدد مقایسه نمی‌شود؛ در MySQL اثری ندارد.
+        $query->whereRaw("{$expression} {$operator} CAST(? AS DECIMAL(18,2))", [(float) $value]);
     }
 
     public static function money(string $column): string

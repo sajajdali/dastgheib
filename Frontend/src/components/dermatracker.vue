@@ -55,14 +55,14 @@
             <tr v-else-if="!worklist.length"><td colspan="8" class="beauty-flow-table-empty">پرونده در انتظاری برای این بازه پیدا نشد.</td></tr>
             <template v-else>
               <tr v-for="item in worklist" :key="item.patient_id">
-                <td><div class="beauty-flow-patient-cell"><span :class="['beauty-flow-avatar', `beauty-flow-avatar-${item.patient?.customer_level || 'silver'}`]"><img v-if="item.patient?.avatar_url" :src="item.patient.avatar_url" alt=""><b v-else>{{ patientInitial(item.patient) }}</b></span><span>{{ patientName(item.patient) }}</span></div></td>
-                <td>{{ item.patient?.file_number || '-' }}</td>
-                <td>{{ displayPatientPhone(item.patient?.phone) || '-' }}</td>
-                <td>{{ annotationCategory(item) }}</td>
-                <td>{{ annotationNoteSummary(item) }}</td>
-                <td>{{ formatDate(item.annotation_date || item.created_at) }}</td>
-                <td><span class="beauty-flow-status beauty-flow-status-pending">در انتظار</span></td>
-                <td><button type="button" class="beauty-flow-open-btn" @click="openWorklistRecord(item)">باز کردن پرونده</button></td>
+                <td class="bf-cell-name" data-label="نام"><div class="beauty-flow-patient-cell"><span :class="['beauty-flow-avatar', `beauty-flow-avatar-${item.patient?.customer_level || 'silver'}`]"><img v-if="item.patient?.avatar_url" :src="item.patient.avatar_url" alt=""><b v-else>{{ patientInitial(item.patient) }}</b></span><span>{{ patientName(item.patient) }}</span></div></td>
+                <td data-label="شماره پرونده">{{ item.patient?.file_number || '-' }}</td>
+                <td data-label="شماره تماس">{{ displayPatientPhone(item.patient?.phone) || '-' }}</td>
+                <td data-label="ناحیه / مشکل">{{ annotationCategory(item) }}</td>
+                <td data-label="توضیح">{{ annotationNoteSummary(item) }}</td>
+                <td data-label="تاریخ">{{ formatDate(item.annotation_date || item.created_at) }}</td>
+                <td class="bf-cell-status" data-label="وضعیت"><span class="beauty-flow-status beauty-flow-status-pending">در انتظار</span></td>
+                <td class="bf-cell-action"><button type="button" class="beauty-flow-open-btn" @click="openWorklistRecord(item)">باز کردن پرونده</button></td>
               </tr>
             </template>
           </tbody>
@@ -127,9 +127,12 @@
         @error="message => searchError = message"
       />
       <header class="beauty-flow-record-header">
-        <div>
-          <h2>زیبایار پرونده</h2>
-          <p>{{ patientName(activePatient) }} - پرونده {{ activePatient.file_number || '-' }}</p>
+        <div class="beauty-flow-record-title">
+          <span class="beauty-flow-record-badge" aria-hidden="true">✦</span>
+          <div>
+            <h2>زیبایار پرونده</h2>
+            <p>{{ patientName(activePatient) }} · پرونده {{ activePatient.file_number || '-' }}</p>
+          </div>
         </div>
         <div class="beauty-flow-record-actions">
           <button type="button" class="beauty-flow-back beauty-flow-problems-settings-btn" @click="openProblemsSettings">مشکلات چهره</button>
@@ -138,6 +141,12 @@
         </div>
       </header>
 
+      <div
+        v-if="draftPoint || selectedAnnotation"
+        class="beauty-flow-sheet-backdrop"
+        aria-hidden="true"
+        @click="draftPoint = null; selectedAnnotation = null"
+      ></div>
       <div class="beauty-flow-workspace">
         <aside class="beauty-flow-sidebar">
           <section class="beauty-flow-patient-box">
@@ -345,9 +354,119 @@
               ></span>
             </div>
           </template>
+
+          <!-- اولین عکس قبل و آخرین عکس بعد؛ با «بعدی/قبلی» هر دو با هم به زاویهٔ دیگر می‌روند. -->
+          <section v-if="!recordLoading && compareAngles.length" class="beauty-compare">
+            <header class="beauty-compare-head">
+              <div>
+                <h3>مقایسهٔ قبل و بعد</h3>
+                <p>اولین عکس قبل و آخرین عکس بعد · {{ compareAngle.label }}</p>
+              </div>
+              <div class="beauty-compare-nav">
+                <button type="button" class="beauty-compare-arrow" title="زاویهٔ قبلی" aria-label="زاویهٔ قبلی" :disabled="compareAngles.length < 2" @click="moveCompareAngle(-1)"><svg class="bf-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+                <span>{{ (compareAngleIndex + 1).toLocaleString('fa-IR') }} از {{ compareAngles.length.toLocaleString('fa-IR') }}</span>
+                <button type="button" class="beauty-compare-arrow" title="زاویهٔ بعدی" aria-label="زاویهٔ بعدی" :disabled="compareAngles.length < 2" @click="moveCompareAngle(1)"><svg class="bf-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+              </div>
+            </header>
+            <div class="beauty-compare-grid">
+              <figure v-for="side in compareSides" :key="side.key" :class="['beauty-compare-photo', `is-${side.key}`]">
+                <button v-if="side.photo" type="button" :title="`نمایش بزرگ عکس ${side.label}`" @click="openLightbox(side.key)">
+                  <img :src="side.photo.url" :alt="`${side.label} · ${compareAngle.label}`" loading="lazy">
+                  <span class="beauty-compare-zoom-hint" aria-hidden="true">⤢</span>
+                </button>
+                <div v-else class="beauty-compare-empty">عکس {{ side.label }} برای این زاویه ثبت نشده است</div>
+                <figcaption>
+                  <b>{{ side.label }}</b>
+                  <span>{{ side.photo ? formatJalaliFolderDate(side.photo.date) || formatDate(side.photo.created_at) : '—' }}</span>
+                  <button v-if="side.photo?.folder_id" type="button" class="beauty-compare-folder-link" title="باز کردن پوشهٔ این عکس" @click="openPhotoFolder(side.photo.folder_id)">پوشه ↗</button>
+                </figcaption>
+              </figure>
+            </div>
+            <div class="beauty-compare-angles" role="tablist" aria-label="زوایای عکس">
+              <button
+                v-for="(angle, index) in compareAngles"
+                :key="angle.key"
+                type="button"
+                role="tab"
+                :aria-selected="index === compareAngleIndex"
+                :class="{ on: index === compareAngleIndex }"
+                @click="compareAngleIndex = index"
+              >{{ angle.label }}</button>
+            </div>
+          </section>
+
+          <!-- پوشه‌های عکس بیمار بر اساس تاریخ؛ با کلیک همان پوشه در عکس‌های پرونده باز می‌شود. -->
+          <section v-if="!recordLoading && activePatient" class="beauty-folders">
+            <header class="beauty-compare-head">
+              <div>
+                <h3>پوشه‌های عکس</h3>
+                <p>{{ photoFolders.length ? `${photoFolders.length.toLocaleString('fa-IR')} تاریخ · برای باز کردن روی پوشه بزنید` : 'هنوز پوشهٔ عکسی برای این بیمار ساخته نشده است.' }}</p>
+              </div>
+            </header>
+            <div v-if="photoFolders.length" class="beauty-folders-grid">
+              <button v-for="folder in photoFolders" :key="folder.id" type="button" class="beauty-folder" @click="openPhotoFolder(folder.id)">
+                <span class="beauty-folder-cover">
+                  <img v-if="folder.cover_url" :src="folder.cover_url" alt="" loading="lazy">
+                  <i v-else aria-hidden="true">▤</i>
+                </span>
+                <span class="beauty-folder-info">
+                  <strong>{{ formatJalaliFolderDate(folder.date) || folder.name }}</strong>
+                  <small>{{ folder.services.length ? folder.services.join('، ') : 'بدون خدمت' }}</small>
+                  <small>{{ folder.photo_count.toLocaleString('fa-IR') }} عکس<template v-if="folder.before_count || folder.after_count"> · قبل {{ folder.before_count.toLocaleString('fa-IR') }} · بعد {{ folder.after_count.toLocaleString('fa-IR') }}</template></small>
+                </span>
+              </button>
+            </div>
+          </section>
         </section>
       </div>
     </section>
+
+    <!-- نمایش بزرگ عکس قبل/بعد با بزرگ‌نمایی (چرخ ماوس، دوبار کلیک، دو انگشت) و جابه‌جایی -->
+    <div v-if="lightbox && lightboxPhoto" class="bf-lightbox" role="dialog" aria-modal="true" :aria-label="`عکس ${lightboxSide.label} · ${compareAngle.label}`" @click.self="closeLightbox">
+      <header class="bf-lightbox-bar">
+        <div class="bf-lightbox-title">
+          <strong>{{ lightboxSide.label }} · {{ compareAngle.label }}</strong>
+          <small>{{ formatJalaliFolderDate(lightboxPhoto.date) || formatDate(lightboxPhoto.created_at) }}</small>
+        </div>
+        <div class="bf-lightbox-tabs" role="tablist" aria-label="قبل یا بعد">
+          <button v-for="side in compareSides" :key="side.key" type="button" role="tab" :aria-selected="lightbox.side === side.key" :class="{ on: lightbox.side === side.key }" :disabled="!side.photo" @click="switchLightboxSide(side.key)">{{ side.label }}</button>
+        </div>
+        <button type="button" class="bf-lightbox-close" aria-label="بستن" title="بستن (Esc)" @click="closeLightbox">×</button>
+      </header>
+
+      <div
+        ref="lightboxStage"
+        class="bf-lightbox-stage"
+        :class="{ 'is-zoomed': zoom > 1, 'is-dragging': dragging }"
+        @wheel.prevent="onLightboxWheel"
+        @dblclick="toggleLightboxZoom($event)"
+        @pointerdown="onLightboxPointerDown"
+        @pointermove="onLightboxPointerMove"
+        @pointerup="onLightboxPointerUp"
+        @pointercancel="onLightboxPointerUp"
+        @pointerleave="onLightboxPointerUp"
+      >
+        <img
+          :src="lightboxPhoto.url"
+          :alt="`${lightboxSide.label} · ${compareAngle.label}`"
+          draggable="false"
+          :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoom})` }"
+        >
+      </div>
+
+      <footer class="bf-lightbox-bar bf-lightbox-tools">
+        <div class="bf-lightbox-angle">
+          <button type="button" title="زاویهٔ قبلی" aria-label="زاویهٔ قبلی" :disabled="compareAngles.length < 2" @click="moveLightboxAngle(-1)"><svg class="bf-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+          <span>{{ compareAngle.label }}</span>
+          <button type="button" title="زاویهٔ بعدی" aria-label="زاویهٔ بعدی" :disabled="compareAngles.length < 2" @click="moveLightboxAngle(1)"><svg class="bf-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        </div>
+        <div class="bf-lightbox-zoom">
+          <button type="button" title="کوچک‌نمایی" aria-label="کوچک‌نمایی" :disabled="zoom <= 1" @click="setLightboxZoom(zoom - 0.5)">−</button>
+          <button type="button" class="bf-lightbox-zoom-value" title="اندازهٔ اصلی" @click="resetLightboxZoom">{{ Math.round(zoom * 100).toLocaleString('fa-IR') }}٪</button>
+          <button type="button" title="بزرگ‌نمایی" aria-label="بزرگ‌نمایی" :disabled="zoom >= 5" @click="setLightboxZoom(zoom + 0.5)">+</button>
+        </div>
+      </footer>
+    </div>
 
     <div v-if="problemsSettingsOpen" class="beauty-problems-backdrop" @click.self="closeProblemsSettings">
       <section class="beauty-problems-modal" role="dialog" aria-modal="true" aria-labelledby="beauty-problems-title">
@@ -406,6 +525,13 @@ export default {
     recordLoading: false,
     profilePhoto: null,
     legacyPhotos: [],
+    photoTimeline: { angles: [], folders: [] },
+    compareAngleIndex: 0,
+    lightbox: null,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    dragging: false,
     selectedPhotoId: '',
     selectedPhoto: null,
     annotations: [],
@@ -435,6 +561,27 @@ export default {
     annotationFilters: { date_from: '', date_to: '' }
   }),
   computed: {
+    compareAngles() {
+      return this.photoTimeline?.angles || []
+    },
+    compareAngle() {
+      return this.compareAngles[this.compareAngleIndex] || this.compareAngles[0] || { label: '' }
+    },
+    compareSides() {
+      return [
+        { key: 'before', label: 'قبل', photo: this.compareAngle.before || null },
+        { key: 'after', label: 'بعد', photo: this.compareAngle.after || null }
+      ]
+    },
+    lightboxSide() {
+      return this.compareSides.find(side => side.key === this.lightbox?.side) || this.compareSides[0]
+    },
+    lightboxPhoto() {
+      return this.lightboxSide?.photo || null
+    },
+    photoFolders() {
+      return this.photoTimeline?.folders || []
+    },
     canViewPatientPhone() {
       return this.permissions.includes('patients.view_phone') && !this.permissions.includes('patients.hide_phone')
     },
@@ -464,6 +611,7 @@ export default {
   },
   beforeUnmount() {
     this.clearDraftVoice()
+    window.removeEventListener('keydown', this.onLightboxKey)
   },
   methods: {
     displayPatientPhone(value) {
@@ -489,6 +637,126 @@ export default {
     },
     statusClass(status) {
       return status === 'done' ? 'beauty-flow-status-done' : 'beauty-flow-status-pending'
+    },
+    moveCompareAngle(step) {
+      const count = this.compareAngles.length
+      if (!count) return
+      this.compareAngleIndex = (this.compareAngleIndex + step + count) % count
+    },
+    // «1405-08-08» → «۸ آبان ۱۴۰۵»
+    formatJalaliFolderDate(value) {
+      const match = String(value || '').match(/^(1[34]\d{2})[-/](\d{1,2})[-/](\d{1,2})$/)
+      if (!match) return ''
+      const months = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند']
+      const fa = n => Number(n).toLocaleString('fa-IR', { useGrouping: false })
+      return `${fa(match[3])} ${months[Number(match[2]) - 1] || ''} ${fa(match[1])}`
+    },
+    openLightbox(side) {
+      this.lightbox = { side }
+      this.resetLightboxZoom()
+      this.lightboxPointers = new Map()
+      window.addEventListener('keydown', this.onLightboxKey)
+    },
+    closeLightbox() {
+      this.lightbox = null
+      this.dragging = false
+      window.removeEventListener('keydown', this.onLightboxKey)
+    },
+    switchLightboxSide(side) {
+      if (this.lightbox?.side === side) return
+      this.lightbox = { side }
+      this.resetLightboxZoom()
+    },
+    moveLightboxAngle(step) {
+      this.moveCompareAngle(step)
+      // اگر زاویهٔ تازه برای این طرف عکس ندارد، طرف دیگر نمایش داده می‌شود.
+      if (!this.lightboxPhoto) {
+        const other = this.compareSides.find(side => side.photo)
+        if (other) this.lightbox = { side: other.key }
+      }
+      this.resetLightboxZoom()
+    },
+    onLightboxKey(event) {
+      if (!this.lightbox) return
+      if (event.key === 'Escape') this.closeLightbox()
+      else if (event.key === '+' || event.key === '=') this.setLightboxZoom(this.zoom + 0.5)
+      else if (event.key === '-') this.setLightboxZoom(this.zoom - 0.5)
+      else if (event.key === '0') this.resetLightboxZoom()
+      else if (event.key === 'ArrowLeft') this.moveLightboxAngle(1)
+      else if (event.key === 'ArrowRight') this.moveLightboxAngle(-1)
+    },
+    resetLightboxZoom() {
+      this.zoom = 1
+      this.panX = 0
+      this.panY = 0
+    },
+    // بزرگ‌نمایی حول یک نقطه (محل ماوس یا وسط دو انگشت) تا همان نقطه زیر دست بماند.
+    setLightboxZoom(value, originX = null, originY = null) {
+      const next = Math.min(5, Math.max(1, Math.round(value * 100) / 100))
+      if (next === 1) return this.resetLightboxZoom()
+      const stage = this.$refs.lightboxStage?.getBoundingClientRect()
+      if (stage && originX !== null && originY !== null) {
+        const dx = originX - (stage.left + stage.width / 2)
+        const dy = originY - (stage.top + stage.height / 2)
+        const ratio = next / this.zoom
+        this.panX = dx - (dx - this.panX) * ratio
+        this.panY = dy - (dy - this.panY) * ratio
+      }
+      this.zoom = next
+      this.clampLightboxPan()
+    },
+    clampLightboxPan() {
+      const stage = this.$refs.lightboxStage?.getBoundingClientRect()
+      if (!stage) return
+      const maxX = (stage.width * (this.zoom - 1)) / 2
+      const maxY = (stage.height * (this.zoom - 1)) / 2
+      this.panX = Math.max(-maxX, Math.min(maxX, this.panX))
+      this.panY = Math.max(-maxY, Math.min(maxY, this.panY))
+    },
+    onLightboxWheel(event) {
+      const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15
+      this.setLightboxZoom(this.zoom * factor, event.clientX, event.clientY)
+    },
+    toggleLightboxZoom(event) {
+      if (this.zoom > 1) this.resetLightboxZoom()
+      else this.setLightboxZoom(2.5, event.clientX, event.clientY)
+    },
+    onLightboxPointerDown(event) {
+      if (!this.lightboxPointers) this.lightboxPointers = new Map()
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      this.lightboxPointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      this.lightboxGesture = null
+      this.dragging = this.zoom > 1 && this.lightboxPointers.size === 1
+    },
+    onLightboxPointerMove(event) {
+      const pointers = this.lightboxPointers
+      if (!pointers?.has(event.pointerId)) return
+      const previous = pointers.get(event.pointerId)
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      if (pointers.size >= 2) {
+        // دو انگشت: فاصلهٔ انگشت‌ها اندازهٔ بزرگ‌نمایی را تعیین می‌کند.
+        const [a, b] = [...pointers.values()]
+        const distance = Math.hypot(a.x - b.x, a.y - b.y)
+        const centerX = (a.x + b.x) / 2
+        const centerY = (a.y + b.y) / 2
+        if (this.lightboxGesture) this.setLightboxZoom(this.zoom * (distance / this.lightboxGesture.distance), centerX, centerY)
+        this.lightboxGesture = { distance }
+        this.dragging = false
+        return
+      }
+      if (this.zoom <= 1) return
+      this.panX += event.clientX - previous.x
+      this.panY += event.clientY - previous.y
+      this.clampLightboxPan()
+    },
+    onLightboxPointerUp(event) {
+      this.lightboxPointers?.delete(event.pointerId)
+      if ((this.lightboxPointers?.size || 0) < 2) this.lightboxGesture = null
+      this.dragging = this.zoom > 1 && (this.lightboxPointers?.size || 0) === 1
+    },
+    openPhotoFolder(folderId) {
+      if (!this.activePatient?.id || !folderId) return
+      this.$emit('open-patient-media', { ...this.activePatient, folder_id: folderId })
     },
     formatDate(raw) {
       if (!raw) return '-'
@@ -724,6 +992,13 @@ export default {
         this.selectedPhoto = data.selected_photo || null
         this.selectedPhotoId = this.selectedPhoto?.source === 'media' ? this.selectedPhoto.id : ''
         this.annotations = data.annotations || []
+        this.photoTimeline = {
+          angles: Array.isArray(data.photo_timeline?.angles) ? data.photo_timeline.angles : [],
+          folders: Array.isArray(data.photo_timeline?.folders) ? data.photo_timeline.folders : []
+        }
+        // پیش‌فرض تمام‌رخ اگر عکسش هست؛ وگرنه اولین زاویه‌ای که عکس دارد.
+        const frontIndex = this.photoTimeline.angles.findIndex(angle => angle.key === 'front')
+        this.compareAngleIndex = frontIndex >= 0 ? frontIndex : 0
         this.draftPoint = null
         this.selectedAnnotation = null
       } catch (error) {
@@ -1792,4 +2067,337 @@ export default {
     flex-direction: column;
   }
 }
+
+/* مقایسهٔ قبل/بعد و پوشه‌های عکس زیر عکس پروفایل */
+.beauty-compare, .beauty-folders { margin-top: 16px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }
+.beauty-compare-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.beauty-compare-head h3 { margin: 0; color: #0f172a; font-size: 15px; font-weight: 900; }
+.beauty-compare-head p { margin: 3px 0 0; color: #64748b; font-size: 12px; }
+.beauty-compare-nav { display: flex; align-items: center; gap: 8px; color: #475569; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.beauty-compare .beauty-compare-arrow { width: 34px !important; height: 34px !important; min-width: 34px; padding: 0 !important; border: 1px solid #cbd5e1 !important; border-radius: 10px !important; background: #fff !important; color: #0f172a !important; font-size: 20px !important; line-height: 1; cursor: pointer; }
+.beauty-compare .beauty-compare-arrow:hover:not(:disabled) { border-color: #0f766e !important; color: #0f766e !important; }
+.beauty-compare .beauty-compare-arrow:disabled { opacity: .4; cursor: default; }
+.beauty-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.beauty-compare-photo { margin: 0; display: grid; gap: 8px; }
+.beauty-compare-photo > button { display: block; width: 100%; height: auto !important; padding: 0 !important; border: 0 !important; border-radius: 12px !important; overflow: hidden; background: #111827 !important; cursor: zoom-in; }
+.beauty-compare-photo img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: contain; }
+.beauty-compare-empty { display: grid; place-items: center; aspect-ratio: 3 / 4; padding: 16px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; color: #94a3b8; font-size: 12px; font-weight: 800; text-align: center; }
+.beauty-compare-photo figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #64748b; }
+.beauty-compare-photo figcaption b { padding: 3px 10px; border-radius: 999px; font-size: 11px; }
+.beauty-compare-photo.is-before figcaption b { background: #fef3c7; color: #92400e; }
+.beauty-compare-photo.is-after figcaption b { background: #dcfce7; color: #166534; }
+.beauty-compare-angles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.beauty-compare-angles button { width: auto !important; height: 30px !important; padding: 0 11px !important; border: 1px solid #e2e8f0 !important; border-radius: 999px !important; background: #f8fafc !important; color: #475569 !important; font-size: 11px !important; font-weight: 800; cursor: pointer; }
+.beauty-compare-angles button.on { border-color: #0f766e !important; background: #0f766e !important; color: #fff !important; }
+.beauty-folders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.beauty-folders .beauty-folder { display: flex; align-items: center; gap: 10px; width: 100%; height: auto !important; padding: 8px !important; border: 1px solid #e2e8f0 !important; border-radius: 12px !important; background: #fff !important; color: #0f172a !important; text-align: right; cursor: pointer; transition: border-color .15s, background .15s; }
+.beauty-folders .beauty-folder:hover { border-color: #0f766e !important; background: #f0fdfa !important; }
+.beauty-folder-cover { flex: 0 0 56px; width: 56px; height: 56px; display: grid; place-items: center; overflow: hidden; border-radius: 10px; background: #e2e8f0; color: #64748b; font-size: 22px; font-style: normal; }
+.beauty-folder-cover img { width: 100%; height: 100%; object-fit: cover; }
+.beauty-folder-info { display: grid; gap: 3px; min-width: 0; }
+.beauty-folder-info strong { font-size: 13px; font-weight: 900; }
+.beauty-folder-info small { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) {
+  .beauty-compare-head { flex-wrap: wrap; }
+  .beauty-compare-grid { gap: 8px; }
+}
+
+/* ===== ظاهر تازه و واکنش‌گرای زیبایار ===== */
+.beauty-flow {
+  --bf-accent: #0f766e;
+  --bf-accent-soft: #f0fdfa;
+  --bf-border: #e6ebf0;
+  --bf-muted: #64748b;
+  --bf-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px rgba(15, 23, 42, .05);
+  max-width: 1440px;
+  margin: 0 auto;
+  background: transparent;
+  box-sizing: border-box;
+}
+.beauty-flow *, .beauty-flow *::before, .beauty-flow *::after { box-sizing: border-box; }
+.beauty-flow-card,
+.beauty-flow-sidebar,
+.beauty-flow-photo-panel,
+.beauty-flow-record-header,
+.beauty-compare,
+.beauty-folders {
+  border-color: var(--bf-border);
+  border-radius: 20px;
+  box-shadow: var(--bf-shadow);
+}
+.beauty-flow-main-toolbar { flex-wrap: wrap; }
+.beauty-flow-search-grid-compact { min-width: 0; }
+.beauty-flow input:focus,
+.beauty-flow select:focus,
+.beauty-flow textarea:focus { border-color: #5eead4; box-shadow: 0 0 0 3px rgba(20, 184, 166, .14); }
+.beauty-flow button { transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s; }
+.beauty-flow button:not(:disabled):active { transform: translateY(1px); }
+
+/* هدر پرونده */
+.beauty-flow-record-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  padding: 16px 18px;
+  background: linear-gradient(120deg, #ffffff 55%, #ecfdf5 100%);
+}
+.beauty-flow-record-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #14b8a6, #0f766e 60%, #2563eb);
+}
+.beauty-flow-record-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.beauty-flow-record-title h2 { margin: 0; color: #0f172a; font-size: 18px; font-weight: 900; }
+.beauty-flow-record-title p { margin: 3px 0 0; color: var(--bf-muted); font-size: 12px; }
+.beauty-flow-record-badge {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #14b8a6, #0f766e);
+  color: #fff;
+  font-size: 18px;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, .25);
+}
+.beauty-flow-record-actions { flex-wrap: wrap; justify-content: flex-end; }
+.beauty-flow-back { white-space: nowrap; }
+.beauty-flow-back:hover { border-color: #99f6e4 !important; color: var(--bf-accent) !important; }
+
+/* فضای کار: ستون کناری کنار عکس می‌چسبد تا فرم نقطه هنگام اسکرول دیده بماند */
+.beauty-flow-workspace { grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+.beauty-flow-sidebar { position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow: auto; scrollbar-width: thin; }
+.beauty-flow-patient-box { padding: 4px 0 16px; }
+.beauty-flow-photo-panel { min-height: 0; padding: 16px; }
+.beauty-flow-photo-header { margin-bottom: 12px; }
+.beauty-flow-photo-stage {
+  min-height: 420px;
+  background: radial-gradient(circle at 50% 35%, #1f2937, #0b1220 70%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+}
+.beauty-flow-point { transition: transform .15s; }
+.beauty-flow-point:hover { transform: translate(-50%, -50%) scale(1.18); }
+.beauty-flow-sheet-backdrop { display: none; }
+
+/* فهرست پرونده‌های در انتظار */
+.beauty-flow-table tbody tr { transition: background .15s; }
+.beauty-flow-table tbody tr:hover { background: #f8fafc; }
+
+@media (max-width: 1100px) {
+  .beauty-flow-workspace { grid-template-columns: 1fr; }
+  .beauty-flow-sidebar { position: static; max-height: none; overflow: visible; }
+  /* کارت بیمار فشرده و افقی تا عکس نقطه‌گذاری زودتر دیده شود */
+  .beauty-flow-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  .beauty-flow-patient-box {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "avatar name" "avatar phone" "avatar level";
+    justify-items: start;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 0;
+    border-bottom: 0;
+    text-align: right;
+  }
+  .beauty-flow-patient-box > .beauty-flow-avatar { grid-area: avatar; width: 64px; height: 64px; }
+  .beauty-flow-patient-box > strong { grid-area: name; }
+  .beauty-flow-patient-box > span:not(.beauty-flow-avatar):not(.beauty-flow-level) { grid-area: phone; }
+  .beauty-flow-patient-box > .beauty-flow-level { grid-area: level; }
+  .beauty-flow-side-block { margin-top: 0 !important; }
+  .beauty-flow-legacy-block { grid-column: 1 / -1; }
+
+  /* فرم ثبت یا جزئیات نقطه به شکل برگهٔ پایین صفحه */
+  .beauty-flow-sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    /* بالاتر از منوی سراسری و دکمهٔ دستیار (حدود 2147483010) */
+    z-index: 2147483020;
+    background: rgba(15, 23, 42, .42);
+    backdrop-filter: blur(2px);
+    animation: bf-fade .18s ease-out;
+  }
+  .beauty-flow .beauty-flow-editor {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 2147483021;
+    max-height: min(82vh, 640px);
+    overflow: auto;
+    margin: 0;
+    padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 22px 22px 0 0;
+    background: #fff;
+    box-shadow: 0 -18px 50px rgba(15, 23, 42, .22);
+    animation: bf-sheet .22s ease-out;
+  }
+  .beauty-flow .beauty-flow-editor::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 44px;
+    height: 5px;
+    border-radius: 999px;
+    background: #cbd5e1;
+    transform: translateX(-50%);
+  }
+  .beauty-flow .beauty-flow-editor-selected { background: #fff; }
+}
+
+@media (max-width: 700px) {
+  .beauty-flow { padding: 10px; }
+  .beauty-flow-card, .beauty-flow-sidebar { padding: 14px; border-radius: 18px; }
+  .beauty-flow-photo-panel { padding: 12px 8px 8px; border-radius: 18px; }
+  .beauty-flow-photo-panel > .beauty-flow-photo-header { padding: 0 6px; }
+  .beauty-flow-side-block .beauty-flow-default-photo-note { display: none; }
+  .beauty-flow-main-toolbar { display: grid; grid-template-columns: 42px 42px minmax(0, 1fr); }
+  .beauty-flow-main-toolbar .beauty-flow-search-grid { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .beauty-flow-main-toolbar .beauty-flow-search-grid > button { grid-column: 1 / -1; }
+  .beauty-flow-record-header { flex-direction: column; align-items: stretch; padding: 14px; }
+  .beauty-flow-record-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .beauty-flow-back { min-width: 0; padding: 0 6px; font-size: 11px !important; }
+  .beauty-flow-sidebar { grid-template-columns: 1fr; }
+  .beauty-flow-photo-stage { min-height: 0; border-radius: 14px; }
+  .beauty-flow-photo-stage img { max-height: 68vh; }
+  .beauty-flow-point { width: 16px !important; height: 16px !important; min-width: 16px; }
+  .beauty-flow-point-note { min-width: 0; max-width: 132px; min-height: 0; padding: 4px 6px; border-radius: 8px; transform: translate(calc(-100% - 12px), -50%); }
+  .beauty-flow-point-note button { display: none; }
+  .beauty-flow-point-note strong { font-size: 10px; }
+  .beauty-flow-point-note span { font-size: 9px; }
+  .beauty-flow-point-count span { padding: 5px 9px; font-size: 10.5px; }
+
+  /* پرونده‌های در انتظار: هر ردیف یک کارت */
+  .beauty-flow-table-wrap { overflow: visible; border: 0; }
+  .beauty-flow-worklist-table, .beauty-flow-worklist-table tbody { display: block; min-width: 0; width: 100%; }
+  .beauty-flow-worklist-table thead { display: none; }
+  .beauty-flow-worklist-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 12px;
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid var(--bf-border);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--bf-shadow);
+  }
+  .beauty-flow-worklist-table td { display: grid; gap: 2px; padding: 0; border: 0; white-space: normal; font-size: 12.5px; }
+  .beauty-flow-worklist-table td[data-label]::before { content: attr(data-label); color: #94a3b8; font-size: 10px; font-weight: 800; }
+  .beauty-flow-worklist-table td.bf-cell-name { grid-column: 1 / -1; }
+  .beauty-flow-worklist-table td.bf-cell-name::before { display: none; }
+  .beauty-flow-worklist-table td.bf-cell-action { grid-column: 1 / -1; }
+  .beauty-flow-worklist-table td.bf-cell-action button { width: 100%; }
+  .beauty-flow-worklist-table td.beauty-flow-table-empty { display: block; padding: 26px 12px; color: var(--bf-muted); text-align: center; }
+  .beauty-flow-worklist-table tr:has(> .beauty-flow-table-empty) { display: block; border-style: dashed; box-shadow: none; background: #f8fafc; }
+
+  .beauty-compare, .beauty-folders { padding: 12px; }
+  .beauty-folders-grid { grid-template-columns: 1fr; }
+}
+
+@keyframes bf-sheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes bf-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .beauty-flow-sheet-backdrop, .beauty-flow .beauty-flow-editor { animation: none; }
+}
+
+/* نمایش بزرگ عکس قبل/بعد */
+.beauty-compare-photo > button { position: relative; }
+.beauty-compare-zoom-hint {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, .55);
+  color: #fff;
+  font-size: 15px;
+  opacity: .85;
+  transition: opacity .15s, transform .15s;
+}
+.beauty-compare-photo > button:hover .beauty-compare-zoom-hint { opacity: 1; transform: scale(1.08); }
+.beauty-compare-photo figcaption span { flex: 1; }
+.beauty-compare .beauty-compare-folder-link {
+  width: auto !important;
+  height: 26px !important;
+  padding: 0 9px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #0f766e !important;
+  font-size: 11px !important;
+}
+.bf-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483030;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: #020617;
+  color: #e2e8f0;
+  animation: bf-fade .15s ease-out;
+}
+.bf-lightbox-bar { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: #020617; }
+.bf-lightbox-title { display: grid; gap: 2px; min-width: 0; }
+.bf-lightbox-title strong { color: #fff; font-size: 14px; font-weight: 900; }
+.bf-lightbox-title small { color: #94a3b8; font-size: 12px; }
+.bf-lightbox button {
+  height: 38px;
+  min-width: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(148, 163, 184, .28) !important;
+  border-radius: 11px !important;
+  background: rgba(30, 41, 59, .85) !important;
+  color: #e2e8f0 !important;
+  font-size: 13px !important;
+  font-weight: 800;
+}
+.bf-lightbox button:hover:not(:disabled) { background: rgba(51, 65, 85, .95) !important; color: #fff !important; }
+.bf-lightbox button:disabled { opacity: .35; cursor: default; }
+.bf-lightbox-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 13px; background: rgba(15, 23, 42, .7); }
+.bf-lightbox-tabs button { height: 32px; border-color: transparent !important; background: transparent !important; }
+.bf-lightbox-tabs button.on { background: #0f766e !important; color: #fff !important; }
+.bf-lightbox .bf-lightbox-close { width: 40px; padding: 0; font-size: 24px !important; line-height: 1; }
+.bf-lightbox-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  touch-action: none;
+  cursor: zoom-in;
+  user-select: none;
+}
+.bf-lightbox-stage.is-zoomed { cursor: grab; }
+.bf-lightbox-stage.is-dragging { cursor: grabbing; }
+.bf-lightbox-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  transition: transform .12s ease-out;
+  will-change: transform;
+  -webkit-user-drag: none;
+}
+.bf-lightbox-stage.is-dragging img { transition: none; }
+.bf-lightbox-tools { justify-content: center; gap: 18px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+.bf-lightbox-angle, .bf-lightbox-zoom { display: flex; align-items: center; gap: 6px; }
+.bf-lightbox-angle span { min-width: 104px; color: #cbd5e1; font-size: 12px; font-weight: 800; text-align: center; }
+.bf-lightbox-angle button, .bf-lightbox-zoom button { font-size: 18px !important; padding: 0; }
+.bf-lightbox .bf-lightbox-zoom-value { min-width: 64px; font-size: 12px !important; }
+@media (max-width: 560px) {
+  .bf-lightbox-bar { padding: 10px; gap: 8px; }
+  .bf-lightbox-title strong { font-size: 13px; }
+  .bf-lightbox-tools { flex-wrap: wrap; gap: 10px; }
+  .bf-lightbox-angle span { min-width: 84px; }
+}
+
+.bf-chevron { width: 18px; height: 18px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 </style>

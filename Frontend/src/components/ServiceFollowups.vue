@@ -4,7 +4,7 @@
       <!-- header -->
       <header class="fu-head">
         <div class="fu-head-text">
-          <button type="button" class="fu-back-btn" title="بازگشت به صفحه پیگیری" aria-label="بازگشت به صفحه پیگیری" @click="$emit('back-to-followups')">
+          <button type="button" class="fu-back-btn" title="بازگشت به صفحه پیگیری" aria-label="بازگشت به صفحه پیگیری" @click="emit('back-to-followups')">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
             <span>بازگشت</span>
           </button>
@@ -36,7 +36,7 @@
             <span class="lbl">{{ prevMonthName }}</span>
           </button>
 
-          <div class="fu-strip-scroll">
+          <div ref="stripScroll" class="fu-strip-scroll">
             <div class="fu-strip">
               <button
                 v-for="d in days"
@@ -98,7 +98,15 @@
             <img v-if="it.avatar" :src="it.avatar" :alt="it.name"><span v-else>{{ it.name.trim().charAt(0) }}</span>
           </button>
 
-          <div class="fu-meta">
+          <div
+            class="fu-meta"
+            :class="{ 'is-link': it.appointment }"
+            :role="it.appointment ? 'button' : null"
+            :tabindex="it.appointment ? 0 : null"
+            :title="it.appointment ? 'نمایش همین نوبت در جدول نوبت‌دهی' : ''"
+            @click="openAppointment(it)"
+            @keydown.enter="openAppointment(it)"
+          >
             <div class="fu-meta-top">
               <span class="name">{{ it.name }}</span>
               <span class="service">{{ it.service }}</span>
@@ -108,6 +116,10 @@
               <span>{{ it.phone }}</span>
               <span class="sep"></span>
               <span>سررسید {{ selectedLabel }}</span>
+              <template v-if="it.appointment">
+                <span class="sep"></span>
+                <span class="fu-appointment-date">نوبت {{ appointmentLabel(it.appointment) }}<b aria-hidden="true">↗</b></span>
+              </template>
             </div>
           </div>
 
@@ -140,7 +152,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, nextTick } from 'vue'
 import axios from 'axios'
 
 /* ---------- تقویم شمسی ---------- */
@@ -160,6 +172,23 @@ const jalaliParts = (value = new Date()) => {
 const TODAY = jalaliParts()
 
 const fa = (n) => String(n).replace(/\d/g, (x) => '۰۱۲۳۴۵۶۷۸۹'[x])
+const emit = defineEmits(['back-to-followups', 'open-appointment'])
+// «نوبت ۱۸ آبان ۱۴۰۵ · ۱۴:۳۰» — روزی که خدمت انجام شده و این پیگیری از آن آمده است.
+function appointmentLabel(appointment) {
+  const [y, m, d] = String(appointment?.date || '').split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const time = appointment.time ? ` · ${fa(appointment.time)}` : ''
+  return `${fa(d)} ${MONTHS[m - 1] || ''} ${fa(y)}${time}`
+}
+// همان نوبت در نوبت‌دهی جدولی باز و مثل جستجو زرد می‌شود.
+function openAppointment(it) {
+  if (!it.appointment?.id) return
+  emit('open-appointment', {
+    appointmentId: it.appointment.id,
+    date: it.appointment.date,
+    search: String(it.phone || it.patient?.file_number || it.name || '').trim(),
+  })
+}
 const monthLen = (y, m) => (m <= 6 ? 31 : m <= 11 ? 30 : 29)
 
 /** ایندکس روز هفته اولِ ماه (۰ = شنبه). ۱۴۰۵/۰۱/۰۱ = شنبه */
@@ -252,8 +281,22 @@ function nextMonth() {
   if (month.value === 12) { year.value++; month.value = 1 } else month.value++
   selectedDay.value = 1; clampDay()
 }
+const stripScroll = ref(null)
+// نوار روزها افقی اسکرول می‌خورد؛ روز انتخاب‌شده (پیش‌فرض امروز) هر جای ماه باشد وسط دید می‌آید.
+async function scrollToSelectedDay(smooth = true) {
+  await nextTick()
+  const strip = stripScroll.value
+  const button = strip?.querySelector('.fu-day.sel')
+  if (!strip || !button) return
+  // با مختصات روی صفحه حساب می‌شود تا در نوار راست‌به‌چپ هم درست باشد.
+  const stripBox = strip.getBoundingClientRect()
+  const buttonBox = button.getBoundingClientRect()
+  const delta = (buttonBox.left + buttonBox.width / 2) - (stripBox.left + stripBox.width / 2)
+  strip.scrollBy({ left: delta, behavior: smooth ? 'smooth' : 'auto' })
+}
 function goToday() {
   year.value = TODAY.y; month.value = TODAY.m; selectedDay.value = TODAY.d
+  scrollToSelectedDay()
 }
 const apiStatus = { 'در انتظار':'pending', 'تماس گرفته شد':'called', 'نوبت داده شد':'booked', 'انجام شد':'done', 'لغو شد':'declined' }
 const uiStatus = Object.fromEntries(Object.entries(apiStatus).map(([label, value]) => [value, label]))
@@ -278,13 +321,19 @@ async function refresh() {
   data.forEach((row) => {
     const due = jalaliParts(row.due_date)
     const patient = row.patient || {}
-    const item = { id: row.id, name: [patient.first_name, patient.last_name].filter(Boolean).join(' ') || row.patient_name || 'بیمار', service: row.service_name, phone: patient.phone || row.patient_phone || '', avatar: patient.avatar_url || '', patient, status: uiStatus[row.status] || 'در انتظار', note: row.action_note || '', saved: Boolean(row.actioned_at), due }
+    const item = { id: row.id, name: [patient.first_name, patient.last_name].filter(Boolean).join(' ') || row.patient_name || 'بیمار', service: row.service_name, phone: patient.phone || row.patient_phone || '', avatar: patient.avatar_url || '', patient, status: uiStatus[row.status] || 'در انتظار', note: row.action_note || '', saved: Boolean(row.actioned_at), due, appointment: row.appointment || null }
     const bucket = key(due.y, due.m, due.d)
     if (!cache[bucket]) cache[bucket] = []
     cache[bucket].push(item)
   })
 }
-onMounted(refresh)
+onMounted(async () => {
+  goToday()
+  await scrollToSelectedDay(false)
+  await refresh()
+  // شمارنده‌های روزها پس از بارگذاری عرض نوار را تغییر می‌دهند؛ دوباره روی امروز تنظیم می‌شود.
+  await scrollToSelectedDay(false)
+})
 </script>
 
 <style scoped>
@@ -435,6 +484,11 @@ onMounted(refresh)
 .fu-item.overdue .fu-avatar { background: var(--red-soft); color: #c22a36; }
 
 .fu-meta { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.fu-meta.is-link { cursor: pointer; border-radius: 10px; margin: -4px -6px; padding: 4px 6px; transition: background .15s; }
+.fu-meta.is-link:hover { background: #f4f7fb; }
+.fu-meta.is-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fu-appointment-date { color: #2563eb; font-weight: 700; }
+.fu-appointment-date b { margin-right: 4px; font-size: 11px; }
 .fu-meta-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .fu-meta-top .name { font-size: 15.5px; font-weight: 700; }
 .fu-meta-top .service { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 8px; background: #f1f3f6; color: #5b6678; }

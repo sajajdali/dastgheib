@@ -9,6 +9,8 @@ use App\Models\Patient;
 use App\Reporting\DynamicReports\DynamicReportChunkContextLoader;
 use App\Reporting\DynamicReports\JalaliMonthWindow;
 use App\Reporting\DynamicReports\ReportPatientContext;
+use App\Reporting\DynamicReports\ReportCommissionTotals;
+use App\Reporting\DynamicReports\ReportWalletTotals;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
@@ -60,6 +62,17 @@ final class AppointmentReportSource implements ReportSource
         // بیعانه در دفتر مالی ثبت می‌شود؛ تخفیف ستون خود نوبت است.
         foreach (['debt' => $this->moneyExpression('appointments.debt'), 'discount' => $this->moneyExpression('appointments.discount'), 'deposit' => AppointmentReportMatch::deposit('appointments')] as $key => $expression) {
             AppointmentReportMatch::compare($query, $expression, data_get($filters, 'comparators.'.$key), data_get($filters, 'values.'.$key));
+        }
+        // پورسانت همین نوبت از دفتر حقوق؛ کیف پول از پروندهٔ همین نوبت در بازهٔ گزارش.
+        foreach (ReportCommissionTotals::RESOURCE_TYPES as $key => $resourceType) {
+            AppointmentReportMatch::compare($query, ReportCommissionTotals::expression('appointments.id', $resourceType), data_get($filters, 'comparators.'.$key), data_get($filters, 'values.'.$key));
+        }
+        foreach (ReportWalletTotals::TYPES as $key => $type) {
+            $value = data_get($filters, 'values.'.$key);
+            if ($value === null || $value === '' || ! is_numeric($value)) continue;
+            [$sql, $bindings] = ReportWalletTotals::expression(self::patientIdExpression(), $type, $filters);
+            $operator = ['lt' => '<', 'gt' => '>', 'eq' => '='][data_get($filters, 'comparators.'.$key, 'eq')] ?? '=';
+            $query->whereRaw("{$sql} {$operator} CAST(? AS DECIMAL(18,2))", [...$bindings, (float) $value]);
         }
 
         $patientFields = ['name' => 'first_name', 'family' => 'last_name', 'nationalId' => 'national_id', 'city' => 'city'];
@@ -122,7 +135,9 @@ final class AppointmentReportSource implements ReportSource
         $byPhone = $patients->filter->phone->keyBy('phone');
         $patientContexts = $this->contexts->load($patients, $filters)->keyBy(fn ($context) => $context->patient->id);
 
-        return $records->map(function (Appointment $appointment) use ($byFile, $byPhone, $patientContexts) {
+        $reportDate = array_filter(['from' => data_get($filters, 'reportDate.from'), 'to' => data_get($filters, 'reportDate.to')]);
+
+        return $records->map(function (Appointment $appointment) use ($byFile, $byPhone, $patientContexts, $reportDate) {
             $patient = ($appointment->file_number ? $byFile->get($appointment->file_number) : null)
                 ?? ($appointment->phone ? $byPhone->get($appointment->phone) : null);
             $base = $patient ? $patientContexts->get($patient->id) : null;
@@ -137,9 +152,19 @@ final class AppointmentReportSource implements ReportSource
                 appointmentHistory: $base?->appointmentHistory ?? collect([$appointment]),
                 referrers: $base?->referrers ?? collect(),
                 customerLevel: $base?->customerLevel ?? 'silver',
+                reportDate: $reportDate,
             );
             return ['context' => $context, 'patient_id' => $patient->id, 'source_id' => $appointment->id];
         });
+    }
+
+    /** پروندهٔ نوبت با همان اولویت rows(): اول شمارهٔ پرونده، بعد شماره تماس. */
+    private static function patientIdExpression(): string
+    {
+        $match = fn (string $column) => "(SELECT wallet_patients.id FROM patients AS wallet_patients"
+            ." WHERE wallet_patients.deleted_at IS NULL AND appointments.{$column} IS NOT NULL AND appointments.{$column} <> ''"
+            ." AND wallet_patients.{$column} = appointments.{$column} ORDER BY wallet_patients.id DESC LIMIT 1)";
+        return 'COALESCE('.$match('file_number').', '.$match('phone').')';
     }
 
     private static function linkPatient(QueryBuilder $query): void

@@ -14,5 +14,7 @@ final class ReportPatientContext
         public readonly Collection $appointmentHistory,
         public readonly Collection $referrers,
         public readonly string $customerLevel,
+        /** بازهٔ شمسی گزارش ({from, to} به شکل YYYY-MM-DD) برای ستون‌هایی که در بازه جمع می‌زنند. */
+        public readonly array $reportDate = [],
     ) {}
 }

@@ -50,13 +50,20 @@ class ClinicReportService
         $materialsTotal = $paidCompleted->sum(fn ($row) => $this->appointmentMaterialCost($row, $materialPrices));
         if ($progress) $progress(22, 'محاسبه درآمد، تخفیف و مراجعین');
         $expenseQuery = Expense::query()->whereBetween('occurred_on', [$filters['from'], $filters['to']])->where('type', 'expense');
-        $expenseTotal = (float) (clone $expenseQuery)->sum('amount');
+        // هزینهٔ تبلیغات از هزینه‌ای است که موقع ساخت کمپین وارد می‌شود؛ ردیف‌های دستی «تبلیغات» در
+        // جدول هزینه‌ها جایگزین آن می‌شوند تا دو بار حساب نشوند.
+        $advertisingCosts = $this->campaignAdvertisingCosts($filters);
+        $advertisingTotal = (float) $advertisingCosts->sum('amount');
+        $manualAdvertising = (float) $this->advertisingExpenses($filters)->sum('amount');
+        $expenseTotal = (float) (clone $expenseQuery)->sum('amount') - $manualAdvertising + $advertisingTotal;
         // خرید مواد فقط نمایش داده می‌شود؛ هزینهٔ مواد با مصرف در خدمات از سود کم می‌شود.
         $materialPurchases = (float) (clone $expenseQuery)->where('category', 'like', '%مواد%')->sum('amount');
-        $expenseItems = (clone $expenseQuery)->selectRaw("COALESCE(NULLIF(category, ''), 'بدون دسته‌بندی') AS category, SUM(amount) AS amount")->groupBy('category')->get();
-        $advertisingTotal = (float) $this->advertisingExpenses($filters)->sum('amount');
-        $campaignExpenses = $this->advertisingExpenses($filters)->with('campaign:id,name,ui_payload')
-            ->selectRaw('campaign_id, SUM(amount) AS amount')->groupBy('campaign_id')->get();
+        $expenseItems = $this->withCampaignAdvertising(
+            (clone $expenseQuery)->selectRaw("COALESCE(NULLIF(category, ''), 'بدون دسته‌بندی') AS category, SUM(amount) AS amount")->groupBy('category')->get()
+                ->map(fn ($row) => (object) ['category' => $row->category, 'amount' => (float) $row->amount]),
+            $advertisingTotal
+        );
+        $campaignExpenses = $advertisingCosts;
         if ($progress) $progress(34, 'جمع‌بندی هزینه‌ها و تبلیغات');
         $resourceCosts = $this->resourceCosts($filters);
         if ($progress) $progress(46, 'محاسبه هزینه پزشکان و پرسنل');
@@ -130,11 +137,14 @@ class ClinicReportService
             ->where('type', 'expense')
             ->whereBetween('occurred_on', [$filters['from'], $filters['to']]);
 
-        $items = (clone $query)
+        $advertisingTotal = (float) $this->campaignAdvertisingCosts($filters)->sum('amount');
+        $manualAdvertising = (float) $this->advertisingExpenses($filters)->sum('amount');
+        $items = $this->withCampaignAdvertising((clone $query)
             ->selectRaw('category, SUM(amount) AS amount')
             ->groupBy('category')
             ->orderByDesc('amount')
             ->get()
+            ->map(fn ($row) => (object) ['category' => $row->category, 'amount' => (float) $row->amount]), $advertisingTotal)
             ->map(fn ($row) => [
                 'category' => trim((string) $row->category) ?: 'بدون دسته‌بندی',
                 'amount' => (float) $row->amount,
@@ -150,7 +160,7 @@ class ClinicReportService
         return [
             'from' => $filters['from'],
             'to' => $filters['to'],
-            'total' => round((float) (clone $query)->sum('amount')),
+            'total' => round((float) (clone $query)->sum('amount') - $manualAdvertising + $advertisingTotal),
             'items' => $items,
         ];
     }
@@ -191,9 +201,9 @@ class ClinicReportService
             $rows[$key]['revenue'] += $this->appointmentValue($appointment);
         });
 
-        // هزینهٔ واقعی تبلیغات: هزینهٔ وصل به کمپین به کانال همان کمپین می‌رسد.
+        // هزینهٔ تبلیغات هر کمپین (موقع ساخت کمپین) به کانال همان کمپین می‌رسد.
         $campaignChannels = $this->campaignChannels();
-        $this->advertisingExpenses($filters)->get(['campaign_id', 'amount'])->each(function ($expense) use (&$rows, $campaignChannels): void {
+        $this->campaignAdvertisingCosts($filters)->each(function ($expense) use (&$rows, $campaignChannels): void {
             $name = $campaignChannels->get((int) $expense->campaign_id) ?? self::UNASSIGNED_ADVERTISING;
             $key = mb_strtolower($name);
             $rows[$key] ??= ['name'=>$name,'completed'=>0,'revenue'=>0.0,'cost'=>0.0];
@@ -1005,10 +1015,9 @@ class ClinicReportService
     }
     private function advertisingRoi(array $filters): array
     {
-        $costs = $this->advertisingExpenses($filters)
-            ->selectRaw("SUBSTRING(occurred_on, 1, 7) AS report_month, SUM(amount) AS total")
-            ->groupBy('report_month')
-            ->pluck('total', 'report_month');
+        $costs = $this->campaignAdvertisingCosts($filters)
+            ->groupBy(fn ($row) => substr((string) $row->occurred_on, 0, 7))
+            ->map(fn ($rows) => (float) $rows->sum('amount'));
         // درآمد تبلیغات: نوبت‌های انجام‌شده‌ای که کانالشان کانال یکی از کمپین‌هاست (مثلاً اینستاگرام).
         $advertisingChannels = $this->campaignChannels()->map(fn ($name) => mb_strtolower(trim($name)))->unique();
         $revenues = [];
@@ -1037,8 +1046,8 @@ class ClinicReportService
 
     private function customerAcquisition(array $filters): array
     {
-        $campaignCosts = $this->advertisingExpenses($filters)->whereNotNull('campaign_id')
-            ->selectRaw('campaign_id, SUM(amount) AS total')->groupBy('campaign_id')->pluck('total', 'campaign_id');
+        $advertisingCosts = $this->campaignAdvertisingCosts($filters);
+        $campaignCosts = $advertisingCosts->mapWithKeys(fn ($row) => [$row->campaign_id => $row->amount]);
         $campaigns = Campaign::query()
             ->where(fn (Builder $query) => $query->whereNull('note')->orWhere('note', '!=', '__system_general_followups__'))
             ->get(['id', 'name', 'budget', 'ui_payload'])
@@ -1054,7 +1063,7 @@ class ClinicReportService
                 ->map(fn ($row) => $this->campaignPhone(data_get($row, 'phone')))
                 ->filter()
                 ->unique();
-            // هزینهٔ واقعی ثبت‌شده برای کمپین؛ بودجه فقط برای مقایسه برمی‌گردد.
+            // هزینه‌ای که موقع ساخت کمپین وارد شده (اگر کمپین در بازه شروع شده باشد).
             $cost = (float) ($campaignCosts[$campaign->id] ?? 0);
             $appointments = $bookedPhones->count();
             $leadCount = $uniqueLeads->count();
@@ -1073,8 +1082,8 @@ class ClinicReportService
         // uniquely identifiable lead in the range must not contribute its
         // full creation cost to that range.
         })->filter(fn (array $row) => $row['leads'] > 0)->values();
-        // کل هزینهٔ تبلیغات بازه، شامل هزینه‌هایی که به کمپین خاصی وصل نشده‌اند.
-        $totalCost = (float) $this->advertisingExpenses($filters)->sum('amount');
+        // کل هزینهٔ تبلیغات بازه: هزینهٔ کمپین‌هایی که در بازه شروع شده‌اند.
+        $totalCost = (float) $advertisingCosts->sum('amount');
         $totalAppointments = (int) $campaigns->sum('appointments');
         $totalLeads = (int) $campaigns->sum('leads');
 
@@ -1346,7 +1355,40 @@ class ClinicReportService
 
     private const UNASSIGNED_ADVERTISING = 'تبلیغات بدون کمپین';
 
-    /** هزینه‌های واقعی تبلیغات در بازه (هر دسته‌ای که «تبلیغ» یا advertising دارد). */
+    /**
+     * هزینهٔ تبلیغات = هزینه‌ای که موقع ساخت کمپین وارد می‌شود (بودجهٔ کمپین)، به تاریخ شروع کمپین.
+     * خروجی شبیه ردیف هزینه است: campaign_id، campaign، amount، occurred_on (شمسی).
+     */
+    private function campaignAdvertisingCosts(array $filters): Collection
+    {
+        return Campaign::query()
+            ->where(fn (Builder $query) => $query->whereNull('note')->orWhere('note', '!=', '__system_general_followups__'))
+            ->get(['id', 'name', 'budget', 'starts_on', 'ui_payload'])
+            ->map(function (Campaign $campaign) {
+                $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
+                $amount = (float) $campaign->budget ?: $this->number($payload['cost'] ?? 0);
+                return (object) [
+                    'campaign_id' => (int) $campaign->id,
+                    'campaign' => $campaign,
+                    'amount' => $amount,
+                    'occurred_on' => $this->campaignContactDate($campaign->starts_on ?: ($payload['date'] ?? null)),
+                ];
+            })
+            ->filter(fn ($row) => $row->amount > 0 && $row->occurred_on && $row->occurred_on >= $filters['from'] && $row->occurred_on <= $filters['to'])
+            ->values();
+    }
+
+    /** ردیف‌های دستی دستهٔ تبلیغات کنار گذاشته و هزینهٔ کمپین‌ها با همان نام «تبلیغات» جایش می‌آید. */
+    private function withCampaignAdvertising(Collection $items, float $advertisingTotal): Collection
+    {
+        $isAdvertising = fn ($category) => str_contains((string) $category, 'تبلیغ') || mb_strtolower(trim((string) $category)) === 'advertising';
+        $items = $items->reject(fn ($row) => $isAdvertising($row->category))->values();
+        if ($advertisingTotal > 0) $items->push((object) ['category' => 'تبلیغات', 'amount' => $advertisingTotal]);
+
+        return $items->sortByDesc('amount')->values();
+    }
+
+    /** ردیف‌های دستی هزینه با دستهٔ «تبلیغ» یا advertising (فقط برای کنار گذاشتن از جمع هزینه‌ها). */
     private function advertisingExpenses(array $filters): Builder
     {
         return Expense::query()

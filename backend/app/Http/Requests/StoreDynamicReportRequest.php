@@ -37,6 +37,10 @@ class StoreDynamicReportRequest extends FormRequest
             'filters.values.debt' => ['nullable', 'string', 'max:30'],
             'filters.values.deposit' => ['nullable', 'string', 'max:30'],
             'filters.values.discount' => ['nullable', 'string', 'max:30'],
+            'filters.values.doctorCommission' => ['nullable', 'string', 'max:30'],
+            'filters.values.consultantCommission' => ['nullable', 'string', 'max:30'],
+            'filters.values.walletDeposit' => ['nullable', 'string', 'max:30'],
+            'filters.values.walletWithdraw' => ['nullable', 'string', 'max:30'],
             'filters.values.problem' => ['nullable', 'string', 'max:100'],
             'filters.values.noreturn' => ['nullable', 'string', Rule::in(['', 'بدون محدودیت', '۱ ماه', '۲ ماه', '۳ ماه', '۴ ماه', '۵ ماه', '۶ ماه'])],
             'filters.birthDate' => ['sometimes', 'array'],
@@ -54,6 +58,10 @@ class StoreDynamicReportRequest extends FormRequest
             'filters.comparators.debt' => ['nullable', Rule::in(['lt','gt','eq'])],
             'filters.comparators.deposit' => ['nullable', Rule::in(['lt','gt','eq'])],
             'filters.comparators.discount' => ['nullable', Rule::in(['lt','gt','eq'])],
+            'filters.comparators.doctorCommission' => ['nullable', Rule::in(['lt','gt','eq'])],
+            'filters.comparators.consultantCommission' => ['nullable', Rule::in(['lt','gt','eq'])],
+            'filters.comparators.walletDeposit' => ['nullable', Rule::in(['lt','gt','eq'])],
+            'filters.comparators.walletWithdraw' => ['nullable', Rule::in(['lt','gt','eq'])],
             'filters.multi.custseg' => ['sometimes', 'array', 'max:4'],
             'filters.multi.custseg.*' => ['required', 'string', 'distinct', Rule::in(['آبی', 'نقره‌ای', 'طلایی', 'دردسرساز', 'blue', 'silver', 'gold', 'problematic'])],
             'filters.multi.consultant' => ['sometimes', 'array', 'max:20'],
@@ -116,6 +124,10 @@ class StoreDynamicReportRequest extends FormRequest
                 'debt' => $this->money(data_get($data, 'filters.values.debt')),
                 'deposit' => $this->money(data_get($data, 'filters.values.deposit')),
                 'discount' => $this->money(data_get($data, 'filters.values.discount')),
+                'doctorCommission' => $this->money(data_get($data, 'filters.values.doctorCommission')),
+                'consultantCommission' => $this->money(data_get($data, 'filters.values.consultantCommission')),
+                'walletDeposit' => $this->money(data_get($data, 'filters.values.walletDeposit')),
+                'walletWithdraw' => $this->money(data_get($data, 'filters.values.walletWithdraw')),
                 'problem' => $this->text($data, 'problem'),
                 'noreturnMonths' => $this->noReturnMonths($this->text($data, 'noreturn')),
             ],
@@ -139,7 +151,8 @@ class StoreDynamicReportRequest extends FormRequest
                 'payment' => collect(data_get($data, 'filters.multi.payment', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
                 'account' => collect(data_get($data, 'filters.multi.account', []))->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all(),
             ],
-            'comparators' => ['debt' => data_get($data, 'filters.comparators.debt', 'eq'), 'deposit' => data_get($data, 'filters.comparators.deposit', 'eq'), 'discount' => data_get($data, 'filters.comparators.discount', 'eq')],
+            'comparators' => collect(['debt', 'deposit', 'discount', 'doctorCommission', 'consultantCommission', 'walletDeposit', 'walletWithdraw'])
+                ->mapWithKeys(fn ($key) => [$key => data_get($data, 'filters.comparators.'.$key) ?: 'eq'])->all(),
         ];
     }
 

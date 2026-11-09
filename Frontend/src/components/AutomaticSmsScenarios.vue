@@ -57,7 +57,7 @@
             <template v-for="(step, index) in scenario.steps" :key="step.id || index">
               <i class="flow-arrow">←</i>
               <div class="step-card">
-                <div class="step-timing"><span>اگر نیامد،</span><input v-model.number="step.days_after" type="number" min="1" max="3650" @change="saveScenario(scenario)"><b>روز بعد</b><label>ساعت <input v-model="step.send_at" type="time" @change="saveScenario(scenario)"></label><button v-if="scenario.steps.length > 1" type="button" title="حذف مرحله" @click="removeStep(scenario, index)">×</button></div>
+                <div class="step-timing"><span>از فعال‌سازی در پیگیری،</span><input v-model.number="step.days_after" type="number" min="1" max="3650" @change="saveScenario(scenario)"><b>روز بعد</b><label>ساعت <input v-model="step.send_at" type="time" @change="saveScenario(scenario)"></label><button v-if="scenario.steps.length > 1" type="button" title="حذف مرحله" @click="removeStep(scenario, index)">×</button></div>
                 <label class="template-label">نام الگوی پیامک <small>(انگلیسی، کوتاه)</small><button type="button" title="راهنمای پارامترها" @click="guideOpen = true">i</button></label>
                 <input v-model.trim="step.sms_template" dir="ltr" class="template-input" placeholder="first_time_botax" @change="saveScenario(scenario)">
               </div>

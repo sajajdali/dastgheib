@@ -894,37 +894,36 @@
 
                   <div class="referral-section patient-services-referral-actions">
 
-                    <input
-                      v-model="row.referrerPhone"
-                      type="number"
-                      placeholder="شماره موبایل معرف"
-                      class="service-select"
-                      @input="calculateReferralRewardForRow(row)"
-                    />
-
-                    <div class="money-input-wrap">
-
+                    <label class="referral-field">
+                      <span class="referral-field-caption">شماره موبایل معرف</span>
                       <input
-                        :value="moneyToNumber(row.walletBalance) ? formatDisplayMoney(row.walletBalance) : ''"
+                        :value="row.referrerPhone"
                         type="text"
-                        placeholder="موجودی کیف پول"
-                        class="service-select money-input score-disabled"
-                        disabled
+                        inputmode="numeric"
+                        autocomplete="off"
+                        dir="ltr"
+                        maxlength="15"
+                        placeholder="مثلاً ۰۹۱۲۱۲۳۴۵۶۷"
+                        class="service-select referrer-phone-input"
+                        @input="onReferrerPhoneInput(row, $event)"
+                        @blur="onReferrerPhoneBlur(row)"
                       />
+                    </label>
 
-                      <span class="money-suffix">
-                        تومان
-                      </span>
-
-                      <button
-                        class="pay-score-btn"
-                        :disabled="!moneyToNumber(row.walletBalance)"
-                        title="پرداخت از کیف پول بیمار"
-                        @click.stop="applyWalletBalance(row)"
+                    <div class="referral-field">
+                      <span class="referral-field-caption">موجودی کیف پول معرف</span>
+                      <div
+                        class="referrer-wallet-info"
+                        :class="`is-${referrerInfo(row).state}`"
+                        :title="referrerInfoTitle(row)"
+                        aria-live="polite"
                       >
-                        💳
-                      </button>
-
+                        <template v-if="referrerInfo(row).state === 'found'">
+                          <b>{{ formatDisplayMoney(referrerInfo(row).balance) }} تومان</b>
+                          <span>{{ referrerInfo(row).name || 'معرف' }}</span>
+                        </template>
+                        <span v-else>{{ referrerStatusText(row) }}</span>
+                      </div>
                     </div>
 
                     <button
@@ -1264,7 +1263,7 @@
 
                 <div v-if="activeRowActionMenu === row._rowId" class="row-actions-menu" role="menu" @click.stop>
                   <header><strong>عملیات نوبت</strong><small>{{ row.lastname || row.time || 'ردیف خالی' }}</small></header>
-                  <button v-if="automaticSmsSummary(row).total_count" type="button" role="menuitem" class="automatic-sms-menu-action" @click="openAutomaticSmsModal(row)"><i class="action-icon sms">✦</i><span><b>{{ automaticSmsSummary(row).total_count.toLocaleString('fa-IR') }} پیامک اتوماتیک · {{ automaticSmsSummary(row).active_count.toLocaleString('fa-IR') }} فعال</b><small>افزودن یا حذف پیامک‌های این نوبت</small></span></button>
+                  <button v-if="automaticSmsSummary(row).total_count" type="button" role="menuitem" class="automatic-sms-menu-action" @click="openAutomaticSmsModal(row)"><i class="action-icon sms">✦</i><span><b>{{ automaticSmsSummary(row).active_count.toLocaleString('fa-IR') }} سناریوی پیامک فعال</b><small>سناریوهای پیگیری این مراجع؛ خاموش یا روشن کنید</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('insert', day, row)"><i class="action-icon add">+</i><span><b>افزودن وقت</b><small>ساخت ردیف بعد از این ساعت</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('tracking', day, row)"><i class="action-icon clock">◷</i><span><b>گزارش زمان</b><small>ورود، انتظار و پایان نوبت</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('history', day, row)"><i class="action-icon history">≡</i><span><b>تاریخچه فعالیت</b><small>مشاهده کاربر و زمان تغییرات</small></span></button>
@@ -1286,39 +1285,39 @@
         <header>
           <div class="automatic-sms-modal-heading">
             <span class="automatic-sms-modal-icon">✦</span>
-            <div><small>پیامک‌های متصل به نوبت</small><h3 id="automatic-sms-modal-title">پیامک اتوماتیک</h3><p>{{ automaticSmsModalRow.lastname || 'مراجعه‌کننده' }} · {{ automaticSmsModalRow.time || 'بدون ساعت' }}</p></div>
+            <div><small>سناریوهای فعال‌شده از پیگیری</small><h3 id="automatic-sms-modal-title">پیامک اتوماتیک این مراجع</h3><p>{{ automaticSmsModalRow.lastname || 'مراجعه‌کننده' }} · {{ automaticSmsModalRow.phone || 'بدون شماره' }}</p></div>
           </div>
           <button type="button" class="automatic-sms-modal-close" title="بستن" aria-label="بستن" @click="closeAutomaticSmsModal">×</button>
         </header>
 
         <div class="automatic-sms-modal-summary">
           <article class="active"><strong>{{ automaticSmsSummary(automaticSmsModalRow).active_count.toLocaleString('fa-IR') }}</strong><span>فعال</span></article>
-          <article><strong>{{ automaticSmsSummary(automaticSmsModalRow).sent_count.toLocaleString('fa-IR') }}</strong><span>ارسال‌شده</span></article>
+          <article><strong>{{ automaticSmsSummary(automaticSmsModalRow).sent_count.toLocaleString('fa-IR') }}</strong><span>پیامک ارسال‌شده</span></article>
           <article :class="{ failed: automaticSmsSummary(automaticSmsModalRow).failed_count }"><strong>{{ automaticSmsSummary(automaticSmsModalRow).failed_count.toLocaleString('fa-IR') }}</strong><span>خطا</span></article>
         </div>
 
         <div class="automatic-sms-modal-list">
           <article
             v-for="item in automaticSmsItems(automaticSmsModalRow)"
-            :key="item.id"
-            :class="[`sms-${item.status}`, { disabled: !item.is_enabled, saving: automaticSmsSavingIds.includes(item.id) }]"
+            :key="item.enrollment_key"
+            :class="[`sms-${item.status === 'active' ? 'scheduled' : item.status}`, { disabled: item.status !== 'active', saving: automaticSmsSavingIds.includes(item.enrollment_key) }]"
           >
             <div class="automatic-sms-item-copy">
               <span class="automatic-sms-item-dot"></span>
-              <div><strong>{{ item.inventory_tag }}</strong><small>{{ automaticSmsItemCaption(item) }}</small></div>
+              <div><strong>{{ automaticSmsScenarioTitle(item) }} {{ item.status === 'active' ? 'برای این مراجع فعال است' : '' }}</strong><small>{{ automaticSmsItemCaption(item) }}</small></div>
             </div>
             <div class="automatic-sms-item-side">
               <i>{{ automaticSmsStatusLabel(item.status) }}</i>
-              <label class="automatic-sms-switch" :title="item.status === 'sent' ? 'پیامک ارسال‌شده قابل تغییر نیست' : (item.is_enabled ? 'حذف از پیامک‌های فعال' : 'افزودن به پیامک‌های فعال')">
-                <input type="checkbox" :checked="item.is_enabled" :disabled="item.status === 'sent' || automaticSmsSavingIds.includes(item.id)" @change="toggleAppointmentAutomaticSms(automaticSmsModalRow, item, $event.target.checked)">
-                <span></span><b>{{ item.status === 'sent' ? 'ارسال شده' : (item.is_enabled ? 'فعال' : 'افزودن') }}</b>
+              <label class="automatic-sms-switch" :title="item.status === 'active' ? 'خاموش کردن این سناریو؛ پیامک‌های ارسال‌نشده‌اش دیگر نمی‌رود' : 'روشن کردن دوبارهٔ این سناریو'">
+                <input type="checkbox" :checked="item.status === 'active'" :disabled="!['active', 'disabled'].includes(item.status) || automaticSmsSavingIds.includes(item.enrollment_key)" @change="toggleAppointmentAutomaticSms(automaticSmsModalRow, item, $event.target.checked)">
+                <span></span><b>{{ item.status === 'active' ? 'فعال' : (item.status === 'disabled' ? 'خاموش' : automaticSmsStatusLabel(item.status)) }}</b>
               </label>
             </div>
           </article>
-          <div v-if="!automaticSmsItems(automaticSmsModalRow).length" class="automatic-sms-modal-empty">برای این نوبت پیامک اتوماتیکی تعریف نشده است.</div>
+          <div v-if="!automaticSmsItems(automaticSmsModalRow).length" class="automatic-sms-modal-empty">برای این مراجع سناریوی پیامک اتوماتیکی از پیگیری فعال نیست.</div>
         </div>
 
-        <footer><p>با خاموش‌کردن هر مورد، آن پیامک از ارسال‌های فعال این نوبت حذف می‌شود.</p><button type="button" @click="closeAutomaticSmsModal">بستن</button></footer>
+        <footer><p>این سناریوها در پیگیری فعال شده‌اند. اگر مراجع نوبت گرفته و دیگر نیازی به یادآوری نیست، سناریو را خاموش کنید.</p><button type="button" @click="closeAutomaticSmsModal">بستن</button></footer>
       </section>
     </div>
 
@@ -1532,9 +1531,8 @@
                 <small>{{ timelineCareTeam(row) }}</small>
               </div>
 
-              <div v-else class="timeline-card-empty">
+              <div v-else class="timeline-card-empty" title="ساعت خالی؛ برای ثبت نوبت کلیک کنید">
                 <span>+</span>
-                <strong>خالی</strong>
               </div>
             </article>
             <button
@@ -2126,7 +2124,7 @@
         <button v-if="automaticSmsSummary(activeCompletionSmsRow).total_count" type="button" class="completion-automatic-sms-button" @click="openAutomaticSmsModal(activeCompletionSmsRow)">
           <span>✦</span>
           <strong>پیامک‌های اتوماتیک</strong>
-          <small>{{ automaticSmsSummary(activeCompletionSmsRow).active_count.toLocaleString('fa-IR') }} فعال از {{ automaticSmsSummary(activeCompletionSmsRow).total_count.toLocaleString('fa-IR') }} پیامک</small>
+          <small>{{ automaticSmsSummary(activeCompletionSmsRow).active_count.toLocaleString('fa-IR') }} سناریوی فعال از {{ automaticSmsSummary(activeCompletionSmsRow).total_count.toLocaleString('fa-IR') }}</small>
           <b aria-hidden="true">←</b>
         </button>
         <div v-if="activeCompletionSmsRow?.referrerPhone" class="completion-referral-info">معرف: {{ displayPatientPhone(activeCompletionSmsRow.referrerPhone) }} — مبلغ: {{ formatDisplayMoney(activeCompletionSmsRow.referralScore || 0) }} تومان</div>
@@ -2658,6 +2656,8 @@ export default {
       assistantTyping: false,
       // مقدار اعمال‌شدهٔ جستجو؛ با تأخیر کوتاه به‌روز می‌شود تا هر حرف کل ماه را دوباره رندر نکند.
       appliedSearchQuery: "",
+      // وقتی نوبت از صفحهٔ دیگری (مثل پیگیری خدمات) باز می‌شود، جستجو فقط همان نوبت را نشان می‌دهد.
+      searchAppointmentId: null,
       searchDebounceTimer: null,
       searchResults: [],
       searchResultIndex: -1,
@@ -2858,6 +2858,9 @@ export default {
       ],
       inventoryItems: [],
       walletSettings: { enabled: false, default_type: 'percent', default_value: 0, expiry_days: 30, service_overrides: [] },
+      // نتیجهٔ جست‌وجوی معرف بر اساس شمارهٔ نرمال‌شده: { state, id, name, balance }
+      referrerLookups: {},
+      referrerLookupTimer: null,
       bookingRootSectionFilter: "",
       bookingServiceFilter: "",
       bookingResourceFilter: "",
@@ -2984,7 +2987,7 @@ export default {
     // هر تغییری در فیلترها ارتفاع اندازه‌گیری‌شدهٔ روزهای دور از صفحه را باطل می‌کند.
     dayRowsFilterSignature() {
       return JSON.stringify([
-        this.appliedSearchQuery, this.selectedStatuses, this.selectedSources, this.selectedDone,
+        this.appliedSearchQuery, this.searchAppointmentId, this.selectedStatuses, this.selectedSources, this.selectedDone,
         this.selectedGenders, this.selectedAppointmentSms, this.selectedInfoSms,
         this.selectedBeforePhotoStates, this.selectedAfterPhotoStates, this.selectedServiceSections,
         this.selectedServiceDoctors, this.selectedServiceConsultants, this.selectedServiceSubsections,
@@ -4084,6 +4087,7 @@ export default {
       input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       input?.focus({ preventScroll: true });
       this.clearAppointmentSearch();
+      this.searchAppointmentId = request.appointmentId || null;
       this.assistantTyping = true;
       const text = String(request.search).trim();
       for (const char of text) {
@@ -4406,7 +4410,7 @@ export default {
 
     timelinePatientName(row) {
       if (String(row?.lastname || "").trim()) return row.lastname;
-      if (this.isEmptyAppointmentRow(row)) return "خالی";
+      if (this.isEmptyAppointmentRow(row)) return "";
       return "نوبت ثبت‌شده";
     },
 
@@ -7110,6 +7114,7 @@ this.calculateFinalAmount(row)
               // A different row failing must never discard this row's ID and
               // version, or a retry could create the same booking again.
               const row = payloadRows[index];
+              const wasNewAppointment = !row.appointmentId;
               row.appointmentId = appointment.id;
               // A realtime event may have reached this tab before the POST
               // response. Keep the edited row and remove any second card for
@@ -7129,6 +7134,11 @@ this.calculateFinalAmount(row)
               row._commissionSource = appointment.source || '';
               row._commissionLocked = appointment.done === 'انجام شد';
               row.automaticSms = appointment.automatic_sms || row.automaticSms || { items: [], total_count: 0, active_count: 0, sent_count: 0, failed_count: 0, has_active: false };
+              // بعد از ثبت نوبت تازه، اگر از پیگیری سناریوی پیامک اتوماتیکی برای این مراجع فعال است نشان داده می‌شود
+              // تا کسی که نوبت را ثبت کرده بتواند آن را خاموش کند.
+              if (wasNewAppointment && row.automaticSms?.has_active) {
+                setTimeout(() => { if (!this.automaticSmsModalRow) this.openAutomaticSmsModal(row); }, 1200);
+              }
               const rowDay = scheduledDays.find(day => (day.rows || []).includes(row));
               const rowIndex = rowDay?.rows.indexOf(row) ?? -1;
               const unchangedSinceRequest = rowDay && rowIndex >= 0
@@ -8715,30 +8725,40 @@ this.calculateFinalAmount(row)
       return Array.isArray(this.automaticSmsSummary(row).items) ? this.automaticSmsSummary(row).items : [];
     },
 
+    automaticSmsScenarioTitle(item) {
+      const name = String(item?.scenario_name || '').trim();
+      return name.startsWith('سناریو') ? name : `سناریوی ${name}`;
+    },
+
     automaticSmsStatusLabel(status) {
-      return ({
-        waiting_completion: 'منتظر انجام', scheduled: 'زمان‌بندی', sending: 'در حال ارسال',
-        sent: 'ارسال شد', disabled: 'خاموش', cancelled: 'لغو', failed: 'خطا',
-        skipped_returned: 'مراجعه مجدد'
-      })[status] || status || 'نامشخص';
+      return ({ active: 'فعال', disabled: 'خاموش', completed: 'تمام شد', cancelled: 'لغو' })[status] || status || 'نامشخص';
     },
 
     automaticSmsItemCaption(item) {
-      if (item.status === 'sent' && item.sent_at) return `ارسال‌شده ${this.formatAuditDate(item.sent_at)}`;
-      if (item.scheduled_at) return `${Number(item.days_after || 0).toLocaleString('fa-IR')} روز بعد · ${String(item.send_at || '').slice(0, 5)}`;
-      return `پس از انجام کار · ${Number(item.days_after || 0).toLocaleString('fa-IR')} روز بعد`;
+      const progress = `${Number(item.steps_sent || 0).toLocaleString('fa-IR')} از ${Number(item.steps_total || 0).toLocaleString('fa-IR')} پیامک ارسال شده`;
+      const next = item.status === 'active' && item.next_at ? `پیامک بعدی ${new Date(item.next_at).toLocaleDateString('fa-IR')}` : '';
+      const by = item.status === 'disabled' && item.disabled_by ? `خاموش‌شده توسط ${item.disabled_by}` : '';
+      return [item.inventory_tag, progress, next, by].filter(Boolean).join(' · ');
     },
 
+    // خاموش یا روشن کردن یک سناریوی پیگیری برای این مراجع؛ پیامک‌های ارسال‌شده دست نمی‌خورند.
     async toggleAppointmentAutomaticSms(row, item, enabled) {
-      if (!row?.appointmentId || !item?.id || this.automaticSmsSavingIds.includes(item.id)) return;
-      this.automaticSmsSavingIds.push(item.id);
+      const key = item?.enrollment_key;
+      if (!key || this.automaticSmsSavingIds.includes(key)) return;
+      this.automaticSmsSavingIds.push(key);
       try {
-        const { data } = await axios.patch(`/api/appointments/${row.appointmentId}/automatic-sms/${item.id}`, { is_enabled: enabled });
-        row.automaticSms = data?.automatic_sms || row.automaticSms;
+        const { data } = await axios.patch(`/api/followup-automatic-sms/enrollments/${key}`, { enabled });
+        Object.assign(item, data?.enrollment || {});
+        const items = this.automaticSmsItems(row);
+        row.automaticSms = {
+          ...this.automaticSmsSummary(row),
+          active_count: items.filter(entry => entry.status === 'active').length,
+          has_active: items.some(entry => entry.status === 'active'),
+        };
       } catch (error) {
-        await Swal.fire({ icon: 'error', title: 'تغییر پیامک انجام نشد', text: error?.response?.data?.message || 'دوباره تلاش کنید.', confirmButtonText: 'باشه' });
+        await Swal.fire({ icon: 'error', title: 'تغییر سناریو انجام نشد', text: error?.response?.data?.message || 'دوباره تلاش کنید.', confirmButtonText: 'باشه' });
       } finally {
-        this.automaticSmsSavingIds = this.automaticSmsSavingIds.filter(id => id !== item.id);
+        this.automaticSmsSavingIds = this.automaticSmsSavingIds.filter(id => id !== key);
       }
     },
 
@@ -8869,6 +8889,7 @@ this.calculateFinalAmount(row)
       clearTimeout(this.searchDebounceTimer);
       this.searchQuery = '';
       this.appliedSearchQuery = '';
+      this.searchAppointmentId = null;
       this.searchResults = [];
       this.searchResultIndex = -1;
       this.highlightedRowId = null;
@@ -8876,6 +8897,7 @@ this.calculateFinalAmount(row)
 
     scheduleTableSearch() {
       clearTimeout(this.searchDebounceTimer);
+      this.searchAppointmentId = null;
       if (!this.searchQuery.trim()) {
         this.searchTable();
         return;
@@ -8898,6 +8920,12 @@ this.calculateFinalAmount(row)
           .filter(row => this.appointmentSearchText(row).includes(search))
           .map(row => ({ day, row }))
       );
+      if (this.searchAppointmentId) {
+        const only = this.searchResults.filter(result => Number(result.row?.appointmentId) === Number(this.searchAppointmentId));
+        // اگر همان نوبت با این متن پیدا نشد، همهٔ نتایج جستجو نمایش داده می‌شود.
+        if (only.length) this.searchResults = only;
+        else this.searchAppointmentId = null;
+      }
       this.expandMatchingFilteredDays();
       this.showSearchResult(0);
     },
@@ -9774,7 +9802,18 @@ this.calculateFinalAmount(row)
           this.applyDefaultAddons(service, row)
         }
         this.calculateRowAmount(row);
+        // اگر خدمتِ دارای دورهٔ پیگیری بعد از «انجام شد» به نوبت اضافه شود، همان پرسش پیگیری
+        // دوره‌ای که هنگام «انجام شد» پرسیده می‌شود این‌جا هم پرسیده می‌شود.
+        if (service.name && Number(inventory?.followup_days) > 0 && this.isCompletedAppointmentDone(row.done)) {
+          this.confirmFollowupForCompletedRow(row);
+        }
       });
+    },
+
+    async confirmFollowupForCompletedRow(row) {
+      // اگر پیگیری این نوبت قبلاً تأیید شده، ذخیرهٔ بعدی پیگیری خدمت تازه را هم ثبت می‌کند.
+      if (!row.followupConfirmed) await this.confirmServiceFollowup(row);
+      if (row.followupConfirmed) await this.persistDirectAppointment(row);
     },
 
     applyServiceSectionFilter() {
@@ -10098,6 +10137,7 @@ this.calculateFinalAmount(row)
       if (appointmentSearch) {
         return (day.rows || [])
           .filter(row => this.appointmentSearchText(row).includes(appointmentSearch))
+          .filter(row => !this.searchAppointmentId || Number(row.appointmentId) === Number(this.searchAppointmentId))
           .map((row, index) => ({ row, index }))
           .sort(this.compareAppointmentRowsByTime)
           .map((item, index) => {
@@ -10349,7 +10389,98 @@ smsColor(val) {
       const shouldOpen = this.activeServicePopup !== id;
       this.closeAllPopupsAndFilters();
       this.activeServicePopup = shouldOpen ? id : null;
+      if (shouldOpen) {
+        const row = this.days.flatMap(day => day.rows || []).find(item => item._rowId === id);
+        // موجودی معرف ممکن است از آخرین باز شدن پنل تغییر کرده باشد.
+        if (row?.referrerPhone) this.lookupReferrer(this.canonicalReferrerPhone(row.referrerPhone), true);
+      }
+    },
 
+    canonicalReferrerPhone(value) {
+      let digits = this.normalizePhoneDigits(value);
+      if (digits.startsWith("0098")) digits = `0${digits.slice(4)}`;
+      else if (digits.length === 12 && digits.startsWith("98")) digits = `0${digits.slice(2)}`;
+      else if (digits.length === 10 && digits.startsWith("9")) digits = `0${digits}`;
+      return digits;
+    },
+
+    onReferrerPhoneInput(row, event) {
+      const normalized = this.normalizePhoneDigits(event?.target?.value).slice(0, 15);
+      if (event?.target && event.target.value !== normalized) event.target.value = normalized;
+      row.referrerPhone = normalized;
+      this.calculateReferralRewardForRow(row);
+      clearTimeout(this.referrerLookupTimer);
+      const phone = this.canonicalReferrerPhone(normalized);
+      if (phone.length >= 11) {
+        this.referrerLookupTimer = setTimeout(() => this.lookupReferrer(phone), 300);
+      }
+    },
+
+    onReferrerPhoneBlur(row) {
+      const phone = this.canonicalReferrerPhone(row.referrerPhone);
+      if (phone && phone !== row.referrerPhone) {
+        row.referrerPhone = phone;
+        this.calculateReferralRewardForRow(row);
+        this.saveData();
+      }
+      if (phone.length >= 10) this.lookupReferrer(phone);
+    },
+
+    async lookupReferrer(phone, refresh = false) {
+      if (!phone || phone.length < 10) return;
+      const current = this.referrerLookups[phone];
+      if (current && !refresh && ["found", "missing", "loading"].includes(current.state)) return;
+      // هنگام تازه‌سازی، نتیجهٔ قبلی نمایش داده می‌ماند تا پنل چشمک نزند.
+      if (!current || current.state !== "found") this.referrerLookups[phone] = { state: "loading" };
+      try {
+        const { data } = await axios.get(`/api/patients/find-by-phone/${encodeURIComponent(phone)}`);
+        this.referrerLookups[phone] = data
+          ? {
+              state: "found",
+              id: data.id,
+              name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
+              balance: Number(data.wallet_balance || 0),
+            }
+          : { state: "missing" };
+      } catch (error) {
+        this.referrerLookups[phone] = { state: error?.response?.status === 404 ? "missing" : "error" };
+      }
+    },
+
+    referrerInfo(row) {
+      const phone = this.canonicalReferrerPhone(row?.referrerPhone);
+      if (!phone) return { state: "empty" };
+      if (phone.length < 10) return { state: "typing" };
+      const entry = this.referrerLookups[phone] || { state: "loading" };
+      if (entry.state === "found") {
+        const samePatient = (row?.patientId && Number(entry.id) === Number(row.patientId))
+          || this.canonicalReferrerPhone(row?.phone) === phone;
+        if (samePatient) return { ...entry, state: "self" };
+      }
+      return entry;
+    },
+
+    referrerStatusText(row) {
+      return ({
+        empty: "ابتدا شمارهٔ معرف را وارد کنید",
+        typing: "شمارهٔ کامل معرف را وارد کنید",
+        loading: "در حال جست‌وجوی معرف…",
+        missing: "این شماره پرونده ندارد؛ پاداش ثبت نمی‌شود",
+        self: "معرف نمی‌تواند خود بیمار باشد",
+        error: "دریافت موجودی معرف ممکن نشد",
+      })[this.referrerInfo(row).state] || "";
+    },
+
+    referrerInfoTitle(row) {
+      const info = this.referrerInfo(row);
+      if (info.state !== "found") return this.referrerStatusText(row);
+      const reward = this.moneyToNumber(row?.referralScore);
+      const rewardText = !this.walletSettings?.enabled
+        ? "پاداش معرفی در تنظیمات باشگاه مشتریان غیرفعال است."
+        : reward > 0
+          ? `پاداش این نوبت پس از «انجام شد» و تسویهٔ کامل: ${this.formatDisplayMoney(reward)} تومان`
+          : "برای خدمات این نوبت پاداشی تعریف نشده است.";
+      return `${info.name || "معرف"} — موجودی کیف پول: ${this.formatDisplayMoney(info.balance)} تومان\n${rewardText}`;
     },
 
     closeServicePopup() {
@@ -13890,7 +14021,30 @@ tr.data-row td {
   border-bottom:1px solid rgba(0,0,0,0.12);
 }
 
-.referral-section.patient-services-referral-actions{grid-template-columns:minmax(170px,1.35fr) minmax(150px,1.1fr) minmax(130px,1fr) minmax(120px,1fr)}.patient-services-referral-actions .add-service-line-btn{width:100%;height:32px;padding:0 8px}.patient-services-referral-actions .wallet-payment-box{grid-column:auto;justify-content:stretch}.patient-services-referral-actions .wallet-payment-box button{width:100%;height:32px;white-space:nowrap}
+.referral-section.patient-services-referral-actions{grid-template-columns:minmax(170px,1.2fr) minmax(190px,1.4fr) minmax(120px,.8fr);align-items:end}.patient-services-referral-actions .add-service-line-btn{width:100%;height:32px;padding:0 8px}.patient-services-referral-actions .wallet-payment-box{grid-column:auto;justify-content:stretch}.patient-services-referral-actions .wallet-payment-box button{width:100%;height:32px;white-space:nowrap}
+
+/* موجودی و نام معرف، روبه‌روی شمارهٔ معرف در پنل خدمات */
+.patient-services-referral-actions .referrer-phone-input{text-align:right;direction:ltr;unicode-bidi:plaintext}
+.referrer-wallet-info{min-width:0;min-height:32px;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:3px 10px;border:1px dashed #cbd5e1;border-radius:7px;background:#f8fafc;color:#94a3b8;font-size:10px;font-weight:800;line-height:1.35;box-sizing:border-box;overflow:hidden}
+.referrer-wallet-info>*{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.referrer-wallet-info b{font-size:10.5px;font-weight:1000}
+.referrer-wallet-info.is-found{border-style:solid;border-color:#86efac;background:#f0fdf4;color:#166534}
+.referrer-wallet-info.is-loading,.referrer-wallet-info.is-typing{border-color:#bfdbfe;background:#eff6ff;color:#2563eb}
+.referrer-wallet-info.is-missing,.referrer-wallet-info.is-self,.referrer-wallet-info.is-error{border-style:solid;border-color:#fdba74;background:#fff7ed;color:#9a3412}
+.dark .referrer-wallet-info{border-color:#334155;background:#1e293b;color:#94a3b8}
+.dark .referrer-wallet-info.is-found{border-color:#166534;background:#052e1a;color:#86efac}
+.dark .referrer-wallet-info.is-loading,.dark .referrer-wallet-info.is-typing{border-color:#1e40af;background:#172554;color:#93c5fd}
+.dark .referrer-wallet-info.is-missing,.dark .referrer-wallet-info.is-self,.dark .referrer-wallet-info.is-error{border-color:#9a3412;background:#431407;color:#fdba74}
+.referral-field{min-width:0;display:flex;flex-direction:column;gap:4px;margin:0}
+.referral-field-caption{color:#475569;font-size:10px;font-weight:900;line-height:1.3;text-align:right}
+.referral-field .service-select{flex:none!important;width:100%!important;min-width:0!important;height:36px!important;box-sizing:border-box}
+.patient-services-referral-actions .referrer-wallet-info{height:36px;min-height:36px;padding:2px 10px}
+.referral-section.patient-services-referral-actions .add-service-line-btn{height:36px!important}
+.referrer-wallet-info b{font-size:11.5px}
+.referrer-wallet-info.is-found span{font-size:9.5px;opacity:.85}
+.dark .referral-field-caption{color:#cbd5e1}
+@media(max-width:700px){.referral-section.patient-services-referral-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-services-referral-actions .add-service-line-btn{grid-column:1/-1}}
+@media(max-width:420px){.referral-section.patient-services-referral-actions{grid-template-columns:1fr}}
 
 .referral-rule-label{display:none}.wallet-payment-box{grid-column:1/-1;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:0;border:0;background:transparent;color:#166534;font-size:11px;font-weight:800}.wallet-payment-box button{min-height:30px;padding:6px 10px;border:0;border-radius:7px;background:#16a34a;color:#fff;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.wallet-payment-box button:disabled{opacity:.45;cursor:not-allowed}
 

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\Auditable;
-use App\Services\AppointmentAutomaticSmsService;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Schema;
 
@@ -70,11 +69,7 @@ class Appointment extends Model
             $appointment->forceFill(Channel::commissionFlagsForSource($appointment->source));
         });
 
-        static::saved(function (Appointment $appointment): void {
-            if (Schema::hasTable('appointment_automatic_sms')) {
-                app(AppointmentAutomaticSmsService::class)->syncForAppointment($appointment);
-            }
-        });
+        // پیامک اتوماتیک دیگر از خدمات نوبت ساخته نمی‌شود؛ از پیگیری فعال می‌شود (FollowupAutomaticSmsService).
     }
 
     protected $guarded = []; // اجازه ذخیره تمام فیلدها

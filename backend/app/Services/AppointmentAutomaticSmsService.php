@@ -97,30 +97,24 @@ class AppointmentAutomaticSmsService
         });
     }
 
+    /**
+     * روی هر نوبت، سناریوهای پیامک اتوماتیکِ در جریانِ همان شماره (که از پیگیری فعال شده‌اند) نمایش داده می‌شود
+     * تا کسی که نوبت را ثبت می‌کند بتواند هر کدام را خاموش کند.
+     */
     public function decorateAppointments(Collection $appointments): Collection
     {
-        if ($appointments->isEmpty() || ! Schema::hasTable('appointment_automatic_sms')) return $appointments;
+        if ($appointments->isEmpty()) return $appointments;
+        $byPhone = app(FollowupAutomaticSmsService::class)->pendingForPhones($appointments->pluck('phone')->filter());
 
-        $items = AppointmentAutomaticSms::query()
-            ->whereIn('appointment_id', $appointments->pluck('id')->filter())
-            ->with(['project:id,is_active', 'scenario:id,is_active'])
-            ->orderBy('inventory_tag')
-            ->orderBy('days_after')
-            ->orderBy('send_at')
-            ->get()
-            ->groupBy('appointment_id');
-
-        return $appointments->each(function (Appointment $appointment) use ($items): void {
-            $payload = ($items->get($appointment->id) ?? collect())
-                ->map(fn (AppointmentAutomaticSms $item) => $this->payload($item))
-                ->values();
+        return $appointments->each(function (Appointment $appointment) use ($byPhone): void {
+            $items = collect($byPhone->get(FollowupAutomaticSmsService::normalizePhone($appointment->phone), []));
             $appointment->setAttribute('automatic_sms', [
-                'items' => $payload,
-                'total_count' => $payload->count(),
-                'active_count' => $payload->where('effective_enabled', true)->whereNotIn('status', self::TERMINAL)->count(),
-                'sent_count' => $payload->where('status', 'sent')->count(),
-                'failed_count' => $payload->where('status', 'failed')->count(),
-                'has_active' => $payload->contains(fn ($item) => $item['effective_enabled'] && ! in_array($item['status'], self::TERMINAL, true)),
+                'items' => $items->values()->all(),
+                'total_count' => $items->count(),
+                'active_count' => $items->where('status', 'active')->count(),
+                'sent_count' => $items->sum('steps_sent'),
+                'failed_count' => $items->sum('steps_failed'),
+                'has_active' => $items->contains(fn ($item) => $item['status'] === 'active'),
             ]);
         });
     }

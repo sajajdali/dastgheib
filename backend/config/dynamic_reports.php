@@ -28,10 +28,15 @@ use App\Reporting\DynamicReports\Filters\NoReturnFilter;
 use App\Reporting\DynamicReports\Filters\PhoneFilter;
 use App\Reporting\DynamicReports\Filters\ReferrerFilter;
 use App\Reporting\DynamicReports\Filters\ReportDateRangeFilter;
+use App\Reporting\DynamicReports\Filters\DoctorCommissionCompareFilter;
+use App\Reporting\DynamicReports\Filters\ConsultantCommissionCompareFilter;
+use App\Reporting\DynamicReports\Filters\WalletCompareFilter;
 use App\Reporting\DynamicReports\Resolvers\AppointmentFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\FinancialFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\PatientFieldResolver;
 use App\Reporting\DynamicReports\Resolvers\ReferrerFieldResolver;
+use App\Reporting\DynamicReports\Resolvers\CommissionFieldResolver;
+use App\Reporting\DynamicReports\Resolvers\WalletFieldResolver;
 use App\Reporting\DynamicReports\Sources\AppointmentReportSource;
 use App\Reporting\DynamicReports\Sources\PatientReportSource;
 
@@ -81,6 +86,9 @@ return [
         AppointmentDepositCompareFilter::class,
         AppointmentPaymentMethodFilter::class,
         AppointmentPaymentAccountFilter::class,
+        DoctorCommissionCompareFilter::class,
+        ConsultantCommissionCompareFilter::class,
+        WalletCompareFilter::class,
     ],
 
     // Adding an output field only requires a label and a dedicated resolver.
@@ -94,6 +102,15 @@ return [
         'income' => 'درآمد و هزینه', 'discount' => 'تخفیف', 'finstatus' => 'وضعیت مالی', 'debt' => 'بدهی',
         'deposit' => 'بیعانه', 'payment' => 'روش پرداخت', 'account' => 'حساب واریزی', 'doctor' => 'پزشک',
         'consultant' => 'مشاور', 'salary' => 'حقوق', 'overtime' => 'اضافه کار',
+        'doctorCommission' => 'پورسانت پزشک', 'consultantCommission' => 'پورسانت مشاور',
+        'walletDeposit' => 'واریز کیف پول', 'walletWithdraw' => 'برداشت کیف پول',
+    ],
+
+    // ستون‌های مبلغی که در ردیف «جمع کل» گزارش‌ساز روی همهٔ ردیف‌های گزارش (نه فقط صفحهٔ فعلی) جمع زده می‌شوند.
+    // «اضافه کار» ساعت است و جمع ندارد؛ «درآمد و هزینه» دو مبلغ دارد و هر کدام جدا جمع می‌شود.
+    'money_fields' => [
+        'amount', 'income', 'discount', 'debt', 'deposit', 'salary',
+        'doctorCommission', 'consultantCommission', 'walletDeposit', 'walletWithdraw',
     ],
 
     'field_resolvers' => [
@@ -101,5 +118,7 @@ return [
         AppointmentFieldResolver::class,
         FinancialFieldResolver::class,
         ReferrerFieldResolver::class,
+        CommissionFieldResolver::class,
+        WalletFieldResolver::class,
     ],
 ];

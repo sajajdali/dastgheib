@@ -15,6 +15,8 @@ use Tests\TestCase;
 
 class DynamicReportSourcesTest extends TestCase
 {
+    use DynamicReportPayrollWalletFixtures;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -145,5 +147,61 @@ class DynamicReportSourcesTest extends TestCase
                 $report->rows()->pluck('source_id')->all());
             if ($scope === 'appointments') $this->assertSame(1, $report->rows()->whereNull('patient_id')->count());
         }
+    }
+
+    public function test_commission_and_wallet_columns_filter_and_render_in_both_report_bases(): void
+    {
+        $pdo = DB::connection()->getPdo();
+        $pdo->sqliteCreateFunction('CONCAT', fn (...$parts) => implode('', $parts));
+        $pdo->sqliteCreateFunction('LPAD', fn ($value, $length, $fill) => str_pad((string) $value, (int) $length, (string) $fill, STR_PAD_LEFT));
+        Schema::create('dynamic_reports', function (Blueprint $table) {
+            $table->uuid('id')->primary(); $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('status'); $table->integer('progress')->default(0); $table->string('stage')->nullable();
+            $table->json('columns'); $table->json('filters'); $table->unsignedBigInteger('total_rows')->default(0);
+            $table->unsignedBigInteger('processed_rows')->default(0); $table->text('error')->nullable();
+            $table->timestamp('completed_at')->nullable(); $table->timestamps();
+        });
+        Schema::create('dynamic_report_rows', function (Blueprint $table) {
+            $table->id(); $table->uuid('report_id'); $table->unsignedBigInteger('patient_id')->nullable();
+            $table->string('source_type')->nullable(); $table->unsignedBigInteger('source_id')->nullable();
+            $table->json('payload'); $table->timestamp('created_at')->nullable();
+        });
+        $this->createPayrollAndWalletTables();
+        $patientId = DB::table('patients')->insertGetId(['first_name' => 'سارا', 'phone' => '09120000000', 'file_number' => '1001', 'customer_level' => 'problematic']);
+        $otherId = DB::table('patients')->insertGetId(['first_name' => 'نگین', 'phone' => '09350000000', 'file_number' => '2002', 'customer_level' => 'problematic']);
+        $withCommission = DB::table('appointments')->insertGetId(['file_number' => '1001', 'phone' => '09120000000', 'month' => '1405-07', 'day_num' => 10, 'status' => 'آمد']);
+        $withoutCommission = DB::table('appointments')->insertGetId(['file_number' => '1001', 'phone' => '09120000000', 'month' => '1405-07', 'day_num' => 12, 'status' => 'آمد']);
+        $otherPatient = DB::table('appointments')->insertGetId(['file_number' => '2002', 'phone' => '09350000000', 'month' => '1405-07', 'day_num' => 11, 'status' => 'آمد']);
+        $this->seedCommissionLines($withCommission, 999);
+        $this->seedWalletTransactions($patientId, $otherId);
+        $range = ['from' => '1405-07-01', 'to' => '1405-07-30'];
+        $columns = ['fileNo', 'doctorCommission', 'consultantCommission', 'walletDeposit', 'walletWithdraw'];
+        $generate = function (string $scope, array $values, array $comparators) use ($columns, $range) {
+            $report = DynamicReport::query()->create([
+                'columns' => $columns, 'status' => 'queued',
+                'filters' => ['scope' => $scope, 'reportDate' => $range, 'values' => $values, 'comparators' => $comparators],
+            ]);
+            app()->call([new GenerateDynamicReport($report->id), 'handle']);
+            return $report->rows()->orderBy('id')->get();
+        };
+
+        // بدون فیلتر: هر نوبت پورسانت خودش را دارد و کیف پول جمع بازهٔ پرونده است.
+        $rows = $generate('appointments', [], []);
+        $this->assertCount(3, $rows);
+        $byAppointment = $rows->keyBy('source_id');
+        $this->assertSame(['fileNo' => '1001', 'doctorCommission' => '350,000', 'consultantCommission' => '80,000', 'walletDeposit' => '400,000', 'walletWithdraw' => '300,000'],
+            collect($byAppointment[$withCommission]->payload)->only($columns)->all());
+        $this->assertSame('0', $byAppointment[$withoutCommission]->payload['doctorCommission']);
+        $this->assertSame('900,000', $byAppointment[$otherPatient]->payload['walletDeposit']);
+
+        $this->assertSame([$withCommission], $generate('appointments', ['doctorCommission' => '300000'], ['doctorCommission' => 'gt'])->pluck('source_id')->all());
+        $this->assertSame([$withCommission], $generate('appointments', ['consultantCommission' => '80000'], ['consultantCommission' => 'eq'])->pluck('source_id')->all());
+        $this->assertEqualsCanonicalizing([$withCommission, $withoutCommission], $generate('appointments', ['walletWithdraw' => '300000'], ['walletWithdraw' => 'eq'])->pluck('source_id')->all());
+        $this->assertSame([$otherPatient], $generate('appointments', ['walletDeposit' => '500000'], ['walletDeposit' => 'gt'])->pluck('source_id')->all());
+
+        // مبنای پرونده‌ها: فیلتر پورسانت روی هر نوبت بازه، فیلتر کیف پول روی خود پرونده.
+        $this->assertSame([$patientId], $generate('patients', ['doctorCommission' => '350000'], ['doctorCommission' => 'eq'])->pluck('source_id')->all());
+        $this->assertSame([$otherId], $generate('patients', ['walletDeposit' => '400000'], ['walletDeposit' => 'gt'])->pluck('source_id')->all());
+        $this->assertSame([$patientId], $generate('patients', ['walletWithdraw' => '100'], ['walletWithdraw' => 'gt'])->pluck('source_id')->all());
     }
 }

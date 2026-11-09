@@ -82,12 +82,7 @@ class DynamicReportController extends Controller
                 ->orderBy('appointments.time', $direction);
         }
         $rows = $rowsQuery->orderBy('dynamic_report_rows.id', $direction)->paginate($perPage);
-        $amountTotal = 0;
-        if (in_array('amount', $dynamicReport->columns ?? [], true)) {
-            $amountTotal = $dynamicReport->rows()->cursor()->sum(function ($row) {
-                return (float) str_replace([',', '٬', ' '], '', (string) data_get($row->payload, 'amount', 0));
-            });
-        }
+        $totals = $this->moneyTotals($dynamicReport);
         $patients = Patient::query()
             ->whereKey($rows->getCollection()->pluck('patient_id')->filter()->unique())
             ->get(['id', 'file_number', 'phone', 'first_name', 'last_name', 'customer_level', 'profile_photo_path', 'profile_thumbnail_path']);
@@ -117,7 +112,7 @@ class DynamicReportController extends Controller
                 'per_page' => $rows->perPage(), 'total' => $rows->total(),
                 'from' => $rows->firstItem(), 'to' => $rows->lastItem(),
             ],
-            'summary' => ['amount_total' => $amountTotal],
+            'summary' => ['amount_total' => (float) ($totals['amount'] ?? 0), 'totals' => $totals],
         ]);
     }
 
@@ -154,6 +149,40 @@ class DynamicReportController extends Controller
             'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
             'Cache-Control' => 'no-store',
         ]);
+    }
+
+    /** جمع ستون‌های مبلغی روی همهٔ ردیف‌های گزارش، نه فقط صفحهٔ فعلی. */
+    private function moneyTotals(DynamicReport $report): array
+    {
+        $keys = array_values(array_intersect(config('dynamic_reports.money_fields', []), $report->columns ?? []));
+        if ($keys === []) return [];
+
+        $totals = array_fill_keys($keys, 0.0);
+        if (in_array('income', $keys, true)) $totals['income'] = ['income' => 0.0, 'expense' => 0.0];
+
+        foreach ($report->rows()->select(['id', 'payload'])->cursor() as $row) {
+            foreach ($keys as $key) {
+                $value = data_get($row->payload, $key);
+                if ($key === 'income') {
+                    // «درآمد: X · هزینه: Y»
+                    $parts = preg_split('/·/u', (string) $value);
+                    $totals['income']['income'] += $this->moneyNumber($parts[0] ?? '');
+                    $totals['income']['expense'] += $this->moneyNumber($parts[1] ?? '');
+                    continue;
+                }
+                $totals[$key] += $this->moneyNumber($value);
+            }
+        }
+
+        return $totals;
+    }
+
+    private function moneyNumber(mixed $value): float
+    {
+        $text = strtr((string) $value, ['۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9']);
+        $text = preg_replace('/[^0-9.\-]/', '', $text);
+
+        return is_numeric($text) ? (float) $text : 0.0;
     }
 
     private function authorizeReport(Request $request, DynamicReport $report): void

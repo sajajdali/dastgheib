@@ -552,6 +552,10 @@ class AppointmentController extends Controller
                 }
 
                 $this->assertAppointmentSlotAvailable($incoming, $data['month'], $previous);
+                // «تأیید پیگیری دوره‌ای» ستونی در جدول نوبت ندارد. بعد از «انجام شد» نوبت یک بار ذخیره
+                // می‌شود و تأیید پیگیری در ذخیرهٔ بعدیِ همان نوبتِ بدون تغییر می‌رسد؛ پس پیش از رد شدن
+                // ردیف‌های بدون تغییر خوانده می‌شود تا پیگیری خدمات ثبت شود.
+                $followupConfirmed = filter_var($incoming['followup_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN);
                 // A delayed browser request containing an empty slot must
                 // never clear a booking which has already been persisted.
                 // Clearing the row on its current version is a deliberate
@@ -570,6 +574,7 @@ class AppointmentController extends Controller
                 // Never write a row which is already identical: doing so would
                 // increase its version merely by opening/using another row.
                 if ($previous && $this->incomingAppointmentMatches($incoming, $previous)) {
+                    if ($followupConfirmed) $this->syncServiceFollowups($previous);
                     $saved[] = $previous->fresh();
                     continue;
                 }
@@ -581,13 +586,13 @@ class AppointmentController extends Controller
                     // into a conflict). Only a materially changed stale row
                     // is a genuine concurrent-edit conflict.
                     if ($this->incomingAppointmentMatches($incoming, $previous)) {
+                        if ($followupConfirmed) $this->syncServiceFollowups($previous);
                         $saved[] = $previous->fresh();
                         continue;
                     }
                     abort(409, 'این نوبت در دستگاه یا مرورگر دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.');
                 }
 
-                $followupConfirmed = filter_var($incoming['followup_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN);
                 unset($incoming['id'], $incoming['appointment_id'], $incoming['lock_version'], $incoming['followup_confirmed'], $incoming['_client_key']);
                 $incoming = collect($incoming)->only([
                     'day_num', 'sort_order', 'lastname', 'gender', 'phone',
@@ -2381,6 +2386,9 @@ class AppointmentController extends Controller
         $completedAt = $appointment->completed_at ? now()->parse($appointment->completed_at) : now();
         Inventory::query()->whereIn('name', $services)->where('followup_days', '>', 0)->get()->each(function (Inventory $item) use ($appointment, $completedAt) {
             $sourceKey = sha1(implode('|', [$appointment->phone, $appointment->month, $appointment->day_num, $item->id]));
+            // پیگیری‌ای که روی آن اقدام شده (تماس، نوبت، ...) با ذخیرهٔ دوبارهٔ نوبت به حالت اول برنمی‌گردد.
+            $existing = ServiceFollowup::query()->where('source_key', $sourceKey)->first();
+            if ($existing && $existing->status !== 'pending') return;
             ServiceFollowup::updateOrCreate(['source_key' => $sourceKey], [
                 'appointment_id' => $appointment->id,
                 'inventory_id' => $item->id,
@@ -2996,8 +3004,8 @@ class AppointmentController extends Controller
         $settingsRaw = AppSetting::getByKey('referral_wallet_settings', '{}');
         $settings = is_string($settingsRaw) ? json_decode($settingsRaw, true) : $settingsRaw;
         $settings = is_array($settings) ? $settings : [];
-        $phone = trim((string) ($appointment['referrer_phone'] ?? ''));
-        $referrer = $phone !== '' ? Patient::query()->where('phone', $phone)->first() : null;
+        $phone = $this->normalizePhoneDigits($appointment['referrer_phone'] ?? '');
+        $referrer = $this->findPatientByNormalizedPhone($phone);
         $referred = $this->appointmentPatient((new Appointment())->forceFill($appointment));
         if ($referrer && $referred && (int) $referrer->id === (int) $referred->id) $referrer = null;
         $isCompleted = trim((string) ($appointment['done'] ?? '')) === 'انجام شد';
@@ -3080,6 +3088,32 @@ class AppointmentController extends Controller
             'breakdown' => $breakdown,
             'signature' => sha1(json_encode([$phone, $breakdown], JSON_UNESCAPED_UNICODE)),
         ];
+    }
+
+    /** Persian/Arabic digits → ASCII and drop separators, so «۰۹۱۲ ۳۴۵ ۶۷۸۹» matches 09123456789. */
+    private function normalizePhoneDigits(mixed $value): string
+    {
+        $digits = strtr(trim((string) $value), [
+            '۰'=>'0', '۱'=>'1', '۲'=>'2', '۳'=>'3', '۴'=>'4', '۵'=>'5', '۶'=>'6', '۷'=>'7', '۸'=>'8', '۹'=>'9',
+            '٠'=>'0', '١'=>'1', '٢'=>'2', '٣'=>'3', '٤'=>'4', '٥'=>'5', '٦'=>'6', '٧'=>'7', '٨'=>'8', '٩'=>'9',
+        ]);
+
+        return preg_replace('/\D+/', '', $digits) ?? '';
+    }
+
+    private function findPatientByNormalizedPhone(string $phone): ?Patient
+    {
+        if ($phone === '') return null;
+
+        $patient = Patient::query()->where('phone', $phone)->first();
+        if ($patient) return $patient;
+
+        $column = 'phone';
+        foreach (['۰'=>'0', '۱'=>'1', '۲'=>'2', '۳'=>'3', '۴'=>'4', '۵'=>'5', '۶'=>'6', '۷'=>'7', '۸'=>'8', '۹'=>'9', '٠'=>'0', '١'=>'1', '٢'=>'2', '٣'=>'3', '٤'=>'4', '٥'=>'5', '٦'=>'6', '٧'=>'7', '٨'=>'8', '٩'=>'9', ' '=>'', '-'=>''] as $from => $to) {
+            $column = "REPLACE({$column}, '{$from}', '{$to}')";
+        }
+
+        return Patient::query()->whereRaw("{$column} = ?", [$phone])->first();
     }
 
     private function appointmentPatient(Appointment $appointment): ?Patient

@@ -2,21 +2,21 @@
   <section class="photos-page" dir="rtl">
     <header class="photos-title">
       <div><h1>عکس‌ها</h1><p>جست‌وجو و مقایسه یک‌نگاه تصاویر قبل و بعد بیماران</p></div>
-      <span>{{ comparisons.length }} نتیجه</span>
+      <span>{{ resultGroups.length.toLocaleString('fa-IR') }} نتیجه</span>
     </header>
 
     <div class="advanced-search">
       <div class="photos-filter-row photos-filter-primary">
         <div class="search-main"><span>⌕</span><input v-model.trim="filters.q" @keyup.enter="load" placeholder="نام، پرونده یا موبایل"></div>
         <div class="tag-search-filter">
-          <select v-model="filters.tag" aria-label="فیلتر ناحیه" @change="load">
+          <!-- نواحی همان خدماتی است که موقع ساخت پوشهٔ عکس انتخاب می‌شود -->
+          <select v-model="filters.service_id" aria-label="فیلتر ناحیه" @change="load">
             <option value="">همه نواحی</option>
-            <option v-for="tag in tags" :key="tag" :value="tag">{{ tag }}</option>
+            <option v-for="option in serviceOptions" :key="option.id" :value="String(option.id)">{{ option.is_root ? `${option.label} (همه)` : option.label }}</option>
           </select>
         </div>
         <select v-model="filters.gender"><option value="">جنسیت</option><option value="female">زن</option><option value="male">مرد</option></select>
         <select v-model="filters.age_group"><option value="">سن براساس تاریخ تولد</option><option value="young">جوان (زیر ۴۰ سال)</option><option value="old">پیر (۴۰ سال و بیشتر)</option></select>
-        <select v-model="filters.angle"><option value="">زاویه</option><option v-for="item in angles" :key="item.key" :value="item.key">{{ item.label }}</option></select>
         <select v-model="filters.featured"><option value="">نوع تصویر</option><option value="featured">★ برترین‌ها</option><option value="regular">معمولی</option></select>
       </div>
 
@@ -41,36 +41,23 @@
       </div>
     </div>
 
-    <div class="angle-filter-row">
-      <button :class="{ active: !filters.angle }" @click="filters.angle = ''; load()">زاویه‌ها</button>
-      <button v-for="item in angles" :key="`chip-${item.key}`" :class="{ active: filters.angle === item.key }" @click="filters.angle = item.key; load()">{{ item.label }}</button>
-    </div>
 
     <div v-if="error" class="photos-error">{{ error }}</div>
     <div v-if="loading" class="photos-loading"><i></i><span>در حال دریافت تصاویر...</span></div>
 
     <div v-else-if="comparisons.length" class="comparison-layout">
-      <aside class="comparison-results">
-        <div v-if="featuredComparisons.length" class="result-section-title featured-title"><span>★</span> برترین‌ها <b>{{ featuredComparisons.length }}</b></div>
-        <button v-for="item in featuredComparisons" :key="`featured-${item.key}`" :class="{ active: selected?.key === item.key, featured: true }" @click="selected = item">
-          <div class="result-thumbs" :class="{ sensitive: hasSensitivePhoto(item) }">
-            <img v-if="item.before" :class="{ sensitive: item.before.usage_consent === false }" :src="item.before.url" alt="قبل"><span v-else>قبل</span>
-            <img v-if="item.after" :class="{ sensitive: item.after.usage_consent === false }" :src="item.after.url" alt="بعد"><span v-else>بعد</span>
-            <b v-if="hasSensitivePhoto(item)" class="sensitive-photo-badge">عکس حساس</b>
-          </div>
-          <strong>{{ patientName(item.patient) }} <em v-if="item.before?.usage_consent === false || item.after?.usage_consent === false" class="consent-warning">عدم رضایت استفاده از تصاویر</em></strong>
-          <small>{{ item.angle_label }} · {{ item.date || 'بدون تاریخ' }}</small>
-          <div class="tiny-tags"><em v-for="tag in item.tags" :key="tag.id">{{ tag.name }}</em></div>
-        </button>
-        <div v-if="regularComparisons.length" class="result-section-title">سایر تصاویر <b>{{ regularComparisons.length }}</b></div>
-        <button v-for="item in regularComparisons" :key="item.key" :class="{ active: selected?.key === item.key }" @click="selected = item">
-          <div class="result-thumbs" :class="{ sensitive: hasSensitivePhoto(item) }"><img v-if="item.before" :class="{ sensitive: item.before.usage_consent === false }" :src="item.before.url" alt="قبل"><span v-else>قبل</span><img v-if="item.after" :class="{ sensitive: item.after.usage_consent === false }" :src="item.after.url" alt="بعد"><span v-else>بعد</span><b v-if="hasSensitivePhoto(item)" class="sensitive-photo-badge">عکس حساس</b></div>
-          <strong>{{ patientName(item.patient) }} <em v-if="item.before?.usage_consent === false || item.after?.usage_consent === false" class="consent-warning">عدم رضایت استفاده از تصاویر</em></strong><small>{{ item.angle_label }} · {{ item.date || 'بدون تاریخ' }}</small>
-          <div class="tiny-tags"><em v-for="tag in item.tags" :key="tag.id">{{ tag.name }}</em></div>
-        </button>
-      </aside>
 
       <main v-if="selected" class="comparison-viewer">
+        <!-- جابه‌جایی بین نتایج (هر بیمار/تاریخ/خدمت یک نتیجه؛ زاویه‌ها پایین‌تر) -->
+        <div v-if="resultGroups.length > 1" class="result-nav">
+          <button type="button" class="result-nav-btn" title="نتیجهٔ قبلی" aria-label="نتیجهٔ قبلی" @click="selectAdjacentResult(-1)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg><span>قبلی</span>
+          </button>
+          <span class="result-nav-count">نتیجهٔ {{ (currentResultIndex + 1).toLocaleString('fa-IR') }} از {{ resultGroups.length.toLocaleString('fa-IR') }}</span>
+          <button type="button" class="result-nav-btn" title="نتیجهٔ بعدی" aria-label="نتیجهٔ بعدی" @click="selectAdjacentResult(1)">
+            <span>بعدی</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+        </div>
         <div class="viewer-meta">
           <div><h2>{{ selected.is_featured ? '★ ' : '' }}{{ patientName(selected.patient) }}</h2><p>پرونده {{ selected.patient?.file_number || '-' }} · {{ displayPatientPhone(selected.patient?.phone) || '-' }}</p><em v-if="selected.before?.usage_consent === false || selected.after?.usage_consent === false" class="consent-warning large">عدم رضایت استفاده از تصاویر</em></div>
           <div class="viewer-facts"><span>{{ selected.angle_label }}</span><span>{{ selected.date || 'بدون تاریخ' }}</span></div>
@@ -130,13 +117,29 @@ export default {
     permissions: { type: Array, default: () => [] }
   },
   data: () => ({
-    angles: ANGLES, services: [], tags: [], comparisons: [], selected: null, loading: false, error: '',
-    filters: { q: '', tag: '', gender: '', age_group: '', angle: '', featured: '', date_from: '', date_to: '', only_complete: false, consented_only: false }
+    angles: ANGLES, serviceOptions: [], comparisons: [], selected: null, loading: false, error: '',
+    filters: { q: '', service_id: '', gender: '', age_group: '', featured: '', date_from: '', date_to: '', only_complete: false, consented_only: false }
   }),
   computed: {
     canViewPatientPhone() { return this.permissions.includes('patients.view_phone') && !this.permissions.includes('patients.hide_phone') },
     featuredComparisons() { return this.comparisons.filter(item => item.is_featured) },
     regularComparisons() { return this.comparisons.filter(item => !item.is_featured) },
+    // هر نتیجه = یک بیمار در یک تاریخ و یک خدمت؛ برترین‌ها اول.
+    resultGroups() {
+      const groups = new Map()
+      const ordered = [...this.comparisons.filter(item => item.is_featured), ...this.comparisons.filter(item => !item.is_featured)]
+      ordered.forEach(item => {
+        const key = this.resultKey(item)
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key).push(item)
+      })
+      return [...groups.values()]
+    },
+    currentResultIndex() {
+      if (!this.selected) return -1
+      const key = this.resultKey(this.selected)
+      return this.resultGroups.findIndex(group => this.resultKey(group[0]) === key)
+    },
     selectedPatientAngles() {
       if (!this.selected) return []
       const patientId = this.selected.patient?.id
@@ -173,6 +176,22 @@ export default {
       return `/api/patients/${patientId}/media/files/${media?.id}/download`
     },
     hasSensitivePhoto(item) { return item?.before?.usage_consent === false || item?.after?.usage_consent === false },
+    resultKey(item) {
+      return [item?.patient?.id || item?.patient?.file_number || '', item?.date || '', item?.service?.id || ''].join('|')
+    },
+    // تمام‌رخ اگر هست، وگرنه اولین زاویه به ترتیب نیم‌رخ راست تا چپ.
+    firstAngleOf(group) {
+      if (!group?.length) return null
+      const order = new Map(this.angles.map((angle, index) => [angle.key, index]))
+      return group.find(item => item.angle_key === 'front')
+        || [...group].sort((a, b) => (order.get(a.angle_key) ?? 999) - (order.get(b.angle_key) ?? 999))[0]
+    },
+    selectAdjacentResult(step) {
+      const count = this.resultGroups.length
+      if (!count) return
+      const next = (Math.max(0, this.currentResultIndex) + step + count) % count
+      this.selected = this.firstAngleOf(this.resultGroups[next])
+    },
     selectAdjacentAngle(step) {
       const list = this.selectedPatientAngles
       if (!list.length) return
@@ -188,15 +207,14 @@ export default {
         const res = await fetch(`/api/photo-comparisons?${params}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.message || 'دریافت تصاویر انجام نشد')
-        this.services = data.services || []
-        this.tags = data.tags || []
+        this.serviceOptions = data.service_options || []
         this.comparisons = data.comparisons || []
-        this.selected = this.comparisons.find(item => item.key === this.selected?.key) || this.comparisons[0] || null
+        this.selected = this.comparisons.find(item => item.key === this.selected?.key) || this.firstAngleOf(this.resultGroups[0]) || null
       } catch (error) { this.error = error.message || 'دریافت تصاویر انجام نشد' }
       finally { this.loading = false }
     },
     clearFilters() {
-      this.filters = { q: '', tag: '', gender: '', age_group: '', angle: '', featured: '', date_from: '', date_to: '', only_complete: false, consented_only: false }
+      this.filters = { q: '', service_id: '', gender: '', age_group: '', featured: '', date_from: '', date_to: '', only_complete: false, consented_only: false }
       this.load()
     }
   }
@@ -208,7 +226,7 @@ export default {
 .tag-search-filter{position:relative;min-width:0}.tag-search-filter select{width:100%;height:41px;padding:0 10px;border:1px solid #dbe3ec;border-radius:10px;background:#fff;color:#334155;font-family:inherit;font-weight:800;outline:none}.tag-search-filter select:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.12)}
 .consent-filter{border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#047857!important}.consent-filter input{accent-color:#059669}
 .before-after-grid article.no-consent-photo{border:3px solid #ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.12)}
-.photos-page{min-height:calc(100vh - 130px);padding:24px;background:#f5f7fb;color:#0f172a;font-family:inherit}.photos-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.photos-title h1{margin:0 0 5px;font-size:25px}.photos-title p{margin:0;color:#64748b;font-size:13px}.photos-title>span{padding:8px 13px;border-radius:20px;background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:900}.advanced-search{display:grid;grid-template-columns:2fr repeat(3,minmax(130px,1fr)) repeat(2,minmax(145px,.8fr));gap:9px;padding:15px;border:1px solid #e2e8f0;border-radius:17px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.05)}.advanced-search input,.advanced-search select{height:41px;min-width:0;border:1px solid #dbe3ec;border-radius:10px;padding:0 10px;background:#fff;font-family:inherit;outline:none}.search-main{position:relative}.search-main input{width:100%;padding-right:34px}.search-main span{position:absolute;right:12px;top:8px;color:#64748b;font-size:20px}.complete-filter{display:flex;align-items:center;gap:7px;padding:0 8px;color:#475569;font-size:12px;font-weight:800}.complete-filter input{height:auto}.search-btn,.clear-btn{height:40px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.search-btn{background:#2563eb;color:#fff}.clear-btn{background:#f1f5f9;color:#475569}.photo-icon-action{width:42px;min-width:42px;padding:0;display:grid;place-items:center}.photo-icon-action svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.photo-action-spinner{width:18px;height:18px;border:3px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}.angle-filter-row{display:flex;gap:7px;margin:13px 0;overflow-x:auto;padding-bottom:3px}.angle-filter-row button{flex:none;padding:8px 12px;border:1px solid #dbe3ec;border-radius:20px;background:#fff;color:#64748b;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}.angle-filter-row button.active{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}.comparison-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:14px;min-height:590px}.comparison-results{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 285px);overflow-y:auto}.comparison-results>button{padding:10px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;text-align:right;font-family:inherit;cursor:pointer}.comparison-results>button.active{border-color:#2563eb;box-shadow:0 0 0 2px #dbeafe}.result-thumbs{display:grid;grid-template-columns:1fr 1fr;height:82px;gap:4px;margin-bottom:8px;overflow:hidden;border-radius:9px;background:#f1f5f9}.result-thumbs img{width:100%;height:100%;object-fit:cover}.result-thumbs span{display:grid;place-items:center;color:#94a3b8;font-size:11px}.comparison-results strong{display:block;font-size:12px}.comparison-results small{display:block;margin-top:3px;color:#64748b;font-size:10px}.tiny-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.tiny-tags em{padding:3px 6px;border-radius:10px;background:#ecfdf5;color:#047857;font-size:9px;font-style:normal;font-weight:800}.comparison-viewer{padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:#fff;box-shadow:0 12px 35px rgba(15,23,42,.06)}.viewer-meta{display:flex;align-items:center;justify-content:space-between;gap:12px}.viewer-meta h2{margin:0 0 4px;font-size:19px}.viewer-meta p{margin:0;color:#64748b;font-size:11px}.viewer-facts{display:flex;gap:7px}.viewer-facts span,.viewer-tags span{padding:6px 10px;border-radius:15px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:900}.viewer-tags{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.viewer-tags span{background:#ecfdf5;color:#047857}.before-after-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;height:490px}.before-after-grid article{display:flex;flex-direction:column;min-width:0;border:1px solid #e2e8f0;border-radius:15px;overflow:hidden;background:#0f172a}.before-after-grid header{display:flex;align-items:center;justify-content:space-between;padding:8px 13px;background:#fff}.before-after-grid header>div{display:flex;align-items:center;gap:8px}.before-after-grid header b{font-size:14px}.before-after-grid header small{color:#64748b}.photo-download-btn{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap}.photo-download-btn:hover{border-color:#60a5fa;background:#dbeafe}.before-after-grid img{width:100%;height:100%;min-height:0;object-fit:contain}.missing-photo{flex:1;display:grid;place-items:center;color:#94a3b8}.photos-loading,.photos-empty,.photos-error{display:flex;align-items:center;justify-content:center;gap:10px;min-height:250px;border:1px dashed #cbd5e1;border-radius:16px;background:#fff;color:#64748b;font-weight:800}.photos-loading i{width:30px;height:30px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}.photos-error{color:#b91c1c;background:#fef2f2}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:1100px){.advanced-search{grid-template-columns:repeat(3,1fr)}.search-main{grid-column:span 2}}@media(max-width:800px){.photos-page{padding:12px}.advanced-search{grid-template-columns:1fr 1fr}.search-main{grid-column:span 2}.comparison-layout{grid-template-columns:1fr}.comparison-results{flex-direction:row;max-height:none;overflow-x:auto}.comparison-results>button{min-width:220px}.before-after-grid{height:auto;grid-template-columns:1fr}.before-after-grid article{min-height:360px}}
+.photos-page{min-height:calc(100vh - 130px);padding:24px;background:#f5f7fb;color:#0f172a;font-family:inherit}.photos-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}.photos-title h1{margin:0 0 5px;font-size:25px}.photos-title p{margin:0;color:#64748b;font-size:13px}.photos-title>span{padding:8px 13px;border-radius:20px;background:#e0e7ff;color:#3730a3;font-size:12px;font-weight:900}.advanced-search{display:grid;grid-template-columns:2fr repeat(3,minmax(130px,1fr)) repeat(2,minmax(145px,.8fr));gap:9px;padding:15px;border:1px solid #e2e8f0;border-radius:17px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.05)}.advanced-search input,.advanced-search select{height:41px;min-width:0;border:1px solid #dbe3ec;border-radius:10px;padding:0 10px;background:#fff;font-family:inherit;outline:none}.search-main{position:relative}.search-main input{width:100%;padding-right:34px}.search-main span{position:absolute;right:12px;top:8px;color:#64748b;font-size:20px}.complete-filter{display:flex;align-items:center;gap:7px;padding:0 8px;color:#475569;font-size:12px;font-weight:800}.complete-filter input{height:auto}.search-btn,.clear-btn{height:40px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.search-btn{background:#2563eb;color:#fff}.clear-btn{background:#f1f5f9;color:#475569}.photo-icon-action{width:42px;min-width:42px;padding:0;display:grid;place-items:center}.photo-icon-action svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.photo-action-spinner{width:18px;height:18px;border:3px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}.angle-filter-row{display:flex;gap:7px;margin:13px 0;overflow-x:auto;padding-bottom:3px}.angle-filter-row button{flex:none;padding:8px 12px;border:1px solid #dbe3ec;border-radius:20px;background:#fff;color:#64748b;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}.angle-filter-row button.active{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}.comparison-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-height:590px;margin-top:14px}.comparison-results{display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 285px);overflow-y:auto}.comparison-results>button{padding:10px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;text-align:right;font-family:inherit;cursor:pointer}.comparison-results>button.active{border-color:#2563eb;box-shadow:0 0 0 2px #dbeafe}.result-thumbs{display:grid;grid-template-columns:1fr 1fr;height:82px;gap:4px;margin-bottom:8px;overflow:hidden;border-radius:9px;background:#f1f5f9}.result-thumbs img{width:100%;height:100%;object-fit:cover}.result-thumbs span{display:grid;place-items:center;color:#94a3b8;font-size:11px}.comparison-results strong{display:block;font-size:12px}.comparison-results small{display:block;margin-top:3px;color:#64748b;font-size:10px}.tiny-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.tiny-tags em{padding:3px 6px;border-radius:10px;background:#ecfdf5;color:#047857;font-size:9px;font-style:normal;font-weight:800}.comparison-viewer{padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:#fff;box-shadow:0 12px 35px rgba(15,23,42,.06)}.viewer-meta{display:flex;align-items:center;justify-content:space-between;gap:12px}.viewer-meta h2{margin:0 0 4px;font-size:19px}.viewer-meta p{margin:0;color:#64748b;font-size:11px}.viewer-facts{display:flex;gap:7px}.viewer-facts span,.viewer-tags span{padding:6px 10px;border-radius:15px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:900}.viewer-tags{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.viewer-tags span{background:#ecfdf5;color:#047857}.before-after-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;height:490px}.before-after-grid article{display:flex;flex-direction:column;min-width:0;border:1px solid #e2e8f0;border-radius:15px;overflow:hidden;background:#0f172a}.before-after-grid header{display:flex;align-items:center;justify-content:space-between;padding:8px 13px;background:#fff}.before-after-grid header>div{display:flex;align-items:center;gap:8px}.before-after-grid header b{font-size:14px}.before-after-grid header small{color:#64748b}.photo-download-btn{display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap}.photo-download-btn:hover{border-color:#60a5fa;background:#dbeafe}.before-after-grid img{width:100%;height:100%;min-height:0;object-fit:contain}.missing-photo{flex:1;display:grid;place-items:center;color:#94a3b8}.photos-loading,.photos-empty,.photos-error{display:flex;align-items:center;justify-content:center;gap:10px;min-height:250px;border:1px dashed #cbd5e1;border-radius:16px;background:#fff;color:#64748b;font-weight:800}.photos-loading i{width:30px;height:30px;border:4px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}.photos-error{color:#b91c1c;background:#fef2f2}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:1100px){.advanced-search{grid-template-columns:repeat(3,1fr)}.search-main{grid-column:span 2}}@media(max-width:800px){.photos-page{padding:12px}.advanced-search{grid-template-columns:1fr 1fr}.search-main{grid-column:span 2}.comparison-layout{grid-template-columns:1fr}.comparison-results{flex-direction:row;max-height:none;overflow-x:auto}.comparison-results>button{min-width:220px}.before-after-grid{height:auto;grid-template-columns:1fr}.before-after-grid article{min-height:360px}}
 .comparison-results>button.featured{border-color:#f6c453;background:linear-gradient(180deg,#fffdf4,#fff)}
 .result-section-title{display:flex;align-items:center;gap:6px;padding:7px 9px;color:#64748b;font-size:11px;font-weight:900}
 .result-section-title b{margin-right:auto;padding:2px 7px;border-radius:10px;background:#e2e8f0;color:#475569}
@@ -249,4 +267,5 @@ export default {
 @media(max-width:800px){.angle-view-nav{grid-template-columns:1fr 1fr}.angle-view-nav>div{grid-column:1/-1;order:3}.angle-view-nav>button{width:100%}}
 @media(max-width:1200px){.photos-filter-primary{grid-template-columns:repeat(3,minmax(0,1fr))}.photos-filter-primary .search-main{grid-column:span 2}.photos-filter-secondary{grid-template-columns:repeat(2,minmax(0,1fr))}.photos-filter-actions{justify-content:flex-start}}
 @media(max-width:700px){.photos-filter-primary,.photos-filter-secondary{grid-template-columns:1fr}.photos-filter-primary .search-main{grid-column:auto}.photos-filter-actions{justify-content:stretch}.photo-icon-action{flex:1}}
+.result-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 14px;padding:0 0 12px;border-bottom:1px solid #eef2f7}.result-nav-count{color:#475569;font-size:12px;font-weight:900}.result-nav-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #dbe3ec;border-radius:11px;background:#fff;color:#1e293b;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}.result-nav-btn:hover{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}.result-nav-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 </style>

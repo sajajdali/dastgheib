@@ -79,9 +79,11 @@ class PhotoComparisonController extends Controller
             ]))
             ->map(fn (Collection $rows) => $this->comparison($rows, $request))
             ->when($request->filled('service_id'), function (Collection $rows) use ($data) {
-                return $rows->filter(function ($row) use ($data) {
-                    return (int) ($row['service']?->id ?? 0) === (int) $data['service_id']
-                        || collect($row['tags'])->contains(fn ($tag) => (int) ($tag['id'] ?? 0) === (int) $data['service_id']);
+                // ناحیه = خدمتی که موقع ساخت پوشهٔ عکس انتخاب شده؛ انتخاب یک بخش، زیر‌بخش‌هایش را هم می‌آورد.
+                $ids = $this->sectionWithDescendants((int) $data['service_id']);
+                return $rows->filter(function ($row) use ($ids) {
+                    return in_array((int) ($row['service']?->id ?? 0), $ids, true)
+                        || collect($row['tags'])->contains(fn ($tag) => in_array((int) ($tag['id'] ?? 0), $ids, true));
                 });
             })
             ->when($request->filled('tag'), function (Collection $rows) use ($data) {
@@ -100,6 +102,7 @@ class PhotoComparisonController extends Controller
 
         return response()->json([
             'comparisons' => $groups,
+            'service_options' => $this->serviceOptions(),
             'services' => InventorySection::query()->orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
             'tags' => collect(app(HumanResourceController::class)->serviceTags())
                 ->merge(PatientMedia::query()
@@ -147,6 +150,52 @@ class PhotoComparisonController extends Controller
             'before' => $before,
             'after' => $after,
         ];
+    }
+
+    /** شناسهٔ یک بخش خدمات به‌همراه همهٔ زیر‌بخش‌هایش. */
+    private function sectionWithDescendants(int $id): array
+    {
+        $parents = InventorySection::query()->pluck('parent_id', 'id');
+        $ids = [$id];
+        for ($frontier = [$id], $guard = 0; $frontier && $guard < 10; $guard++) {
+            $frontier = $parents->filter(fn ($parent) => in_array((int) $parent, $frontier, true))->keys()->map(fn ($key) => (int) $key)->all();
+            $ids = array_values(array_unique([...$ids, ...$frontier]));
+        }
+
+        return $ids;
+    }
+
+    /**
+     * گزینه‌های «نواحی»: خدماتی که برای پوشه‌های عکس انتخاب شده‌اند، همراه بخش اصلی‌شان
+     * (مثل «پوست و زیبایی / ژل»)؛ بخش اصلی همهٔ زیر‌بخش‌هایش را می‌آورد.
+     */
+    private function serviceOptions(): Collection
+    {
+        $sections = InventorySection::query()->get(['id', 'parent_id', 'name', 'sort_order'])->keyBy('id');
+        $used = \App\Models\PatientMediaFolder::query()->whereNotNull('inventory_section_id')
+            ->distinct()->pluck('inventory_section_id')->map(fn ($id) => (int) $id);
+        $chain = function (int $id) use ($sections): array {
+            $names = [];
+            for ($section = $sections->get($id), $guard = 0; $section && $guard < 10; $guard++) {
+                array_unshift($names, trim((string) $section->name));
+                $section = $section->parent_id ? $sections->get($section->parent_id) : null;
+            }
+            return $names;
+        };
+        $ids = $used->flatMap(function (int $id) use ($sections) {
+            $ids = [];
+            for ($section = $sections->get($id), $guard = 0; $section && $guard < 10; $guard++) {
+                $ids[] = (int) $section->id;
+                $section = $section->parent_id ? $sections->get($section->parent_id) : null;
+            }
+            return $ids;
+        })->unique();
+
+        return $ids->map(fn (int $id) => [
+            'id' => $id,
+            'label' => implode(' / ', $chain($id)),
+            'is_root' => ! $sections->get($id)?->parent_id,
+        ])->sortBy('label')->values();
     }
 
     private function matchesAgeGroup(?string $birthDate, string $group): bool

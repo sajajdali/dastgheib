@@ -39,6 +39,7 @@ final class DynamicReportChunkContextLoader
                 appointmentHistory: $history,
                 referrers: $index['referrers'],
                 customerLevel: $level,
+                reportDate: array_filter(['from' => $from, 'to' => $to]),
             );
         });
     }

@@ -18,7 +18,7 @@ final class DynamicReportRowBuilder
 
     private function formatValue(string $column, mixed $value): mixed
     {
-        if (! in_array($column, ['amount', 'discount', 'debt', 'deposit', 'count', 'salary', 'overtime'], true)) return $value;
+        if (! in_array($column, ['amount', 'discount', 'debt', 'deposit', 'count', 'salary', 'overtime', 'doctorCommission', 'consultantCommission', 'walletDeposit', 'walletWithdraw'], true)) return $value;
         $raw = str_replace([',', '٬', ' '], '', (string) $value);
         if (! is_numeric($raw)) return $value;
         $number = (float) $raw;
