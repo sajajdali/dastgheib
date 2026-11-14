@@ -1273,7 +1273,7 @@
                       <div class="resource-select-with-avatar">
                         <img v-if="consultantAvatar(row.consultant)" :src="consultantAvatar(row.consultant)" alt="" />
                         <span v-else>{{ consultantInitial(row.consultant) }}</span>
-                      <select v-model="row.consultant">
+                      <select v-model="row.consultant" @change="row.consultantAutoSource = 'manual'">
                         <option value=""></option>
                         <option
                           v-for="staff in staffOptions"
@@ -3830,11 +3830,12 @@ export default {
       if (insertedRows.length) {
         this.activeCampaign.rows.splice(targetIndex + 1, 0, ...insertedRows);
       }
-      const assigned = this.autoAssignConsultants([targetRow, ...insertedRows]);
+      const { rotated, duplicates } = this.autoAssignConsultants([targetRow, ...insertedRows]);
 
       clearTimeout(this.bulkPhonePasteNoticeTimer);
       this.bulkPhonePasteNotice = `${phones.length.toLocaleString('fa-IR')} شماره وارد شد و ${phones.length.toLocaleString('fa-IR')} ردیف آماده شد.`
-        + (assigned ? ` ${assigned.toLocaleString('fa-IR')} ردیف به‌ترتیب بین ${this.autoAssignParticipants.length.toLocaleString('fa-IR')} مشاور تقسیم شد.` : '');
+        + (rotated ? ` ${rotated.toLocaleString('fa-IR')} ردیف به‌ترتیب بین ${this.autoAssignParticipants.length.toLocaleString('fa-IR')} مشاور تقسیم شد.` : '')
+        + (duplicates ? ` ${duplicates.toLocaleString('fa-IR')} شمارهٔ تکراری به مشاور قبلی خودش داده شد.` : '');
       this.bulkPhonePasteNoticeTimer = setTimeout(() => {
         this.bulkPhonePasteNotice = "";
       }, 4500);
@@ -3917,7 +3918,7 @@ export default {
       const lastIn = rows => {
         for (let index = (rows || []).length - 1; index >= 0; index -= 1) {
           const row = rows[index];
-          if (excludeRowIds.has(row?._localId)) continue;
+          if (excludeRowIds.has(row?._localId) || row?.consultantAutoSource === "duplicate") continue;
           const name = this.normalizeConsultantName(row?.consultant);
           if (names.includes(name)) return name;
         }
@@ -3955,18 +3956,60 @@ export default {
       this.autoAssignConsultants([row]);
     },
 
-    /** ردیف‌های بدون مشاور به‌ترتیب بین مشاوران تقسیم می‌شوند؛ مشاوری که دستی انتخاب شده عوض نمی‌شود. */
+    followupPhoneKey(value) {
+      if (this.isMaskedPhone(value)) return "";
+      const digits = this.normalizePhoneLookup(value);
+      return this.normalizeBulkMobile(digits) || digits;
+    },
+
+    /**
+     * مشاورِ اولین باری که این شماره در پیگیری‌ها ثبت شده (قدیمی‌ترین کمپین، بالاترین ردیف) و مشاور دارد.
+     * فقط مشاوری که هنوز در فهرست پرسنل هست برگردانده می‌شود.
+     */
+    duplicatePhoneConsultant(row) {
+      const key = this.followupPhoneKey(row?.phone);
+      if (key.length < 7) return "";
+      const staffNames = new Map(this.staffOptions
+        .map(staff => String(staff.name || "").trim())
+        .filter(Boolean)
+        .map(name => [this.normalizeConsultantName(name), name]));
+      const campaigns = this.campaigns.slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+      for (const campaign of campaigns) {
+        for (const item of campaign.rows || []) {
+          if (!item || item === row || item._localId === row._localId) continue;
+          const consultant = this.normalizeConsultantName(item.consultant);
+          if (!consultant || this.followupPhoneKey(item.phone) !== key) continue;
+          if (staffNames.has(consultant)) return staffNames.get(consultant);
+        }
+      }
+      return "";
+    },
+
+    /**
+     * ردیف‌های بدون مشاور: شمارهٔ تکراری به مشاورِ اولین ثبتِ همان شماره می‌رسد و بقیه به‌ترتیب بین
+     * مشاوران تقسیم می‌شوند؛ مشاوری که دستی انتخاب شده عوض نمی‌شود.
+     */
     autoAssignConsultants(rows) {
+      const result = { rotated: 0, duplicates: 0 };
       const names = this.autoAssignParticipants;
-      if (!this.autoAssign.enabled || !names.length || !this.activeCampaign) return 0;
+      if (!this.autoAssign.enabled || !names.length || !this.activeCampaign) return result;
       const targets = rows.filter(row => row && !String(row.consultant || "").trim());
-      if (!targets.length) return 0;
+      if (!targets.length) return result;
       let index = this.nextAutoAssignIndex(this.activeCampaign, new Set(targets.map(row => row._localId)));
       targets.forEach(row => {
+        const owner = this.duplicatePhoneConsultant(row);
+        if (owner) {
+          row.consultant = owner;
+          row.consultantAutoSource = "duplicate";
+          result.duplicates += 1;
+          return;
+        }
         row.consultant = names[index];
+        row.consultantAutoSource = "rotation";
         index = (index + 1) % names.length;
+        result.rotated += 1;
       });
-      return targets.length;
+      return result;
     },
 
     addMultipleRowsToActive() {
