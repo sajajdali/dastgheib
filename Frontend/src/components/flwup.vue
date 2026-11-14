@@ -6465,6 +6465,10 @@ export default {
 .modal-overlay {
   z-index: 2147483570 !important;
 }
+/* فرم ساخت/ویرایش کمپین از داخل جدول کمپین هم باز می‌شود و باید روی آن بیاید (زیر گالری بنر). */
+.modal-overlay.campaign-form-overlay {
+  z-index: 2147483585 !important;
+}
 
 /* گالری بنر از داخل جدول کمپین هم باز می‌شود؛ باید روی همان پنجره (و پنجره‌های داخل جدول) بیاید. */
 .banner-gallery-page {
