@@ -21,7 +21,7 @@
             v-model.trim="form.login"
             type="text"
             autocomplete="username"
-            placeholder="مثلاً 09121236686"
+            placeholder="مثلاً 09123456789"
             required
           />
         </div>
@@ -78,15 +78,6 @@
           {{ loading ? 'در حال ورود...' : 'ورود به سامانه' }}
         </button>
 
-        <button class="quick-login-button" type="button" :disabled="loading" @click="loginAsSuperAdmin">
-          ورود سریع مدیرکل
-        </button>
-
-        <div class="test-login-credentials" aria-label="اطلاعات ورود آزمایشی">
-          <strong>اطلاعات ورود آزمایشی</strong>
-          <span>نام کاربری: <b>09121236686</b></span>
-          <span>رمز عبور: <b>09121236686</b></span>
-        </div>
       </form>
 
       <div class="login-footer">دسترسی شما بر اساس نقش سازمانی کنترل می‌شود.</div>
@@ -100,11 +91,6 @@ import axios from "axios";
 
 const emit = defineEmits(["authenticated"]);
 const BACKEND_URL = "";
-
-const superAdminCredentials = {
-  login: "09121236686",
-  password: "09121236686",
-};
 
 const form = reactive({ login: "", password: "", remember: false });
 const captcha = reactive({ question: "", expected: "", answer: "" });
@@ -134,14 +120,6 @@ async function submitLogin() {
     loading.value = false;
     refreshCaptcha();
   }
-}
-
-function loginAsSuperAdmin() {
-  form.login = superAdminCredentials.login;
-  form.password = superAdminCredentials.password;
-  form.remember = true;
-  captcha.answer = captcha.expected;
-  submitLogin();
 }
 
 function refreshCaptcha() {
@@ -346,42 +324,6 @@ onMounted(() => {
 }
 .login-button:disabled { opacity:.7; cursor:wait; }
 .button-spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
-.quick-login-button {
-  width:100%;
-  min-height:46px;
-  margin-top:12px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  flex-wrap:wrap;
-  border:1px solid #dbeafe;
-  border-radius:13px;
-  color:#1d4ed8;
-  background:#eff6ff;
-  font-family:inherit;
-  font-size:12px;
-  font-weight:900;
-  cursor:pointer;
-  transition:.2s;
-}
-.quick-login-button:hover { border-color:#93c5fd; background:#dbeafe; }
-.quick-login-button:disabled { opacity:.7; cursor:wait; }
-.test-login-credentials {
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:7px 12px;
-  margin-top:10px;
-  padding:11px 13px;
-  border:1px dashed #bfdbfe;
-  border-radius:12px;
-  background:#f8fbff;
-  color:#64748b;
-  font-size:11px;
-}
-.test-login-credentials strong { grid-column:1/-1; color:#1d4ed8; font-size:11px; }
-.test-login-credentials span { white-space:nowrap; }
-.test-login-credentials b { direction:ltr; display:inline-block; color:#1e293b; font-size:11.5px; }
 .login-footer { margin-top:22px; padding-top:17px; border-top:1px solid #edf1f7; color:#94a3b8; text-align:center; font-size:11px; }
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (max-width:500px) {

@@ -35,10 +35,6 @@
           {{ loading ? "در حال ورود..." : "ورود به پنل" }}
         </button>
 
-        <button class="central-quick-login" type="button" :disabled="loading" @click="loginAsCentralAdmin">
-          ورود سریع مدیرکل
-          <span>admin@central.local / 12345678</span>
-        </button>
       </div>
 
       <div class="central-login-footer">
@@ -59,7 +55,7 @@ defineProps({
 const emit = defineEmits(["login"]);
 
 const form = reactive({
-  email: "admin@central.local",
+  email: "",
   password: "",
   remember: true,
 });
@@ -69,12 +65,5 @@ const localError = ref("");
 function submit() {
   localError.value = "";
   emit("login", { ...form });
-}
-
-function loginAsCentralAdmin() {
-  form.email = "admin@central.local";
-  form.password = "12345678";
-  form.remember = true;
-  submit();
 }
 </script>

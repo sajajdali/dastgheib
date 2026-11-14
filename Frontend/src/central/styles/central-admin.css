@@ -234,33 +234,6 @@
   opacity: 0.65;
 }
 
-.central-quick-login {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 7px;
-  border: 1px solid #cdeee7;
-  border-radius: 11px;
-  background: #eafff9;
-  color: var(--central-green);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.central-quick-login span {
-  direction: ltr;
-  color: #526467;
-  font-size: 11.5px;
-}
-
-.central-quick-login:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
 .central-button.secondary {
   background: #f2f5f5;
   box-shadow: none;
