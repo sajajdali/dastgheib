@@ -140,6 +140,8 @@ class PatientMediaController extends Controller
             'type' => 'required|string|in:date,service',
             'date' => 'required_if:type,date|nullable|string|max:20|regex:/^[0-9۰-۹٠-٩]{4}[-\/][0-9۰-۹٠-٩]{2}[-\/][0-9۰-۹٠-٩]{2}$/u',
             'section_id' => 'nullable|integer|exists:inventory_sections,id',
+            'section_ids' => 'nullable|array|max:20',
+            'section_ids.*' => 'integer|distinct|exists:inventory_sections,id',
             'parent_id' => 'nullable|integer|exists:patient_media_folders,id',
             'services' => 'nullable|array',
             'description' => 'nullable|string',
@@ -199,17 +201,21 @@ class PatientMediaController extends Controller
             ]);
         }
 
-        $section = ! empty($data['section_id'])
-            ? InventorySection::query()->findOrFail($data['section_id'])
-            : null;
+        // یک یا چند خدمت (آخرین شاخه‌ها)؛ اولی خدمت اصلی پوشه است.
+        $sectionIds = array_values(array_unique(array_map('intval', $data['section_ids'] ?? [])));
+        if ($sectionIds === [] && ! empty($data['section_id'])) $sectionIds = [(int) $data['section_id']];
+        $sections = InventorySection::query()->whereIn('id', $sectionIds)->withCount('children')->get()->keyBy('id');
+        $sections = collect($sectionIds)->map(fn ($id) => $sections->get($id))->filter()->values();
 
-        if (! $section || $section->children()->exists()) {
+        if ($sections->isEmpty() || $sections->contains(fn ($item) => $item->children_count > 0)) {
             return response()->json([
                 'message' => 'برای ساخت فولدر باید آخرین شاخه‌ای که زیرمجموعه ندارد انتخاب شود.',
             ], 422);
         }
 
-        $folderName = $section->name;
+        $section = $sections->first();
+        $sectionIds = $sections->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $folderName = $sections->pluck('name')->map(fn ($name) => trim((string) $name))->implode(' + ');
         $services = $this->normalizeServiceTags($data['services'] ?? []);
 
         if (! count($services)) {
@@ -227,11 +233,13 @@ class PatientMediaController extends Controller
             'photo_processing_settings' => $this->photoSettings->current(),
         ];
 
+        $wanted = collect($sectionIds)->sort()->values()->all();
         $existingFolder = PatientMediaFolder::query()
             ->where('patient_id', $patient->id)
             ->where('parent_id', $parent->id)
-            ->where('inventory_section_id', $section->id)
-            ->first();
+            ->where('folder_type', 'service')
+            ->get()
+            ->first(fn (PatientMediaFolder $folder) => collect($folder->sectionIds())->sort()->values()->all() === $wanted);
 
         if ($existingFolder) {
             if (empty($existingFolder->services)) {
@@ -254,6 +262,7 @@ class PatientMediaController extends Controller
             'folder_type' => 'service',
             'folder_date' => $parent->folder_date,
             'inventory_section_id' => $section?->id,
+            'inventory_section_ids' => $sectionIds,
             ...$uploadMetadata,
         ]);
 
@@ -269,6 +278,7 @@ class PatientMediaController extends Controller
                 'folder_type' => $child['type'],
                 'folder_date' => $parent->folder_date,
                 'inventory_section_id' => $section?->id,
+                'inventory_section_ids' => $sectionIds,
                 'sort_order' => $child['sort'],
             ]);
         }
@@ -471,28 +481,27 @@ class PatientMediaController extends Controller
         ]);
     }
 
+    /** تعداد عکس‌ها و زیرپوشه‌های داخل یک فولدر (با همهٔ سطوح) برای پیام تأیید حذف. */
+    public function folderSummary(Patient $patient, PatientMediaFolder $folder)
+    {
+        abort_unless($folder->patient_id === $patient->id, 404);
+
+        $folderIds = $this->folderWithDescendantIds($patient, $folder);
+
+        return response()->json([
+            'folders' => count($folderIds) - 1,
+            'files' => PatientMedia::query()
+                ->where('patient_id', $patient->id)
+                ->whereIn('folder_id', $folderIds)
+                ->count(),
+        ]);
+    }
+
     public function destroyFolder(Patient $patient, PatientMediaFolder $folder)
     {
         abort_unless($folder->patient_id === $patient->id, 404);
 
-        $folderIds = [$folder->id];
-        $pendingIds = [$folder->id];
-
-        while ($pendingIds !== []) {
-            $childIds = PatientMediaFolder::query()
-                ->where('patient_id', $patient->id)
-                ->whereIn('parent_id', $pendingIds)
-                ->pluck('id')
-                ->all();
-
-            $newIds = array_values(array_diff($childIds, $folderIds));
-            if ($newIds === []) {
-                break;
-            }
-
-            $folderIds = array_merge($folderIds, $newIds);
-            $pendingIds = $newIds;
-        }
+        $folderIds = $this->folderWithDescendantIds($patient, $folder);
 
         $media = PatientMedia::query()
             ->where('patient_id', $patient->id)
@@ -516,6 +525,25 @@ class PatientMediaController extends Controller
         ]);
     }
 
+    private function folderWithDescendantIds(Patient $patient, PatientMediaFolder $folder): array
+    {
+        $folderIds = [$folder->id];
+        $pendingIds = [$folder->id];
+
+        while ($pendingIds !== []) {
+            $childIds = PatientMediaFolder::query()
+                ->where('patient_id', $patient->id)
+                ->whereIn('parent_id', $pendingIds)
+                ->pluck('id')
+                ->all();
+
+            $pendingIds = array_values(array_diff($childIds, $folderIds));
+            $folderIds = array_merge($folderIds, $pendingIds);
+        }
+
+        return $folderIds;
+    }
+
     private function breadcrumbs(Patient $patient, $folderId): array
     {
         $items = [];
@@ -529,6 +557,7 @@ class PatientMediaController extends Controller
                 'name' => $folder->name,
                 'folder_type' => $folder->folder_type,
                 'inventory_section_id' => $folder->inventory_section_id,
+                'inventory_section_ids' => $folder->sectionIds(),
             ]);
             $folder = $folder->parent_id
                 ? PatientMediaFolder::query()->where('patient_id', $patient->id)->find($folder->parent_id)

@@ -519,14 +519,90 @@
       </div>
     </div>
 
-    <div v-if="stockMovement.open" class="modal-backdrop" @click.self="closeStockMovement">
-      <section class="commission-modal stock-movement-modal" role="dialog" aria-modal="true">
-        <div class="modal-head"><div><h3>گردش موجودی</h3><p>{{ stockMovement.row?.name }}</p></div><button class="modal-close" type="button" @click="closeStockMovement">×</button></div>
-        <div class="stock-current">موجودی فعلی: <strong>{{ Number(stockMovement.row?.stock || 0).toLocaleString('fa-IR') }}</strong></div>
-        <div class="stock-direction"><button type="button" :class="{ active: stockMovement.direction === 'increase' }" @click="stockMovement.direction = 'increase'">افزایش موجودی</button><button type="button" :class="{ active: stockMovement.direction === 'decrease' }" @click="stockMovement.direction = 'decrease'">کاهش موجودی</button></div>
-        <div class="modal-grid"><label>تعداد<input v-model.number="stockMovement.quantity" type="number" inputmode="numeric" min="1" step="1" @input="sanitizeStockInput($event, stockMovement, 'quantity')"></label><label>توضیحات<textarea v-model.trim="stockMovement.description" placeholder="مثلاً خرید جدید یا اصلاح شمارش"></textarea></label></div>
-        <div class="movement-history"><div class="movement-history-head"><strong>۴ گردش آخر</strong><button type="button" @click="openMovementList(stockMovement.row)">لیست کامل</button></div><p v-if="stockMovement.loading">در حال دریافت...</p><p v-else-if="!stockMovement.history.length">هنوز گردشی ثبت نشده است.</p><div v-for="movement in stockMovement.history.slice(0, 4)" :key="movement.id" :class="['movement-row', Number(movement.quantity) < 0 ? 'out' : 'in']"><b>{{ Number(movement.quantity) > 0 ? '+' : '' }}{{ Number(movement.quantity).toLocaleString('fa-IR') }}</b><span>{{ movement.description }}</span><time>{{ formatMovementDate(movement.occurred_at) }}</time></div></div>
-        <div class="modal-actions"><button class="text-btn ghost" type="button" @click="closeStockMovement">انصراف</button><button class="text-btn primary" :disabled="stockMovement.saving || !stockMovement.quantity" type="button" @click="saveStockMovement">{{ stockMovement.saving ? 'در حال ثبت...' : 'ثبت گردش' }}</button></div>
+    <div v-if="stockMovement.open" class="modal-backdrop sm-backdrop" @click.self="closeStockMovement">
+      <section class="sm-modal" :class="stockMovement.direction" role="dialog" aria-modal="true" aria-labelledby="sm-title">
+        <header class="sm-head">
+          <span class="sm-head-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>
+          </span>
+          <div class="sm-head-text">
+            <h3 id="sm-title">گردش موجودی</h3>
+            <p :title="stockMovement.row?.name">{{ stockMovement.row?.name || 'کالا / خدمت' }}</p>
+          </div>
+          <button class="sm-close" type="button" aria-label="بستن" title="بستن" @click="closeStockMovement">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </header>
+
+        <div class="sm-body">
+          <div class="sm-stock">
+            <div class="sm-stock-card">
+              <span>موجودی فعلی</span>
+              <strong :class="stockMovementPreview.currentClass">{{ stockMovementPreview.current.toLocaleString('fa-IR') }}</strong>
+              <small>حداقل: {{ stockMovementPreview.min.toLocaleString('fa-IR') }}</small>
+            </div>
+            <span class="sm-stock-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></svg>
+            </span>
+            <div class="sm-stock-card next" :class="{ empty: !stockMovementPreview.quantity, invalid: stockMovementPreview.next < 0 }">
+              <span>پس از ثبت</span>
+              <strong>{{ stockMovementPreview.quantity ? stockMovementPreview.next.toLocaleString('fa-IR') : '—' }}</strong>
+              <small v-if="stockMovementPreview.next < 0">بیشتر از موجودی فعلی است</small>
+              <small v-else-if="stockMovementPreview.quantity"><bdi dir="ltr">{{ stockMovement.direction === 'increase' ? '+' : '−' }}{{ stockMovementPreview.quantity.toLocaleString('fa-IR') }}</bdi> عدد</small>
+              <small v-else>تعداد را وارد کنید</small>
+            </div>
+          </div>
+
+          <div class="sm-direction" role="radiogroup" aria-label="نوع گردش">
+            <button type="button" role="radio" class="in" :class="{ active: stockMovement.direction === 'increase' }" :aria-checked="stockMovement.direction === 'increase'" @click="stockMovement.direction = 'increase'">
+              <i aria-hidden="true">+</i>
+              <span><b>افزایش موجودی</b><small>خرید یا ورود کالا</small></span>
+            </button>
+            <button type="button" role="radio" class="out" :class="{ active: stockMovement.direction === 'decrease' }" :aria-checked="stockMovement.direction === 'decrease'" @click="stockMovement.direction = 'decrease'">
+              <i aria-hidden="true">−</i>
+              <span><b>کاهش موجودی</b><small>مصرف، خرابی یا اصلاح شمارش</small></span>
+            </button>
+          </div>
+
+          <div class="sm-fields">
+            <div class="sm-field">
+              <label for="sm-quantity">تعداد</label>
+              <div class="sm-qty">
+                <button type="button" aria-label="یکی کمتر" :disabled="!stockMovement.quantity || stockMovement.quantity <= 1" @click="stepStockMovement(-1)">−</button>
+                <input id="sm-quantity" v-model.number="stockMovement.quantity" type="number" inputmode="numeric" min="1" step="1" placeholder="۰" @input="sanitizeStockInput($event, stockMovement, 'quantity')" @keydown.enter.prevent="saveStockMovement">
+                <button type="button" aria-label="یکی بیشتر" @click="stepStockMovement(1)">+</button>
+              </div>
+            </div>
+            <div class="sm-field">
+              <label for="sm-description">توضیحات <small>(اختیاری)</small></label>
+              <textarea id="sm-description" v-model.trim="stockMovement.description" rows="2" placeholder="مثلاً خرید جدید یا اصلاح شمارش"></textarea>
+            </div>
+          </div>
+
+          <div class="sm-history">
+            <div class="sm-history-head">
+              <strong>آخرین گردش‌ها</strong>
+              <button type="button" @click="openMovementList(stockMovement.row)">لیست کامل ←</button>
+            </div>
+            <p v-if="stockMovement.loading" class="sm-history-empty"><span class="sm-spinner" aria-hidden="true"></span>در حال دریافت...</p>
+            <p v-else-if="!stockMovement.history.length" class="sm-history-empty">هنوز گردشی ثبت نشده است.</p>
+            <ul v-else>
+              <li v-for="movement in stockMovement.history.slice(0, 4)" :key="movement.id" :class="Number(movement.quantity) < 0 ? 'out' : 'in'">
+                <b>{{ Number(movement.quantity) > 0 ? '+' : '' }}{{ Number(movement.quantity).toLocaleString('fa-IR') }}</b>
+                <span>{{ movement.description || (Number(movement.quantity) < 0 ? 'کاهش موجودی' : 'افزایش موجودی') }}</span>
+                <time>{{ formatMovementDate(movement.occurred_at) }}</time>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <footer class="sm-actions">
+          <button class="sm-btn ghost" type="button" @click="closeStockMovement">انصراف</button>
+          <button class="sm-btn primary" :disabled="stockMovement.saving || !stockMovement.quantity || stockMovementPreview.next < 0" type="button" @click="saveStockMovement">
+            <span v-if="stockMovement.saving" class="sm-spinner light" aria-hidden="true"></span>
+            {{ stockMovement.saving ? 'در حال ثبت...' : stockMovement.direction === 'increase' ? 'ثبت افزایش موجودی' : 'ثبت کاهش موجودی' }}
+          </button>
+        </footer>
       </section>
     </div>
 
@@ -791,6 +867,15 @@ export default {
           if (zeroA !== zeroB) return zeroA - zeroB
           return (this.inventoryStockValue(a) - this.inventoryMinStockValue(a)) - (this.inventoryStockValue(b) - this.inventoryMinStockValue(b))
         })
+    },
+
+    stockMovementPreview() {
+      const movement = this.stockMovement
+      const current = Number(movement.row?.stock) || 0
+      const min = Number(movement.row?.minStock) || 0
+      const quantity = Math.max(0, Math.floor(Number(movement.quantity) || 0))
+      const next = movement.direction === 'decrease' ? current - quantity : current + quantity
+      return { current, min, quantity, next, currentClass: this.stockClass(current, min) }
     },
 
     lowStockBySection() {
@@ -1212,6 +1297,10 @@ export default {
       } finally {
         this.stockMovement.loading = false
       }
+    },
+    stepStockMovement(delta) {
+      const next = (Math.floor(Number(this.stockMovement.quantity) || 0)) + delta
+      this.stockMovement.quantity = next < 1 ? null : next
     },
     closeStockMovement() {
       if (!this.stockMovement.saving) this.stockMovement.open = false
@@ -4291,5 +4380,365 @@ tr.selected.stock-low-row td {
   .table-section .table-wrap tbody tr {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* قانون عمومی input (عرض ۱۰۰٪ و ارتفاع حداقل ۳۴px) نباید چک‌باکس‌ها را بزرگ کند. */
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.stock-cell label,
+.addon-manager-row label:not(.addon-active) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stock-cell strong {
+  font-size: 13px;
+}
+
+.stock-cell button {
+  display: inline-grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.inventory-addon-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: #7c3aed;
+}
+
+.weekly-day-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+/* مدال‌های این صفحه باید روی منوی بالا (z-index: 2147483000) و دکمهٔ منوی کاربری باز شوند. */
+.modal-backdrop {
+  z-index: 2147483008;
+  background: rgba(15, 23, 42, .45);
+  backdrop-filter: blur(4px);
+}
+
+/* ===== مدال گردش موجودی ===== */
+.sm-backdrop { animation: sm-fade .16s ease-out; }
+.sm-modal {
+  --sm-accent: #2563eb;
+  --sm-accent-soft: #eff6ff;
+  --sm-accent-ink: #1d4ed8;
+  display: flex;
+  flex-direction: column;
+  width: min(540px, 100%);
+  max-height: min(92vh, 760px);
+  overflow: hidden;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, .28), 0 0 0 1px rgba(15, 23, 42, .05);
+  direction: rtl;
+  text-align: right;
+  animation: sm-pop .2s cubic-bezier(.2, .9, .3, 1.2);
+}
+.sm-modal.decrease {
+  --sm-accent: #dc2626;
+  --sm-accent-soft: #fef2f2;
+  --sm-accent-ink: #b91c1c;
+}
+.sm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #eef2f7;
+}
+.sm-head-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+.sm-head-icon svg { width: 22px; height: 22px; }
+.sm-head-text { flex: 1; min-width: 0; }
+.sm-head-text h3 { margin: 0; color: #0f172a; font-size: 16px; font-weight: 900; }
+.sm-head-text p {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sm-close {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 11px;
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.sm-close svg { width: 17px; height: 17px; }
+.sm-close:hover { background: #fee2e2; color: #dc2626; }
+
+.sm-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px 20px 18px;
+  overflow-y: auto;
+}
+
+.sm-stock {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 10px;
+}
+.sm-stock-card {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 12px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  text-align: center;
+}
+.sm-stock-card span { color: #64748b; font-size: 11px; font-weight: 700; }
+.sm-stock-card strong { color: #0f172a; font-size: 26px; font-weight: 900; line-height: 1.3; }
+.sm-stock-card strong.stock-low { color: #b45309; }
+.sm-stock-card strong.stock-zero { color: #dc2626; }
+.sm-stock-card small { color: #94a3b8; font-size: 11px; }
+.sm-stock-card.next {
+  border-color: color-mix(in srgb, var(--sm-accent) 30%, transparent);
+  background: var(--sm-accent-soft);
+}
+.sm-stock-card.next strong,
+.sm-stock-card.next small { color: var(--sm-accent-ink); }
+.sm-stock-card.next.empty { border-style: dashed; border-color: #cbd5e1; background: #fff; }
+.sm-stock-card.next.empty strong,
+.sm-stock-card.next.empty small { color: #94a3b8; }
+.sm-stock-card.next.invalid { border-color: #fca5a5; background: #fef2f2; }
+.sm-stock-card.next.invalid strong,
+.sm-stock-card.next.invalid small { color: #dc2626; }
+.sm-stock-arrow { display: grid; place-items: center; color: #94a3b8; }
+.sm-stock-arrow svg { width: 22px; height: 22px; }
+
+.sm-direction { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sm-direction button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.sm-direction button:hover { border-color: #cbd5e1; background: #f8fafc; }
+.sm-direction i {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 19px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+}
+.sm-direction span { display: grid; gap: 1px; min-width: 0; }
+.sm-direction b { font-size: 13px; font-weight: 900; }
+.sm-direction small { overflow: hidden; color: #94a3b8; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.sm-direction button.in.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37, 99, 235, .1); }
+.sm-direction button.in.active i { background: #2563eb; color: #fff; }
+.sm-direction button.in.active b { color: #1d4ed8; }
+.sm-direction button.out.active { border-color: #dc2626; background: #fef2f2; box-shadow: 0 0 0 3px rgba(220, 38, 38, .1); }
+.sm-direction button.out.active i { background: #dc2626; color: #fff; }
+.sm-direction button.out.active b { color: #b91c1c; }
+
+.sm-fields { display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: start; }
+.sm-field { display: grid; gap: 6px; }
+.sm-field > label { color: #334155; font-size: 12px; font-weight: 800; }
+.sm-field > label small { color: #94a3b8; font-weight: 500; }
+.sm-qty {
+  display: grid;
+  grid-template-columns: 38px 1fr 38px;
+  align-items: center;
+  height: 46px;
+  overflow: hidden;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.sm-qty:focus-within { border-color: var(--sm-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sm-accent) 14%, transparent); }
+.sm-qty button {
+  height: 100%;
+  border: 0;
+  background: #f8fafc;
+  color: #475569;
+  font-family: inherit;
+  font-size: 19px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.sm-qty button:hover:not(:disabled) { background: var(--sm-accent-soft); color: var(--sm-accent-ink); }
+.sm-qty button:disabled { color: #cbd5e1; cursor: default; }
+.sm-qty input {
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none !important;
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 900;
+  text-align: center !important;
+  direction: ltr !important;
+  -moz-appearance: textfield;
+}
+.sm-qty input::-webkit-outer-spin-button,
+.sm-qty input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
+.sm-field textarea {
+  width: 100%;
+  min-height: 46px;
+  max-height: 120px;
+  padding: 11px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  color: #0f172a;
+  font-size: 12.5px;
+  line-height: 1.7;
+  resize: vertical;
+  transition: border-color .15s, box-shadow .15s;
+}
+.sm-field textarea:focus { border-color: var(--sm-accent); outline: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--sm-accent) 14%, transparent); }
+
+.sm-history { padding: 12px; border-radius: 14px; background: #f8fafc; }
+.sm-history-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sm-history-head strong { color: #334155; font-size: 12.5px; font-weight: 900; }
+.sm-history-head button {
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #2563eb;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.sm-history-head button:hover { background: #eff6ff; }
+.sm-history ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sm-history li {
+  display: grid;
+  grid-template-columns: 54px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, .04);
+  font-size: 11.5px;
+}
+.sm-history li b {
+  padding: 3px 0;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  direction: ltr;
+}
+.sm-history li.in b { background: #dcfce7; color: #15803d; }
+.sm-history li.out b { background: #fee2e2; color: #dc2626; }
+.sm-history li span { overflow: hidden; color: #475569; text-overflow: ellipsis; white-space: nowrap; }
+.sm-history li time { color: #94a3b8; font-size: 10.5px; white-space: nowrap; }
+.sm-history-empty { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 10px; color: #94a3b8; font-size: 12px; }
+
+.sm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #eef2f7;
+  background: #fcfdfe;
+}
+.sm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background .15s, opacity .15s, transform .1s;
+}
+.sm-btn:active:not(:disabled) { transform: translateY(1px); }
+.sm-btn.ghost { background: #f1f5f9; color: #475569; }
+.sm-btn.ghost:hover { background: #e2e8f0; }
+.sm-btn.primary { min-width: 168px; background: var(--sm-accent); color: #fff; box-shadow: 0 8px 18px color-mix(in srgb, var(--sm-accent) 28%, transparent); }
+.sm-btn.primary:hover:not(:disabled) { background: var(--sm-accent-ink); }
+.sm-btn.primary:disabled { opacity: .45; box-shadow: none; cursor: not-allowed; }
+
+.sm-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #cbd5e1;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: sm-spin .7s linear infinite;
+}
+.sm-spinner.light { border-color: rgba(255, 255, 255, .4); border-top-color: #fff; }
+
+@keyframes sm-spin { to { transform: rotate(360deg); } }
+@keyframes sm-fade { from { opacity: 0; } }
+@keyframes sm-pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+
+@media (max-width: 560px) {
+  .sm-modal { max-height: 94vh; border-radius: 18px; }
+  .sm-head, .sm-body, .sm-actions { padding-right: 14px; padding-left: 14px; }
+  .sm-stock-card strong { font-size: 22px; }
+  .sm-fields { grid-template-columns: 1fr; }
+  .sm-direction small { display: none; }
+  .sm-history li { grid-template-columns: 48px 1fr; }
+  .sm-history li time { grid-column: 2; }
+  .sm-actions .sm-btn { flex: 1; min-width: 0; }
 }
 </style>

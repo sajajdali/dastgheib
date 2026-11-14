@@ -82,6 +82,7 @@ class PatientMediaFolderDeleteTest extends TestCase
             $table->string('folder_type')->nullable();
             $table->string('folder_date')->nullable();
             $table->foreignId('inventory_section_id')->nullable();
+            $table->json('inventory_section_ids')->nullable();
             $table->json('services')->nullable();
             $table->text('upload_description')->nullable();
             $table->boolean('upload_usage_consent')->default(false);
@@ -278,5 +279,45 @@ class PatientMediaFolderDeleteTest extends TestCase
             ->assertJsonPath('shared_upload_metadata.description', 'تنظیمات اولیه فولدر')
             ->assertJsonPath('shared_upload_metadata.usage_consent', false)
             ->assertJsonPath('shared_upload_metadata.is_featured', true);
+    }
+
+    public function test_service_folder_can_hold_several_services_and_is_reused_for_the_same_set(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $patient = Patient::create([
+            'first_name' => 'Multi', 'last_name' => 'Service',
+            'phone' => '09120000004', 'file_number' => 'multi-service-test', 'gender' => 'female',
+        ]);
+        $dateFolder = PatientMediaFolder::create([
+            'patient_id' => $patient->id,
+            'name' => '1405-08-20',
+            'folder_type' => 'date',
+            'folder_date' => '1405-08-20',
+        ]);
+        $gel = InventorySection::create(['name' => 'ژل']);
+        $botox = InventorySection::create(['name' => 'بوتاکس']);
+
+        $response = $this->postJson("/api/patients/{$patient->id}/media/folders", [
+            'type' => 'service',
+            'section_ids' => [$gel->id, $botox->id],
+            'parent_id' => $dateFolder->id,
+            'services' => [['name' => 'ژل لب']],
+        ])->assertCreated()
+            ->assertJsonPath('name', 'ژل + بوتاکس')
+            ->assertJsonPath('inventory_section_id', $gel->id)
+            ->assertJsonPath('inventory_section_ids', [$gel->id, $botox->id])
+            ->assertJsonPath('children.0.inventory_section_ids', [$gel->id, $botox->id]);
+
+        // همان دو خدمت با ترتیب دیگر، پوشهٔ قبلی را باز می‌کند و پوشهٔ تکراری نمی‌سازد.
+        $this->postJson("/api/patients/{$patient->id}/media/folders", [
+            'type' => 'service',
+            'section_ids' => [$botox->id, $gel->id],
+            'parent_id' => $dateFolder->id,
+            'services' => [['name' => 'ژل لب']],
+        ])->assertOk()
+            ->assertJsonPath('already_exists', true)
+            ->assertJsonPath('folder.id', $response->json('id'));
+
+        $this->assertSame(1, PatientMediaFolder::query()->where('parent_id', $dateFolder->id)->count());
     }
 }

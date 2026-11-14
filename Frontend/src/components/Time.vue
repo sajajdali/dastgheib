@@ -3398,6 +3398,7 @@ export default {
   },
 
   beforeUnmount() {
+    this.stopServicePopupFit();
     window.removeEventListener('scroll', this.scheduleDayRowsWindowUpdate);
     window.removeEventListener('resize', this.scheduleDayRowsWindowUpdate);
     if (this._dayRowsWindowFrame) cancelAnimationFrame(this._dayRowsWindowFrame);
@@ -4811,6 +4812,7 @@ export default {
       const followupResult = this.activeTimelineFollowup
         ? {
             followup: this.activeTimelineFollowup,
+            appointmentId: this.activeTimelineRow?.appointmentId || null,
             date: this.timelineDayGregorianDate(this.activeTimelineDay),
             time: draft.time || "",
             patientName: draft.lastname || "",
@@ -8385,6 +8387,36 @@ this.calculateFinalAmount(row)
         .map(item => item.row);
     },
 
+    // پنل خدمات جدول همیشه داخل صفحه می‌ماند: اگر پایین صفحه جا نباشد بالاتر باز می‌شود
+    // (نوار ماه‌های پایین صفحه هم در نظر گرفته می‌شود)؛ اگر از صفحه بلندتر شود، بالای آن ثابت می‌ماند
+    // و صفحه اسکرول می‌خورد. اسکرول داخلی ندارد تا لیست‌های بازشوی خدمات بریده نشوند.
+    fitServicePopup(revealLast = false) {
+      const popup = document.querySelector('.service-popup');
+      const cell = popup?.parentElement;
+      if (!popup || !cell) return;
+      const topGap = 72;
+      const bottomGap = 96;
+      const viewport = window.innerHeight;
+      const limit = viewport - bottomGap;
+      const height = popup.offsetHeight;
+      const cellTop = cell.getBoundingClientRect().top;
+      let offset = 0;
+      if (cellTop + height > limit) offset = limit - height - cellTop;
+      if (cellTop + offset < topGap) offset = topGap - cellTop;
+      popup.style.top = `${Math.round(offset)}px`;
+      if (revealLast !== true) return;
+      const lines = popup.querySelectorAll('.service-line, .service-row, .service-item');
+      const target = lines[lines.length - 1] || popup;
+      const bottom = target.getBoundingClientRect().bottom;
+      if (bottom > limit - 8) window.scrollBy({ top: bottom - limit + 16, behavior: 'smooth' });
+    },
+
+    stopServicePopupFit() {
+      this._servicePopupObserver?.disconnect();
+      this._servicePopupObserver = null;
+      window.removeEventListener('resize', this.fitServicePopup);
+    },
+
     addService(row) {
       row.services.push({
         name: "",
@@ -8398,6 +8430,10 @@ this.calculateFinalAmount(row)
         ,_lastSavedCc: 0
         ,addons: []
       });
+      // بعد از رسم خط جدید، اگر پایین صفحه پنهان مانده باشد صفحه تا آن اسکرول می‌خورد.
+      if (this.activeServicePopup != null && row?._rowId === this.activeServicePopup) {
+        this.$nextTick(() => this.fitServicePopup(true));
+      }
 
     },
 
@@ -9852,7 +9888,19 @@ this.calculateFinalAmount(row)
       const index = day.rows.findIndex(item => item._rowId === row._rowId);
       if (index === -1) return;
 
-      if (this.rowHasAppointment(row)) {
+      // نوبتی که پرداخت دارد: کاربر صریحاً انتخاب می‌کند مبلغ به کیف پول بیمار برگردد یا نه.
+      let refundToWallet = false;
+      let refundChoiceAsked = false;
+      if (row.appointmentId) {
+        const choice = await this.askAppointmentDeleteRefund(row);
+        if (choice === 'cancel') return;
+        if (choice !== 'none') {
+          refundChoiceAsked = true;
+          refundToWallet = choice === 'refund';
+        }
+      }
+
+      if (this.rowHasAppointment(row) && !refundChoiceAsked) {
         const confirmed = preserveTimeSlot
           ? (await Swal.fire({
               icon: 'warning',
@@ -9882,7 +9930,7 @@ this.calculateFinalAmount(row)
       if (row.appointmentId) {
         try {
           await axios.delete(`/api/appointments/${row.appointmentId}`, {
-            data: { lock_version: Number(row.lockVersion || 0) }
+            data: { lock_version: Number(row.lockVersion || 0), refund_to_wallet: refundToWallet }
           });
         } catch (error) {
           if (error.response?.status === 409) {
@@ -9908,6 +9956,57 @@ this.calculateFinalAmount(row)
         this.activeServicePopup = null;
       }
       this.saveData();
+    },
+
+    /**
+     * اگر نوبت پرداخت دارد می‌پرسد مبلغ به کیف پول بیمار برگردد یا نه.
+     * خروجی: 'none' (پرداختی ندارد)، 'refund'، 'keep' یا 'cancel'.
+     */
+    async askAppointmentDeleteRefund(row) {
+      let preview;
+      try {
+        ({ data: preview } = await axios.get(`/api/appointments/${row.appointmentId}/delete-preview`));
+      } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'بررسی پرداخت‌های نوبت انجام نشد', text: error.response?.data?.message || 'لطفاً دوباره تلاش کنید.' });
+        return 'cancel';
+      }
+      const total = Number(preview?.total || 0);
+      if (total <= 0) return 'none';
+
+      const money = value => `${Number(value || 0).toLocaleString('fa-IR')} تومان`;
+      const escape = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+      const lines = [
+        Number(preview.paid_amount) > 0 ? `<li><span>نقد، کارت، چک و تسویه بدهی</span><b>${money(preview.paid_amount)}</b></li>` : '',
+        Number(preview.wallet_amount) > 0 ? `<li><span>پرداخت‌شده از کیف پول</span><b>${money(preview.wallet_amount)}</b></li>` : '',
+      ].join('');
+      const patientName = escape(preview.patient_name || row.lastname || 'بیمار');
+      const html = `
+        <div class="delete-refund-dialog">
+          <p>برای نوبت <b>${escape(row.lastname || 'این بیمار')}</b>${row.time ? ` (ساعت ${escape(row.time)})` : ''} این مبالغ ثبت شده است:</p>
+          <ul>${lines}<li class="total"><span>جمع</span><b>${money(total)}</b></li></ul>
+          ${preview.has_patient
+            ? `<p>آیا می‌خواهید این مبلغ به کیف پول <b>${patientName}</b> بازگشت داده شود؟</p>`
+            : '<p class="warn">پروندهٔ بیمار مشخص نیست؛ مبلغ فقط می‌تواند بدون بازگشت به کیف پول حذف شود.</p>'}
+        </div>`;
+
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'حذف نوبت دارای پرداخت',
+        html,
+        showCancelButton: true,
+        showConfirmButton: Boolean(preview.has_patient),
+        showDenyButton: true,
+        confirmButtonText: 'حذف و بازگشت به کیف پول',
+        denyButtonText: 'حذف بدون بازگشت مبلغ',
+        cancelButtonText: 'انصراف',
+        confirmButtonColor: '#2563eb',
+        denyButtonColor: '#dc2626',
+        reverseButtons: true,
+        focusCancel: true,
+      });
+      if (result.isConfirmed) return 'refund';
+      if (result.isDenied) return 'keep';
+      return 'cancel';
     },
 
     async removeRow(day) {
@@ -10739,6 +10838,20 @@ smsColor(val) {
 
   watch: {
 
+    activeServicePopup(id) {
+      this.stopServicePopupFit();
+      if (id == null) return;
+      this.$nextTick(() => {
+        const popup = document.querySelector('.service-popup');
+        if (!popup) return;
+        this.fitServicePopup();
+        // با اضافه یا حذف شدن خدمت و جانبی، پنل دوباره داخل صفحه جا داده می‌شود.
+        this._servicePopupObserver = new MutationObserver(() => this.fitServicePopup());
+        this._servicePopupObserver.observe(popup, { childList: true, subtree: true });
+        window.addEventListener('resize', this.fitServicePopup);
+      });
+    },
+
     tableFilterSignature() {
       this.$nextTick(() => this.expandMatchingFilteredDays());
     },
@@ -10816,6 +10929,16 @@ smsColor(val) {
 
 
 <style>
+/* دیالوگ حذف نوبت دارای پرداخت (داخل SweetAlert، بیرون از کامپوننت) */
+.delete-refund-dialog { direction: rtl; text-align: right; color: #334155; font-size: 13px; line-height: 1.9; }
+.delete-refund-dialog p { margin: 0 0 8px; }
+.delete-refund-dialog ul { display: grid; gap: 6px; margin: 4px 0 12px; padding: 10px 12px; border-radius: 12px; background: #f8fafc; list-style: none; }
+.delete-refund-dialog li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.delete-refund-dialog li span { color: #64748b; }
+.delete-refund-dialog li b { color: #0f172a; font-weight: 900; white-space: nowrap; }
+.delete-refund-dialog li.total { margin-top: 2px; padding-top: 7px; border-top: 1px dashed #cbd5e1; }
+.delete-refund-dialog li.total b { color: #b91c1c; font-size: 14px; }
+.delete-refund-dialog .warn { color: #b45309; font-weight: 700; }
 .global-search-box.is-assistant-typing { border-color: #2563eb !important; box-shadow: 0 0 0 4px rgba(37, 99, 235, .18) !important; }
 
 @import '@/scss/main.scss';
@@ -13060,6 +13183,17 @@ td.row-action-col {
   box-shadow: 0 8px 18px rgba(0,0,0,0.15);
   padding: 10px;
   z-index: 99999;
+}
+
+/* فضای خالی زیر پنل تا پایین آن از زیر نوار ماه‌ها بیرون بیاید. */
+.service-popup::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 1px;
+  height: 110px;
+  pointer-events: none;
 }
 
 .service-popup-header{

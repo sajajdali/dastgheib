@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\InventorySection;
 use App\Services\CampaignRowMerger;
+use App\Support\FollowupLeadPhoneVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -17,6 +18,8 @@ class CampaignController extends Controller
     public function index(Request $request)
     {
         $campaigns = Campaign::query()->orderByDesc('active')->orderBy('name')->get();
+        $visible = FollowupLeadPhoneVisibility::visibleConsultants($request);
+        $campaigns->each(fn (Campaign $campaign) => FollowupLeadPhoneVisibility::maskCampaign($campaign, $visible));
 
         // نسخهٔ سبک برای فید «سرنخ‌ها»: بنرها و فایل‌های پیوست حذف می‌شوند.
         if ($request->boolean('summary')) {
@@ -30,7 +33,7 @@ class CampaignController extends Controller
         return $campaigns;
     }
 
-    public function general()
+    public function general(Request $request)
     {
         $campaign = Campaign::query()->firstOrCreate(
             ['note' => self::GENERAL_FOLLOWUP_MARKER],
@@ -62,7 +65,7 @@ class CampaignController extends Controller
             ])]);
         }
 
-        return $campaign->fresh();
+        return $this->forViewer($campaign->fresh(), $request);
     }
 
     /**
@@ -113,7 +116,7 @@ class CampaignController extends Controller
             $data['ui_payload']['rows'] = app(CampaignRowMerger::class)->withIds($data['ui_payload']['rows']);
         }
 
-        return response()->json(Campaign::create($data), 201);
+        return response()->json($this->forViewer(Campaign::create($data), $request), 201);
     }
 
     /**
@@ -126,32 +129,38 @@ class CampaignController extends Controller
         $request->validate(['base_rows' => ['nullable', 'array']]);
 
         if (! $request->exists('base_rows') || ! is_array($data['ui_payload']['rows'] ?? null)) {
+            if (is_array($data['ui_payload']['rows'] ?? null)) {
+                $serverPayload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
+                $data['ui_payload']['rows'] = FollowupLeadPhoneVisibility::restoreMaskedPhones($data['ui_payload']['rows'], $serverPayload['rows'] ?? []);
+            }
             $campaign->update($data);
 
-            return $campaign->fresh();
+            return $this->forViewer($campaign->fresh(), $request);
         }
 
         return DB::transaction(function () use ($request, $campaign, $data) {
             $current = Campaign::query()->lockForUpdate()->findOrFail($campaign->getKey());
             $serverPayload = is_array($current->ui_payload) ? $current->ui_payload : [];
+            $serverRows = is_array($serverPayload['rows'] ?? null) ? $serverPayload['rows'] : [];
+            // کاربری که شمارهٔ بعضی ردیف‌ها را ماسک‌شده دیده، همان را برمی‌گرداند؛ پیش از ادغام بازیابی می‌شود.
             $result = app(CampaignRowMerger::class)->merge(
-                (array) $request->input('base_rows', []),
-                is_array($serverPayload['rows'] ?? null) ? $serverPayload['rows'] : [],
-                $data['ui_payload']['rows'],
+                FollowupLeadPhoneVisibility::restoreMaskedPhones((array) $request->input('base_rows', []), $serverRows),
+                $serverRows,
+                FollowupLeadPhoneVisibility::restoreMaskedPhones($data['ui_payload']['rows'], $serverRows),
             );
 
             if ($result['conflicts']) {
                 return response()->json([
                     'message' => 'این سرنخ هم‌زمان توسط کاربر دیگری تغییر کرده است.',
                     'conflicts' => $result['conflicts'],
-                    'campaign' => $current,
+                    'campaign' => $this->forViewer($current, $request),
                 ], 409);
             }
 
             $data['ui_payload']['rows'] = $result['rows'];
             $current->update($data);
 
-            return $current->fresh();
+            return $this->forViewer($current->fresh(), $request);
         });
     }
 
@@ -160,6 +169,11 @@ class CampaignController extends Controller
         $campaign->delete();
 
         return response()->noContent();
+    }
+
+    private function forViewer(Campaign $campaign, Request $request): Campaign
+    {
+        return FollowupLeadPhoneVisibility::maskCampaign($campaign, FollowupLeadPhoneVisibility::visibleConsultants($request));
     }
 
     private function data(Request $request)

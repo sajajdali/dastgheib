@@ -301,7 +301,8 @@ class InventoryController extends Controller
                     throw ValidationException::withMessages(['sections' => 'برای حذف بخش، ابتدا خدمات آن را حذف کنید.']);
                 }
                 if (Schema::hasTable('patient_media_folders') && Schema::hasColumn('patient_media_folders', 'inventory_section_id')
-                    && DB::table('patient_media_folders')->where('inventory_section_id', $id)->exists()) {
+                    && DB::table('patient_media_folders')->where(fn ($used) => $used->where('inventory_section_id', $id)
+                        ->when(Schema::hasColumn('patient_media_folders', 'inventory_section_ids'), fn ($json) => $json->orWhereJsonContains('inventory_section_ids', (int) $id)))->exists()) {
                     throw ValidationException::withMessages(['sections' => 'این بخش به پوشه‌های پرونده متصل است و قابل حذف نیست.']);
                 }
                 $section->delete();

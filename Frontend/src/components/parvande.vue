@@ -593,6 +593,10 @@
                   :class="{ 'profile-check-warning-row': appointmentCheckAlert(item) }"
                   :title="appointmentRegistrationTooltip(item)"
                 >
+                  <td class="profile-date-cell">
+                    <b>{{ appointmentDateLabel(item) }}</b>
+                    <small v-if="item.time">{{ toPersianDigits(item.time) }}</small>
+                  </td>
                   <td>{{ formatServices(item.services) }}</td>
                   <td class="profile-quantity-cell">
                     <div v-if="appointmentServiceQuantities(item).length" class="profile-section-list">
@@ -1174,13 +1178,24 @@
             </div>
 
             <div v-else-if="mediaFolderLevel === 'date'" class="folder-create service-folder-create">
-              <strong>انتخاب بخش نهایی و نواحی</strong>
-              <p>آخرین شاخه را انتخاب کنید؛ اگر یک بخش زیرمجموعه نداشته باشد، خود همان بخش قابل انتخاب است.</p>
+              <strong>انتخاب خدمات و نواحی</strong>
+              <p>یک یا چند خدمت را انتخاب کنید (مثلاً ژل و بوتاکس)؛ اگر یک بخش زیرمجموعه نداشته باشد، خود همان بخش قابل انتخاب است.</p>
                 <div class="shared-upload-setup">
                   <div class="media-inventory-head">
-                    <strong>۱. انتخاب آخرین شاخه <b>*</b></strong>
-                    <span v-if="selectedMediaFolderService">{{ selectedMediaFolderService.name }}</span>
+                    <strong>۱. انتخاب خدمات <b>*</b></strong>
+                    <span v-if="selectedMediaFolderServices.length">{{ selectedMediaFolderServices.length.toLocaleString('fa-IR') }} خدمت</span>
                     <span v-else>انتخاب نشده</span>
+                  </div>
+                  <div v-if="selectedMediaFolderServices.length" class="media-selected-services">
+                    <button
+                      v-for="service in selectedMediaFolderServices"
+                      :key="`selected-service-${service.id}`"
+                      type="button"
+                      :title="`حذف ${service.name}`"
+                      @click="selectMediaFolderService(service)"
+                    >
+                      {{ service.name }} <span aria-hidden="true">×</span>
+                    </button>
                   </div>
                   <div class="media-inventory-tree">
                     <button
@@ -1189,7 +1204,7 @@
                       type="button"
                       class="media-tree-node"
                       :class="{
-                        active: selectedMediaTreeKey === mediaSectionKey(node.section),
+                        active: !node.hasChildren && isMediaSectionSelected(node.section),
                         leaf: !node.hasChildren
                       }"
                       :style="{ '--tree-depth': Math.max(0, node.level - 1) }"
@@ -1202,8 +1217,8 @@
                     </button>
                   </div>
                   <div v-if="!selectedMediaFolderService" class="media-section-required">
-                    <strong>یک بخش نهایی انتخاب کنید</strong>
-                    <span>شاخه‌های دارای زیرمجموعه باز می‌شوند؛ نام فولدر از آخرین شاخه انتخاب‌شده ساخته می‌شود.</span>
+                    <strong>یک یا چند خدمت انتخاب کنید</strong>
+                    <span>شاخه‌های دارای زیرمجموعه باز می‌شوند؛ می‌توانید چند خدمت (مثلاً ژل و بوتاکس) را با هم انتخاب کنید و نام فولدر از همهٔ آن‌ها ساخته می‌شود.</span>
                   </div>
 
                   <div class="shared-upload-head">
@@ -1518,6 +1533,18 @@
                 @click="openMediaFolder(folder.id)"
                 @contextmenu.prevent.stop="openFolderContextMenu($event, folder)"
               >
+                <span
+                  class="folder-delete-btn"
+                  role="button"
+                  tabindex="0"
+                  title="حذف فولدر"
+                  aria-label="حذف فولدر"
+                  :class="{ 'is-loading': folder.deleteLoading }"
+                  @click.stop="deleteMediaFolder(folder)"
+                  @keydown.enter.stop.prevent="deleteMediaFolder(folder)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z"/></svg>
+                </span>
                 <span class="folder-icon"></span>
                 <strong>{{ folder.name }}</strong>
                 <small v-if="folder.has_no_usage_consent" class="folder-consent-warning">عدم رضایت استفاده از تصاویر</small>
@@ -2027,7 +2054,7 @@ export default {
       specificMediaDate: '',
       showSpecificMediaDatePicker: false,
       selectedMediaFiles: [],
-      selectedMediaFolderService: null,
+      selectedMediaFolderServices: [],
       activePhotoAngleKey: 'right_profile',
       angleGuideMode: 'top',
       angleDragging: false,
@@ -2218,12 +2245,22 @@ export default {
       return FACE_PHOTO_ANGLES
     },
 
+    // خدمت اصلی (اولین انتخاب)؛ بقیهٔ کد برای «انتخاب شده یا نه» از آن استفاده می‌کند.
+    selectedMediaFolderService() {
+      return this.selectedMediaFolderServices[0] || null
+    },
+
     filteredMediaServiceTags() {
       const query = this.normalizeMediaSearch(this.serviceTagSearch)
-      const selectedSectionId = Number(this.selectedMediaFolderService?.id || 0)
-      const services = this.mediaServiceGroups
-        .filter(group => !selectedSectionId || Number(group.section_id) === selectedSectionId)
-        .flatMap(group => group.items || [])
+      // نواحی هم‌نام چند خدمت (مثل «ابرو» در ژل و بوتاکس) یک بار نمایش داده می‌شوند.
+      const seen = new Set()
+      const services = this.mediaTagsForSections(this.selectedMediaFolderServices.map(section => Number(section.id)))
+        .filter(tag => {
+          const name = this.normalizeMediaSearch(tag.name)
+          if (seen.has(name)) return false
+          seen.add(name)
+          return true
+        })
       if (!query) return services
       return services.filter(service => this.normalizeMediaSearch(service.name).includes(query))
     },
@@ -2345,6 +2382,7 @@ export default {
 
     appointmentFilterColumns() {
       return [
+        { key: 'date', label: 'تاریخ' },
         { key: 'services', label: 'خدمات' },
         { key: 'quantity', label: 'تعداد' },
         { key: 'sections', label: 'بخش' },
@@ -2949,6 +2987,24 @@ export default {
       return parsed.isValid() ? parsed.format('HH:mm') : String(value).slice(11, 16) || '-'
     },
 
+    // تاریخ نوبت از «month» (مثل 1405-08) و «day_num» ساخته می‌شود.
+    appointmentDateKey(item) {
+      const month = String(item?.month || '').trim()
+      const day = Number(item?.day_num || 0)
+      if (!/^\d{4}-\d{1,2}$/.test(month) || !day) return ''
+      const [year, monthNumber] = month.split('-')
+      return `${year}/${String(monthNumber).padStart(2, '0')}/${String(day).padStart(2, '0')}`
+    },
+
+    appointmentDateLabel(item) {
+      const key = this.appointmentDateKey(item)
+      return key ? this.toPersianDigits(key) : '-'
+    },
+
+    toPersianDigits(value) {
+      return String(value ?? '').replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[digit])
+    },
+
     appointmentRegistrationTooltip(item) {
       const recordedBy = String(item?.registered_by || '').trim() || 'نامشخص'
       const recordedAt = moment(item?.registered_at || item?.created_at)
@@ -3143,7 +3199,7 @@ export default {
       this.specificMediaDate = ''
       this.showSpecificMediaDatePicker = false
       this.selectedMediaFiles = []
-      this.selectedMediaFolderService = null
+      this.selectedMediaFolderServices = []
       this.showAngleCommonSettings = false
       this.resetMediaUpload()
       this.showMediaModal = true
@@ -3469,14 +3525,19 @@ export default {
             services: sharedUploadMetadata.services
           }
         }
-        const folderSectionId = [...this.mediaBreadcrumbs]
+        const folderCrumb = [...this.mediaBreadcrumbs]
           .reverse()
-          .find(crumb => crumb.inventory_section_id)?.inventory_section_id
-        if (folderSectionId) {
-          this.selectedMediaFolderService = this.mediaSections.find(section => Number(section.id) === Number(folderSectionId)) || null
+          .find(crumb => crumb.inventory_section_id || crumb.inventory_section_ids?.length)
+        const folderSectionIds = folderCrumb
+          ? (folderCrumb.inventory_section_ids?.length ? folderCrumb.inventory_section_ids : [folderCrumb.inventory_section_id])
+          : []
+        if (folderSectionIds.length) {
+          this.selectedMediaFolderServices = folderSectionIds
+            .map(id => this.mediaSections.find(section => Number(section.id) === Number(id)))
+            .filter(Boolean)
           this.selectedMediaTreeKey = this.selectedMediaFolderService ? this.mediaSectionKey(this.selectedMediaFolderService) : ''
         } else if (this.mediaBreadcrumbs.length <= 1) {
-          this.selectedMediaFolderService = null
+          this.selectedMediaFolderServices = []
           this.selectedMediaTreeKey = ''
         }
         this.expandedMediaSectionKeys = this.mediaSections
@@ -3492,7 +3553,7 @@ export default {
 
     async openMediaFolder(folderId) {
       this.closeFolderContextMenu()
-      this.selectedMediaFolderService = null
+      this.selectedMediaFolderServices = []
       this.selectedMediaTreeKey = ''
       this.showAngleCommonSettings = false
       this.mediaShowAll = false
@@ -3576,10 +3637,32 @@ export default {
       if (!folder?.id || !this.activeMediaPatient.id || folder.deleteLoading) return
       this.closeFolderContextMenu()
 
+      folder.deleteLoading = true
+      let summary = null
+      try {
+        const res = await fetch(`/api/patients/${this.activeMediaPatient.id}/media/folders/${folder.id}/summary`, {
+          headers: { 'Accept': 'application/json' }
+        })
+        if (res.ok) summary = await res.json()
+      } catch (error) {
+        console.error(error)
+      } finally {
+        folder.deleteLoading = false
+      }
+
+      const files = Number(summary?.files || 0)
+      const folders = Number(summary?.folders || 0)
+      const fa = value => Number(value).toLocaleString('fa-IR')
+      const contents = !summary
+        ? 'با حذف فولدر، تمام عکس‌ها و همه زیرپوشه‌های داخل آن نیز برای همیشه حذف می‌شوند.'
+        : (files || folders)
+          ? `الان در این فولدر <b>${fa(files)}</b> عکس و <b>${fa(folders)}</b> فولدر دیگر هست که همه برای همیشه حذف می‌شوند.`
+          : 'این فولدر خالی است.'
+
       const result = await Swal.fire({
         icon: 'warning',
         title: 'حذف فولدر',
-        html: `آیا از حذف فولدر «<b>${this.escapeHtml(folder.name)}</b>» مطمئن هستید؟<br><br><strong>با حذف فولدر، تمام عکس‌ها و همه زیرپوشه‌های داخل آن نیز برای همیشه حذف می‌شوند.</strong>`,
+        html: `${contents}<br><br>آیا از حذف فولدر «<b><bdi dir="${/[\u0600-\u06FF]/.test(folder.name || '') ? 'rtl' : 'ltr'}">${this.escapeHtml(folder.name)}</bdi></b>» اطمینان دارید؟`,
         showCancelButton: true,
         confirmButtonText: 'بله، حذف شود',
         cancelButtonText: 'انصراف',
@@ -3707,6 +3790,7 @@ export default {
             type: 'service',
             parent_id: this.currentMediaFolderId,
             section_id: this.selectedMediaFolderService.id,
+            section_ids: this.selectedMediaFolderServices.map(section => section.id),
             services: this.mediaUpload.services,
             description: this.mediaUpload.description || '',
             usage_consent: !this.mediaUpload.no_usage_consent,
@@ -3729,16 +3813,33 @@ export default {
       }
     },
 
+    isMediaSectionSelected(section) {
+      return this.selectedMediaFolderServices.some(item => Number(item.id) === Number(section?.id))
+    },
+
+    mediaTagsForSections(sectionIds = []) {
+      const ids = sectionIds.map(Number)
+      return this.mediaServiceGroups
+        .filter(group => ids.includes(Number(group.section_id)))
+        .flatMap(group => group.items || [])
+    },
+
+    // کلیک روی یک خدمت آن را به انتخاب‌ها اضافه یا از آن‌ها حذف می‌کند (چند خدمت با هم).
     selectMediaFolderService(service) {
       if (!service?.id) return
-      this.selectedMediaFolderService = service
+      const selected = this.isMediaSectionSelected(service)
+      this.selectedMediaFolderServices = selected
+        ? this.selectedMediaFolderServices.filter(item => Number(item.id) !== Number(service.id))
+        : [...this.selectedMediaFolderServices, service]
       this.selectedMediaTreeKey = this.mediaSectionKey(service)
       this.serviceTagSearch = ''
-      this.mediaUpload.services = []
+      // نواحیِ خدمتی که برداشته شد از انتخاب‌ها حذف می‌شوند.
+      const allowed = new Set(this.mediaTagsForSections(this.selectedMediaFolderServices.map(item => Number(item.id))).map(tag => tag.id))
+      this.mediaUpload.services = (this.mediaUpload.services || []).filter(tag => allowed.has(tag.id))
     },
 
     cancelMediaFolderService() {
-      this.selectedMediaFolderService = null
+      this.selectedMediaFolderServices = []
       this.selectedMediaTreeKey = ''
       this.serviceTagSearch = ''
       this.resetMediaUpload()
@@ -3777,13 +3878,8 @@ export default {
       const key = this.mediaSectionKey(section)
       this.selectedMediaTreeKey = key
       const children = this.mediaChildSections(key)
-      if (children.length && !this.isMediaSectionExpanded(section)) {
-        this.expandedMediaSectionKeys.push(key)
-      }
       if (children.length) {
-        this.selectedMediaFolderService = null
-        this.serviceTagSearch = ''
-        this.mediaUpload.services = []
+        this.toggleMediaSection(section)
         return
       }
       this.selectMediaFolderService(section)
@@ -4348,7 +4444,11 @@ export default {
 
         const res = await fetch(`/api/appointments/patient-history?${params.toString()}`)
         const data = await res.json()
-        this.appointmentResults = Array.isArray(data) ? data : []
+        // جدیدترین نوبت (بر اساس تاریخ و ساعت خود نوبت) بالای جدول.
+        const sortKey = item => `${this.appointmentDateKey(item) || '0000/00/00'} ${String(item?.time || '').padStart(5, '0')}`
+        this.appointmentResults = (Array.isArray(data) ? data : [])
+          .slice()
+          .sort((a, b) => sortKey(b).localeCompare(sortKey(a)))
       } catch (e) {
         console.error('Appointments history error:', e)
       } finally {
@@ -4514,6 +4614,7 @@ export default {
 
     appointmentFilterText(item, key) {
       const map = {
+        date: this.appointmentDateLabel(item),
         services: this.formatServices(item.services),
         quantity: this.appointmentFilterTexts(item, 'quantity').join('، '),
         sections: this.appointmentFilterTexts(item, 'sections').join('، '),
@@ -6340,6 +6441,24 @@ select:focus {
   white-space: nowrap;
 }
 
+.profile-date-cell {
+  white-space: nowrap;
+}
+
+.profile-date-cell b {
+  display: block;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.profile-date-cell small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+}
+
 .profile-quantity-cell .profile-section-list {
   min-width: 42px;
   text-align: center;
@@ -7470,7 +7589,7 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   background: #f8fafc;
 }
 
-.media-inventory-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.media-inventory-head strong{color:#0f172a;font-size:12px;font-weight:1000}.media-inventory-head span{padding:3px 8px;border-radius:999px;background:#e2e8f0;color:#64748b;font-size:10px;font-weight:900}.media-inventory-tree{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow:auto;padding:3px}.media-tree-node{min-height:40px;display:flex;align-items:center;gap:7px;padding:0 9px;padding-right:calc(9px + (var(--tree-depth) * 14px));border:1px solid transparent;border-radius:10px;background:#fff;color:#334155;font-family:inherit;text-align:right;cursor:pointer;transition:.16s}.media-tree-node:hover{background:#f1f5f9}.media-tree-node.active{background:#eaf3ff;color:#1d4ed8}.media-tree-toggle{width:15px;height:15px;flex:0 0 15px;position:relative}.media-tree-toggle::before{content:"";position:absolute;inset:5px;border-top:4px solid #94a3b8;border-right:3px solid transparent;border-left:3px solid transparent;transition:.16s}.media-tree-toggle.open::before{transform:rotate(90deg)}.media-tree-node.leaf .media-tree-toggle::before{opacity:0}.media-tree-node b{min-width:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:1000}.media-tree-node i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#cbd5e1}.media-tree-node em{min-width:28px;height:28px;display:grid;place-items:center;margin-right:auto;border-radius:999px;background:#eef2f7;color:#64748b;font-size:11px;font-style:normal;font-weight:900}.media-section-required{display:grid;gap:5px;padding:12px;border:1px dashed #cbd5e1;border-radius:10px;background:#fff;color:#64748b;text-align:center}.media-section-required strong{color:#0f172a;font-size:12px}.media-section-required span{font-size:10px;line-height:1.8}
+.media-inventory-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.media-inventory-head strong{color:#0f172a;font-size:12px;font-weight:1000}.media-inventory-head span{padding:3px 8px;border-radius:999px;background:#e2e8f0;color:#64748b;font-size:10px;font-weight:900}.media-inventory-tree{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow:auto;padding:3px}.media-tree-node{min-height:40px;display:flex;align-items:center;gap:7px;padding:0 9px;padding-right:calc(9px + (var(--tree-depth) * 14px));border:1px solid transparent;border-radius:10px;background:#fff;color:#334155;font-family:inherit;text-align:right;cursor:pointer;transition:.16s}.media-tree-node:hover{background:#f1f5f9}.media-tree-node.active{background:#eaf3ff;color:#1d4ed8;border-color:#bfdbfe}.media-tree-node.leaf.active i{background:#2563eb;box-shadow:0 0 0 3px #bfdbfe}.media-selected-services{display:flex;flex-wrap:wrap;gap:6px}.media-selected-services button{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid #bfdbfe;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.media-selected-services button span{color:#64748b;font-size:13px;line-height:1}.media-selected-services button:hover{border-color:#fca5a5;background:#fef2f2;color:#b91c1c}.media-tree-toggle{width:15px;height:15px;flex:0 0 15px;position:relative}.media-tree-toggle::before{content:"";position:absolute;inset:5px;border-top:4px solid #94a3b8;border-right:3px solid transparent;border-left:3px solid transparent;transition:.16s}.media-tree-toggle.open::before{transform:rotate(90deg)}.media-tree-node.leaf .media-tree-toggle::before{opacity:0}.media-tree-node b{min-width:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:1000}.media-tree-node i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#cbd5e1}.media-tree-node em{min-width:28px;height:28px;display:grid;place-items:center;margin-right:auto;border-radius:999px;background:#eef2f7;color:#64748b;font-size:11px;font-style:normal;font-weight:900}.media-section-required{display:grid;gap:5px;padding:12px;border:1px dashed #cbd5e1;border-radius:10px;background:#fff;color:#64748b;text-align:center}.media-section-required strong{color:#0f172a;font-size:12px}.media-section-required span{font-size:10px;line-height:1.8}
 
 .setup-step-title {
   display: flex;
@@ -8767,6 +8886,7 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 }
 
 .folder-tile {
+  position: relative;
   min-height: 86px;
   border: 1px solid #dbeafe;
   border-radius: 14px;
@@ -8779,6 +8899,38 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.folder-delete-btn {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  background: transparent;
+  transition: color .15s, background .15s;
+}
+
+.folder-delete-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.folder-delete-btn:hover,
+.folder-delete-btn:focus-visible {
+  color: #dc2626;
+  background: #fee2e2;
+  outline: none;
+}
+
+.folder-delete-btn.is-loading {
+  opacity: .5;
+  pointer-events: none;
 }
 
 .folder-icon {

@@ -370,8 +370,9 @@
             </header>
             <div class="beauty-compare-grid">
               <figure v-for="side in compareSides" :key="side.key" :class="['beauty-compare-photo', `is-${side.key}`]">
-                <button v-if="side.photo" type="button" :title="`نمایش بزرگ عکس ${side.label}`" @click="openLightbox(side.key)">
-                  <img :src="side.photo.url" :alt="`${side.label} · ${compareAngle.label}`" loading="lazy">
+                <button v-if="side.photo" type="button" :class="{ 'is-loading': !isPhotoLoaded(side.photo.url) }" :title="`نمایش بزرگ عکس ${side.label}`" @click="openLightbox(side.key)">
+                  <img :key="side.photo.url" :src="side.photo.url" :alt="`${side.label} · ${compareAngle.label}`" @load="markPhotoLoaded(side.photo.url)" @error="markPhotoLoaded(side.photo.url)">
+                  <span v-if="!isPhotoLoaded(side.photo.url)" class="bf-photo-spinner" role="status" aria-label="در حال بارگذاری عکس"></span>
                   <span class="beauty-compare-zoom-hint" aria-hidden="true">⤢</span>
                 </button>
                 <div v-else class="beauty-compare-empty">عکس {{ side.label }} برای این زاویه ثبت نشده است</div>
@@ -437,7 +438,7 @@
       <div
         ref="lightboxStage"
         class="bf-lightbox-stage"
-        :class="{ 'is-zoomed': zoom > 1, 'is-dragging': dragging }"
+        :class="{ 'is-zoomed': zoom > 1, 'is-dragging': dragging, 'is-loading': !isPhotoLoaded(lightboxPhoto.url) }"
         @wheel.prevent="onLightboxWheel"
         @dblclick="toggleLightboxZoom($event)"
         @pointerdown="onLightboxPointerDown"
@@ -446,8 +447,12 @@
         @pointercancel="onLightboxPointerUp"
         @pointerleave="onLightboxPointerUp"
       >
+        <span v-if="!isPhotoLoaded(lightboxPhoto.url)" class="bf-photo-spinner" role="status" aria-label="در حال بارگذاری عکس"></span>
         <img
+          :key="lightboxPhoto.url"
           :src="lightboxPhoto.url"
+          @load="markPhotoLoaded(lightboxPhoto.url)"
+          @error="markPhotoLoaded(lightboxPhoto.url)"
           :alt="`${lightboxSide.label} · ${compareAngle.label}`"
           draggable="false"
           :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoom})` }"
@@ -527,6 +532,7 @@ export default {
     legacyPhotos: [],
     photoTimeline: { angles: [], folders: [] },
     compareAngleIndex: 0,
+    loadedPhotoUrls: {},
     lightbox: null,
     zoom: 1,
     panX: 0,
@@ -597,6 +603,12 @@ export default {
     }
   },
   watch: {
+    compareAngleIndex() {
+      this.preloadNearbyAngles()
+    },
+    compareAngles() {
+      this.$nextTick(() => this.preloadNearbyAngles())
+    },
     openPatientRequest: {
       deep: true,
       handler(patient) {
@@ -637,6 +649,26 @@ export default {
     },
     statusClass(status) {
       return status === 'done' ? 'beauty-flow-status-done' : 'beauty-flow-status-pending'
+    },
+    isPhotoLoaded(url) {
+      return !url || !!this.loadedPhotoUrls[url]
+    },
+    markPhotoLoaded(url) {
+      if (url && !this.loadedPhotoUrls[url]) this.loadedPhotoUrls = { ...this.loadedPhotoUrls, [url]: true }
+    },
+    // عکس‌های زاویهٔ قبلی و بعدی از قبل گرفته می‌شوند تا جابه‌جایی زاویه سریع‌تر باشد.
+    preloadNearbyAngles() {
+      const count = this.compareAngles.length
+      if (count < 2) return
+      ;[-1, 1].forEach(step => {
+        const angle = this.compareAngles[(this.compareAngleIndex + step + count) % count]
+        ;[angle?.before?.url, angle?.after?.url].forEach(url => {
+          if (!url || this.loadedPhotoUrls[url]) return
+          const image = new Image()
+          image.onload = image.onerror = () => this.markPhotoLoaded(url)
+          image.src = url
+        })
+      })
     },
     moveCompareAngle(step) {
       const count = this.compareAngles.length
@@ -2376,6 +2408,24 @@ export default {
   user-select: none;
 }
 .bf-lightbox-stage.is-zoomed { cursor: grab; }
+.bf-lightbox-stage.is-loading img,
+.beauty-compare-photo > button.is-loading img { opacity: 0; }
+.beauty-compare-photo > button.is-loading { cursor: progress; }
+.bf-photo-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 3px solid rgba(255, 255, 255, .25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: bf-photo-spin .8s linear infinite;
+  pointer-events: none;
+}
+@keyframes bf-photo-spin { to { transform: rotate(360deg); } }
 .bf-lightbox-stage.is-dragging { cursor: grabbing; }
 .bf-lightbox-stage img {
   max-width: 100%;

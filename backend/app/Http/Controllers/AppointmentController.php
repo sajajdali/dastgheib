@@ -616,6 +616,11 @@ class AppointmentController extends Controller
                     $incoming['phone'] = $previous->phone;
                     $incoming['referrer_phone'] = $previous->referrer_phone;
                 }
+                foreach (['phone', 'referrer_phone'] as $phoneField) {
+                    if (array_key_exists($phoneField, $incoming) && PatientPhoneVisibility::looksMasked($incoming[$phoneField])) {
+                        $incoming[$phoneField] = $previous?->{$phoneField} ?? '';
+                    }
+                }
                 if ($previous && array_key_exists('payment_details', $incoming)) {
                     $submittedDetails = is_array($incoming['payment_details']) ? $incoming['payment_details'] : [];
                     $storedDetails = is_array($previous->payment_details) ? $previous->payment_details : [];
@@ -1366,19 +1371,57 @@ class AppointmentController extends Controller
         return sprintf('%04d/%02d/%02d',$jy,$jm,$jd);
     }
 
+    /**
+     * پیش از حذف نوبت: چه مبلغی از این نوبت پرداخت شده که می‌تواند به کیف پول بیمار برگردد.
+     * صفحهٔ نوبت‌دهی با این عدد از کاربر می‌پرسد مبلغ برگردد یا نه.
+     */
+    public function deletePreview(Appointment $appointment)
+    {
+        $refundable = $this->appointmentRefundableAmounts($appointment);
+        $patient = $this->appointmentPatient($appointment);
+
+        return response()->json([
+            'paid_amount' => $refundable['paid'],
+            'wallet_amount' => $refundable['wallet'],
+            'total' => $refundable['paid'] + $refundable['wallet'],
+            'has_patient' => (bool) $patient,
+            'patient_name' => $patient ? trim($patient->first_name.' '.$patient->last_name) : null,
+            'wallet_balance' => (int) ($patient?->wallet_balance ?? 0),
+            'payments' => $refundable['ledger']->map(fn (AppointmentFinancialTransaction $transaction) => [
+                'type' => $transaction->type, 'method' => $transaction->payment_method, 'amount' => (int) $transaction->amount,
+            ])->values(),
+        ]);
+    }
+
     /** Explicit deletion; a missing row in a browser payload can never delete data. */
     public function destroy(Request $request, Appointment $appointment)
     {
-        $data = $request->validate(['lock_version' => ['required', 'integer', 'min:1']]);
+        $data = $request->validate([
+            'lock_version' => ['required', 'integer', 'min:1'],
+            // پرداخت‌های نوبت فقط با تأیید صریح کاربر به کیف پول بیمار برمی‌گردد.
+            'refund_to_wallet' => ['nullable', 'boolean'],
+        ]);
         if ((int) $appointment->lock_version !== (int) $data['lock_version']) {
             return response()->json(['message' => 'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید.'], 409);
         }
+        $refundable = $this->appointmentRefundableAmounts($appointment);
+        if ($refundable['paid'] + $refundable['wallet'] > 0 && ! array_key_exists('refund_to_wallet', $data)) {
+            return response()->json([
+                'message' => 'این نوبت پرداخت ثبت‌شده دارد؛ مشخص کنید مبلغ به کیف پول بیمار برگردد یا نه.',
+                'requires_refund_choice' => true,
+            ], 422);
+        }
+        $refundToWallet = (bool) ($data['refund_to_wallet'] ?? false);
         $deletedAppointment = clone $appointment;
-        DB::transaction(function () use ($appointment, $request) {
+        DB::transaction(function () use ($appointment, $request, $refundToWallet) {
             $this->syncAppointmentInventoryStock([], collect([$appointment]));
             ResourceEarningLine::query()->where('appointment_id', $appointment->id)->delete();
             $this->reverseAppointmentWalletSourceUnless($request, "appointment-referral|{$appointment->id}", false);
-            $this->refundAppointmentPaymentsToWallet($request, $appointment);
+            if ($refundToWallet) {
+                $this->refundAppointmentPaymentsToWallet($request, $appointment);
+            } else {
+                $this->voidAppointmentPaymentsWithoutRefund($request, $appointment);
+            }
             $appointment->delete();
             $this->syncMonthlySalesBonusLines($appointment->month);
         });
@@ -1413,21 +1456,28 @@ class AppointmentController extends Controller
         ];
     }
 
-    private function refundAppointmentPaymentsToWallet(Request $request, Appointment $appointment): void
+    /**
+     * مبلغی که حذف نوبت می‌تواند به کیف پول برگرداند: پرداخت نقد، کارت، چک و تسویهٔ بدهی (paid)
+     * و برداشت‌هایی که برای همین نوبت از کیف پول شده است (wallet).
+     */
+    private function appointmentRefundableAmounts(Appointment $appointment, bool $lock = false): array
     {
-        WalletTransaction::query()
+        $walletQuery = WalletTransaction::query()
             ->where('appointment_id', $appointment->id)
             ->where('type', 'withdraw')
             ->whereIn('source_type', ['appointment_payment', 'appointment_financial_payment', 'debt_settlement'])
-            ->whereNull('reversed_at')
-            ->lockForUpdate()->get()
-            ->each(fn (WalletTransaction $transaction) => $this->reverseWalletTransaction($request, $transaction, 'حذف نوبت'));
-
-        $ledger = AppointmentFinancialTransaction::query()
+            ->whereNull('reversed_at');
+        $ledgerQuery = AppointmentFinancialTransaction::query()
             ->where('appointment_id', $appointment->id)
             ->whereIn('type', ['payment', 'debt_settlement'])
-            ->whereNull('voided_at')
-            ->lockForUpdate()->get();
+            ->whereNull('voided_at');
+        if ($lock) {
+            $walletQuery->lockForUpdate();
+            $ledgerQuery->lockForUpdate();
+        }
+        $walletDebits = $walletQuery->get();
+        $ledger = $ledgerQuery->get();
+
         $paid = (int) $ledger->reject(fn (AppointmentFinancialTransaction $transaction) => in_array($transaction->payment_method, ['بیعانه / کیف پول', 'کیف پول'], true))
             ->sum('amount');
         if ($ledger->isEmpty()) {
@@ -1437,6 +1487,29 @@ class AppointmentController extends Controller
                 + $this->signedMoneyToInteger(data_get($details, 'check.amount', 0))
                 + (int) collect($details['debt_payments'] ?? [])->sum(fn ($payment) => $this->signedMoneyToInteger($payment['amount'] ?? 0));
         }
+
+        return ['paid' => max(0, $paid), 'wallet' => (int) $walletDebits->sum('amount'), 'wallet_debits' => $walletDebits, 'ledger' => $ledger];
+    }
+
+    /** حذف نوبت بدون برگشت پول: دفتر مالی نوبت باطل می‌شود و کیف پول دست نمی‌خورد. */
+    private function voidAppointmentPaymentsWithoutRefund(Request $request, Appointment $appointment): void
+    {
+        AppointmentFinancialTransaction::query()
+            ->where('appointment_id', $appointment->id)
+            ->whereIn('type', ['payment', 'debt_settlement'])
+            ->whereNull('voided_at')
+            ->lockForUpdate()->get()
+            ->each(fn (AppointmentFinancialTransaction $transaction) => $transaction->update(['voided_at' => now(), 'voided_by' => $request->user()?->id]));
+    }
+
+    private function refundAppointmentPaymentsToWallet(Request $request, Appointment $appointment): void
+    {
+        $refundable = $this->appointmentRefundableAmounts($appointment, true);
+        $refundable['wallet_debits']
+            ->each(fn (WalletTransaction $transaction) => $this->reverseWalletTransaction($request, $transaction, 'حذف نوبت'));
+
+        $ledger = $refundable['ledger'];
+        $paid = $refundable['paid'];
 
         if ($paid > 0) {
             $patient = $this->appointmentPatient($appointment);
@@ -1488,6 +1561,8 @@ class AppointmentController extends Controller
             'source' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:20000'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
+        // شمارهٔ ماسک‌شده (مثلاً لیدی که شماره‌اش برای این کاربر مخفی است) هرگز روی نوبت ذخیره نمی‌شود.
+        if (PatientPhoneVisibility::looksMasked($data['phone'] ?? '')) $data['phone'] = null;
 
         $appointment = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($data) {
             return DB::transaction(function () use ($data) {

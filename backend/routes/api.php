@@ -41,6 +41,8 @@ use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AutomaticSmsScenarioController;
 use App\Http\Controllers\Api\AppointmentAutomaticSmsController;
 use App\Http\Controllers\Api\FollowupAutomaticSmsController;
+use App\Http\Controllers\Api\FollowupAppointmentStatusController;
+use App\Http\Controllers\Api\FollowupAutoAssignController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ClinicReportController;
 use App\Http\Controllers\Api\DynamicReportController;
@@ -135,6 +137,11 @@ Route::get('/followup-automatic-sms', [FollowupAutomaticSmsController::class, 'i
 Route::put('/followup-automatic-sms', [FollowupAutomaticSmsController::class, 'sync'])->middleware('permission:followups.view');
 Route::get('/followup-automatic-sms/person', [FollowupAutomaticSmsController::class, 'person'])->middleware('permission:followups.view|appointments.view');
 Route::patch('/followup-automatic-sms/enrollments/{enrollmentKey}', [FollowupAutomaticSmsController::class, 'toggle'])->middleware('permission:followups.view|appointments.create|appointments.update');
+// وضعیت «انجام کار» نوبت‌هایی که از ستون «ثبت نوبت» پیگیری گرفته شده‌اند.
+// تقسیم خودکار شماره‌های paste‌شده بین مشاوران.
+Route::get('/followups/auto-assign', [FollowupAutoAssignController::class, 'show'])->middleware('permission:followups.view');
+Route::put('/followups/auto-assign', [FollowupAutoAssignController::class, 'update'])->middleware('permission:followups.view');
+Route::post('/followups/appointment-statuses', [FollowupAppointmentStatusController::class, 'index'])->middleware('permission:followups.view');
 Route::post('/sms/completion', [CompletionSmsController::class, 'send']);
 Route::post('/sms/payment-link', [CompletionSmsController::class, 'sendPaymentLink']);
 Route::post('/sms/appointment', [CompletionSmsController::class, 'sendAppointment']);
@@ -176,6 +183,7 @@ Route::patch('/patients/{patient}/customer-level', [PatientController::class, 'u
 Route::post('/patients/{patient}/profile-photo', [PatientController::class, 'uploadProfilePhoto']);
 Route::get('/patients/{patient}/media', [PatientMediaController::class, 'index']);
 Route::post('/patients/{patient}/media/folders', [PatientMediaController::class, 'storeFolder']);
+Route::get('/patients/{patient}/media/folders/{folder}/summary', [PatientMediaController::class, 'folderSummary']);
 Route::delete('/patients/{patient}/media/folders/{folder}', [PatientMediaController::class, 'destroyFolder']);
 Route::post('/patients/{patient}/media/files', [PatientMediaController::class, 'storeFiles']);
 Route::get('/patients/{patient}/media/files/{media}/download', [PatientMediaController::class, 'download']);
@@ -282,6 +290,7 @@ Route::post('/appointments/{appointment}/extend', [AppointmentController::class,
 Route::patch('/appointments/{appointment}/photo-status', [AppointmentController::class, 'markPhotoTaken'])->middleware('permission:appointments.update|photos.view');
 Route::post('/appointments/row', [AppointmentController::class, 'saveRow'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments', [AppointmentController::class, 'saveAppointments'])->middleware('permission:appointments.create|appointments.update');
+Route::get('/appointments/{appointment}/delete-preview', [AppointmentController::class, 'deletePreview'])->middleware('permission:appointments.update');
 Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy'])->middleware('permission:appointments.update');
 Route::post('/appointments/single', [AppointmentController::class, 'storeSingle'])->middleware('permission:appointments.create|appointments.update');
 Route::post('/appointments/hide-day', [AppointmentController::class, 'hideDay'])->middleware('permission:appointments.create|appointments.update');

@@ -854,6 +854,48 @@
           </div>
 
           <div class="campaign-header-actions">
+            <div class="auto-assign-control" @click.stop>
+              <button
+                type="button"
+                class="auto-assign-toggle"
+                :class="{ active: autoAssign.enabled }"
+                role="switch"
+                :aria-checked="autoAssign.enabled"
+                :disabled="autoAssignSaving"
+                :title="autoAssign.enabled ? 'تقسیم خودکار روشن است؛ شماره‌های paste‌شده به‌ترتیب بین مشاوران تقسیم می‌شوند.' : 'با روشن‌کردن، شماره‌های paste‌شده به‌ترتیب بین مشاوران تقسیم می‌شوند.'"
+                @click="toggleAutoAssign"
+              >
+                <span class="auto-assign-switch" aria-hidden="true"><i></i></span>
+                <span class="auto-assign-copy">
+                  <b>تقسیم خودکار</b>
+                  <small>{{ autoAssign.enabled ? `بین ${autoAssignParticipants.length.toLocaleString('fa-IR')} مشاور` : 'خاموش' }}</small>
+                </span>
+              </button>
+              <button type="button" class="auto-assign-people" title="انتخاب مشاوران تقسیم خودکار" aria-label="انتخاب مشاوران تقسیم خودکار" @click="openAutoAssignPanel">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.4"/><path d="M15.8 14.2c2.3.2 4 1.8 4.7 4.8"/></svg>
+              </button>
+              <div v-if="autoAssignPanelOpen" class="auto-assign-panel" role="dialog" aria-label="مشاوران تقسیم خودکار">
+                <header>
+                  <strong>مشاوران تقسیم خودکار</strong>
+                  <small>شماره‌هایی که paste می‌کنید به‌ترتیب و مساوی بین این افراد تقسیم می‌شود و ترتیب از آخرین مشاورِ کمپین قبلی ادامه پیدا می‌کند.</small>
+                </header>
+                <div class="auto-assign-list">
+                  <label v-for="staff in staffOptions" :key="staff.id">
+                    <input type="checkbox" :checked="autoAssignDraft.includes(staff.id)" @change="toggleAutoAssignDraft(staff.id)" />
+                    <span>{{ staff.name }}</span>
+                  </label>
+                  <p v-if="!staffOptions.length" class="auto-assign-empty">هنوز پرسنلی تعریف نشده است.</p>
+                </div>
+                <p v-if="autoAssign.enabled && nextAutoAssignConsultant" class="auto-assign-next">نفر بعدی در این کمپین: <b>{{ nextAutoAssignConsultant }}</b></p>
+                <p v-if="autoAssignError" class="auto-assign-error">{{ autoAssignError }}</p>
+                <footer>
+                  <button type="button" class="ghost" @click="autoAssignPanelOpen = false">انصراف</button>
+                  <button type="button" class="primary" :disabled="autoAssignSaving || !autoAssignDraft.length" @click="saveAutoAssignPanel">
+                    {{ autoAssignSaving ? 'در حال ذخیره...' : autoAssign.enabled ? 'ذخیره مشاوران' : 'ذخیره و روشن‌کردن' }}
+                  </button>
+                </footer>
+              </div>
+            </div>
             <button type="button" class="campaign-icon-action campaign-excel-action" title="خروجی اکسل از ردیف‌های نمایش‌داده‌شده" aria-label="خروجی اکسل" @click.stop="exportCampaignExcel">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 11l5 6M14 11l-5 6"/></svg>
               <b>خروجی اکسل</b>
@@ -1169,7 +1211,7 @@
                         :title="duplicatePhoneTitle(row)"
                       >
                         <input
-                          v-if="canViewCampaignPhone(row)"
+                          v-if="canViewCampaignPhone(row) && !isMaskedPhone(row.phone)"
                           class="followup-phone-input"
                           v-model="row.phone"
                           title="برای ورود گروهی، فهرست شماره‌ها را یکجا اینجا جای‌گذاری کنید"
@@ -1182,7 +1224,7 @@
                           class="followup-phone-input"
                           :value="displayPatientPhone(row.phone, row)"
                           readonly
-                          title="نمایش شماره تماس برای این نقش غیرفعال است"
+                          :title="canViewCampaignPhone(row) ? 'شمارهٔ این ردیف فقط برای مشاور همین ردیف نمایش داده می‌شود' : 'نمایش شماره تماس برای این نقش غیرفعال است'"
                         />
                         <span v-if="duplicatePhoneInfo(row)" class="duplicate-phone-badge">تکراری</span>
                       </div>
@@ -1363,11 +1405,16 @@
                       <button
                         type="button"
                         class="row-appointment-btn"
-                        :class="{ registered: row.appointmentRegistered }"
+                        :class="{ registered: row.appointmentRegistered, done: isFollowupAppointmentDone(row) }"
+                        :title="followupAppointmentTitle(row)"
                         @click.stop="openRowAppointmentTimeline(row)"
                       >
                         <span>{{ row.appointmentRegistered ? 'نوبت ثبت شده' : 'ثبت نوبت' }}</span>
                         <small v-if="row.appointmentRegistered">{{ appointmentSummary(row) }}</small>
+                        <em v-if="isFollowupAppointmentDone(row)" class="row-appointment-done">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5 10 17 19 7.5"/></svg>
+                          انجام شد
+                        </em>
                       </button>
                     </td>
 
@@ -1617,6 +1664,7 @@
 <script>
 import axios from "axios";
 import moment from "moment-jalaali";
+import Swal from "sweetalert2";
 import DatePicker from 'vue3-persian-datetime-picker'
 import JalaliDateInput from './JalaliDateInput.vue'
 import draggable from "vuedraggable";
@@ -1812,6 +1860,12 @@ export default {
 
       rowCount: 1,
       bulkPhonePasteNotice: "",
+      // تقسیم خودکار شماره‌های paste‌شده بین مشاوران (تنظیم مشترک روی سرور).
+      autoAssign: { enabled: false, staff_ids: [] },
+      autoAssignDraft: [],
+      autoAssignPanelOpen: false,
+      autoAssignSaving: false,
+      autoAssignError: "",
       bulkPhonePasteNoticeTimer: null,
       campaignSearch: "",
       highlightedFollowupRowId: "",
@@ -1826,6 +1880,8 @@ export default {
       landingSmsModalOpen: false,
       automaticSmsScenarios: [],
       automaticSmsByRow: {},
+      // وضعیت «انجام کار» نوبت‌هایی که از ستون «ثبت نوبت» گرفته شده‌اند (کلید: _localId ردیف).
+      followupAppointmentStatuses: {},
       automaticSmsLoading: false,
       automaticSmsModalRow: null,
       automaticSmsDraft: [],
@@ -1918,6 +1974,17 @@ export default {
       return !Array.isArray(this.enabledFeatures) || this.enabledFeatures.includes('service_followups');
     },
     canViewCampaignCost() { return this.permissions.includes('followups.campaign_cost'); },
+    // مشاوران تقسیم خودکار به ترتیب فهرست پرسنل.
+    autoAssignParticipants() {
+      const ids = new Set((this.autoAssign.staff_ids || []).map(Number));
+      return this.staffOptions.filter(staff => ids.has(Number(staff.id))).map(staff => String(staff.name || '').trim()).filter(Boolean);
+    },
+    nextAutoAssignConsultant() {
+      if (!this.activeCampaign) return "";
+      const names = this.autoAssignParticipants;
+      if (!names.length) return "";
+      return names[this.nextAutoAssignIndex(this.activeCampaign, new Set())] || "";
+    },
     canViewPatientPhone() { return this.permissions.includes('patients.view_phone') && !this.permissions.includes('patients.hide_phone'); },
     followupProfileName() {
       const patient = this.followupProfile || {};
@@ -2134,6 +2201,7 @@ export default {
 
   mounted() {
     this.loadFollowupPhoneVisibilitySetting();
+    this.loadAutoAssignSettings();
     this.loadStaff();
     this.loadDoctors();
     this.loadChannels();
@@ -2146,6 +2214,8 @@ export default {
     window.addEventListener("beforeunload", this.handleBeforeUnload);
     window.addEventListener("scroll", this.closeAllFilters, true);
     window.addEventListener("resize", this.closeAllFilters);
+    window.addEventListener("focus", this.loadFollowupAppointmentStatuses);
+    document.addEventListener("click", this.closeAutoAssignPanel);
   },
 
   beforeUnmount() {
@@ -2155,11 +2225,14 @@ export default {
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
     window.removeEventListener("scroll", this.closeAllFilters, true);
     window.removeEventListener("resize", this.closeAllFilters);
+    window.removeEventListener("focus", this.loadFollowupAppointmentStatuses);
+    document.removeEventListener("click", this.closeAutoAssignPanel);
   },
 
   watch: {
     activeCampaignId() {
       this.loadFollowupAutomaticSms();
+      this.loadFollowupAppointmentStatuses();
     },
     campaigns: {
       handler() {
@@ -2207,6 +2280,27 @@ export default {
   },
 
   methods: {
+    // دیالوگ‌های مرورگر (confirm/alert) را کاربر می‌تواند با «جلوگیری از دیالوگ‌های بیشتر» برای همیشه خاموش کند
+    // و بعد از آن confirm بی‌صدا «نه» برمی‌گرداند و حذف کار نمی‌کند؛ پس از دیالوگ خود برنامه استفاده می‌شود.
+    async confirmDanger(title, text, confirmButtonText = "بله") {
+      const result = await Swal.fire({
+        icon: "warning",
+        title,
+        text,
+        showCancelButton: true,
+        confirmButtonText,
+        cancelButtonText: "انصراف",
+        confirmButtonColor: "#dc2626",
+        reverseButtons: true,
+        focusCancel: true,
+      });
+      return result.isConfirmed;
+    },
+
+    notify(text, icon = "warning") {
+      Swal.fire({ icon, text, confirmButtonText: "باشه" });
+    },
+
     displayPatientPhone(value, row = null) {
       const text = String(value || "").trim();
       if (!text) return "";
@@ -2216,12 +2310,15 @@ export default {
       return `${digits.slice(0, 3)}••••${digits.slice(-2)}`;
     },
 
-    canViewCampaignPhone(row = null) {
-      if (!this.canViewPatientPhone) return false;
-      if (!this.followupConsultantPhoneRestricted) return true;
-      const consultant = String(row?.consultant || '').trim();
-      if (!consultant) return true;
-      return [this.currentUser?.name, this.currentUser?.nickname].map(value => String(value || '').trim()).filter(Boolean).includes(consultant);
+    // محدودیت «شماره فقط برای مشاور همان ردیف» روی سرور اعمال می‌شود: شماره‌ای که مال این کاربر
+    // نیست از سرور ماسک‌شده می‌رسد. شماره‌ای که خود کاربر الان وارد کرده باید قابل ویرایش بماند.
+    canViewCampaignPhone() {
+      return this.canViewPatientPhone;
+    },
+
+    isMaskedPhone(value) {
+      const text = String(value || "");
+      return text.includes("•") || text.includes("*");
     },
 
     async loadFollowupPhoneVisibilitySetting() {
@@ -2359,6 +2456,7 @@ export default {
       }
       if (!row) return;
       row.appointmentRegistered = true;
+      row.appointmentId = result.appointmentId || null;
       row.appointmentDate = result.date || "";
       row.appointmentTime = result.time || "";
       row.appointmentPatientName = result.patientName || row.fullName || "";
@@ -3117,7 +3215,7 @@ export default {
     },
 
     async removeCampaign(id) {
-      const ok = window.confirm("این تبلیغ حذف شود؟");
+      const ok = await this.confirmDanger("حذف کمپین", "این کمپین و همهٔ پیگیری‌های آن حذف شود؟", "بله، کمپین حذف شود");
       if (!ok) return;
 
       const campaign = this.campaigns.find((c) => c.id === id);
@@ -3325,11 +3423,11 @@ export default {
 
     async openFollowupAutomaticSms(row) {
       if (!Number(this.activeCampaign?.id)) {
-        window.alert('ابتدا کمپین را ذخیره کنید، بعد سناریو را فعال کنید.');
+        this.notify('ابتدا کمپین را ذخیره کنید، بعد سناریو را فعال کنید.');
         return;
       }
       if (!String(row?.phone || '').trim()) {
-        window.alert('برای فعال کردن پیامک اتوماتیک، شماره تماس مخاطب را وارد کنید.');
+        this.notify('برای فعال کردن پیامک اتوماتیک، شماره تماس مخاطب را وارد کنید.');
         return;
       }
       this.automaticSmsError = '';
@@ -3388,7 +3486,7 @@ export default {
         Object.assign(item, data?.enrollment || {});
         this.loadFollowupAutomaticSms();
       } catch (error) {
-        window.alert(error.response?.data?.message || 'تغییر سناریو انجام نشد.');
+        this.notify(error.response?.data?.message || 'تغییر سناریو انجام نشد.', 'error');
       } finally {
         this.automaticSmsSaving = false;
       }
@@ -3412,11 +3510,16 @@ export default {
         });
         if (this.activeAppointmentRow) {
           this.activeAppointmentRow.appointmentRegistered = true;
+          this.activeAppointmentRow.appointmentId = data?.appointment?.id || null;
           this.activeAppointmentRow.appointmentDate = this.normalizeDateValue(form.date);
           this.activeAppointmentRow.appointmentTime = form.time;
           this.activeAppointmentRow.appointmentPatientName = form.lastname.trim();
+          // نوبت از همین ردیف پیگیری ثبت شد: تمایل «وقت داده شد» می‌شود (مثل ثبت از نوبت‌دهی).
+          this.activeAppointmentRow.interest = "ok";
+          this.activeAppointmentRow.status = this.activeAppointmentRow.status || "پاسخ داد";
         }
         this.saveCampaignsToLocal();
+        this.debouncedSaveLocal?.();
         this.appointmentModalOpen = false;
         this.activeAppointmentRow = null;
         this.showBookedAutomaticSms(form.phone);
@@ -3426,6 +3529,52 @@ export default {
       } finally {
         this.appointmentModalSaving = false;
       }
+    },
+
+    // نوبتی که از پیگیری گرفته شده، وقتی در نوبت‌دهی «انجام شد» بخورد، اینجا تیک می‌گیرد.
+    async loadFollowupAppointmentStatuses() {
+      const campaign = this.activeCampaign;
+      if (!campaign || !this.canOpenAppointments) return;
+      const items = (campaign.rows || [])
+        .filter(row => row?._localId && this.hasRegisteredAppointment(row))
+        .map(row => {
+          const date = moment(this.normalizeDateValue(row.appointmentDate), ["YYYY-MM-DD", "YYYY-M-D"], true);
+          return {
+            key: String(row._localId),
+            appointment_id: Number(row.appointmentId) || null,
+            phone: row.phone && !this.isMaskedPhone(row.phone) ? row.phone : null,
+            month: date.isValid() ? date.format("jYYYY-jMM") : null,
+            day_num: date.isValid() ? Number(date.format("jD")) : null,
+            time: row.appointmentTime || null,
+          };
+        })
+        .filter(item => item.appointment_id || (item.phone && item.month));
+      if (!items.length) {
+        this.followupAppointmentStatuses = {};
+        return;
+      }
+      const campaignId = campaign.id;
+      try {
+        const { data } = await axios.post("/api/followups/appointment-statuses", { items });
+        if (this.activeCampaign?.id !== campaignId) return;
+        this.followupAppointmentStatuses = data?.statuses || {};
+      } catch (error) {
+        console.warn("وضعیت انجام نوبت‌های پیگیری دریافت نشد.", error);
+      }
+    },
+
+    isFollowupAppointmentDone(row) {
+      return Boolean(row?.appointmentRegistered && this.followupAppointmentStatuses[String(row._localId)]?.done);
+    },
+
+    followupAppointmentTitle(row) {
+      if (!row?.appointmentRegistered) return "ثبت نوبت برای این مراجع";
+      const status = this.followupAppointmentStatuses[String(row._localId)];
+      if (!status?.done) return "نوبت ثبت شده؛ هنوز در نوبت‌دهی «انجام شد» نخورده است.";
+      const completedAt = status.completed_at ? moment(status.completed_at) : null;
+      return completedAt?.isValid()
+        ? `مراجعه کرد و کارش انجام شد (${completedAt.format("jYYYY/jMM/jDD HH:mm")})`
+        : "مراجعه کرد و کارش انجام شد.";
     },
 
     appointmentSummary(row) {
@@ -3438,7 +3587,7 @@ export default {
       if (!campaign) return;
       const rows = this.activeFilteredRows.filter(row => String(row.fullName || '').trim() || String(row.phone || '').trim());
       if (!rows.length) {
-        window.alert('ردیفی برای خروجی اکسل وجود ندارد.');
+        this.notify('ردیفی برای خروجی اکسل وجود ندارد.');
         return;
       }
 
@@ -3620,6 +3769,7 @@ export default {
         landingSms: [],
         landingSmsSent: {},
         appointmentRegistered: false,
+        appointmentId: null,
         appointmentDate: "",
         appointmentTime: "",
         appointmentPatientName: "",
@@ -3679,12 +3829,130 @@ export default {
       if (insertedRows.length) {
         this.activeCampaign.rows.splice(targetIndex + 1, 0, ...insertedRows);
       }
+      const assigned = this.autoAssignConsultants([targetRow, ...insertedRows]);
 
       clearTimeout(this.bulkPhonePasteNoticeTimer);
-      this.bulkPhonePasteNotice = `${phones.length.toLocaleString('fa-IR')} شماره وارد شد و ${phones.length.toLocaleString('fa-IR')} ردیف آماده شد.`;
+      this.bulkPhonePasteNotice = `${phones.length.toLocaleString('fa-IR')} شماره وارد شد و ${phones.length.toLocaleString('fa-IR')} ردیف آماده شد.`
+        + (assigned ? ` ${assigned.toLocaleString('fa-IR')} ردیف به‌ترتیب بین ${this.autoAssignParticipants.length.toLocaleString('fa-IR')} مشاور تقسیم شد.` : '');
       this.bulkPhonePasteNoticeTimer = setTimeout(() => {
         this.bulkPhonePasteNotice = "";
       }, 4500);
+    },
+
+    // ---- تقسیم خودکار بین مشاوران ----
+    async loadAutoAssignSettings() {
+      try {
+        const { data } = await axios.get('/api/followups/auto-assign');
+        this.autoAssign = { enabled: Boolean(data?.enabled), staff_ids: (data?.staff_ids || []).map(Number) };
+      } catch {
+        this.autoAssign = { enabled: false, staff_ids: [] };
+      }
+    },
+
+    openAutoAssignPanel() {
+      this.autoAssignError = "";
+      // وقتی تقسیم خودکار روشن است انتخاب فعلی نشان داده می‌شود؛ وگرنه پیش‌فرض همهٔ مشاوران تیک دارند.
+      this.autoAssignDraft = this.autoAssign.enabled && this.autoAssign.staff_ids.length
+        ? [...this.autoAssign.staff_ids]
+        : this.staffOptions.map(staff => Number(staff.id));
+      this.autoAssignPanelOpen = !this.autoAssignPanelOpen;
+    },
+
+    closeAutoAssignPanel(event) {
+      if (!this.autoAssignPanelOpen || event?.target?.closest?.('.auto-assign-control')) return;
+      this.autoAssignPanelOpen = false;
+    },
+
+    toggleAutoAssignDraft(id) {
+      const value = Number(id);
+      this.autoAssignDraft = this.autoAssignDraft.includes(value)
+        ? this.autoAssignDraft.filter(item => item !== value)
+        : [...this.autoAssignDraft, value];
+    },
+
+    async saveAutoAssign(enabled, staffIds) {
+      this.autoAssignSaving = true;
+      this.autoAssignError = "";
+      try {
+        const { data } = await axios.put('/api/followups/auto-assign', { enabled, staff_ids: staffIds });
+        this.autoAssign = { enabled: Boolean(data?.enabled), staff_ids: (data?.staff_ids || []).map(Number) };
+        return true;
+      } catch (error) {
+        this.autoAssignError = error.response?.data?.message || 'ذخیرهٔ تقسیم خودکار انجام نشد.';
+        return false;
+      } finally {
+        this.autoAssignSaving = false;
+      }
+    },
+
+    async toggleAutoAssign() {
+      if (this.autoAssign.enabled) {
+        await this.saveAutoAssign(false, this.autoAssign.staff_ids);
+        return;
+      }
+      // روشن‌کردن کلید، پیش‌فرض بین همهٔ مشاوران تقسیم می‌کند؛ با دکمهٔ کنارش می‌شود کسی را برداشت.
+      const allStaffIds = this.staffOptions.map(staff => Number(staff.id));
+      if (!allStaffIds.length) {
+        if (!this.autoAssignPanelOpen) this.openAutoAssignPanel();
+        return;
+      }
+      await this.saveAutoAssign(true, allStaffIds);
+    },
+
+    async saveAutoAssignPanel() {
+      if (await this.saveAutoAssign(true, this.autoAssignDraft)) this.autoAssignPanelOpen = false;
+    },
+
+    normalizeConsultantName(value) {
+      return String(value || "").replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/\u200c/g, " ").replace(/\s+/g, " ").trim();
+    },
+
+    /**
+     * آخرین مشاوری که در ترتیب تقسیم شماره گرفته است: اول آخرین ردیف همین کمپین، وگرنه آخرین ردیفِ
+     * جدیدترین کمپین قبلی که به یکی از مشاوران تقسیم داده شده است.
+     */
+    lastAutoAssignedConsultant(campaign, excludeRowIds) {
+      const names = this.autoAssignParticipants.map(name => this.normalizeConsultantName(name));
+      const lastIn = rows => {
+        for (let index = (rows || []).length - 1; index >= 0; index -= 1) {
+          const row = rows[index];
+          if (excludeRowIds.has(row?._localId)) continue;
+          const name = this.normalizeConsultantName(row?.consultant);
+          if (names.includes(name)) return name;
+        }
+        return "";
+      };
+      const current = lastIn(campaign?.rows);
+      if (current) return current;
+      const previous = this.campaigns
+        .filter(item => String(item.id) !== String(campaign?.id))
+        .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+      for (const item of previous) {
+        const name = lastIn(item.rows);
+        if (name) return name;
+      }
+      return "";
+    },
+
+    nextAutoAssignIndex(campaign, excludeRowIds) {
+      const names = this.autoAssignParticipants.map(name => this.normalizeConsultantName(name));
+      if (!names.length) return -1;
+      const last = this.lastAutoAssignedConsultant(campaign, excludeRowIds);
+      return last ? (names.indexOf(last) + 1) % names.length : 0;
+    },
+
+    /** ردیف‌های بدون مشاور به‌ترتیب بین مشاوران تقسیم می‌شوند؛ مشاوری که دستی انتخاب شده عوض نمی‌شود. */
+    autoAssignConsultants(rows) {
+      const names = this.autoAssignParticipants;
+      if (!this.autoAssign.enabled || !names.length || !this.activeCampaign) return 0;
+      const targets = rows.filter(row => row && !String(row.consultant || "").trim());
+      if (!targets.length) return 0;
+      let index = this.nextAutoAssignIndex(this.activeCampaign, new Set(targets.map(row => row._localId)));
+      targets.forEach(row => {
+        row.consultant = names[index];
+        index = (index + 1) % names.length;
+      });
+      return targets.length;
     },
 
     addMultipleRowsToActive() {
@@ -3704,7 +3972,7 @@ export default {
       ].some(value => String(value ?? "").trim());
     },
 
-    removeRowsFromActive() {
+    async removeRowsFromActive() {
       if (!this.activeCampaign) return;
       const count = Math.max(0, Number(this.rowCount) || 0);
       if (!count) return;
@@ -3714,23 +3982,23 @@ export default {
         if (this.isEmptyFollowupRow(rows[index])) removable.push(rows[index]);
       }
       if (!removable.length) {
-        window.alert("ردیف خالی برای حذف وجود ندارد. برای حذف یک سرنخ از دکمهٔ حذف همان ردیف استفاده کنید.");
+        this.notify("ردیف خالی برای حذف وجود ندارد. برای حذف یک سرنخ از دکمهٔ حذف همان ردیف استفاده کنید.");
         return;
       }
       const shortfall = count - removable.length;
       const message = `${removable.length.toLocaleString("fa-IR")} ردیف خالی از انتهای جدول حذف شود؟`
-        + (shortfall > 0 ? `\nبقیهٔ ردیف‌ها اطلاعات دارند و حذف نمی‌شوند.` : "");
-      if (!window.confirm(message)) return;
+        + (shortfall > 0 ? ` بقیهٔ ردیف‌ها اطلاعات دارند و حذف نمی‌شوند.` : "");
+      if (!await this.confirmDanger("حذف ردیف‌های خالی", message, "بله، حذف شود")) return;
       const removeSet = new Set(removable);
-      this.activeCampaign.rows = rows.filter(row => !removeSet.has(row));
+      this.activeCampaign.rows = this.activeCampaign.rows.filter(row => !removeSet.has(row));
     },
 
     async deleteFollowupRow(row) {
       const campaign = this.activeCampaign;
       if (!campaign || !row) return;
 
-      const person = String(row.fullName || '').trim() || 'این مخاطب';
-      const confirmed = window.confirm(`پیگیری «${person}» حذف شود؟\nاین عملیات بعد از تأیید از اطلاعات کمپین نیز پاک می‌شود.`);
+      const person = String(row.fullName || '').trim() || this.displayPatientPhone(row.phone, row) || 'این مخاطب';
+      const confirmed = await this.confirmDanger("حذف پیگیری", `پیگیری «${person}» حذف شود؟ این ردیف از اطلاعات کمپین هم پاک می‌شود.`, "بله، حذف شود");
       if (!confirmed) return;
 
       const index = campaign.rows.findIndex(item => item._localId === row._localId);
@@ -3748,7 +4016,7 @@ export default {
         if (error.response?.status === 409) return;
         campaign.rows.splice(index, 0, removedRow);
         this.saveCampaignsToLocal();
-        window.alert(error.response?.data?.message || 'حذف پیگیری روی سرور انجام نشد؛ ردیف به جدول برگردانده شد.');
+        this.notify(error.response?.data?.message || 'حذف پیگیری روی سرور انجام نشد؛ ردیف به جدول برگردانده شد.', 'error');
       }
     },
 
@@ -4127,6 +4395,17 @@ export default {
       return looseParsed.isValid() ? looseParsed.format("jYYYY/jMM/jDD") : raw;
     },
 
+    markBookedRowsInterest() {
+      let changed = false;
+      this.campaigns.forEach(campaign => (Array.isArray(campaign.rows) ? campaign.rows : []).forEach(row => {
+        if (row.appointmentRegistered && !normalizeInterest(row.interest)) {
+          row.interest = "ok";
+          changed = true;
+        }
+      }));
+      return changed;
+    },
+
     saveCampaignsToLocal() {
       const now = new Date().toISOString();
       this.campaigns.forEach(campaign => {
@@ -4213,7 +4492,7 @@ export default {
             .map(conflict => serverRows.find(row => String(row._localId) === String(conflict.row_id)))
             .map(row => String(row?.fullName || row?.phone || '').trim())
             .filter(Boolean);
-          window.alert(`${names.length ? `«${names.join('، ')}»` : 'یکی از سرنخ‌ها'} هم‌زمان توسط کاربر دیگری تغییر کرده بود؛ نسخهٔ ذخیره‌شدهٔ آن نمایش داده شد. لطفاً دوباره بررسی کنید.`);
+          this.notify(`${names.length ? `«${names.join('، ')}»` : 'یکی از سرنخ‌ها'} هم‌زمان توسط کاربر دیگری تغییر کرده بود؛ نسخهٔ ذخیره‌شدهٔ آن نمایش داده شد. لطفاً دوباره بررسی کنید.`);
           this.saveCampaignsToLocal();
         }
         throw error;
@@ -4300,6 +4579,9 @@ export default {
         this.loadCampaignsFromLocal();
       } finally {
         this.campaignsLoadingFromServer = false;
+        // ردیفی که از همین پیگیری نوبت گرفته ولی تمایلش خالی مانده، «وقت داده شد» می‌شود.
+        if (this.markBookedRowsInterest()) this.debouncedSaveLocal?.();
+        this.loadFollowupAppointmentStatuses();
         if (this.campaigns.some(campaign => !campaign._serverPersisted)) {
           await this.saveCampaignsToServer();
           this.saveCampaignsToLocal();
@@ -4366,6 +4648,7 @@ export default {
                 interest: normalizeInterest(r.interest ?? ""),
                 reason: r.reason ?? "",
                 appointmentRegistered: Boolean(r.appointmentRegistered),
+                appointmentId: r.appointmentId ?? null,
                 appointmentDate: r.appointmentDate ?? "",
                 appointmentTime: r.appointmentTime ?? "",
                 appointmentPatientName: r.appointmentPatientName ?? "",
@@ -5193,6 +5476,10 @@ export default {
 .campaign-patient-avatar { width:34px; height:34px; flex:0 0 34px; border:3px solid #3b82f6; border-radius:50%; object-fit:cover; background:#eff6ff; }
 .campaign-patient-avatar.fallback { display:grid; place-items:center; color:#1d4ed8; font-weight:900; }
 .appointment-cell{min-width:0}.row-appointment-btn{width:100%;height:34px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 6px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10px;font-weight:900;line-height:1.2;cursor:pointer;transition:.16s}.row-appointment-btn:hover{border-color:#60a5fa;background:#dbeafe;transform:translateY(-1px)}.row-appointment-btn.registered{border-color:#bbf7d0;background:#ecfdf5;color:#047857}.row-appointment-btn small{max-width:100%;overflow:hidden;color:inherit;font-size:8px;font-weight:800;opacity:.82;text-overflow:ellipsis;white-space:nowrap}
+.row-appointment-btn.done{height:auto;min-height:34px;padding:4px 6px;border-color:#86efac;background:#dcfce7;color:#166534}
+.row-appointment-btn.done:hover{border-color:#4ade80;background:#bbf7d0}
+.row-appointment-done{display:inline-flex;align-items:center;gap:3px;margin-top:1px;padding:1px 7px 1px 6px;border-radius:999px;background:#16a34a;color:#fff;font-size:9px;font-style:normal;font-weight:900;line-height:1.5}
+.row-appointment-done svg{width:10px;height:10px;fill:none;stroke:currentColor;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
 .campaign-status-select { padding:7px 10px; border:2px solid transparent; border-radius:10px; font-family:inherit; font-weight:900; }
 .campaign-status-active { color:#15803d; background:#dcfce7; border-color:#86efac; }
 .campaign-status-paused { color:#b45309; background:#fef3c7; border-color:#fcd34d; }
@@ -6044,6 +6331,39 @@ export default {
   overflow:visible;
   text-overflow:clip;
 }
+.auto-assign-control{position:relative;display:flex;align-items:center;gap:4px}
+.auto-assign-toggle{display:flex;align-items:center;gap:8px;flex:0 0 auto;height:auto;min-height:38px;padding:4px 10px 4px 12px;box-sizing:border-box;white-space:nowrap;border:1px solid #e2e8f0;border-radius:12px;background:#fff;color:#475569;font-family:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+.auto-assign-toggle:hover{border-color:#cbd5e1;background:#f8fafc}
+.auto-assign-toggle.active{border-color:#86efac;background:#f0fdf4;color:#166534}
+.auto-assign-toggle:disabled{opacity:.6;cursor:wait}
+.auto-assign-switch{position:relative;flex:0 0 auto;width:30px;height:17px;border-radius:999px;background:#cbd5e1;transition:background .15s}
+.auto-assign-switch i{position:absolute;top:2px;right:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.25);transition:transform .15s}
+.auto-assign-toggle.active .auto-assign-switch{background:#16a34a}
+.auto-assign-toggle.active .auto-assign-switch i{transform:translateX(-13px)}
+.auto-assign-copy{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;text-align:right}
+.auto-assign-copy b,.auto-assign-copy small{display:block;margin:0;padding:0;line-height:1.3;white-space:nowrap}
+.auto-assign-copy b{font-size:11px;font-weight:900}
+.auto-assign-copy small{color:#94a3b8;font-size:9.5px;font-weight:700}
+.auto-assign-toggle.active .auto-assign-copy small{color:#15803d}
+.auto-assign-people{display:grid;place-items:center;width:38px;height:38px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;color:#64748b;cursor:pointer}
+.auto-assign-people:hover{border-color:#bfdbfe;background:#eff6ff;color:#2563eb}
+.auto-assign-people svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.auto-assign-panel{position:absolute;top:calc(100% + 8px);left:0;z-index:40;display:grid;gap:10px;width:290px;padding:14px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.18);direction:rtl;text-align:right}
+.auto-assign-panel header{display:grid;gap:4px}
+.auto-assign-panel header strong{color:#0f172a;font-size:13px;font-weight:900}
+.auto-assign-panel header small{color:#64748b;font-size:10.5px;line-height:1.7}
+.auto-assign-list{display:grid;gap:4px;max-height:220px;overflow-y:auto;padding:4px;border-radius:12px;background:#f8fafc}
+.auto-assign-list label{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:9px;color:#334155;font-size:12px;font-weight:700;cursor:pointer}
+.auto-assign-list label:hover{background:#fff}
+.auto-assign-list input{width:16px;height:16px;margin:0;accent-color:#16a34a}
+.auto-assign-empty{margin:0;padding:8px;color:#94a3b8;font-size:11px;text-align:center}
+.auto-assign-next{margin:0;padding:7px 10px;border-radius:10px;background:#f0fdf4;color:#166534;font-size:11px}
+.auto-assign-error{margin:0;color:#dc2626;font-size:11px;font-weight:700}
+.auto-assign-panel footer{display:flex;justify-content:flex-end;gap:8px}
+.auto-assign-panel footer button{height:34px;padding:0 14px;border:0;border-radius:10px;font-family:inherit;font-size:11.5px;font-weight:900;cursor:pointer}
+.auto-assign-panel footer .ghost{background:#f1f5f9;color:#475569}
+.auto-assign-panel footer .primary{background:#16a34a;color:#fff}
+.auto-assign-panel footer .primary:disabled{opacity:.5;cursor:not-allowed}
 .bulk-phone-paste-notice{
   position:fixed;
   z-index:1000020;

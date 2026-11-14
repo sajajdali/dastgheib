@@ -74,7 +74,7 @@ class PhotoComparisonController extends Controller
             ->groupBy(fn (PatientMedia $media) => implode('|', [
                 $media->patient_id,
                 $media->folder?->folder_date,
-                $media->folder?->inventory_section_id,
+                $media->folder?->parent_id ?: $media->folder?->inventory_section_id,
                 $media->photo_angle_key,
             ]))
             ->map(fn (Collection $rows) => $this->comparison($rows, $request))
@@ -82,7 +82,7 @@ class PhotoComparisonController extends Controller
                 // ناحیه = خدمتی که موقع ساخت پوشهٔ عکس انتخاب شده؛ انتخاب یک بخش، زیر‌بخش‌هایش را هم می‌آورد.
                 $ids = $this->sectionWithDescendants((int) $data['service_id']);
                 return $rows->filter(function ($row) use ($ids) {
-                    return in_array((int) ($row['service']?->id ?? 0), $ids, true)
+                    return array_intersect($row['service_ids'], $ids) !== []
                         || collect($row['tags'])->contains(fn ($tag) => in_array((int) ($tag['id'] ?? 0), $ids, true));
                 });
             })
@@ -137,11 +137,12 @@ class PhotoComparisonController extends Controller
         $patientData = $patient?->only(['id', 'first_name', 'last_name', 'phone', 'file_number', 'gender']);
 
         return [
-            'key' => implode('-', [$sample->patient_id, $sample->folder?->folder_date, $sample->folder?->inventory_section_id, $sample->photo_angle_key]),
+            'key' => implode('-', [$sample->patient_id, $sample->folder?->folder_date, $sample->folder?->parent_id ?: $sample->folder?->inventory_section_id, $sample->photo_angle_key]),
             'patient' => $patientData,
             'date' => $sample->folder?->folder_date,
             'sort_date' => max($before?->created_at?->timestamp ?? 0, $after?->created_at?->timestamp ?? 0),
             'service' => $sample->folder?->inventorySection,
+            'service_ids' => $sample->folder?->sectionIds() ?? [],
             'tags' => $tags,
             'angle_key' => $sample->photo_angle_key,
             'angle_label' => $sample->photo_angle_label,
@@ -173,7 +174,8 @@ class PhotoComparisonController extends Controller
     {
         $sections = InventorySection::query()->get(['id', 'parent_id', 'name', 'sort_order'])->keyBy('id');
         $used = \App\Models\PatientMediaFolder::query()->whereNotNull('inventory_section_id')
-            ->distinct()->pluck('inventory_section_id')->map(fn ($id) => (int) $id);
+            ->get(['inventory_section_id', 'inventory_section_ids'])
+            ->flatMap(fn ($folder) => $folder->sectionIds())->unique()->values();
         $chain = function (int $id) use ($sections): array {
             $names = [];
             for ($section = $sections->get($id), $guard = 0; $section && $guard < 10; $guard++) {

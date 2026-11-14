@@ -33,6 +33,9 @@ class FollowupAutomaticSmsController extends Controller
             'scenario_ids' => ['present', 'array'],
             'scenario_ids.*' => ['integer'],
         ]);
+        if (\App\Support\PatientPhoneVisibility::looksMasked($data['phone'])) {
+            return response()->json(['message' => 'شمارهٔ این مراجع برای شما مخفی است؛ سناریوی پیامک فقط توسط مشاور همین ردیف فعال می‌شود.'], 422);
+        }
 
         return response()->json(['enrollments' => $this->service->syncRow(
             $data['campaign_id'] ?? null, $data['row_key'], $data['phone'], $data['patient_name'] ?? null, $data['scenario_ids'], $request->user()

@@ -19,6 +19,7 @@ class PatientMediaFolder extends Model
         'folder_date',
         'inventory_id',
         'inventory_section_id',
+        'inventory_section_ids',
         'services',
         'upload_description',
         'upload_usage_consent',
@@ -29,6 +30,7 @@ class PatientMediaFolder extends Model
 
     protected $casts = [
         'services' => 'array',
+        'inventory_section_ids' => 'array',
         'upload_usage_consent' => 'boolean',
         'upload_is_featured' => 'boolean',
         'photo_processing_settings' => 'array',
@@ -57,5 +59,14 @@ class PatientMediaFolder extends Model
     public function inventorySection()
     {
         return $this->belongsTo(InventorySection::class, 'inventory_section_id');
+    }
+
+    /** همهٔ خدمات پوشه؛ پوشه‌های قدیمی فقط inventory_section_id دارند. */
+    public function sectionIds(): array
+    {
+        $ids = array_map('intval', array_filter((array) ($this->inventory_section_ids ?: [])));
+        if ($ids === [] && $this->inventory_section_id) $ids = [(int) $this->inventory_section_id];
+
+        return array_values(array_unique($ids));
     }
 }

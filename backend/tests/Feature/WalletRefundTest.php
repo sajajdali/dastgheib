@@ -99,7 +99,7 @@ class WalletRefundTest extends TestCase
 
         $this->assertSame(4500000.0, $this->invokePrivate(app(ClinicReportService::class), 'receivedAmount', $visit, $this->invokePrivate(app(ClinicReportService::class), 'ledgerReceipts', [$visit->id])));
 
-        app(AppointmentController::class)->destroy(Request::create('/', 'DELETE', ['lock_version' => 1]), $visit->fresh());
+        app(AppointmentController::class)->destroy(Request::create('/', 'DELETE', ['lock_version' => 1, 'refund_to_wallet' => true]), $visit->fresh());
 
         $this->assertSame(6500000.0, (float) $patient->fresh()->wallet_balance);
         $this->assertNotNull($walletPayment->fresh()->reversed_at);
@@ -109,19 +109,57 @@ class WalletRefundTest extends TestCase
         $this->assertCount(3, $refund->metadata['payments']);
     }
 
-    public function test_deleting_a_paid_appointment_without_a_patient_is_refused(): void
+    public function test_refunding_a_paid_appointment_without_a_patient_is_refused_but_it_can_be_deleted_without_refund(): void
     {
         $visit = Appointment::query()->create(['month' => '1405-08', 'day_num' => 5, 'done' => 'انجام شد', 'amount' => '900000', 'debt' => '0', 'services' => []]);
         AppointmentFinancialTransaction::query()->create(['appointment_id' => $visit->id, 'type' => 'payment', 'amount' => 900000, 'payment_method' => 'نقد', 'occurred_at' => now()]);
 
         try {
-            app(AppointmentController::class)->destroy(Request::create('/', 'DELETE', ['lock_version' => 1]), $visit->fresh());
-            $this->fail('حذف نوبت پرداخت‌شده بدون پرونده نباید انجام شود.');
+            app(AppointmentController::class)->destroy(Request::create('/', 'DELETE', ['lock_version' => 1, 'refund_to_wallet' => true]), $visit->fresh());
+            $this->fail('برگشت پول نوبت پرداخت‌شده بدون پرونده نباید انجام شود.');
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
             $this->assertSame(422, $exception->getStatusCode());
         }
-
         $this->assertNotNull($visit->fresh());
+
+        app(AppointmentController::class)->destroy(Request::create('/', 'DELETE', ['lock_version' => 1, 'refund_to_wallet' => false]), $visit->fresh());
+        $this->assertNull($visit->fresh());
         $this->assertSame(0, WalletTransaction::query()->count());
+    }
+
+    public function test_a_paid_appointment_is_not_deleted_until_the_refund_choice_is_made(): void
+    {
+        $patient = Patient::query()->create(['first_name' => 'بیمار', 'last_name' => 'انتخاب', 'file_number' => 'W-2']);
+        $visit = Appointment::query()->create(['month' => '1405-08', 'day_num' => 6, 'file_number' => 'W-2', 'done' => 'انجام شد', 'amount' => '1200000', 'debt' => '0', 'services' => []]);
+        AppointmentFinancialTransaction::query()->create(['appointment_id' => $visit->id, 'patient_id' => $patient->id, 'type' => 'payment', 'amount' => 1200000, 'payment_method' => 'نقد', 'occurred_at' => now()]);
+
+        $preview = app(AppointmentController::class)->deletePreview($visit->fresh())->getData(true);
+        $this->assertSame(1200000, $preview['paid_amount']);
+        $this->assertSame(0, $preview['wallet_amount']);
+        $this->assertSame(1200000, $preview['total']);
+        $this->assertTrue($preview['has_patient']);
+
+        $response = app(AppointmentController::class)->destroy(Request::create('/', 'DELETE', ['lock_version' => 1]), $visit->fresh());
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertTrue($response->getData(true)['requires_refund_choice']);
+        $this->assertNotNull($visit->fresh());
+    }
+
+    public function test_deleting_without_refund_keeps_the_wallet_untouched(): void
+    {
+        $patient = Patient::query()->create(['first_name' => 'بیمار', 'last_name' => 'بدون برگشت', 'file_number' => 'W-3']);
+        WalletTransaction::query()->create(['patient_id' => $patient->id, 'type' => 'deposit', 'amount' => 3000000, 'source_type' => 'manual']);
+        $visit = Appointment::query()->create(['month' => '1405-08', 'day_num' => 7, 'file_number' => 'W-3', 'done' => 'انجام شد', 'amount' => '2500000', 'debt' => '0', 'services' => []]);
+        $walletPayment = WalletTransaction::query()->create(['patient_id' => $patient->id, 'type' => 'withdraw', 'amount' => 1000000, 'source_type' => 'appointment_financial_payment', 'appointment_id' => $visit->id]);
+        $cash = AppointmentFinancialTransaction::query()->create(['appointment_id' => $visit->id, 'patient_id' => $patient->id, 'type' => 'payment', 'amount' => 1500000, 'payment_method' => 'نقد', 'occurred_at' => now()]);
+        $this->assertSame(2000000.0, (float) $patient->fresh()->wallet_balance);
+
+        app(AppointmentController::class)->destroy(Request::create('/', 'DELETE', ['lock_version' => 1, 'refund_to_wallet' => false]), $visit->fresh());
+
+        $this->assertNull($visit->fresh());
+        $this->assertSame(2000000.0, (float) $patient->fresh()->wallet_balance);
+        $this->assertNull($walletPayment->fresh()->reversed_at);
+        $this->assertSame(0, WalletTransaction::query()->where('source_type', 'appointment_refund')->count());
+        $this->assertNotNull($cash->fresh()->voided_at);
     }
 }

@@ -207,6 +207,9 @@ class CompletionSmsController extends Controller
             'patient_phone' => ['required', 'string', 'max:30'],
             'patient_name' => ['nullable', 'string', 'max:255'],
         ]);
+        if (\App\Support\PatientPhoneVisibility::looksMasked($data['patient_phone'])) {
+            return response()->json(['message' => 'شمارهٔ این مراجع برای شما مخفی است؛ پیامک فقط توسط مشاور همین ردیف ارسال می‌شود.'], 422);
+        }
 
         $definitions = collect(json_decode((string) AppSetting::getByKey('service_tags', '[]'), true))
             ->mapWithKeys(function ($tag) {
