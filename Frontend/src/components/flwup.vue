@@ -1215,8 +1215,8 @@
                           class="followup-phone-input"
                           v-model="row.phone"
                           title="برای ورود گروهی، فهرست شماره‌ها را یکجا اینجا جای‌گذاری کنید"
-                          @input="lookupPatientByPhone(row)"
-                          @blur="fillPatientByPhone(row)"
+                          @input="lookupPatientByPhone(row); autoAssignTypedPhone(row)"
+                          @blur="fillPatientByPhone(row); autoAssignTypedPhone(row, true)"
                           @paste="handleBulkPhonePaste($event, row)"
                         />
                         <input
@@ -3740,6 +3740,7 @@ export default {
 
     selectFollowupPatient(row, patient) {
       this.applyPatientToFollowupRow(row, patient);
+      this.autoAssignTypedPhone(row, true);
       this.closeFollowupPatientSearch();
     },
     ensureContactDateTime(row) {
@@ -3939,6 +3940,19 @@ export default {
       if (!names.length) return -1;
       const last = this.lastAutoAssignedConsultant(campaign, excludeRowIds);
       return last ? (names.indexOf(last) + 1) % names.length : 0;
+    },
+
+    /**
+     * شمارهٔ تایپ‌شده هم مثل paste نوبتِ مشاور بعدی را می‌گیرد: هنگام تایپ به محض کامل‌شدن شماره،
+     * و با رفتن از خانهٔ شماره (leaving=true) برای هر شماره‌ای که وارد شده باشد، حتی ناقص.
+     */
+    autoAssignTypedPhone(row, leaving = false) {
+      if (!row || String(row.consultant || "").trim()) return;
+      const hasPhone = leaving
+        ? /[0-9۰-۹٠-٩]/.test(String(row.phone || ""))
+        : Boolean(this.normalizeBulkMobile(row.phone));
+      if (!hasPhone) return;
+      this.autoAssignConsultants([row]);
     },
 
     /** ردیف‌های بدون مشاور به‌ترتیب بین مشاوران تقسیم می‌شوند؛ مشاوری که دستی انتخاب شده عوض نمی‌شود. */
