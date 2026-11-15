@@ -972,4 +972,19 @@ h3 { margin-bottom: 10px; text-align: center; }
     width: 100%;
   }
 }
+
+body.dark .ticket-page,#app.dark .ticket-page{color:#e2e8f0}
+body.dark .ticket-page h3,#app.dark .ticket-page h3{color:#f8fafc}
+body.dark .today-ticket-alert,#app.dark .today-ticket-alert{background:linear-gradient(135deg,#1e293b,#172033);border-color:#7f1d1d;color:#e2e8f0;box-shadow:0 10px 24px rgba(0,0,0,.25)}
+body.dark .today-ticket-alert small,#app.dark .today-ticket-alert small{color:#94a3b8}
+body.dark .popup-form,#app.dark .popup-form{background:#172033;border-color:#334155;color:#e2e8f0;box-shadow:0 28px 80px rgba(0,0,0,.5)}
+body.dark .popup-form input,body.dark .popup-form textarea,body.dark .popup-form select,#app.dark .popup-form input,#app.dark .popup-form textarea,#app.dark .popup-form select{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .popup-form input:focus,body.dark .popup-form textarea:focus,body.dark .popup-form select:focus,#app.dark .popup-form input:focus,#app.dark .popup-form textarea:focus,#app.dark .popup-form select:focus{background:#253349;border-color:#3b82f6}
+body.dark .priority-field,#app.dark .priority-field{color:#94a3b8}
+body.dark .owner-picker-trigger,body.dark .owner-picker-menu,#app.dark .owner-picker-trigger,#app.dark .owner-picker-menu{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .owner-chips>span,#app.dark .owner-chips>span{background:#1e3a5f;color:#93c5fd}
+body.dark .owner-chips button,#app.dark .owner-chips button{background:#334155;color:#93c5fd}
+body.dark .reload-staff-btn,#app.dark .reload-staff-btn{background:#1e3a5f;border-color:#334155;color:#93c5fd}
+body.dark .cancel-btn,#app.dark .cancel-btn{background:#450a0a;color:#fca5a5}
+body.dark .popup-head,#app.dark .popup-head{color:#f8fafc}
 </style>

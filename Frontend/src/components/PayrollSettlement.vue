@@ -68,6 +68,9 @@
             <article><span>اضافه‌کاری</span><strong>{{ money(report.summary.overtime) }}</strong></article>
             <article><span>کسری ساعت</span><strong>{{ money(report.summary.shortage) }}</strong></article>
             <article><span>غیبت</span><strong>{{ money(report.summary.absence) }}</strong></article>
+            <article><span>پاداش دستی</span><strong>{{ money(report.summary.manual_bonus) }}</strong></article>
+            <article><span>کسورات دستی</span><strong>{{ money(report.summary.manual_deduction) }}</strong></article>
+            <article><span>کسر مساعده</span><strong>{{ money(report.summary.advance_deduction) }}</strong></article>
           </section>
 
           <section class="payroll-tabs">
@@ -184,6 +187,13 @@
               <strong>{{ money(report.resource.absence_deduction) }}</strong>
             </article>
           </section>
+          <EmployeePortalAdmin
+            v-if="canManageEmployeePortal"
+            :resource="report.resource"
+            :month="selectedMonth"
+            :user-id="currentUserId"
+            @changed="loadReport"
+          />
         </template>
       </main>
     </div>
@@ -288,8 +298,16 @@
 </template>
 
 <script>
+import EmployeePortalAdmin from './EmployeePortalAdmin.vue'
+
 export default {
   name: 'PayrollSettlement',
+  components: { EmployeePortalAdmin },
+  props: {
+    currentUserId: { type: Number, default: null },
+    initialResource: { type: Object, default: null },
+    canManageEmployeePortal: { type: Boolean, default: false },
+  },
   data() {
     return {
       resources: [],
@@ -344,7 +362,8 @@ export default {
   },
   async mounted() {
     await this.loadResources()
-    if (this.resources.length) this.selectResource(this.resources[0])
+    const requested = this.initialResource && this.resources.find(item => item.type === this.initialResource.type && Number(item.id) === Number(this.initialResource.id))
+    if (requested || this.resources.length) this.selectResource(requested || this.resources[0])
   },
   methods: {
     async loadResources() {
@@ -612,4 +631,43 @@ export default {
 .payroll-empty{padding:20px;text-align:center;color:#64748b}
 .line-detail-overlay{position:fixed;inset:0;z-index:1000002;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.58);backdrop-filter:blur(4px)}.line-detail-modal{width:min(880px,96vw);max-height:90vh;overflow:auto;padding:18px;border-radius:10px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.35)}.line-detail-modal header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.line-detail-modal header small{font-weight:900;color:#2563eb}.line-detail-modal h2{margin:3px 0 0;font-size:18px}.line-detail-modal header button{width:34px;height:34px;border:0;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:22px;cursor:pointer}.line-detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}.line-detail-grid article{display:grid;gap:6px;padding:11px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}.line-detail-grid article.earned{background:#ecfdf5;border-color:#bbf7d0}.line-detail-grid article.audit{background:#fffbeb;border-color:#fde68a}.line-detail-grid article.deleted{background:#fef2f2;border-color:#fecaca}.line-detail-grid article.earned strong{color:#047857;font-size:17px}.line-detail-grid span{font-size:11px;font-weight:900;color:#64748b}.line-detail-grid strong{font-size:13px;color:#0f172a;line-height:1.8}.line-edit-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.line-edit-form label{display:grid;gap:6px}.line-edit-form span{font-size:11px;font-weight:900;color:#64748b}.line-edit-form input,.line-edit-form select{height:40px;border:1px solid #dbe3ed;border-radius:8px;padding:0 10px;background:#fff;color:#172033;outline:none}.line-edit-form input:focus,.line-edit-form select:focus{border-color:#2563eb;box-shadow:0 0 0 3px #dbeafe}.line-final-amount{grid-column:span 2}.line-final-amount input{font-weight:900;color:#047857}.line-detail-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}.save-line-btn,.edit-line-btn,.cancel-line-btn{height:40px;border:0;border-radius:8px;padding:0 18px;font-weight:900;cursor:pointer}.save-line-btn,.edit-line-btn{background:#2563eb;color:#fff}.cancel-line-btn{background:#f1f5f9;color:#475569}.save-line-btn:disabled,.cancel-line-btn:disabled{opacity:.6;cursor:wait}.line-audit-list{margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0}.line-audit-list h3{margin:0 0 8px;font-size:14px}.audit-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:8px}.line-audit-list table{width:100%;min-width:980px;border-collapse:collapse}.line-audit-list th,.line-audit-list td{padding:9px;border-bottom:1px solid #edf2f7;text-align:right;font-size:11px;white-space:nowrap}.line-audit-list th{background:#f8fafc;color:#64748b;font-weight:900}.line-audit-list td:nth-child(3){font-weight:900;color:#2563eb}
 @keyframes spin{to{transform:rotate(360deg)}}@media(max-width:980px){.payroll-layout{grid-template-columns:1fr}.payroll-summary{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.payroll-page{padding:12px}.payroll-header{align-items:stretch;flex-direction:column}.payroll-summary,.payroll-settings{grid-template-columns:1fr}.payroll-summary .total{grid-column:auto}}
+
+body.dark .payroll-page,#app.dark .payroll-page{background:#0f172a;color:#e2e8f0}
+body.dark .payroll-header h1,#app.dark .payroll-header h1{color:#f8fafc}
+body.dark .payroll-sidebar,body.dark .payroll-content,#app.dark .payroll-sidebar,#app.dark .payroll-content{background:#172033;border-color:#334155;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+body.dark .payroll-month button,body.dark .payroll-month input,body.dark .payroll-search input,#app.dark .payroll-month button,#app.dark .payroll-month input,#app.dark .payroll-search input{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .payroll-segments button:not(.active),body.dark .payroll-tabs button:not(.active),#app.dark .payroll-segments button:not(.active),#app.dark .payroll-tabs button:not(.active){background:#1e293b;border-color:#334155;color:#94a3b8}
+body.dark .payroll-user-list button,#app.dark .payroll-user-list button{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .payroll-user-list button.active,#app.dark .payroll-user-list button.active{background:#1e3a5f;border-color:#3b82f6}
+body.dark .payroll-user-list small,body.dark .payroll-state,body.dark .payroll-empty,#app.dark .payroll-user-list small,#app.dark .payroll-state,#app.dark .payroll-empty{color:#94a3b8}
+body.dark .payroll-person>strong,body.dark .payroll-summary article,body.dark .payroll-settings article,#app.dark .payroll-person>strong,#app.dark .payroll-summary article,#app.dark .payroll-settings article{background:#1e293b;border-color:#334155}
+body.dark .payroll-summary span,body.dark .payroll-settings span,#app.dark .payroll-summary span,#app.dark .payroll-settings span{color:#94a3b8}
+body.dark .payroll-summary strong,#app.dark .payroll-summary strong{color:#f8fafc}
+body.dark .payroll-summary .total,#app.dark .payroll-summary .total{background:#052e16;border-color:#14532d}
+body.dark .payroll-summary .total strong,#app.dark .payroll-summary .total strong{color:#4ade80}
+body.dark .payroll-table-wrap,body.dark .payroll-table th,#app.dark .payroll-table-wrap,#app.dark .payroll-table th{background:#1e293b;border-color:#334155;color:#94a3b8}
+body.dark .payroll-table td,#app.dark .payroll-table td{border-color:#334155;color:#e2e8f0}
+body.dark .payroll-table td.positive,#app.dark .payroll-table td.positive{color:#4ade80}
+body.dark .payroll-table td.negative,#app.dark .payroll-table td.negative{color:#f87171}
+body.dark .payroll-table tr.edited td,#app.dark .payroll-table tr.edited td{background:#422006}
+body.dark .payroll-table tr.deleted td,#app.dark .payroll-table tr.deleted td{background:#1e293b;color:#64748b}
+body.dark .payroll-attendance article,#app.dark .payroll-attendance article{background:#1e293b;border-color:#334155}
+body.dark .payroll-attendance article.overtime,#app.dark .payroll-attendance article.overtime{background:#052e16}
+body.dark .payroll-attendance article.shortage,body.dark .payroll-attendance article.absent,#app.dark .payroll-attendance article.shortage,#app.dark .payroll-attendance article.absent{background:#450a0a}
+body.dark .line-detail-modal,#app.dark .line-detail-modal{background:#172033;color:#e2e8f0}
+body.dark .line-detail-modal header button,body.dark .cancel-line-btn,#app.dark .line-detail-modal header button,#app.dark .cancel-line-btn{background:#1e293b;color:#94a3b8}
+body.dark .line-detail-grid article,#app.dark .line-detail-grid article{background:#1e293b;border-color:#334155}
+body.dark .line-detail-grid article.earned,#app.dark .line-detail-grid article.earned{background:#052e16;border-color:#14532d}
+body.dark .line-detail-grid article.audit,#app.dark .line-detail-grid article.audit{background:#422006;border-color:#713f12}
+body.dark .line-detail-grid article.deleted,#app.dark .line-detail-grid article.deleted{background:#450a0a;border-color:#7f1d1d}
+body.dark .line-detail-grid strong,#app.dark .line-detail-grid strong{color:#f8fafc}
+body.dark .line-edit-form input,body.dark .line-edit-form select,#app.dark .line-edit-form input,#app.dark .line-edit-form select{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .line-audit-list,#app.dark .line-audit-list{border-color:#334155}
+body.dark .line-audit-list th,#app.dark .line-audit-list th{background:#1e293b;color:#94a3b8}
+body.dark .info-btn,#app.dark .info-btn{background:#1e3a5f;border-color:#334155;color:#93c5fd}
+body.dark .delete-line-btn,#app.dark .delete-line-btn{background:#450a0a;border-color:#7f1d1d;color:#fca5a5}
+body.dark .restore-line-btn,#app.dark .restore-line-btn{background:#052e16;border-color:#14532d;color:#4ade80}
+body.dark .line-status.edited,#app.dark .line-status.edited{background:#422006;color:#fbbf24}
+body.dark .line-status:not(.edited),#app.dark .line-status:not(.edited){background:#450a0a;color:#fca5a5}
+body.dark .payroll-state i,#app.dark .payroll-state i{border-color:#334155;border-top-color:#3b82f6}
 </style>

@@ -191,6 +191,14 @@
           </section>
 
           <CommissionRules v-model="doctorRows[activeDoctorIndex]" />
+          <PersonalReportColumns
+            v-if="activeDoctor.id"
+            resource-type="doctor"
+            :resource-id="Number(activeDoctor.id)"
+            :resource-name="activeDoctor.name"
+            :current-columns="activeDoctor.personal_report_columns || []"
+            @saved="activeDoctor.personal_report_columns = $event"
+          />
         </div>
 
         <footer class="doctor-settings-modal-actions">
@@ -258,6 +266,14 @@
         </header>
         <div class="doctor-settings-modal-body">
           <CommissionRules v-model="staffRows[activeStaffIndex]" />
+          <PersonalReportColumns
+            v-if="activeStaff.id"
+            resource-type="staff"
+            :resource-id="Number(activeStaff.id)"
+            :resource-name="activeStaff.name"
+            :current-columns="activeStaff.personal_report_columns || []"
+            @saved="activeStaff.personal_report_columns = $event"
+          />
         </div>
         <footer class="doctor-settings-modal-actions"><span role="status">{{ staffSaveError ? staffSaveMessage : 'تغییرات به‌صورت خودکار ذخیره می‌شوند.' }}</span><button type="button" :disabled="savingStaff" @click="closeStaffSettings">{{ savingStaff ? 'در حال ذخیره...' : 'تأیید و بستن' }}</button></footer>
       </section>
@@ -319,12 +335,13 @@
 <script>
 import { avatarInitial, avatarUrl } from '@/utils/avatar'
 import CommissionRules from './CommissionRules.vue'
+import PersonalReportColumns from './PersonalReportColumns.vue'
 
 let staffRowSequence = 0;
 const staffSaves = new WeakMap();
 
 export default {
-  components: { CommissionRules },
+  components: { CommissionRules, PersonalReportColumns },
   props: {
     initialTab: { type: String, default: 'doctor' },
     highlightResource: { type: Object, default: null },
@@ -2472,4 +2489,50 @@ input:focus {
 .channel-modal-preview strong{color:#4c1d95;font-size:13px}
 @media(max-width:760px){.channel-modal-form{grid-template-columns:1fr}.resource-content{overflow-x:auto}.staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:300px;min-width:300px}.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:180px;min-width:180px}.channels-content table{min-width:720px}.channels-content table th:nth-child(3),.channels-content table td:nth-child(3){width:280px}}.resource-row--highlight td { background: #fff7d6 !important; transition: background .4s ease; }
 .resource-row--highlight td:first-child { box-shadow: inset -4px 0 0 #f59e0b; }
+
+body.dark .manabe-container,#app.dark .manabe-container{background:linear-gradient(145deg,#0f172a,#172033);border-color:#334155;color:#e2e8f0}
+body.dark .doctor-table-heading h2,body.dark .payment-resource-grid h3,#app.dark .doctor-table-heading h2,#app.dark .payment-resource-grid h3{color:#f8fafc}
+body.dark .doctor-table-toolbar,#app.dark .doctor-table-toolbar{background:#172033;border-color:#334155;box-shadow:0 7px 20px rgba(0,0,0,.25)}
+body.dark .doctor-table-toolbar span,#app.dark .doctor-table-toolbar span{color:#94a3b8}
+body.dark table,#app.dark table{background:transparent;box-shadow:none}
+body.dark th,#app.dark th{background:#1e293b;border-color:#334155;color:#94a3b8}
+body.dark td,#app.dark td{border-color:#334155;color:#e2e8f0}
+body.dark .doctor-content tbody tr,body.dark .resource-content tbody tr,#app.dark .doctor-content tbody tr,#app.dark .resource-content tbody tr{background:#172033;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+body.dark input,body.dark select,#app.dark input,#app.dark select{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .legacy-resource-name,#app.dark .legacy-resource-name{color:#64748b}
+body.dark .tabs button:not(.active),#app.dark .tabs button:not(.active){background:#1e293b;border-color:#334155;color:#94a3b8}
+body.dark .salary-field,#app.dark .salary-field{background:#1e293b;border-color:#334155}
+body.dark .salary-field input,#app.dark .salary-field input{color:#f8fafc}
+body.dark .salary-field-icon,#app.dark .salary-field-icon{background:#052e16;color:#4ade80}
+body.dark .doctor-settings-btn,#app.dark .doctor-settings-btn{background:linear-gradient(135deg,#1e293b,#172033);border-color:#334155;color:#93c5fd}
+body.dark .doctor-settings-btn strong,#app.dark .doctor-settings-btn strong{color:#f8fafc}
+body.dark .doctor-settings-btn>b,#app.dark .doctor-settings-btn>b{background:#052e16;color:#4ade80}
+body.dark .resource-avatar,#app.dark .resource-avatar{background:#1e3a5f;border-color:#334155;color:#93c5fd}
+body.dark .day-check,#app.dark .day-check{background:#1e293b;border-color:#334155;color:#94a3b8}
+body.dark .day-check.selected,#app.dark .day-check.selected{background:#2563eb;color:#fff}
+body.dark .doctor-settings-modal,body.dark .channel-delete-modal,#app.dark .doctor-settings-modal,#app.dark .channel-delete-modal{background:#172033;border-color:#334155;color:#e2e8f0;box-shadow:0 28px 80px rgba(0,0,0,.45)}
+body.dark .doctor-settings-modal-head,#app.dark .doctor-settings-modal-head{background:linear-gradient(135deg,#1e293b,#172033);border-color:#334155}
+body.dark .doctor-settings-modal-head h3,body.dark .channel-delete-modal h3,#app.dark .doctor-settings-modal-head h3,#app.dark .channel-delete-modal h3{color:#f8fafc}
+body.dark .resource-modal-close,#app.dark .resource-modal-close{background:#1e293b;color:#94a3b8;box-shadow:none}
+body.dark .doctor-services-panel,#app.dark .doctor-services-panel{background:#1e293b;border-color:#334155}
+body.dark .modal-section-title h4,#app.dark .modal-section-title h4{color:#f8fafc}
+body.dark .doctor-service-option,body.dark .doctor-service-group,#app.dark .doctor-service-option,#app.dark .doctor-service-group{background:#172033;border-color:#334155;color:#cbd5e1}
+body.dark .doctor-service-option.selected,body.dark .doctor-service-group.is-checked,#app.dark .doctor-service-option.selected,#app.dark .doctor-service-group.is-checked{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd}
+body.dark .doctor-service-group-head,#app.dark .doctor-service-group-head{background:#1e293b}
+body.dark .doctor-service-group-head strong,#app.dark .doctor-service-group-head strong{color:#e2e8f0}
+body.dark .doctor-services-search,#app.dark .doctor-services-search{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .doctor-services-all-btn,#app.dark .doctor-services-all-btn{background:#1e3a5f;border-color:#334155;color:#93c5fd}
+body.dark .doctor-services-hint,#app.dark .doctor-services-hint{background:#422006;color:#fbbf24}
+body.dark .doctor-settings-modal-actions,#app.dark .doctor-settings-modal-actions{background:#172033;border-color:#334155}
+body.dark .channel-delete-cancel,#app.dark .channel-delete-cancel{background:#1e293b;border-color:#334155;color:#94a3b8}
+body.dark .channel-modal-form input,body.dark .channel-modal-form select,#app.dark .channel-modal-form input,#app.dark .channel-modal-form select{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .channel-commission-rule,#app.dark .channel-commission-rule{background:#1e293b;border-color:#334155}
+body.dark .channel-commission-rule.active,#app.dark .channel-commission-rule.active{background:#450a0a;border-color:#7f1d1d}
+body.dark .channel-modal-preview,body.dark .channel-image-upload,#app.dark .channel-modal-preview,#app.dark .channel-image-upload{background:#1e293b;border-color:#4c1d95}
+body.dark .channel-card-icon,#app.dark .channel-card-icon{background:#1e3a5f;border-color:#334155}
+body.dark .channel-card-name,#app.dark .channel-card-name{color:#f8fafc}
+body.dark .channel-icon-picker select,#app.dark .channel-icon-picker select{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .resource-row--highlight td,#app.dark .resource-row--highlight td{background:#422006!important}
+body.dark .doctor-content tbody .resource-photo-cell,#app.dark .doctor-content tbody .resource-photo-cell{background:#1e293b;border-color:#334155}
+@media(max-width:1100px){body.dark .doctor-content tbody tr,#app.dark .doctor-content tbody tr{border-color:#334155}}
 </style>

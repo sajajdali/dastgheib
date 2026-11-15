@@ -1099,4 +1099,21 @@ export default {
   font-size:13px;
 }
 
+body.dark .bills-page,#app.dark .bills-page{background:#0f172a;color:#e2e8f0}
+body.dark .page-header h1,#app.dark .page-header h1{color:#f8fafc}
+body.dark .table-wrapper,#app.dark .table-wrapper{background:#172033;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+body.dark .modern-table th,#app.dark .modern-table th{background:#1e293b;color:#94a3b8;border-color:#334155}
+body.dark .modern-table td,#app.dark .modern-table td{border-color:#334155;color:#e2e8f0}
+body.dark .modern-table input,body.dark .modern-table select,body.dark .modern-table textarea,#app.dark .modern-table input,#app.dark .modern-table select,#app.dark .modern-table textarea{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .filter-btn,#app.dark .filter-btn{background:#334155;color:#94a3b8}
+body.dark .global-filter-popup,#app.dark .global-filter-popup{background:#172033;border:1px solid #334155;color:#e2e8f0;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+body.dark .checkbox-item,#app.dark .checkbox-item{color:#e2e8f0}
+body.dark .add-option,#app.dark .add-option{border-color:#334155;color:#60a5fa}
+body.dark .bill-photo-modal section,#app.dark .bill-photo-modal section{background:#172033;color:#e2e8f0}
+body.dark .bill-photo-modal button,#app.dark .bill-photo-modal button{background:#1e293b;color:#94a3b8}
+body.dark .row-controller input,#app.dark .row-controller input{background:#1e293b;border-color:#334155;color:#e2e8f0}
+body.dark .status-paid,#app.dark .status-paid{background:#052e16;color:#4ade80}
+body.dark .status-unpaid,#app.dark .status-unpaid{background:#450a0a;color:#fca5a5}
+body.dark .status-pending,#app.dark .status-pending{background:#422006;color:#fbbf24}
+
 </style>
