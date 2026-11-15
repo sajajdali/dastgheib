@@ -4743,306 +4743,190 @@ input[type="checkbox"] {
 }
 
 /* ===== Dark mode: ساختار خدمات / آیتم‌ها ===== */
-body.dark .inventory-page,
-#app.dark .inventory-page { color: #e2e8f0; }
-body.dark .section-panel,
-body.dark .table-section,
-body.dark .commission-panel,
-body.dark .chart-section,
-body.dark .inventory-toolbar,
-body.dark .table-wrap,
-body.dark .movement-page,
-body.dark .inventory-view-switch,
-#app.dark .section-panel,
-#app.dark .table-section,
-#app.dark .commission-panel,
-#app.dark .chart-section,
-#app.dark .inventory-toolbar,
-#app.dark .table-wrap,
-#app.dark .movement-page,
-#app.dark .inventory-view-switch {
-  background: #172033 !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, .28) !important;
+:global(body.dark) .inventory-page,
+:global(#app.dark) .inventory-page { color: #e8eaed; background: transparent !important; }
+:global(body.dark) .section-panel,
+:global(body.dark) .table-section,
+:global(body.dark) .commission-panel,
+:global(body.dark) .chart-section,
+:global(body.dark) .inventory-toolbar,
+:global(body.dark) .table-wrap,
+:global(body.dark) .movement-page,
+:global(body.dark) .inventory-view-switch,
+:global(#app.dark) .section-panel,
+:global(#app.dark) .table-section,
+:global(#app.dark) .commission-panel,
+:global(#app.dark) .chart-section,
+:global(#app.dark) .inventory-toolbar,
+:global(#app.dark) .table-wrap,
+:global(#app.dark) .movement-page,
+:global(#app.dark) .inventory-view-switch {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .35) !important;
 }
-body.dark .inventory-structure-head h3,
-body.dark .panel-head h3,
-body.dark h3,
-body.dark .inventory-view-title h2,
-#app.dark .inventory-structure-head h3,
-#app.dark .panel-head h3,
-#app.dark h3,
-#app.dark .inventory-view-title h2 { color: #f8fafc !important; }
-body.dark p,
-body.dark .panel-head p,
-body.dark .inventory-view-title p,
-#app.dark p,
-#app.dark .panel-head p,
-#app.dark .inventory-view-title p { color: #94a3b8 !important; }
-body.dark .inventory-tree,
-#app.dark .inventory-tree { scrollbar-color: #475569 transparent; }
-body.dark .inventory-tree-frame.expanded .inventory-tree,
-#app.dark .inventory-tree-frame.expanded .inventory-tree {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  box-shadow: 0 22px 50px rgba(0, 0, 0, .45) !important;
+:global(body.dark) .inventory-structure-head h3,
+:global(body.dark) .panel-head h3,
+:global(body.dark) h3,
+:global(body.dark) .inventory-view-title h2,
+:global(#app.dark) .inventory-structure-head h3,
+:global(#app.dark) .panel-head h3,
+:global(#app.dark) h3,
+:global(#app.dark) .inventory-view-title h2 { color: #f1f3f4 !important; }
+:global(body.dark) p,
+:global(body.dark) .panel-head p,
+:global(body.dark) .inventory-view-title p,
+:global(#app.dark) p,
+:global(#app.dark) .panel-head p,
+:global(#app.dark) .inventory-view-title p { color: #9aa0a6 !important; }
+:global(body.dark) .inventory-tree-frame.expanded .inventory-tree,
+:global(#app.dark) .inventory-tree-frame.expanded .inventory-tree {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, .5) !important;
 }
-body.dark .tree-node,
-#app.dark .tree-node {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
+:global(body.dark) .tree-node,
+:global(#app.dark) .tree-node {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
 }
-body.dark .tree-node:hover,
-#app.dark .tree-node:hover { background: #243247 !important; }
-body.dark .tree-node.active,
-#app.dark .tree-node.active {
-  background: #1e3a5f !important;
-  border-color: #3b82f6 !important;
+:global(body.dark) .tree-node:hover,
+:global(#app.dark) .tree-node:hover { background: #2a2f3a !important; }
+:global(body.dark) .tree-node.active,
+:global(#app.dark) .tree-node.active {
+  background: #2f3542 !important;
+  border-color: #4b5563 !important;
 }
-body.dark .tree-node input,
-#app.dark .tree-node input {
+:global(body.dark) .tree-node input,
+:global(#app.dark) .tree-node input {
   background: transparent !important;
-  color: #e2e8f0 !important;
+  color: #e8eaed !important;
   border: 0 !important;
   box-shadow: none !important;
 }
-body.dark .tree-node.active input,
-#app.dark .tree-node.active input { color: #93c5fd !important; }
-body.dark .tree-count,
-#app.dark .tree-count {
-  background: #0f172a !important;
-  color: #94a3b8 !important;
+:global(body.dark) .tree-node.active input,
+:global(#app.dark) .tree-node.active input { color: #fff !important; }
+:global(body.dark) .tree-count,
+:global(#app.dark) .tree-count {
+  background: #121417 !important;
+  color: #9aa0a6 !important;
 }
-body.dark .tree-more-btn,
-#app.dark .tree-more-btn { color: #64748b !important; }
-body.dark .section-color-btn,
-body.dark .section-color-menu,
-body.dark .tree-color-menu,
-#app.dark .section-color-btn,
-#app.dark .section-color-menu,
-#app.dark .tree-color-menu {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
+:global(body.dark) .inventory-inline-tabs,
+:global(#app.dark) .inventory-inline-tabs {
+  background: #121417 !important;
+  border-color: #2c3038 !important;
 }
-body.dark .inventory-inline-tabs,
-#app.dark .inventory-inline-tabs {
-  background: #0f172a !important;
-  border-color: #334155 !important;
-}
-body.dark .inventory-inline-tabs button,
-#app.dark .inventory-inline-tabs button { color: #94a3b8 !important; }
-body.dark .inventory-search input,
-body.dark .inventory-toolbar input,
-body.dark .table-section input,
-body.dark .table-section select,
-body.dark .table-section textarea,
-body.dark .commission-panel input,
-body.dark .commission-panel select,
-body.dark td input,
-body.dark td select,
-#app.dark .inventory-search input,
-#app.dark .inventory-toolbar input,
-#app.dark .table-section input,
-#app.dark .table-section select,
-#app.dark .table-section textarea,
-#app.dark .commission-panel input,
-#app.dark .commission-panel select,
-#app.dark td input,
-#app.dark td select {
-  background: #0f172a !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
+:global(body.dark) .inventory-search input,
+:global(body.dark) .inventory-toolbar input,
+:global(body.dark) .table-section input,
+:global(body.dark) .table-section select,
+:global(body.dark) .table-section textarea,
+:global(body.dark) .commission-panel input,
+:global(body.dark) .commission-panel select,
+:global(body.dark) td input,
+:global(body.dark) td select,
+:global(#app.dark) .inventory-search input,
+:global(#app.dark) .inventory-toolbar input,
+:global(#app.dark) .table-section input,
+:global(#app.dark) .table-section select,
+:global(#app.dark) .table-section textarea,
+:global(#app.dark) .commission-panel input,
+:global(#app.dark) .commission-panel select,
+:global(#app.dark) td input,
+:global(#app.dark) td select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
   box-shadow: none !important;
 }
-body.dark .service-tags-editor,
-#app.dark .service-tags-editor {
-  background: #0f172a !important;
-  border-color: #334155 !important;
+:global(body.dark) .service-tags-editor,
+:global(#app.dark) .service-tags-editor {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
   box-shadow: none !important;
 }
-body.dark .service-tags-editor span,
-#app.dark .service-tags-editor span {
-  background: #1e3a5f !important;
-  border-color: #1d4ed8 !important;
-  color: #bfdbfe !important;
+:global(body.dark) .service-tags-editor span,
+:global(#app.dark) .service-tags-editor span {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #d2d6dc !important;
   box-shadow: none !important;
 }
-body.dark .service-tags-editor > span button,
-#app.dark .service-tags-editor > span button {
-  background: #1e40af !important;
-  color: #dbeafe !important;
+:global(body.dark) .service-tags-editor input,
+:global(body.dark) .service-tag-picker input,
+:global(#app.dark) .service-tags-editor input,
+:global(#app.dark) .service-tag-picker input {
+  background: #1a1c22 !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
 }
-body.dark .service-tags-editor input,
-body.dark .service-tag-picker input,
-#app.dark .service-tags-editor input,
-#app.dark .service-tag-picker input {
-  background: #172033 !important;
-  border-color: #475569 !important;
-  color: #cbd5e1 !important;
+:global(body.dark) .service-tag-popover,
+:global(#app.dark) .service-tag-popover {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
 }
-body.dark .service-tag-popover,
-#app.dark .service-tag-popover {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
-  box-shadow: 0 16px 40px rgba(0,0,0,.45) !important;
+:global(body.dark) .commission-chip,
+:global(body.dark) .booking-settings-btn,
+:global(body.dark) .global-commission-btn,
+:global(body.dark) .service-tags-page-btn,
+:global(body.dark) .inventory-addons-page-btn,
+:global(body.dark) .icon-btn,
+:global(body.dark) .stock-cell button,
+:global(#app.dark) .commission-chip,
+:global(#app.dark) .booking-settings-btn,
+:global(#app.dark) .global-commission-btn,
+:global(#app.dark) .service-tags-page-btn,
+:global(#app.dark) .inventory-addons-page-btn,
+:global(#app.dark) .icon-btn,
+:global(#app.dark) .stock-cell button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #d2d6dc !important;
 }
-body.dark .service-tag-popover button:hover,
-#app.dark .service-tag-popover button:hover { background: #334155 !important; }
-body.dark .global-commission-btn,
-body.dark .service-tags-page-btn,
-body.dark .inventory-addons-page-btn,
-#app.dark .global-commission-btn,
-#app.dark .service-tags-page-btn,
-#app.dark .inventory-addons-page-btn {
-  background: #1e3a5f !important;
-  border-color: #1d4ed8 !important;
-  color: #93c5fd !important;
+:global(body.dark) .commission-chip small,
+:global(#app.dark) .commission-chip small { color: #9aa0a6 !important; }
+:global(body.dark) .commission-chip strong,
+:global(#app.dark) .commission-chip strong { color: #e8eaed !important; }
+:global(body.dark) .bulk-commission-bar,
+:global(#app.dark) .bulk-commission-bar {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
 }
-body.dark .inventory-branch-message,
-#app.dark .inventory-branch-message {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #94a3b8 !important;
+:global(body.dark) table th,
+:global(#app.dark) table th {
+  background: #22252d !important;
+  color: #9aa0a6 !important;
+  border-color: #2c3038 !important;
 }
-body.dark .inventory-branch-message strong,
-#app.dark .inventory-branch-message strong { color: #f8fafc !important; }
-body.dark .inventory-save-actions,
-body.dark .inventory-structure-head,
-#app.dark .inventory-save-actions,
-#app.dark .inventory-structure-head { border-color: #334155 !important; }
-body.dark table th,
-#app.dark table th {
-  background: #1e293b !important;
-  color: #94a3b8 !important;
-  border-color: #334155 !important;
+:global(body.dark) table td,
+:global(#app.dark) table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
 }
-body.dark table td,
-#app.dark table td {
-  background: #172033 !important;
-  color: #e2e8f0 !important;
-  border-color: #243046 !important;
+:global(body.dark) .inventory-branch-message,
+:global(#app.dark) .inventory-branch-message {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #9aa0a6 !important;
 }
-body.dark .stock-cell button,
-#app.dark .stock-cell button {
-  background: #1e3a5f !important;
-  color: #93c5fd !important;
+:global(body.dark) .commission-modal,
+:global(body.dark) .modal-head,
+:global(body.dark) .booking-hero,
+:global(body.dark) .booking-pane,
+:global(body.dark) .booking-off-state,
+:global(body.dark) .sm-modal,
+:global(#app.dark) .commission-modal,
+:global(#app.dark) .modal-head,
+:global(#app.dark) .booking-hero,
+:global(#app.dark) .booking-pane,
+:global(#app.dark) .booking-off-state,
+:global(#app.dark) .sm-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
 }
-body.dark .addon-manager-modal,
-body.dark .addon-manager-table,
-body.dark .addon-manager-head,
-body.dark .stock-movement-modal,
-body.dark .movement-filters,
-body.dark .movement-summary article,
-body.dark .booking-field-card,
-body.dark .booking-resource-card,
-body.dark .sm-modal,
-#app.dark .addon-manager-modal,
-#app.dark .addon-manager-table,
-#app.dark .addon-manager-head,
-#app.dark .stock-movement-modal,
-#app.dark .movement-filters,
-#app.dark .movement-summary article,
-#app.dark .booking-field-card,
-#app.dark .booking-resource-card,
-#app.dark .sm-modal {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
-}
-body.dark .addon-manager-row input,
-body.dark .movement-filters input,
-body.dark .booking-card-grid input,
-body.dark .booking-card-grid select,
-body.dark .stock-direction button:not(.active),
-#app.dark .addon-manager-row input,
-#app.dark .movement-filters input,
-#app.dark .booking-card-grid input,
-#app.dark .booking-card-grid select,
-#app.dark .stock-direction button:not(.active) {
-  background: #0f172a !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
-}
-body.dark ::v-deep(.movement-date-input),
-#app.dark ::v-deep(.movement-date-input) {
-  background: #0f172a !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
-}
-body.dark .inventory-tabs button,
-#app.dark .inventory-tabs button {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #cbd5e1 !important;
-}
-body.dark .inventory-tabs button.active,
-#app.dark .inventory-tabs button.active {
-  background: linear-gradient(135deg, #2563eb, #0f766e) !important;
-  color: #fff !important;
-}
-body.dark .commission-chip,
-#app.dark .commission-chip {
-  background: #1e3a5f !important;
-  border-color: #1d4ed8 !important;
-  color: #93c5fd !important;
-}
-body.dark .commission-chip small,
-#app.dark .commission-chip small { color: #94a3b8 !important; }
-body.dark .commission-chip strong,
-#app.dark .commission-chip strong { color: #bfdbfe !important; }
-body.dark .bulk-commission-bar,
-#app.dark .bulk-commission-bar {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-}
-body.dark .bulk-commission-copy strong,
-#app.dark .bulk-commission-copy strong { color: #f8fafc !important; }
-body.dark .bulk-commission-copy span,
-#app.dark .bulk-commission-copy span { color: #94a3b8 !important; }
-body.dark .inventory-search,
-#app.dark .inventory-search {
-  background: transparent !important;
-}
-body.dark .inventory-search input,
-#app.dark .inventory-search input {
-  background: #0f172a !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
-}
-body.dark .search-icon,
-body.dark .search-result-count,
-#app.dark .search-icon,
-#app.dark .search-result-count { color: #94a3b8 !important; }
-body.dark .booking-settings-btn,
-body.dark .icon-btn,
-#app.dark .booking-settings-btn,
-#app.dark .icon-btn {
-  background: #1e3a5f !important;
-  border-color: #1d4ed8 !important;
-  color: #93c5fd !important;
-}
-body.dark .commission-modal,
-body.dark .modal-head,
-body.dark .booking-hero,
-body.dark .booking-pane,
-body.dark .booking-off-state,
-#app.dark .commission-modal,
-#app.dark .modal-head,
-#app.dark .booking-hero,
-#app.dark .booking-pane,
-#app.dark .booking-off-state {
-  background: #172033 !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
-}
-body.dark .modal-head h3,
-body.dark .booking-hero h3,
-body.dark .booking-pane h4,
-#app.dark .modal-head h3,
-#app.dark .booking-hero h3,
-#app.dark .booking-pane h4 { color: #f8fafc !important; }
 </style>

@@ -1762,9 +1762,9 @@ body {
 
 body.dark {
 
-  background: #0f172a;
+  background: #121417;
 
-  color: white;
+  color: #e8eaed;
 
 }
 
@@ -1840,9 +1840,9 @@ body.central-host #app {
 
 #app.dark {
 
-  background: #0f172a;
+  background: #121417;
 
-  color: white;
+  color: #e8eaed;
 
 }
 
@@ -1855,11 +1855,11 @@ body.central-host #app {
 .dark .table-wrapper,
 .dark .modern-table {
 
-  background: #172033 !important;
+  background: #1a1c22 !important;
 
-  color: white !important;
+  color: #e8eaed !important;
 
-  border-color: #243046 !important;
+  border-color: #2c3038 !important;
 
 }
 
@@ -1867,47 +1867,44 @@ body.central-host #app {
 .dark textarea,
 .dark select {
 
-  background: #1e293b !important;
+  background: #22252d !important;
 
-  color: white !important;
+  color: #e8eaed !important;
 
-  border-color: #334155 !important;
+  border-color: #3a3f4a !important;
 
 }
 
+/* منو نباید نوار آبی یکدست شود؛ آیتم‌ها شفاف بمانند */
 .dark .menu-item {
 
-  background: #172033 !important;
+  background: transparent !important;
 
-  color: #ddd !important;
+  color: #c5cad3 !important;
 
 }
 
 .dark .menu-item.active {
 
-  background: linear-gradient(
-    135deg,
-    #2563eb,
-    #3b82f6
-  ) !important;
+  background: #2a2f3a !important;
 
-  color: white !important;
+  color: #fff !important;
 
 }
 
 .dark table th {
 
-  background: #1e293b !important;
+  background: #22252d !important;
 
-  color: white !important;
+  color: #c5cad3 !important;
 
 }
 
 .dark table td {
 
-  background: #172033 !important;
+  background: #1a1c22 !important;
 
-  color: white !important;
+  color: #e8eaed !important;
 
 }
 
@@ -1918,17 +1915,17 @@ body.central-host #app {
 
 }
 
-/* سطوح مشترک صفحات که هنوز سفید می‌مانند */
+/* سطوح مشترک — پالت خنثی (بدون پس‌زمینه آبی) */
 .dark .dark-toggle {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: #22252d;
+  color: #e8eaed;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
 }
 
 .dark .page-container,
 .dark .content-area,
 .dark .main-content {
-  color: #e2e8f0;
+  color: #e8eaed;
 }
 
 .dark .card,
@@ -1942,35 +1939,35 @@ body.central-host #app {
 .dark .popover,
 .dark .dropdown-menu,
 .dark .swal2-popup {
-  background: #172033 !important;
-  color: #e2e8f0 !important;
-  border-color: #334155 !important;
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
 }
 
 .dark .swal2-title,
 .dark .swal2-html-container,
 .dark .swal2-content {
-  color: #e2e8f0 !important;
+  color: #e8eaed !important;
 }
 
 .dark .multiselect__tags,
 .dark .multiselect__content-wrapper,
 .dark .multiselect__single,
 .dark .multiselect__input {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
 }
 
 .dark .multiselect__option--highlight {
-  background: #1e40af !important;
+  background: #3b82f6 !important;
   color: #fff !important;
 }
 
 .dark .vpd-input-group input {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
 }
 
 .dark .muted,
@@ -1978,15 +1975,14 @@ body.central-host #app {
 .dark .subtitle,
 .dark .empty-state,
 .dark .placeholder {
-  color: #94a3b8;
+  color: #9aa0a6;
 }
 
 .dark hr,
 .dark .divider {
-  border-color: #334155 !important;
+  border-color: #2c3038 !important;
 }
 
-/* پوسته‌های پرتکرار ماژول‌ها */
 .dark .manabe-container,
 .dark .payroll-layout,
 .dark .payroll-sidebar,
@@ -2000,10 +1996,15 @@ body.central-host #app {
 .dark .pr-card,
 .dark .create-card,
 .dark .edit-card,
-.dark .result-card {
-  background: #172033 !important;
-  color: #e2e8f0 !important;
-  border-color: #334155 !important;
+.dark .result-card,
+.dark .section-panel,
+.dark .table-section,
+.dark .commission-panel,
+.dark .inventory-toolbar,
+.dark .table-wrap {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
 }
 
 .dark .payroll-sidebar,
@@ -2011,8 +2012,8 @@ body.central-host #app {
 .dark .manabe-tabs,
 .dark .epa > nav,
 .dark .epn-tabs {
-  background: #0f172a !important;
-  border-color: #1e293b !important;
+  background: #121417 !important;
+  border-color: #2c3038 !important;
 }
 
 .dark .epa-form,
@@ -2021,9 +2022,9 @@ body.central-host #app {
 .dark .epa-modal form,
 .dark .epn-card,
 .dark .pr-list article {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
 }
 
 .dark .epa-form input,
@@ -2033,21 +2034,27 @@ body.central-host #app {
 .dark .epa-modal select,
 .dark .epa-modal textarea,
 .dark .epa-send textarea {
-  background: #0f172a !important;
-  border-color: #334155 !important;
-  color: #e2e8f0 !important;
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
 }
 
 .dark .epa-date-field .vpd-input-group {
-  background: #0f172a !important;
-  border-color: #334155 !important;
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
 }
 
 .dark .my-report-modal > header > button,
 .dark .epa > header button,
 .dark .epa-list button:not(.danger):not(.approve) {
-  background: #1e3a5f !important;
-  color: #93c5fd !important;
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+
+.dark .menu {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35) !important;
 }
 
 /* موبایل */

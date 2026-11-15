@@ -1197,39 +1197,39 @@ export default {
 }
 
 :global(.dark) .menu {
-  border-color: rgba(51, 65, 85, .9);
-  background: rgba(23, 32, 51, .88);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .22);
+  border-color: #2c3038;
+  background: #1a1c22;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
 }
 
 :global(.dark) .menu-item {
   background: transparent !important;
-  color: #cbd5e1 !important;
+  color: #c5cad3 !important;
 }
 
 :global(.dark) .menu-item:hover {
-  border-color: #334155;
-  background: #1e293b !important;
-  color: #93c5fd !important;
+  border-color: #3a3f4a;
+  background: #22252d !important;
+  color: #e8eaed !important;
 }
 
 :global(.dark) .menu-item.active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
+  background: #2a2f3a !important;
   color: #fff !important;
 }
 
 :global(.dark) .more-submenu {
-  border-color: #334155;
-  background: #172033;
+  border-color: #2c3038;
+  background: #1a1c22;
 }
 
 :global(.dark) .more-submenu button {
-  color: #cbd5e1;
+  color: #c5cad3;
 }
 
 :global(.dark) .more-submenu button:hover,
 :global(.dark) .more-submenu button.active {
-  background: #1e293b;
-  color: #93c5fd;
+  background: #22252d;
+  color: #e8eaed;
 }
 </style>
