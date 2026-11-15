@@ -55,6 +55,7 @@ trait CreatesPayrollTables
         $table->decimal('new_customer_bonus', 5, 2)->nullable(); $table->decimal('existing_customer_bonus', 5, 2)->nullable();
         $table->boolean('commission_after_materials')->default(false);
         $table->boolean('sales_bonus_enabled')->default(false); $table->json('sales_bonus_tiers')->nullable();
+        $table->string('referral_commission_type')->nullable(); $table->decimal('referral_commission_value', 15, 2)->nullable();
         $table->decimal('salary', 15, 2)->default(0); $table->unsignedBigInteger('overtime_hourly_rate')->default(0);
         $table->unsignedBigInteger('shortage_hourly_deduction')->default(0); $table->unsignedBigInteger('absence_deduction')->default(0);
         $table->decimal('allowed_shortage_hours', 6, 2)->default(0); $table->timestamps();

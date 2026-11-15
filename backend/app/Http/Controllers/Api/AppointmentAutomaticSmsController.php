@@ -19,6 +19,7 @@ class AppointmentAutomaticSmsController extends Controller
         AppointmentAutomaticSmsService $service,
     ): JsonResponse {
         $data = $request->validate(['is_enabled' => ['required', 'boolean']]);
+        \App\Support\AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
         $item = $service->toggle($appointment, $automaticSms, (bool) $data['is_enabled']);
         $service->decorateAppointments(collect([$appointment]));
         event(AppointmentChanged::fromAppointment($appointment, 'automatic_sms_updated'));

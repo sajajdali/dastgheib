@@ -725,6 +725,7 @@ class ClinicReportService
             ->whereIn('appointment_id', $appointmentIds)
             ->where('status', 'active')
             ->whereIn('resource_type', ['doctor', 'staff'])
+            ->whereIn('earning_type', ResourceEarningLine::COMMISSION_TYPES)
             ->get()
             ->groupBy('appointment_id');
 
@@ -914,11 +915,12 @@ class ClinicReportService
             $items = $lines->get($key, collect());
             $savedSalary = (float) $items->where('earning_type', 'salary')->sum('amount');
             $salary = $savedSalary ?: $resource['base_salary'] * $salaryRatio;
-            $commission = (float) $items->whereIn('earning_type', [...ResourceEarningLine::COMMISSION_TYPES, 'sales_bonus'])->sum('amount');
+            $commission = (float) $items->whereIn('earning_type', [...ResourceEarningLine::COMMISSION_TYPES, ResourceEarningLine::REFERRAL_TYPE, 'sales_bonus'])->sum('amount');
+            $referralCommission = (float) $items->where('earning_type', ResourceEarningLine::REFERRAL_TYPE)->sum('amount');
             $attendance = (float) $items->whereIn('earning_type', ['attendance_overtime','attendance_shortage','attendance_absence'])->sum('amount');
             $adjustment = (float) $adjustments->get($key, collect())->sum('amount');
             $total = $salary + $commission + $attendance + $adjustment;
-            return ['type'=>$resource['type'],'id'=>$resource['id'],'name'=>$resource['name'],'salary'=>round($salary),'commission'=>round($commission),'attendance'=>round($attendance),'adjustment'=>round($adjustment),'total'=>round($total),'target'=>$resource['type']==='staff' ? round($target) : null,'target_reached'=>$resource['type']==='staff' && $target > 0 ? $commission >= $target : null];
+            return ['type'=>$resource['type'],'id'=>$resource['id'],'name'=>$resource['name'],'salary'=>round($salary),'commission'=>round($commission),'referral_commission'=>round($referralCommission),'attendance'=>round($attendance),'adjustment'=>round($adjustment),'total'=>round($total),'target'=>$resource['type']==='staff' ? round($target) : null,'target_reached'=>$resource['type']==='staff' && $target > 0 ? $commission >= $target : null];
         })->values();
         return ['resources'=>$rows,'doctor_total'=>$rows->where('type','doctor')->sum('total'),'staff_total'=>$rows->where('type','staff')->sum('total')];
     }

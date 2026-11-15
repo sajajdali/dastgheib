@@ -63,11 +63,18 @@
                 <span>{{ group.label }}</span>
               </label>
               <div class="permission-grid">
-                <label v-for="permission in group.permissions" :key="permission.name" class="permission-item">
+                <label v-for="permission in plainPermissions(group)" :key="permission.name" class="permission-item">
                   <input v-model="draft.permissions" type="checkbox" :value="permission.name" />
                   <span>{{ permission.label }}</span>
                 </label>
               </div>
+              <fieldset v-for="choice in group.choices || []" :key="choice.key" class="permission-choice">
+                <legend>{{ choice.label }}</legend>
+                <label v-for="(option, index) in choice.options" :key="index" class="permission-choice-option">
+                  <input type="radio" :name="`${draft.id || 'new'}-${choice.key}`" :checked="selectedChoiceIndex(choice) === index" @change="selectChoice(choice, option)" />
+                  <span>{{ option.label }}</span>
+                </label>
+              </fieldset>
             </article>
           </div>
 
@@ -124,6 +131,24 @@ function selectRole(role) {
   };
 }
 function startCreateRole() { draft.value = emptyDraft(); }
+// مجوزهایی که در یک انتخاب چندحالته (مثل نوبت‌های گذشته) هستند به‌صورت دکمهٔ رادیویی نمایش داده می‌شوند.
+function choicePermissionNames(group) {
+  return new Set((group.choices || []).flatMap(choice => choice.options.flatMap(option => option.permissions)));
+}
+function plainPermissions(group) {
+  const inChoices = choicePermissionNames(group);
+  return group.permissions.filter(permission => !inChoices.has(permission.name));
+}
+function selectedChoiceIndex(choice) {
+  const all = new Set(choice.options.flatMap(option => option.permissions));
+  const selected = draft.value.permissions.filter(name => all.has(name)).sort().join("|");
+  const index = choice.options.findIndex(option => [...option.permissions].sort().join("|") === selected);
+  return index >= 0 ? index : choice.options.length - 1;
+}
+function selectChoice(choice, option) {
+  const all = new Set(choice.options.flatMap(item => item.permissions));
+  draft.value.permissions = [...draft.value.permissions.filter(name => !all.has(name)), ...option.permissions];
+}
 function isGroupSelected(group) {
   return group.permissions.length > 0 && group.permissions.every(permission => draft.value.permissions.includes(permission.name));
 }
@@ -246,4 +271,8 @@ onMounted(() => loadData());
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (max-width:1000px) { .permission-groups { grid-template-columns:1fr; } }
 @media (max-width:700px) { .roles-page{padding:14px}.roles-layout{grid-template-columns:1fr}.permission-grid{grid-template-columns:1fr}.roles-header{align-items:flex-start;flex-direction:column} }
+.permission-choice{margin:10px 0 0;padding:9px 11px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb}
+.permission-choice legend{padding:0 6px;color:#92400e;font-size:12px;font-weight:900}
+.permission-choice-option{display:flex;align-items:center;gap:7px;padding:5px 2px;font-size:12px;cursor:pointer}
+.permission-choice-option input{width:16px;height:16px;accent-color:#d97706}
 </style>

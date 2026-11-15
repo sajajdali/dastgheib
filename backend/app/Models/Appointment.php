@@ -30,7 +30,7 @@ class Appointment extends Model
             'lastname', 'gender', 'phone', 'file_number', 'status',
             'doctor', 'consultant', 'source', 'description', 'doctor_note',
             'done', 'payment_method', 'payment_account', 'payment_link',
-            'referrer_phone', 'appointment_sms', 'info_sms',
+            'referrer_phone', 'referrer_type', 'appointment_sms', 'info_sms',
         ] as $column) {
             $query->orWhere(function ($query) use ($column) {
                 $query->whereNotNull($column)->where($column, '<>', '');
@@ -86,6 +86,8 @@ class Appointment extends Model
         ,'referral_reward_enabled' => 'boolean'
         ,'wallet_applied' => 'decimal:2'
         ,'referral_commission_value' => 'decimal:2'
+        ,'referral_commission_snapshot' => 'array'
+        ,'referrer_id' => 'integer'
         ,'duration_minutes' => 'integer'
         ,'before_photo_taken_at' => 'datetime'
         ,'after_photo_taken_at' => 'datetime'

@@ -27,6 +27,16 @@ return [
         [
             'key' => 'appointments',
             'label' => 'نوبت‌دهی',
+            // دو مجوز «گذشته» در صفحهٔ نقش‌ها به‌صورت یک انتخاب سه‌حالته نمایش داده می‌شوند.
+            'choices' => [[
+                'key' => 'past_appointments',
+                'label' => 'نوبت‌های روزهای گذشته',
+                'options' => [
+                    ['label' => 'مشاهده و ویرایش نوبت‌های گذشته', 'permissions' => ['appointments.past_view', 'appointments.past_update']],
+                    ['label' => 'مشاهده نوبت‌های گذشته بدون امکان ویرایش', 'permissions' => ['appointments.past_view']],
+                    ['label' => 'عدم مشاهده نوبت‌های گذشته', 'permissions' => []],
+                ],
+            ]],
             'permissions' => [
                 ['name' => 'appointments.view', 'label' => 'مشاهده نوبت‌ها'],
                 ['name' => 'appointments.create', 'label' => 'ثبت نوبت'],
@@ -34,6 +44,9 @@ return [
                 ['name' => 'appointments.delete', 'label' => 'حذف نوبت'],
                 ['name' => 'appointments.income', 'label' => 'مشاهده درآمد'],
                 ['name' => 'appointments.sms', 'label' => 'ارسال پیامک نوبت'],
+                ['name' => 'appointments.past_view', 'label' => 'مشاهده نوبت‌های گذشته'],
+                ['name' => 'appointments.past_update', 'label' => 'ویرایش نوبت‌های گذشته'],
+                ['name' => 'appointments.finalized_services_update', 'label' => 'ویرایش خدمات ثبت نهایی‌شده'],
             ],
         ],
         [

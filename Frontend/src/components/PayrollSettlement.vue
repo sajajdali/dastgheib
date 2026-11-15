@@ -60,6 +60,7 @@
             <article><span>حقوق ثابت</span><strong>{{ money(report.summary.salary) }}</strong></article>
             <article><span>پورسانت خدمات</span><strong>{{ money(report.summary.service_commission) }}</strong></article>
             <article><span>پورسانت انبار</span><strong>{{ money(report.summary.inventory_commission) }}</strong></article>
+            <article v-if="Number(report.summary.referral_commission || 0)"><span>پورسانت معرفی مشتری</span><strong>{{ money(report.summary.referral_commission) }}</strong></article>
             <article><span>پاداش پلکانی</span><strong>{{ money(report.summary.sales_bonus) }}</strong></article>
             <article v-if="report.resource.sales_bonus_enabled" :title="salesTargetHint">
               <span>فروش تارگت (پس از کسر مواد)</span><strong>{{ money(report.summary.target_sales) }}</strong>
@@ -505,6 +506,7 @@ export default {
         inventory_commission: 'پورسانت انبار',
         inventory_default_commission: 'پورسانت پیش‌فرض انبار',
         sales_bonus: 'پاداش فروش',
+        referral_commission: 'پورسانت معرفی مشتری',
         attendance_overtime: 'اضافه‌کاری',
         attendance_shortage: 'کسری ساعت',
         attendance_absence: 'غیبت'

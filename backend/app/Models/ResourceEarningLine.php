@@ -12,6 +12,9 @@ class ResourceEarningLine extends Model
     /** همهٔ انواع پورسانت خدمات که از نوبت ساخته می‌شوند. */
     public const COMMISSION_TYPES = ['base_commission', ...self::INVENTORY_COMMISSION_TYPES];
 
+    /** پورسانت معرفی مشتری برای پزشک یا پرسنل معرف؛ جدا از پورسانت انجام خدمت. */
+    public const REFERRAL_TYPE = 'referral_commission';
+
     protected $fillable = [
         'appointment_id',
         'month',

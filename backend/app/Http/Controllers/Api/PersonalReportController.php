@@ -49,6 +49,7 @@ class PersonalReportController extends Controller
         $commission = (float) $earningLines
             ->whereIn('earning_type', ResourceEarningLine::COMMISSION_TYPES)
             ->sum('amount');
+        $referralCommission = (float) $earningLines->where('earning_type', ResourceEarningLine::REFERRAL_TYPE)->sum('amount');
         $salesBonus = (float) $earningLines->where('earning_type', 'sales_bonus')->sum('amount');
         $attendanceAdjustment = (float) $earningLines
             ->whereIn('earning_type', ['attendance_overtime', 'attendance_shortage', 'attendance_absence'])
@@ -61,9 +62,10 @@ class PersonalReportController extends Controller
             'type' => $type,
             'salary' => round($salary),
             'commission' => round($commission),
+            'referral_commission' => round($referralCommission),
             'sales_bonus' => round($salesBonus),
             'attendance_adjustment' => round($attendanceAdjustment),
-            'total_earned' => round($salary + $commission + $salesBonus + $attendanceAdjustment),
+            'total_earned' => round($salary + $commission + $referralCommission + $salesBonus + $attendanceAdjustment),
             'overtime_hours' => round($overtimeHours, 2),
             'appointments_given' => $appointmentsGiven,
             'earning_lines' => $earningLines->values(),

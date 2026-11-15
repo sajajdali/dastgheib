@@ -146,6 +146,7 @@
           <article class="earned"><span>مبلغ نهایی این ماه</span><strong>{{ formatReportMoney(myReport.total_earned) }}</strong><small>تومان</small></article>
           <article><span>حقوق ثابت</span><strong>{{ formatReportMoney(myReport.salary) }}</strong><small>تومان</small></article>
           <article><span>پورسانت</span><strong>{{ formatReportMoney(myReport.commission) }}</strong><small>تومان</small></article>
+          <article v-if="Number(myReport.referral_commission || 0)"><span>پورسانت معرفی مشتری</span><strong>{{ formatReportMoney(myReport.referral_commission) }}</strong><small>تومان</small></article>
           <article><span>تعدیلات حضور و غیاب</span><strong>{{ formatReportMoney(myReport.attendance_adjustment) }}</strong><small>تومان</small></article>
           <article><span>اضافه‌کاری</span><strong>{{ Number(myReport.overtime_hours || 0).toLocaleString('fa-IR') }}</strong><small>ساعت</small></article>
           <article><span>تعداد وقت ثبت‌شده</span><strong>{{ Number(myReport.appointments_given || 0).toLocaleString('fa-IR') }}</strong><small>نوبت</small></article>
@@ -240,6 +241,7 @@
         v-show="currentPage === 'Vaghtdahi'"
         :permissions="user.permissions || []"
         :roles="user.roles || []"
+        :current-user-name="user.name || ''"
         :open-view-request="pendingAppointmentViewRequest"
         @open-patient-profile="openPatientProfileFromAppointment"
         @followup-appointment-created="handleFollowupAppointmentCreated"

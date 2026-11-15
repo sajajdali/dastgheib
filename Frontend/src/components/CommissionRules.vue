@@ -21,6 +21,19 @@
         </div>
       </div>
     </div>
+    <div class="referral-commission">
+      <div class="customer-commission-head"><b>پورسانت معرفی مشتری</b><small>وقتی این شخص معرف مشتری باشد. جدا از پورسانت انجام خدمت و تنظیمات انبار محاسبه می‌شود؛ خالی یعنی پورسانت معرفی ندارد.</small></div>
+      <div class="referral-commission-row">
+        <select v-model="model.referral_commission_type">
+          <option value="percent">درصد از مبلغ خدمات نوبت</option>
+          <option value="fixed">مبلغ ثابت برای هر نوبت</option>
+        </select>
+        <div class="customer-type-percent referral-value">
+          <input :value="referralDisplay" inputmode="decimal" :placeholder="model.referral_commission_type === 'fixed' ? 'مثلاً ۲۰۰,۰۰۰' : 'مثلاً ۵'" @input="setReferralValue">
+          <b>{{ model.referral_commission_type === 'fixed' ? 'تومان' : 'درصد' }}</b>
+        </div>
+      </div>
+    </div>
     <label class="check-card materials-card"><input v-model="model.commission_after_materials" type="checkbox"><span><b>پس از کسر مواد مصرفی</b><small>هزینهٔ مواد از مبنای همهٔ پورسانت‌های درصدی کم شود</small></span></label>
     <label class="sales-switch"><input v-model="model.sales_bonus_enabled" type="checkbox"><span><b>افزایش حقوق در صورت فروش</b><small>فروش ماه = همهٔ خدمات انجام‌شده، بعد از تخفیف و کسر مواد</small></span></label>
     <div v-if="model.sales_bonus_enabled" class="tier-list">
@@ -35,6 +48,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 const model = defineModel({ type: Object, required: true })
 const money = value => value ? Number(value).toLocaleString('en-US') : ''
 const setMoney = (tier,key,event) => { tier[key] = Number(String(event.target.value).replace(/\D/g,'')) || 0 }
@@ -50,6 +64,18 @@ const setCustomerPercent = (field, event) => {
   const value = Number(String(event.target.value).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
   model.value[field] = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0
 }
+const referralDisplay = computed(() => {
+  const value = model.value.referral_commission_value
+  if (value === null || value === undefined || value === '') return ''
+  return model.value.referral_commission_type === 'fixed' ? Number(value).toLocaleString('en-US') : String(value)
+})
+const setReferralValue = event => {
+  const raw = String(event.target.value).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/,/g, '').trim()
+  if (!model.value.referral_commission_type) model.value.referral_commission_type = 'percent'
+  if (raw === '') { model.value.referral_commission_value = null; return }
+  const value = Math.max(0, Number(raw.replace(/[^\d.]/g, '')) || 0)
+  model.value.referral_commission_value = model.value.referral_commission_type === 'fixed' ? Math.round(value) : Math.min(100, value)
+}
 const addTier = () => model.value.sales_bonus_tiers.push({ sales_from: 0, salary_addition: 0 })
 const removeTier = index => model.value.sales_bonus_tiers.splice(index,1)
 </script>
@@ -58,5 +84,7 @@ const removeTier = index => model.value.sales_bonus_tiers.splice(index,1)
 .pay-rates-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #dbeafe}.pay-rates-grid label{display:grid;gap:5px;color:#334155;font-size:11px;font-weight:900}.pay-rates-grid label>div{display:flex;align-items:center;overflow:hidden;border:1px solid #bfdbfe;border-radius:10px;background:#fff}.pay-rates-grid input{width:100%;height:38px;padding:0 10px;border:0!important;outline:0;background:transparent;text-align:right}.pay-rates-grid b{padding:0 9px;color:#64748b;font-size:10px;white-space:nowrap}
 .commission-card{min-width:560px;margin-top:10px;padding:14px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4);box-shadow:0 8px 24px rgba(15,23,42,.06);text-align:right}.commission-card header{display:flex;justify-content:space-between;margin-bottom:11px;color:#1e3a8a}.commission-card header small{color:#16a34a}.commission-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}.commission-grid>label{display:grid;gap:5px;font-size:11px;font-weight:900}.commission-grid select{height:38px;border:1px solid #bfdbfe;border-radius:10px;background:#fff;font-family:inherit}.customer-commission{display:grid;gap:8px}.customer-commission-head{display:grid;gap:2px;color:#1e3a8a;font-size:12px}.customer-commission-head small{color:#64748b;font-size:10px;font-weight:600}.customer-type-card{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;border:1px solid #dbeafe;border-radius:11px;background:#fff;transition:.15s}.customer-type-card.active{border-color:#93c5fd;background:#eff6ff}.customer-type-check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12px}.customer-type-check input{width:18px;height:18px;accent-color:#2563eb}.customer-type-check span{display:grid}.customer-type-check small{color:#64748b;font-size:10px;font-weight:500}.customer-type-percent{display:flex;align-items:center;overflow:hidden;width:150px;border:1px solid #bfdbfe;border-radius:10px;background:#fff}.customer-type-percent input{width:100%;height:36px;padding:0 10px;border:0!important;outline:0;background:transparent;text-align:right;font-family:inherit}.customer-type-percent input:disabled{background:#f8fafc;cursor:not-allowed}.customer-type-percent b{padding:0 9px;color:#64748b;font-size:10px}.materials-card{margin-top:10px}
 .check-card,.sales-switch{display:flex!important;align-items:center;gap:9px;padding:9px;border:1px solid #dbeafe;border-radius:11px;background:#fff}.check-card input,.sales-switch input{width:18px;height:18px;accent-color:#2563eb}.check-card span,.sales-switch span{display:grid}.check-card small,.sales-switch small{color:#64748b;font-weight:500}.sales-switch{margin-top:10px}.tier-list{display:grid;gap:8px;margin-top:10px}.tier-row{display:flex;align-items:center;gap:6px;padding:8px;border-radius:10px;background:#fff;color:#475569;font-size:11px}.tier-row input{width:115px;height:34px;border:1px solid #cbd5e1;border-radius:8px;padding:0 8px}.tier-row button{width:29px;height:29px;border:0;border-radius:8px;background:#fee2e2;color:#dc2626;font-size:20px;cursor:pointer}.add-tier{justify-self:start;padding:8px 13px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}@media(max-width:800px){.commission-card{min-width:480px}.commission-grid{grid-template-columns:1fr}.tier-row{flex-wrap:wrap}}
+.referral-commission{display:grid;gap:8px;margin-top:10px;padding:10px;border:1px solid #fde68a;border-radius:11px;background:#fffbeb}.referral-commission .customer-commission-head{color:#92400e}.referral-commission-row{display:flex;gap:8px;align-items:center}.referral-commission-row select{flex:1;height:38px;border:1px solid #fcd34d;border-radius:10px;background:#fff;font-family:inherit;font-weight:800}.referral-value{width:190px}
+@media(max-width:560px){.referral-commission-row{flex-direction:column;align-items:stretch}.referral-value{width:100%}}
 @media(max-width:560px){.commission-card{min-width:0}.customer-type-card{flex-wrap:wrap}.customer-type-percent{width:100%}}
 </style>

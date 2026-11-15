@@ -32,6 +32,10 @@ use App\Services\FinancialCheckoutBalanceService;
 use App\Support\PatientPhoneVisibility;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Support\AppointmentPastAccess;
+use App\Support\ActivityLogger;
+use App\Models\User;
+use Illuminate\Support\Str;
 
 class AppointmentController extends Controller
 {
@@ -44,6 +48,8 @@ class AppointmentController extends Controller
 
         $appointments = Appointment::query()
             ->when($month, fn ($query) => $query->where('month', $month))
+            // نقشی که روزهای گذشته را نمی‌بیند، اطلاعات آن روزها را از API هم نمی‌گیرد.
+            ->when(! AppointmentPastAccess::canView($request->user()), fn ($query) => AppointmentPastAccess::constrainToCurrentAndFuture($query))
             // Synthetic load-test rows must never enter the operational
             // calendar. Keeping them in the database is useful for audit and
             // diagnostics, but returning thousands of them can exhaust PHP's
@@ -139,6 +145,7 @@ class AppointmentController extends Controller
     public function hideDay(Request $request)
     {
         $data = $this->validateScheduleDay($request);
+        AppointmentPastAccess::assertCanEdit($request->user(), $data['month'], $data['day_num']);
         HiddenAppointmentDay::query()->firstOrCreate($data);
 
         return response()->json(['message' => 'روز از برنامه پنهان شد.']);
@@ -147,6 +154,7 @@ class AppointmentController extends Controller
     public function restoreDay(Request $request)
     {
         $data = $this->validateScheduleDay($request);
+        AppointmentPastAccess::assertCanEdit($request->user(), $data['month'], $data['day_num']);
         $restored = HiddenAppointmentDay::query()->where($data)->delete() > 0;
 
         return response()->json(['restored' => $restored]);
@@ -592,6 +600,9 @@ class AppointmentController extends Controller
                     }
                     abort(409, 'این نوبت در دستگاه یا مرورگر دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.');
                 }
+                // نوبتِ روز گذشته (یا انتقال نوبت به روز گذشته) فقط با مجوز «ویرایش نوبت‌های گذشته» تغییر می‌کند.
+                AppointmentPastAccess::assertCanEditAppointment($request->user(), $previous);
+                AppointmentPastAccess::assertCanEdit($request->user(), $data['month'], $incoming['day_num'] ?? $previous?->day_num);
 
                 unset($incoming['id'], $incoming['appointment_id'], $incoming['lock_version'], $incoming['followup_confirmed'], $incoming['_client_key']);
                 $incoming = collect($incoming)->only([
@@ -601,7 +612,7 @@ class AppointmentController extends Controller
                     'doctor_note', 'done', 'completed_at', 'amount',
                     'original_amount', 'debt', 'payment_method', 'payment_account',
                     'payment_details', 'payment_link', 'payment_link_sent_count',
-                    'payment_link_last_sent_at', 'referrer_phone', 'referral_score',
+                    'payment_link_last_sent_at', 'referrer_phone', 'referrer_type', 'referrer_id', 'referral_score',
                     'wallet_applied', 'referral_commission_type',
                     'referral_commission_value', 'discount', 'new_customer',
                     'appointment_sms', 'info_sms', 'completion_sms_statuses',
@@ -626,8 +637,9 @@ class AppointmentController extends Controller
                     $storedDetails = is_array($previous->payment_details) ? $previous->payment_details : [];
                     $incoming['payment_details'] = array_replace($storedDetails, $submittedDetails);
                 }
+                $incoming = $this->normalizeReferrer($incoming, $previous);
                 $financial = $this->normalizeServiceDiscounts($incoming['services'] ?? []);
-                $incoming['services'] = $financial['services'];
+                $incoming['services'] = $this->enforceServiceFinalization($financial['services'], $previous, $request);
                 if ($financial['calculated']) {
                     $manualOverage = max(0, $this->signedMoneyToInteger(data_get($incoming, 'payment_details.manual_overage', 0)));
                     $incoming['original_amount'] = $financial['original_amount'];
@@ -868,6 +880,8 @@ class AppointmentController extends Controller
             'time' => ['required', 'date_format:H:i'],
             'allow_occupied_slot' => ['sometimes', 'boolean'],
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
+        AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
+        AppointmentPastAccess::assertCanEdit($request->user(), $data['month'], $data['day_num']);
         $result = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($appointment, $data) {
             return DB::transaction(function () use ($appointment, $data) {
                 $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
@@ -974,6 +988,7 @@ class AppointmentController extends Controller
     /** Extend an appointment into the immediately following empty timeline slot. */
     public function extend(Request $request, Appointment $appointment)
     {
+        AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
         $data = $request->validate([
             'lock_version' => ['required', 'integer', 'min:1'],
             'next_time' => ['required', 'date_format:H:i'],
@@ -1102,6 +1117,7 @@ class AppointmentController extends Controller
 
     public function markPhotoTaken(Request $request, Appointment $appointment)
     {
+        AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
         $data = $request->validate([
             'kind' => ['required', 'string', 'in:before,after'],
         ]);
@@ -1222,19 +1238,54 @@ class AppointmentController extends Controller
             'completed_at', 'amount', 'original_amount', 'debt', 'payment_method',
             'payment_account', 'payment_details', 'payment_link',
             'payment_link_sent_count', 'payment_link_last_sent_at', 'referrer_phone',
-            'referral_score', 'wallet_applied', 'referral_commission_type',
+            'referrer_type', 'referrer_id', 'referral_score', 'wallet_applied', 'referral_commission_type',
             'referral_commission_value', 'discount', 'new_customer',
             'appointment_sms', 'info_sms', 'completion_sms_statuses',
             'service_types', 'services',
         ];
 
         foreach ($fields as $field) {
-            if ($this->canonicalAppointmentValue($incoming[$field] ?? null) !== $this->canonicalAppointmentValue($existing->getAttribute($field))) {
+            $incomingValue = $incoming[$field] ?? null;
+            $existingValue = $existing->getAttribute($field);
+            if ($field === 'services') {
+                $incomingValue = $this->comparableServices($incomingValue);
+                $existingValue = $this->comparableServices($existingValue);
+            }
+            if ($this->canonicalAppointmentValue($incomingValue) !== $this->canonicalAppointmentValue($existingValue)) {
                 return false;
             }
         }
 
         return true;
+    }
+
+    /**
+     * فیلدهایی که سرور خودش می‌سازد (شناسهٔ ردیف، زمان و نام ثبت نهایی، منبع پیش‌فرض تخفیف) نباید
+     * ردیفِ بدون تغییر را «تغییرکرده» نشان دهند؛ وگرنه ذخیرهٔ ماه همهٔ نوبت‌های قدیمی را بازنویسی می‌کرد.
+     */
+    private function comparableServices(mixed $services): mixed
+    {
+        if (is_string($services)) $services = json_decode($services, true);
+        if (! is_array($services)) return $services;
+        $line = function ($line) {
+            if (! is_array($line)) return $line;
+            unset($line['line_id'], $line['finalized_at'], $line['finalized_by_id'], $line['finalized_by_name']);
+            $line['finalized'] = filter_var($line['finalized'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $line['discount_source'] = ($line['adjustment_mode'] ?? 'discount') === 'surcharge'
+                ? null
+                : self::normalizeDiscountSource($line['discount_source'] ?? null);
+
+            return $line;
+        };
+
+        return array_map(function ($service) use ($line) {
+            $service = $line($service);
+            if (is_array($service) && is_array($service['addons'] ?? null)) {
+                $service['addons'] = array_map($line, $service['addons']);
+            }
+
+            return $service;
+        }, $services);
     }
 
     private function canonicalAppointmentValue(mixed $value): string
@@ -1375,8 +1426,9 @@ class AppointmentController extends Controller
      * پیش از حذف نوبت: چه مبلغی از این نوبت پرداخت شده که می‌تواند به کیف پول بیمار برگردد.
      * صفحهٔ نوبت‌دهی با این عدد از کاربر می‌پرسد مبلغ برگردد یا نه.
      */
-    public function deletePreview(Appointment $appointment)
+    public function deletePreview(Request $request, Appointment $appointment)
     {
+        AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
         $refundable = $this->appointmentRefundableAmounts($appointment);
         $patient = $this->appointmentPatient($appointment);
 
@@ -1401,6 +1453,10 @@ class AppointmentController extends Controller
             // پرداخت‌های نوبت فقط با تأیید صریح کاربر به کیف پول بیمار برمی‌گردد.
             'refund_to_wallet' => ['nullable', 'boolean'],
         ]);
+        AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
+        if ($this->hasFinalizedServices($appointment->services ?? []) && ! $this->canEditFinalizedServices($request)) {
+            return response()->json(['message' => 'این نوبت خدمت ثبت نهایی‌شده دارد؛ حذف آن فقط با مجوز «ویرایش خدمات ثبت نهایی‌شده» ممکن است.'], 403);
+        }
         if ((int) $appointment->lock_version !== (int) $data['lock_version']) {
             return response()->json(['message' => 'این نوبت تغییر کرده است. صفحه را تازه‌سازی کنید.'], 409);
         }
@@ -1563,6 +1619,7 @@ class AppointmentController extends Controller
         ], $this->appointmentValidationMessages(), $this->appointmentValidationAttributes());
         // شمارهٔ ماسک‌شده (مثلاً لیدی که شماره‌اش برای این کاربر مخفی است) هرگز روی نوبت ذخیره نمی‌شود.
         if (PatientPhoneVisibility::looksMasked($data['phone'] ?? '')) $data['phone'] = null;
+        AppointmentPastAccess::assertCanEdit($request->user(), $data['month'], $data['day_num']);
 
         $appointment = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($data) {
             return DB::transaction(function () use ($data) {
@@ -1634,6 +1691,7 @@ class AppointmentController extends Controller
 
     public function financialContext(Request $request, Appointment $appointment)
     {
+        AppointmentPastAccess::assertCanViewAppointment($request->user(), $appointment);
         $patient = $this->appointmentPatient($appointment);
         $previousDebts = collect();
         if ($patient) {
@@ -1782,6 +1840,7 @@ class AppointmentController extends Controller
 
     public function financialCheckout(Request $request, Appointment $appointment, FinancialCheckoutBalanceService $balanceService)
     {
+        AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
         $data = $request->validate([
             'payments' => ['array', 'max:10'], 'payments.*.method' => ['required', 'string', 'max:100'],
             'payments.*.amount' => ['required', 'integer', 'min:1'], 'payments.*.account' => ['nullable', 'string', 'max:100'],
@@ -1957,6 +2016,7 @@ class AppointmentController extends Controller
 
     public function deleteFinancialPayment(Request $request, Appointment $appointment, AppointmentFinancialTransaction $transaction)
     {
+        AppointmentPastAccess::assertCanEditAppointment($request->user(), $appointment);
         abort_unless($transaction->appointment_id === $appointment->id && $transaction->type === 'payment' && ! $transaction->voided_at, 404);
 
         $result = DB::transaction(function () use ($request, $appointment, $transaction) {
@@ -2346,6 +2406,10 @@ class AppointmentController extends Controller
             $discount = $line['adjustment_mode'] === 'discount' ? min($adjustment, $lineAmount) : 0;
             $surcharge = $line['adjustment_mode'] === 'surcharge' ? $adjustment : 0;
             $line['discount'] = $line['adjustment_mode'] === 'surcharge' ? $surcharge : $discount;
+            // منبع تخفیف فقط برای حالت تخفیف معنا دارد؛ مقدار پیش‌فرض «مشترک» همان محاسبهٔ قبلی سیستم است.
+            $line['discount_source'] = $line['adjustment_mode'] === 'discount'
+                ? self::normalizeDiscountSource($line['discount_source'] ?? null)
+                : null;
             if ($inventoryItem && empty($line['addon_definition_id'])) $line['inventory_id'] = $inventoryItem->id;
             $originalAmount += $lineAmount;
             $totalDiscount += $discount;
@@ -2568,6 +2632,7 @@ class AppointmentController extends Controller
      */
     private function syncResourceEarningLines(Appointment $appointment): void
     {
+        $this->captureReferralCommissionSnapshot($appointment);
         $existing = ResourceEarningLine::query()->where('appointment_id', $appointment->id)->get();
         $kept = $existing
             ->filter(fn (ResourceEarningLine $line) => $line->manually_edited || $line->status !== 'active')
@@ -2663,7 +2728,178 @@ class AppointmentController extends Controller
             }
         }
 
+        array_push($payloads, ...$this->referralCommissionPayloads($appointment, $lines, $inventories));
+
         return $payloads;
+    }
+
+    /**
+     * معرف نوبت را یکدست می‌کند: مشتری (بیمار)، پزشک یا پرسنل. نام معرف از دیتابیس خوانده می‌شود و
+     * برای معرف مشتری شمارهٔ او هم در referrer_phone می‌ماند تا روند فعلی باشگاه مشتریان تغییر نکند.
+     * نوبت‌های قدیمی که فقط شمارهٔ معرف دارند «مشتری» حساب می‌شوند.
+     */
+    private function normalizeReferrer(array $incoming, ?Appointment $previous): array
+    {
+        if (! array_key_exists('referrer_type', $incoming) && ! array_key_exists('referrer_phone', $incoming)) {
+            return $incoming;
+        }
+        $type = trim((string) ($incoming['referrer_type'] ?? ''));
+        $id = (int) ($incoming['referrer_id'] ?? 0);
+        $clear = ['referrer_type' => null, 'referrer_id' => null, 'referrer_name' => null, 'referrer_phone' => null];
+
+        if ($type === 'doctor' || $type === 'staff') {
+            $resource = $id ? ($type === 'doctor' ? Doctor::query()->find($id) : Staff::query()->find($id)) : null;
+            return $resource
+                ? [...$incoming, 'referrer_type' => $type, 'referrer_id' => $resource->id, 'referrer_name' => $resource->name, 'referrer_phone' => null]
+                : [...$incoming, ...$clear];
+        }
+
+        $patient = null;
+        if ($type === 'customer' && $id) {
+            $patient = Patient::query()->find($id);
+        }
+        if (! $patient && in_array($type, ['', 'customer'], true)) {
+            $phone = $this->normalizePhoneDigits($incoming['referrer_phone'] ?? '');
+            if ($phone === '') return [...$incoming, ...$clear];
+            $patient = $this->findPatientByNormalizedPhone($phone);
+            if (! $patient) {
+                // شماره‌ای که هنوز پرونده ندارد مثل قبل نگه داشته می‌شود.
+                return [...$incoming, 'referrer_type' => 'customer', 'referrer_id' => null, 'referrer_name' => null];
+            }
+        }
+        if (! $patient) return [...$incoming, ...$clear];
+
+        // مشتری نمی‌تواند معرف خودش باشد.
+        $referred = $this->appointmentPatient((new Appointment())->forceFill([...($previous?->toArray() ?? []), ...$incoming]));
+        if ($referred && (int) $referred->id === (int) $patient->id) {
+            return [...$incoming, ...$clear];
+        }
+
+        return [
+            ...$incoming,
+            'referrer_type' => 'customer',
+            'referrer_id' => $patient->id,
+            'referrer_name' => trim(($patient->first_name ?? '').' '.($patient->last_name ?? '')) ?: null,
+            'referrer_phone' => $patient->phone ?: ($incoming['referrer_phone'] ?? null),
+        ];
+    }
+
+    /** درصد یا مبلغ پورسانت معرفیِ معرف پزشک/پرسنل هنگام «انجام شد» روی نوبت ثبت می‌شود تا تغییر بعدی تنظیمات اثر نکند. */
+    private function captureReferralCommissionSnapshot(Appointment $appointment): void
+    {
+        if (! Schema::hasColumn('appointments', 'referral_commission_snapshot')) return;
+        $resource = $this->referralResource($appointment);
+        if (! $resource || ! $this->appointmentIsDone($appointment)) return;
+        $snapshot = $appointment->referral_commission_snapshot;
+        if (is_array($snapshot) && ($snapshot['referrer_type'] ?? null) === $appointment->referrer_type && (int) ($snapshot['referrer_id'] ?? 0) === (int) $resource->id) {
+            return;
+        }
+        $snapshot = [
+            'referrer_type' => $appointment->referrer_type,
+            'referrer_id' => $resource->id,
+            'referrer_name' => $resource->name,
+            'type' => $resource->referral_commission_type === 'fixed' ? 'fixed' : 'percent',
+            'value' => (float) ($resource->referral_commission_value ?? 0),
+            'captured_at' => now()->toIso8601String(),
+        ];
+        Appointment::query()->whereKey($appointment->id)->update(['referral_commission_snapshot' => json_encode($snapshot, JSON_UNESCAPED_UNICODE)]);
+        $appointment->setAttribute('referral_commission_snapshot', $snapshot);
+    }
+
+    private function referralResource(Appointment $appointment): Doctor|Staff|null
+    {
+        $id = (int) ($appointment->referrer_id ?? 0);
+        if (! $id) return null;
+
+        return match ($appointment->referrer_type) {
+            'doctor' => Doctor::query()->find($id),
+            'staff' => Staff::query()->find($id),
+            default => null,
+        };
+    }
+
+    /**
+     * پورسانت معرفی مشتری برای پزشک یا پرسنل معرف؛ جدا از پورسانت انجام خدمت و با همان قاعدهٔ زمانی آن
+     * (نوبت انجام‌شده). مبنای درصدی، مبلغ خدمات بعد از تخفیف است. کانالی که «پاداش معرف پرداخت نشود»
+     * دارد پورسانت معرفی هم ندارد.
+     */
+    private function referralCommissionPayloads(Appointment $appointment, array $lines, $inventories): array
+    {
+        $resource = $this->referralResource($appointment);
+        if (! $resource || ! (bool) ($appointment->referral_reward_enabled ?? true)) return [];
+
+        $snapshot = is_array($appointment->referral_commission_snapshot) ? $appointment->referral_commission_snapshot : [];
+        $matchesSnapshot = ($snapshot['referrer_type'] ?? null) === $appointment->referrer_type && (int) ($snapshot['referrer_id'] ?? 0) === (int) $resource->id;
+        $type = $matchesSnapshot ? ($snapshot['type'] ?? 'percent') : ($resource->referral_commission_type === 'fixed' ? 'fixed' : 'percent');
+        $value = (float) ($matchesSnapshot ? ($snapshot['value'] ?? 0) : ($resource->referral_commission_value ?? 0));
+        if ($value <= 0) return [];
+
+        $addonDefinitionIds = collect($lines)->pluck('addon_definition_id')->filter()->unique();
+        $addonDefinitions = $addonDefinitionIds->isEmpty() ? collect() : InventoryAddonDefinition::query()
+            ->whereIn('id', $addonDefinitionIds)->get()->keyBy('id');
+        $gross = 0.0;
+        $discount = 0.0;
+        $net = 0.0;
+        foreach ($lines as $line) {
+            if ($line['quantity'] <= 0) continue;
+            $price = $line['addon_definition_id']
+                ? (float) ($addonDefinitions->get($line['addon_definition_id'])?->amount ?? 0)
+                : (float) ($inventories->get($line['name'])?->amount ?? 0);
+            $lineGross = $price * $line['quantity'];
+            $lineDiscount = min($line['discount'], $lineGross);
+            $gross += $lineGross;
+            $discount += $lineDiscount;
+            $net += max(0, $lineGross + $line['surcharge'] - $lineDiscount);
+        }
+        $amount = $type === 'fixed' ? $value : $net * $value / 100;
+        if ($amount <= 0) return [];
+
+        $resourceType = $appointment->referrer_type === 'doctor' ? 'doctor' : 'staff';
+        $valueLabel = $type === 'fixed' ? number_format($value).' تومان' : "{$value}%";
+
+        return [[
+            'appointment_id' => $appointment->id,
+            'month' => $appointment->month,
+            'day_num' => $appointment->day_num,
+            'earned_at' => $appointment->created_at,
+            'resource_type' => $resourceType,
+            'resource_id' => $resource->id,
+            'resource_name' => $resource->name,
+            'earning_type' => ResourceEarningLine::REFERRAL_TYPE,
+            'inventory_id' => null,
+            'inventory_name' => null,
+            'service_name' => 'پورسانت معرفی مشتری',
+            'service_line_index' => null,
+            'is_addon' => false,
+            'quantity' => 1,
+            'gross_amount' => $gross,
+            'discount_amount' => $discount,
+            'net_amount' => $net,
+            'material_cost' => 0,
+            'commission_base' => $type === 'fixed' ? 0 : $net,
+            'commission_type' => $type,
+            'commission_value' => $value,
+            'amount' => round($amount),
+            'commission_after_materials' => false,
+            'commission_customer_scope' => null,
+            'appointment_new_customer' => (bool) $appointment->new_customer,
+            'calculation_snapshot' => [
+                'calculation_source' => 'referral',
+                'calculation_source_label' => 'پورسانت معرفی مشتری',
+                'referrer_type' => $resourceType,
+                'referred_name' => $appointment->lastname,
+                'settings_snapshot' => $matchesSnapshot ? $snapshot : null,
+            ],
+            'audit_events' => [[
+                'event' => 'created_from_appointment',
+                'at' => now()->toIso8601String(),
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user()?->name,
+                'appointment_id' => $appointment->id,
+                'source' => 'referral',
+            ]],
+            'description' => "پورسانت معرفی مشتری {$valueLabel} برای {$appointment->lastname}",
+        ]];
     }
 
     private function appointmentServiceLines(array $services, float $appointmentDiscount = 0): array
@@ -2703,6 +2939,7 @@ class AppointmentController extends Controller
             'discount' => $isSurcharge ? 0 : $adjustment,
             'surcharge' => $isSurcharge ? $adjustment : 0,
             'surcharge_for_doctor_commission' => (bool) ($line['surcharge_for_doctor_commission'] ?? false),
+            'discount_source' => $isSurcharge ? null : self::normalizeDiscountSource($line['discount_source'] ?? null),
             'doctor' => trim((string) ($line['doctor'] ?? $parent['doctor'] ?? '')),
             'consultant' => trim((string) ($line['consultant'] ?? $parent['consultant'] ?? '')),
             'index' => $index,
@@ -2722,9 +2959,8 @@ class AppointmentController extends Controller
             return [];
         }
 
-        $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
         $commissionValue = (float) ($resource->customerCommissionPercent((bool) $appointment->new_customer) ?? 0);
-        $amount = $this->calculateCommissionAmount('percent', $commissionValue, $amounts['base'], $line['quantity']);
+        [$amount, $amounts] = $this->lineCommission($type, 'percent', $commissionValue, $line, $inventory, $resource);
         if ($amount <= 0) {
             return [];
         }
@@ -2755,10 +2991,9 @@ class AppointmentController extends Controller
         }
 
         if ((float) $inventory->default_commission_value > 0) {
-            $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
             $commissionType = $inventory->default_commission_type === 'fixed' ? 'fixed' : 'percent';
             $value = (float) $inventory->default_commission_value;
-            $amount = $this->calculateCommissionAmount($commissionType, $value, $amounts['base'], $line['quantity']);
+            [$amount, $amounts] = $this->lineCommission($type, $commissionType, $value, $line, $inventory, $resource);
             return $amount > 0
                 ? [$this->earningPayload($appointment, $line, $inventory, $type, $resource, 'inventory_default_commission', $commissionType, $value, $amount, $amounts, "پورسانت پیش‌فرض انبار {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}")]
                 : [];
@@ -2773,10 +3008,9 @@ class AppointmentController extends Controller
         $payloads = [];
 
         foreach ($commissions as $commission) {
-            $amounts = $this->earningAmounts($line, $inventory, (bool) $resource->commission_after_materials, $type !== 'doctor' || $line['surcharge_for_doctor_commission']);
             $commissionType = $commission->commission_type === 'fixed' ? 'fixed' : 'percent';
             $commissionValue = (float) $commission->commission_value;
-            $amount = $this->calculateCommissionAmount($commissionType, $commissionValue, $amounts['base'], $line['quantity']);
+            [$amount, $amounts] = $this->lineCommission($type, $commissionType, $commissionValue, $line, $inventory, $resource);
             if ($amount <= 0) {
                 continue;
             }
@@ -2839,6 +3073,9 @@ class AppointmentController extends Controller
                 'inventory_material_price' => (float) ($inventory->price ?? 0),
                 'inventory_default_commission_type' => $inventory->default_commission_type,
                 'inventory_default_commission_value' => (float) $inventory->default_commission_value,
+                'discount_source' => $amounts['discount_source'] ?? null,
+                'commission_before_discount' => $amounts['commission_before_discount'] ?? null,
+                'doctor_discount_deduction' => $amounts['doctor_discount_deduction'] ?? null,
             ],
             'audit_events' => [[
                 'event' => 'created_from_appointment',
@@ -2850,6 +3087,153 @@ class AppointmentController extends Controller
             ]],
             'description' => $description,
         ];
+    }
+
+    public const DISCOUNT_SOURCES = ['clinic', 'doctor', 'shared'];
+    public const FINALIZED_SERVICES_PERMISSION = 'appointments.finalized_services_update';
+
+    private function canEditFinalizedServices(Request $request): bool
+    {
+        $user = $request->user();
+
+        return ! $user instanceof User || $user->can(self::FINALIZED_SERVICES_PERMISSION);
+    }
+
+    private function hasFinalizedServices(mixed $services): bool
+    {
+        return collect(is_array($services) ? $services : [])
+            ->contains(fn ($service) => is_array($service) && filter_var($service['finalized'] ?? false, FILTER_VALIDATE_BOOLEAN));
+    }
+
+    /** اطلاعاتی از خدمت که بعد از «ثبت نهایی» قفل می‌شود. */
+    private function finalizedServiceSignature(array $service): string
+    {
+        $scalar = fn ($value) => is_array($value) ? $value : trim((string) ($value ?? ''));
+        $pick = fn (array $line, array $keys) => collect($keys)->mapWithKeys(fn ($key) => [$key => $scalar($line[$key] ?? null)])->all();
+        $lineKeys = ['name', 'inventory_id', 'addon_definition_id', 'cc', 'discount', 'adjustment_mode', 'discount_source', 'surcharge_for_doctor_commission'];
+        $signature = [
+            ...$pick($service, [...$lineKeys, 'doctor', 'consultant']),
+            'tags' => collect($service['tags'] ?? [])->map(fn ($tag) => trim((string) $tag))->sort()->values()->all(),
+            'addons' => collect($service['addons'] ?? [])->filter(fn ($addon) => is_array($addon) && trim((string) ($addon['name'] ?? '')) !== '')
+                ->map(fn (array $addon) => $pick($addon, $lineKeys))->values()->all(),
+        ];
+        $signature['surcharge_for_doctor_commission'] = filter_var($service['surcharge_for_doctor_commission'] ?? false, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
+
+        return json_encode($signature, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * «ثبت نهایی» هر خدمت روی سرور: خدمت نهایی‌شده بدون مجوز «ویرایش خدمات ثبت نهایی‌شده» تغییر، حذف یا
+     * بازگشایی نمی‌شود. نام و زمان ثبت‌کننده را خود سرور می‌نویسد و باز کردن قفل در سوابق فعالیت ثبت می‌شود.
+     * ثبت نهایی هیچ اثر مالی، انباری یا پاداشی ندارد.
+     */
+    private function enforceServiceFinalization(array $services, ?Appointment $previous, Request $request): array
+    {
+        $previousServices = array_values(array_filter(is_array($previous?->services) ? $previous->services : [], 'is_array'));
+        $previousById = collect($previousServices)->filter(fn ($line) => ! empty($line['line_id']))->keyBy('line_id');
+        $usedIds = [];
+        $user = $request->user();
+        $canUnlock = $this->canEditFinalizedServices($request);
+        $now = now()->toIso8601String();
+        $deny = fn (string $name) => abort(403, "خدمت «{$name}» ثبت نهایی شده است؛ ویرایش آن فقط با مجوز «ویرایش خدمات ثبت نهایی‌شده» ممکن است.");
+
+        $explicitIds = collect($services)->map(fn ($service) => is_array($service) ? trim((string) ($service['line_id'] ?? '')) : '')->filter()->flip();
+        $services = array_values(array_map(function ($service, $index) use ($previousServices, $explicitIds, &$usedIds) {
+            $service = is_array($service) ? $service : [];
+            $id = trim((string) ($service['line_id'] ?? ''));
+            // صفحه‌ای که هنوز شناسهٔ ردیف را نگرفته، ردیف را به همان جایگاه قبلی‌اش وصل می‌کند.
+            if ($id === '' || isset($usedIds[$id])) {
+                $candidate = trim((string) ($previousServices[$index]['line_id'] ?? ''));
+                $id = $candidate !== '' && ! isset($usedIds[$candidate]) && ! $explicitIds->has($candidate) ? $candidate : '';
+            }
+            if ($id === '' || isset($usedIds[$id])) $id = (string) Str::uuid();
+            $usedIds[$id] = true;
+            $service['line_id'] = $id;
+
+            return $service;
+        }, $services, array_keys($services)));
+        $incomingById = collect($services)->keyBy('line_id');
+
+        foreach ($previousServices as $old) {
+            if (! filter_var($old['finalized'] ?? false, FILTER_VALIDATE_BOOLEAN) || empty($old['line_id'])) continue;
+            $name = trim((string) ($old['name'] ?? 'خدمت'));
+            $current = $incomingById->get($old['line_id']);
+            if (! $current) {
+                if (! $canUnlock) $deny($name);
+                ActivityLogger::manual('finalized_service_removed', 'نوبت‌دهی', $previous, ['service' => $name, 'line' => $old], [], ['line_id' => $old['line_id']]);
+                continue;
+            }
+            $stillFinalized = filter_var($current['finalized'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $changed = $this->finalizedServiceSignature($old) !== $this->finalizedServiceSignature($current);
+            if (! $stillFinalized || $changed) {
+                if (! $canUnlock) $deny($name);
+                ActivityLogger::manual($stillFinalized ? 'finalized_service_changed' : 'finalized_service_unlocked', 'نوبت‌دهی', $previous,
+                    ['service' => $name, 'line' => $old], ['service' => trim((string) ($current['name'] ?? $name)), 'line' => $current], ['line_id' => $old['line_id']]);
+            }
+        }
+
+        return array_map(function (array $service) use ($previousById, $user, $now) {
+            $finalized = filter_var($service['finalized'] ?? false, FILTER_VALIDATE_BOOLEAN) && trim((string) ($service['name'] ?? '')) !== '';
+            unset($service['finalized_at'], $service['finalized_by_id'], $service['finalized_by_name']);
+            $service['finalized'] = $finalized;
+            if (! $finalized) return $service;
+            $old = $previousById->get($service['line_id']);
+            $keep = $old && filter_var($old['finalized'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                && $this->finalizedServiceSignature($old) === $this->finalizedServiceSignature($service);
+
+            return [
+                ...$service,
+                'finalized_at' => $keep ? ($old['finalized_at'] ?? $now) : $now,
+                'finalized_by_id' => $keep ? ($old['finalized_by_id'] ?? null) : $user?->id,
+                'finalized_by_name' => $keep ? ($old['finalized_by_name'] ?? null) : ($user?->name ?? 'سیستم'),
+            ];
+        }, $services);
+    }
+
+    public static function normalizeDiscountSource(mixed $value): string
+    {
+        $value = trim((string) $value);
+
+        return in_array($value, self::DISCOUNT_SOURCES, true) ? $value : 'shared';
+    }
+
+    /**
+     * پورسانت یک ردیف خدمت با درنظرگرفتن منبع تخفیف.
+     * پرسنل (مشاور): مثل قبل از مبلغ بعد از تخفیف.
+     * پزشک: «کلینیک» = از مبلغ قبل از تخفیف؛ «پزشک» = پورسانت قبل از تخفیف منهای کل تخفیف (حداقل صفر)؛
+     * «مشترک» = تخفیف به نسبت سهم بین پزشک و کلینیک تقسیم می‌شود (همان محاسبهٔ قبلی).
+     *
+     * @return array{0: float, 1: array}
+     */
+    private function lineCommission(string $type, string $commissionType, float $value, array $line, Inventory $inventory, Doctor|Staff $resource): array
+    {
+        $afterMaterials = (bool) $resource->commission_after_materials;
+        $includeSurcharge = $type !== 'doctor' || $line['surcharge_for_doctor_commission'];
+        $amounts = $this->earningAmounts($line, $inventory, $afterMaterials, $includeSurcharge);
+        $discounted = $this->calculateCommissionAmount($commissionType, $value, $amounts['base'], $line['quantity']);
+        if ($type !== 'doctor' || $amounts['discount'] <= 0) {
+            return [$discounted, $amounts];
+        }
+
+        $source = self::normalizeDiscountSource($line['discount_source'] ?? null);
+        $full = $this->earningAmounts([...$line, 'discount' => 0], $inventory, $afterMaterials, $includeSurcharge);
+        $beforeDiscount = $this->calculateCommissionAmount($commissionType, $value, $full['base'], $line['quantity']);
+        $amount = match ($source) {
+            'clinic' => $beforeDiscount,
+            'doctor' => max(0, $beforeDiscount - $amounts['discount']),
+            // سهم ثابت هم به نسبت مبلغ پرداختی مشتری از تخفیف سهم می‌برد.
+            default => $commissionType === 'fixed'
+                ? ($full['net'] > 0 ? $beforeDiscount * $amounts['net'] / $full['net'] : 0)
+                : $discounted,
+        };
+        if ($source !== 'shared') $amounts['base'] = $full['base'];
+
+        return [$amount, [
+            ...$amounts,
+            'discount_source' => $source,
+            'commission_before_discount' => round($beforeDiscount),
+            'doctor_discount_deduction' => round(max(0, $beforeDiscount - $amount)),
+        ]];
     }
 
     private function earningAmounts(array $line, Inventory $inventory, bool $afterMaterials, bool $includeSurcharge = true): array
@@ -3080,7 +3464,13 @@ class AppointmentController extends Controller
         $settings = is_string($settingsRaw) ? json_decode($settingsRaw, true) : $settingsRaw;
         $settings = is_array($settings) ? $settings : [];
         $phone = $this->normalizePhoneDigits($appointment['referrer_phone'] ?? '');
-        $referrer = $this->findPatientByNormalizedPhone($phone);
+        $referrerType = trim((string) ($appointment['referrer_type'] ?? ''));
+        // پاداش کیف پول فقط برای معرفِ «مشتری» است؛ معرف پزشک یا پرسنل پورسانت معرفی می‌گیرد.
+        $referrer = match ($referrerType) {
+            'customer' => ! empty($appointment['referrer_id']) ? Patient::query()->find((int) $appointment['referrer_id']) : $this->findPatientByNormalizedPhone($phone),
+            '' => $this->findPatientByNormalizedPhone($phone),
+            default => null,
+        };
         $referred = $this->appointmentPatient((new Appointment())->forceFill($appointment));
         if ($referrer && $referred && (int) $referrer->id === (int) $referred->id) $referrer = null;
         $isCompleted = trim((string) ($appointment['done'] ?? '')) === 'انجام شد';

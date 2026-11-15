@@ -46,13 +46,14 @@ class RolePermissionSeeder extends Seeder
             'مدیر مجموعه' => $defaultManagerPermissions->reject(fn (string $name) => $name === 'roles.manage'),
             'پرسنل مجموعه' => $generalStaffPermissions,
             'پذیرش' => $permissionsByPrefix(['patients', 'appointments'])
+                ->reject(fn (string $name) => $name === 'appointments.finalized_services_update')
                 ->merge(['services.view', 'followups.view', 'followups.create']),
             'پزشک' => collect([
                 'patients.view', 'patients.update', 'appointments.view',
-                'appointments.update', 'services.view',
+                'appointments.update', 'appointments.past_view', 'appointments.past_update', 'services.view',
             ]),
             'مشاور' => $permissionsByPrefix(['followups'])
-                ->merge(['patients.view', 'patients.view_phone', 'appointments.view', 'appointments.update', 'services.view']),
+                ->merge(['patients.view', 'patients.view_phone', 'appointments.view', 'appointments.update', 'appointments.past_view', 'appointments.past_update', 'services.view']),
             'حسابدار' => $permissionsByPrefix(['reports', 'bills'])
                 ->merge(['appointments.income', 'inventory.view', 'inventory.cost']),
             'انباردار' => $permissionsByPrefix(['inventory']),

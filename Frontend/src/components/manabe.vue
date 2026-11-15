@@ -768,6 +768,15 @@ export default {
       return roleIds.some(id => userRoleIds.includes(Number(id)));
     },
 
+    // پورسانت معرفی مشتری: درصدی یا مبلغ ثابت؛ مقدار خالی یعنی برای این شخص پورسانت معرفی محاسبه نمی‌شود.
+    referralCommissionFields(row = {}) {
+      const value = row.referral_commission_value;
+      return {
+        referral_commission_type: row.referral_commission_type === 'fixed' ? 'fixed' : 'percent',
+        referral_commission_value: value === null || value === undefined || value === '' ? null : Number(value),
+      };
+    },
+
     normalizeDoctorRow(row = {}) {
       return {
         ...row,
@@ -777,6 +786,7 @@ export default {
         commission_after_materials: Boolean(row.commission_after_materials),
         sales_bonus_enabled: Boolean(row.sales_bonus_enabled),
         sales_bonus_tiers: Array.isArray(row.sales_bonus_tiers) ? row.sales_bonus_tiers : [],
+        ...this.referralCommissionFields(row),
         hourly_rate: Number(row.hourly_rate || 0), overtime_hourly_rate: Number(row.overtime_hourly_rate || 0), shortage_hourly_deduction: Number(row.shortage_hourly_deduction || 0), absence_deduction: Number(row.absence_deduction || 0), allowed_shortage_hours: Number(row.allowed_shortage_hours || 0),
         available_days: Array.isArray(row.available_days) ? row.available_days : [],
         service_section_ids: Array.isArray(row.service_section_ids) ? row.service_section_ids : []
@@ -792,7 +802,8 @@ export default {
         ...this.customerPercentFields(row),
         commission_after_materials: Boolean(row.commission_after_materials),
         sales_bonus_enabled: Boolean(row.sales_bonus_enabled),
-        sales_bonus_tiers: Array.isArray(row.sales_bonus_tiers) ? row.sales_bonus_tiers : []
+        sales_bonus_tiers: Array.isArray(row.sales_bonus_tiers) ? row.sales_bonus_tiers : [],
+        ...this.referralCommissionFields(row)
         ,hourly_rate: Number(row.hourly_rate || 0), overtime_hourly_rate: Number(row.overtime_hourly_rate || 0), shortage_hourly_deduction: Number(row.shortage_hourly_deduction || 0), absence_deduction: Number(row.absence_deduction || 0), allowed_shortage_hours: Number(row.allowed_shortage_hours || 0)
       };
     },
@@ -800,7 +811,7 @@ export default {
     resourcePayload(type, row) {
       // درصد پایه و «پورسانت برای» در سرور از این دو مقدار ساخته می‌شوند.
       const fields = ['id', 'updated_at', 'save_version', 'user_id', 'name', 'new_customer_bonus', 'existing_customer_bonus',
-        'commission_after_materials', 'sales_bonus_enabled', 'sales_bonus_tiers', 'salary',
+        'commission_after_materials', 'sales_bonus_enabled', 'sales_bonus_tiers', 'referral_commission_type', 'referral_commission_value', 'salary',
         'hourly_rate', 'overtime_hourly_rate', 'shortage_hourly_deduction', 'absence_deduction',
         'allowed_shortage_hours', 'profile_photo_path', 'profile_thumbnail_path'];
       if (type === 'doctor') fields.push('available_days', 'service_section_ids');

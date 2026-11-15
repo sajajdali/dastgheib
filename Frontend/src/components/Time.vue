@@ -510,13 +510,14 @@
         </thead>
 
         <tbody
-          v-for="day in days"
+          v-for="day in visibleScheduleDays"
           :key="day.id"
           :data-day-number="day.dayNum"
           :data-day-rows-key="dayRowsKey(day)"
         >
 
           <tr
+            v-lock-controls="isDayReadonly(day)"
             class="day-separator-row"
             :class="{
               'holiday-day': day.isHoliday,
@@ -566,7 +567,7 @@
                     class="mini-btn day-chart-trigger"
                     title="گزارش روز"
                     aria-label="گزارش روز"
-                    @click.stop="openDailyReport(day)"
+                    data-keep-enabled @click.stop="openDailyReport(day)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 19V5" />
@@ -630,9 +631,11 @@
           <tr
             v-for="row in (isDayRowsRendered(day) ? getFilteredRows(day) : [])"
             :key="row._rowId"
+            v-lock-controls="isDayReadonly(day)"
             :id="'row-' + row._rowId"
             :class="[
               'data-row',
+              isDayReadonly(day) ? 'past-readonly-row' : '',
               row._visibleIndex % 2 === 1 ? 'stripe' : '',
               isAppointmentSearchResult(row) ? 'search-result-row' : '',
               highlightedRowId === row._rowId ? 'search-highlight-row' : '',
@@ -653,7 +656,7 @@
                     title="باز کردن پرونده در صفحه جدید"
                     @mouseenter="showAvatarPreview($event, row.profilePhotoUrl || row.profileThumbnailUrl, row.customerLevel)"
                     @mouseleave="hideAvatarPreview"
-                    @click.stop="openPatientProfileFromRow(row)"
+                    data-keep-enabled @click.stop="openPatientProfileFromRow(row)"
                   />
                   <span v-else-if="row.lastname" class="no-patient-file" title="برای این شخص پرونده تشکیل نشده است" aria-label="پرونده تشکیل نشده">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.75h9.2L19 8.55v11.7H5z"/><path d="M14 3.75v5h5"/><path d="M8.5 14.5h7M8.5 17.5h4.5"/></svg>
@@ -818,8 +821,9 @@
                     style="text-align: center !important;"
                     v-model="row.description"
                     :title="row.description || 'بدون توضیحات'"
+                    :readonly="isDayReadonly(day)"
                     @blur="saveData(0)"
-                    @click.stop="showDescription(row)"
+                    data-keep-enabled @click.stop="showDescription(row)"
                     @dblclick.stop="showDescription(row)"
                   />
                   <button
@@ -828,7 +832,7 @@
                     :class="{ 'has-note': hasDoctorNote(row), 'unread-note': canSeeDoctorNoteAlert && row.doctorNoteUnread, 'seen-note': hasDoctorNote(row) && (!canSeeDoctorNoteAlert || !row.doctorNoteUnread) }"
                     :title="canSeeDoctorNoteAlert && row.doctorNoteUnread ? 'پیام جدید پزشک؛ برای مشاهده باز کنید' : (hasDoctorNote(row) ? 'مشاهده گفت‌وگوی نوبت' : 'شروع گفت‌وگوی نوبت')"
                     :aria-label="canSeeDoctorNoteAlert && row.doctorNoteUnread ? 'پیام جدید پزشک؛ گفت‌وگو را باز کنید' : 'گفت‌وگوی نوبت'"
-                    @click.stop="openDoctorNote(row)"
+                    data-keep-enabled @click.stop="openDoctorNote(row)"
                   >
                     <span class="doctor-note-icon">💬</span>
                     <span v-if="canSeeDoctorNoteAlert && row.doctorNoteUnread" class="doctor-note-alert" aria-hidden="true"></span>
@@ -864,7 +868,7 @@
                   :class="{ 'service-active': hasService(row), 'has-service-summary': serviceButtonLabels(row).length > 0 }"
                   :title="serviceButtonTitle(row)"
                   :aria-label="serviceButtonTitle(row)"
-                  @click.stop="toggleServicePopup(row._rowId)"
+                  data-keep-enabled @click.stop="toggleServicePopup(row._rowId)"
                 >
                   <span v-if="!serviceButtonLabels(row).length" class="service-mini-icon">✦</span>
                   <span class="service-mini-summary">{{ serviceButtonLabels(row).join('، ') || 'خدمات' }}</span>
@@ -887,30 +891,61 @@
                       class="service-popup-close-btn"
                       title="بستن ثبت خدمات"
                       aria-label="بستن ثبت خدمات"
-                      @click.stop="closeServicePopup"
+                      data-keep-enabled @click.stop="closeServicePopup"
                     >×</button>
 
                   </div>
 
                   <div class="referral-section patient-services-referral-actions">
 
-                    <label class="referral-field">
-                      <span class="referral-field-caption">شماره موبایل معرف</span>
-                      <input
-                        :value="row.referrerPhone"
-                        type="text"
-                        inputmode="numeric"
-                        autocomplete="off"
-                        dir="ltr"
-                        maxlength="15"
-                        placeholder="مثلاً ۰۹۱۲۱۲۳۴۵۶۷"
-                        class="service-select referrer-phone-input"
-                        @input="onReferrerPhoneInput(row, $event)"
-                        @blur="onReferrerPhoneBlur(row)"
-                      />
-                    </label>
+                    <div class="referral-field referrer-type-field">
+                      <span class="referral-field-caption">معرف</span>
+                      <select :value="row.referrerType || ''" class="service-select referrer-type-select" @change="setReferrerType(row, $event.target.value)">
+                        <option value="">بدون معرف</option>
+                        <option value="customer">مشتری</option>
+                        <option value="doctor">پزشک</option>
+                        <option value="staff">پرسنل</option>
+                      </select>
+                    </div>
 
-                    <div class="referral-field">
+                    <div v-if="row.referrerType === 'customer'" class="referral-field referrer-customer-field">
+                      <span class="referral-field-caption">مشتری معرف</span>
+                      <div class="referrer-search">
+                        <div v-if="(row.referrerId || row.referrerPhone) && referrerSearch.rowId !== row._rowId" class="referrer-chip">
+                          <span>
+                            <b>{{ row.referrerName || referrerInfo(row).name || 'مشتری معرف' }}</b>
+                            <small v-if="row.referrerPhone">{{ displayPatientPhone(row.referrerPhone) }}</small>
+                          </span>
+                          <button type="button" title="تغییر معرف" @click.stop="clearReferrer(row)">×</button>
+                        </div>
+                        <input
+                          v-else
+                          :value="referrerSearch.rowId === row._rowId ? referrerSearch.query : ''"
+                          type="text"
+                          autocomplete="off"
+                          placeholder="نام، موبایل، شماره پرونده یا کد ملی"
+                          class="service-select referrer-search-input"
+                          @input="searchReferrer(row, $event.target.value)"
+                          @focus="referrerSearch.rowId = row._rowId"
+                        />
+                        <div v-if="referrerSearch.rowId === row._rowId && referrerSearch.query.length >= 2" class="referrer-results" @click.stop>
+                          <div v-if="referrerSearch.loading" class="referrer-results-state">در حال جست‌وجو…</div>
+                          <button
+                            v-for="patient in referrerSearch.results"
+                            :key="patient.id"
+                            type="button"
+                            class="referrer-result"
+                            @click.stop="selectReferrerPatient(row, patient)"
+                          >
+                            <b>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</b>
+                            <small>{{ [patient.file_number && `پرونده ${patient.file_number}`, patient.phone && displayPatientPhone(patient.phone), patient.national_id && `کد ملی ${patient.national_id}`].filter(Boolean).join(' · ') }}</small>
+                          </button>
+                          <div v-if="!referrerSearch.loading && !referrerSearch.results.length" class="referrer-results-state">مشتری‌ای با این مشخصات پیدا نشد.</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-if="row.referrerType === 'customer'" class="referral-field">
                       <span class="referral-field-caption">موجودی کیف پول معرف</span>
                       <div
                         class="referrer-wallet-info"
@@ -922,8 +957,17 @@
                           <b>{{ formatDisplayMoney(referrerInfo(row).balance) }} تومان</b>
                           <span>{{ referrerInfo(row).name || 'معرف' }}</span>
                         </template>
-                        <span v-else>{{ referrerStatusText(row) }}</span>
+                        <span v-else>{{ row.referrerId ? 'پاداش پس از انجام و تسویهٔ کامل به کیف پول او واریز می‌شود' : referrerStatusText(row) }}</span>
                       </div>
+                    </div>
+
+                    <div v-if="row.referrerType === 'doctor' || row.referrerType === 'staff'" class="referral-field referrer-resource-field">
+                      <span class="referral-field-caption">{{ row.referrerType === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف' }}</span>
+                      <select :value="row.referrerId || ''" class="service-select" @change="setReferrerResource(row, $event.target.value)">
+                        <option value="">{{ row.referrerType === 'doctor' ? 'انتخاب پزشک' : 'انتخاب پرسنل' }}</option>
+                        <option v-for="person in referrerResourceOptions(row.referrerType)" :key="person.id" :value="person.id">{{ person.name }}</option>
+                      </select>
+                      <small class="referrer-resource-hint">{{ referrerResourceHint(row) }}</small>
                     </div>
 
                     <button
@@ -939,10 +983,11 @@
 
                     <div
                       class="service-item"
-                      :class="{ 'service-item-layer-active': activeServiceTagPicker === service }"
+                      :class="{ 'service-item-layer-active': activeServiceTagPicker === service, 'service-item-finalized': service.finalized }"
                       v-for="(service, sIndex) in row.services"
                       :key="sIndex"
                     >
+                    <div class="service-lock-scope" v-lock-controls="Boolean(service.finalized)">
 
                       <div class="service-main-row">
                         <div class="service-choice-row">
@@ -1087,13 +1132,16 @@
                     <span>{{ service.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(service, row)">↻</button>
                   </div>
                   <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
+                  <select v-else :value="service.discount_source || 'shared'" class="discount-source-select" :title="discountSourceHint(service)" @change="service.discount_source = $event.target.value; calculateRowAmount(row)">
+                    <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                  </select>
 
-                      <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" @click.stop="toggleServiceAddons(service)">
+                      <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" data-keep-enabled @click.stop="toggleServiceAddons(service)">
                         جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b aria-hidden="true">{{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b>
                       </button>
 
                       <button
-                        v-if="row.services.length > 1"
+                        v-if="row.services.length > 1 && !service.finalized"
                         class="remove-service-btn"
                         @click.stop="removeService(row, sIndex)"
                       >
@@ -1111,14 +1159,32 @@
                           <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, row)" @remove="onAddonChanged(service, addon, row)" />
                           <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="sanitizeServiceQuantity(addon, row)">
                           <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
-                          <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
-                            <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, row)">
-                            <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, row)">↻</button>
+                          <div class="addon-adjustment-cell">
+                            <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
+                              <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, row)">
+                              <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, row)">↻</button>
+                            </div>
+                            <select v-if="addon.adjustment_mode !== 'surcharge'" v-bind:value="addon.discount_source || 'shared'" class="discount-source-select addon-discount-source" :title="discountSourceHint(addon)" @change="addon.discount_source = $event.target.value; calculateRowAmount(row)">
+                              <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
                           </div>
                           <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, row)">×</button>
                         </div>
                         <button type="button" class="add-another-addon-btn" @click.stop="addServiceAddon(service)">+ افزودن جانبی دیگر</button>
                       </div>
+
+                    </div>
+                    <div v-if="service.name" class="service-finalize-bar" :class="{ finalized: service.finalized }">
+                      <template v-if="service.finalized">
+                        <span class="service-finalized-badge">✓ ثبت نهایی شده</span>
+                        <small>{{ finalizedServiceCaption(service) }}</small>
+                        <button v-if="canEditFinalizedServices" type="button" class="service-unlock-btn" @click.stop="unlockService(row, service)">ویرایش</button>
+                      </template>
+                      <template v-else>
+                        <small>بعد از تکمیل اطلاعات این خدمت، آن را ثبت نهایی کنید.</small>
+                        <button type="button" class="service-finalize-btn" :disabled="!canFinalizeService(service)" :title="canFinalizeService(service) ? 'قفل اطلاعات این خدمت' : 'تعداد / سی‌سی خدمت را وارد کنید'" @click.stop="finalizeService(row, service)">ثبت نهایی</button>
+                      </template>
+                    </div>
 
                     </div>
 
@@ -1214,7 +1280,7 @@
                     }"
                     :title="financialTriggerTitle(row)"
                     :aria-label="financialTriggerTitle(row)"
-                    @click.stop="openFinancialPanel(row)"
+                    data-keep-enabled @click.stop="openFinancialPanel(row)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5z"/><path d="M9 9h6M9 12h4"/></svg>
                     <em v-if="!appointmentPaymentIsSettled(row) && (appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row))">پرداخت</em>
@@ -1256,17 +1322,17 @@
                   title="نمایش عملیات این ردیف"
                   aria-label="نمایش عملیات این ردیف"
                   :aria-expanded="activeRowActionMenu === row._rowId"
-                  @click.stop="toggleRowActionMenu(row)"
+                  data-keep-enabled @click.stop="toggleRowActionMenu(row)"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
                 </button>
 
                 <div v-if="activeRowActionMenu === row._rowId" class="row-actions-menu" role="menu" @click.stop>
                   <header><strong>عملیات نوبت</strong><small>{{ row.lastname || row.time || 'ردیف خالی' }}</small></header>
-                  <button v-if="automaticSmsSummary(row).total_count" type="button" role="menuitem" class="automatic-sms-menu-action" @click="openAutomaticSmsModal(row)"><i class="action-icon sms">✦</i><span><b>{{ automaticSmsSummary(row).active_count.toLocaleString('fa-IR') }} سناریوی پیامک فعال</b><small>سناریوهای پیگیری این مراجع؛ خاموش یا روشن کنید</small></span></button>
+                  <button v-if="automaticSmsSummary(row).total_count" type="button" role="menuitem" class="automatic-sms-menu-action" data-keep-enabled @click="openAutomaticSmsModal(row)"><i class="action-icon sms">✦</i><span><b>{{ automaticSmsSummary(row).active_count.toLocaleString('fa-IR') }} سناریوی پیامک فعال</b><small>سناریوهای پیگیری این مراجع؛ خاموش یا روشن کنید</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('insert', day, row)"><i class="action-icon add">+</i><span><b>افزودن وقت</b><small>ساخت ردیف بعد از این ساعت</small></span></button>
                   <button type="button" role="menuitem" @click="handleRowAction('tracking', day, row)"><i class="action-icon clock">◷</i><span><b>گزارش زمان</b><small>ورود، انتظار و پایان نوبت</small></span></button>
-                  <button type="button" role="menuitem" @click="handleRowAction('history', day, row)"><i class="action-icon history">≡</i><span><b>تاریخچه فعالیت</b><small>مشاهده کاربر و زمان تغییرات</small></span></button>
+                  <button type="button" role="menuitem" data-keep-enabled @click="handleRowAction('history', day, row)"><i class="action-icon history">≡</i><span><b>تاریخچه فعالیت</b><small>مشاهده کاربر و زمان تغییرات</small></span></button>
                   <button type="button" role="menuitem" class="danger" @click="handleRowAction('delete', day, row)"><i class="action-icon remove">×</i><span><b>حذف ردیف</b><small>پاک‌کردن این نوبت یا زمان</small></span></button>
                 </div>
               </td>
@@ -1514,7 +1580,7 @@
                   class="timeline-avatar-hitbox"
                   @mouseenter="showAvatarPreview($event, row.profilePhotoUrl || row.profileThumbnailUrl, row.customerLevel)"
                   @mouseleave="hideAvatarPreview"
-                  @click.stop="openPatientProfileFromRow(row)"
+                  data-keep-enabled @click.stop="openPatientProfileFromRow(row)"
                 >
                   <PatientAvatar
                     :src="row.profileThumbnailUrl"
@@ -1525,7 +1591,7 @@
                     title="باز کردن پرونده در صفحه جدید"
                   />
                 </div>
-                <strong title="باز کردن پرونده در صفحه جدید" @click.stop="openPatientProfileFromRow(row)">{{ timelinePatientName(row) }}</strong>
+                <strong title="باز کردن پرونده در صفحه جدید" data-keep-enabled @click.stop="openPatientProfileFromRow(row)">{{ timelinePatientName(row) }}</strong>
                 <em class="timeline-status-label">{{ row.status || 'نوبت ثبت‌شده' }}</em>
                 <span>{{ timelineServiceText(row) }}</span>
                 <small>{{ timelineCareTeam(row) }}</small>
@@ -1606,7 +1672,8 @@
           <p>خدمات، بخش‌ها و پرداخت‌های همین نوبت حفظ می‌شوند.</p>
           <p v-if="timelineTransferError" class="timeline-validation-alert" role="alert">{{ timelineTransferError }}</p>
         </div>
-        <div v-else-if="activeTimelineDraft" class="timeline-modal-body">
+        <div v-else-if="activeTimelineDraft" v-lock-controls="timelineDraftReadonly" class="timeline-modal-body">
+          <div v-if="timelineDraftReadonly" class="past-readonly-notice">این نوبت مربوط به روزهای گذشته است و نقش شما فقط اجازهٔ مشاهدهٔ آن را دارد.</div>
           <div v-if="timelineValidationSummary" class="timeline-validation-alert" role="alert">
             {{ timelineValidationSummary }}
           </div>
@@ -1743,6 +1810,56 @@
               </button>
             </div>
 
+            <div class="referral-section patient-services-referral-actions timeline-referrer-section">
+              <div class="referral-field referrer-type-field">
+                <span class="referral-field-caption">معرف</span>
+                <select :value="activeTimelineDraft.referrerType || ''" class="service-select referrer-type-select" @change="setReferrerType(activeTimelineDraft, $event.target.value)">
+                  <option value="">بدون معرف</option>
+                  <option value="customer">مشتری</option>
+                  <option value="doctor">پزشک</option>
+                  <option value="staff">پرسنل</option>
+                </select>
+              </div>
+              <div v-if="activeTimelineDraft.referrerType === 'customer'" class="referral-field referrer-customer-field">
+                <span class="referral-field-caption">مشتری معرف</span>
+                <div class="referrer-search">
+                  <div v-if="(activeTimelineDraft.referrerId || activeTimelineDraft.referrerPhone) && referrerSearch.rowId !== activeTimelineDraft._rowId" class="referrer-chip">
+                    <span>
+                      <b>{{ activeTimelineDraft.referrerName || referrerInfo(activeTimelineDraft).name || 'مشتری معرف' }}</b>
+                      <small v-if="activeTimelineDraft.referrerPhone">{{ displayPatientPhone(activeTimelineDraft.referrerPhone) }}</small>
+                    </span>
+                    <button type="button" title="تغییر معرف" @click.stop="clearReferrer(activeTimelineDraft)">×</button>
+                  </div>
+                  <input
+                    v-else
+                    :value="referrerSearch.rowId === activeTimelineDraft._rowId ? referrerSearch.query : ''"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="نام، موبایل، شماره پرونده یا کد ملی"
+                    class="service-select referrer-search-input"
+                    @input="searchReferrer(activeTimelineDraft, $event.target.value)"
+                    @focus="referrerSearch.rowId = activeTimelineDraft._rowId"
+                  />
+                  <div v-if="referrerSearch.rowId === activeTimelineDraft._rowId && referrerSearch.query.length >= 2" class="referrer-results" @click.stop>
+                    <div v-if="referrerSearch.loading" class="referrer-results-state">در حال جست‌وجو…</div>
+                    <button v-for="patient in referrerSearch.results" :key="patient.id" type="button" class="referrer-result" @click.stop="selectReferrerPatient(activeTimelineDraft, patient)">
+                      <b>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</b>
+                      <small>{{ [patient.file_number && `پرونده ${patient.file_number}`, patient.phone && displayPatientPhone(patient.phone), patient.national_id && `کد ملی ${patient.national_id}`].filter(Boolean).join(' · ') }}</small>
+                    </button>
+                    <div v-if="!referrerSearch.loading && !referrerSearch.results.length" class="referrer-results-state">مشتری‌ای با این مشخصات پیدا نشد.</div>
+                  </div>
+                </div>
+              </div>
+              <div v-if="activeTimelineDraft.referrerType === 'doctor' || activeTimelineDraft.referrerType === 'staff'" class="referral-field referrer-resource-field">
+                <span class="referral-field-caption">{{ activeTimelineDraft.referrerType === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف' }}</span>
+                <select :value="activeTimelineDraft.referrerId || ''" class="service-select" @change="setReferrerResource(activeTimelineDraft, $event.target.value)">
+                  <option value="">{{ activeTimelineDraft.referrerType === 'doctor' ? 'انتخاب پزشک' : 'انتخاب پرسنل' }}</option>
+                  <option v-for="person in referrerResourceOptions(activeTimelineDraft.referrerType)" :key="person.id" :value="person.id">{{ person.name }}</option>
+                </select>
+                <small class="referrer-resource-hint">{{ referrerResourceHint(activeTimelineDraft) }}</small>
+              </div>
+            </div>
+
             <div class="timeline-service-sections">
               <div class="timeline-service-sections-head">
                 <strong>بخش</strong>
@@ -1766,14 +1883,14 @@
             </div>
 
             <div v-if="activeTimelineDraft.serviceTypes?.length" class="timeline-service-list">
-              <article v-for="(service, sIndex) in activeTimelineDraft.services" :key="sIndex" class="timeline-service-row">
+              <article v-for="(service, sIndex) in activeTimelineDraft.services" :key="sIndex" v-lock-controls="Boolean(service.finalized)" class="timeline-service-row" :class="{ 'service-item-finalized': service.finalized }">
                 <header>
                   <span class="timeline-service-index">{{ (sIndex + 1).toLocaleString('fa-IR') }}</span>
                   <div class="timeline-service-heading">
                     <strong>{{ service.name || `خدمت ${(sIndex + 1).toLocaleString('fa-IR')}` }}</strong>
                     <small v-if="service.doctor || service.consultant">{{ [service.doctor && `پزشک: ${service.doctor}`, service.consultant && `مشاور: ${service.consultant}`].filter(Boolean).join(' · ') }}</small>
                   </div>
-                  <button v-if="activeTimelineDraft.services.length > 1" type="button" title="حذف خدمت" @click.stop="removeService(activeTimelineDraft, sIndex)">×</button>
+                  <button v-if="activeTimelineDraft.services.length > 1 && !service.finalized" type="button" title="حذف خدمت" @click.stop="removeService(activeTimelineDraft, sIndex)">×</button>
                 </header>
                 <div class="timeline-service-fields">
                   <label v-if="timelineServiceRootSectionIds(activeTimelineDraft).length > 1">
@@ -1841,7 +1958,7 @@
                   </div>
                   <small v-else>برای این خدمت ناحیه‌ای تعریف نشده است.</small>
                 </div>
-                <button v-if="service.name" type="button" class="timeline-service-details-toggle" :class="{ active: service._timelineDetailsOpen }" @click.stop="service._timelineDetailsOpen = !service._timelineDetailsOpen">
+                <button v-if="service.name" type="button" data-keep-enabled class="timeline-service-details-toggle" :class="{ active: service._timelineDetailsOpen }" @click.stop="service._timelineDetailsOpen = !service._timelineDetailsOpen">
                   <span>تعداد، قیمت، تخفیف و خدمات جانبی</span><b>{{ service._timelineDetailsOpen ? '⌃' : '⌄' }}</b>
                 </button>
                 <div v-if="service.name && service._timelineDetailsOpen" class="timeline-service-details">
@@ -1850,10 +1967,15 @@
                     <label><span>قیمت خدمت</span><input :value="formatDisplayMoney(serviceLinePrice(service))" type="text" disabled></label>
                     <label><span>{{ service.adjustment_mode === 'surcharge' ? 'مبلغ مازاد' : 'مبلغ تخفیف' }}</span><div class="timeline-service-adjustment"><input v-model="service.discount" type="text" inputmode="numeric" placeholder="۰" @input="handleServiceDiscountInput(service, activeTimelineDraft)"><button type="button" title="تغییر بین تخفیف و مازاد" @click.stop="toggleServiceAdjustment(service, activeTimelineDraft)">↻</button></div></label>
                     <label v-if="service.adjustment_mode === 'surcharge'" class="timeline-service-commission"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"><span>محاسبه مازاد در پورسانت پزشک</span></label>
+                    <label v-else class="timeline-discount-source"><span>سهم تخفیف</span>
+                      <select :value="service.discount_source || 'shared'" :title="discountSourceHint(service)" @change="service.discount_source = $event.target.value; calculateRowAmount(activeTimelineDraft)">
+                        <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                      </select>
+                    </label>
                   </div>
 
                   <div class="timeline-addon-box">
-                    <button type="button" class="timeline-addon-toggle" :class="{ active: expandedAddonServices.has(service) }" @click.stop="toggleServiceAddons(service)"><span>خدمات جانبی</span><b>{{ service.addons?.length || 0 }} مورد {{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b></button>
+                    <button type="button" class="timeline-addon-toggle" :class="{ active: expandedAddonServices.has(service) }" data-keep-enabled @click.stop="toggleServiceAddons(service)"><span>خدمات جانبی</span><b>{{ service.addons?.length || 0 }} مورد {{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b></button>
                     <div v-if="expandedAddonServices.has(service)" class="timeline-addon-content">
                       <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="timeline-addon-row">
                         <label><span>نام جانبی</span><select v-model="addon.name" @change="onAddonChanged(service, addon, activeTimelineDraft)"><option value="">انتخاب جانبی</option><option v-for="name in serviceAddonOptions(service, addon)" :key="name" :value="name">{{ name }}</option></select></label>
@@ -1864,6 +1986,17 @@
                       <button type="button" class="timeline-addon-add" @click.stop="addServiceAddon(service)">+ افزودن خدمت جانبی</button>
                     </div>
                   </div>
+                </div>
+                <div v-if="service.name" class="service-finalize-bar timeline-finalize-bar" :class="{ finalized: service.finalized }">
+                  <template v-if="service.finalized">
+                    <span class="service-finalized-badge">✓ ثبت نهایی شده</span>
+                    <small>{{ finalizedServiceCaption(service) }}</small>
+                    <button v-if="canEditFinalizedServices && !timelineDraftReadonly" type="button" data-keep-enabled class="service-unlock-btn" @click.stop="unlockService(activeTimelineDraft, service, false)">ویرایش</button>
+                  </template>
+                  <template v-else-if="!timelineDraftReadonly">
+                    <small>بعد از تکمیل اطلاعات این خدمت، آن را ثبت نهایی کنید.</small>
+                    <button type="button" class="service-finalize-btn" :disabled="!canFinalizeService(service)" @click.stop="finalizeService(activeTimelineDraft, service, false)">ثبت نهایی</button>
+                  </template>
                 </div>
               </article>
             </div>
@@ -1923,7 +2056,7 @@
 
         <footer class="timeline-modal-footer">
           <button type="button" class="timeline-modal-cancel" @click="closeTimelineModal()">انصراف</button>
-          <button type="button" class="timeline-modal-save" :disabled="timelineSaving" @click="saveTimelineModal">
+          <button v-if="!timelineDraftReadonly || timelineTransferMode" type="button" class="timeline-modal-save" :disabled="timelineSaving" @click="saveTimelineModal">
             {{ timelineSaving ? 'در حال ذخیره…' : (timelineTransferMode ? 'تأیید انتقال نوبت' : 'ثبت نوبت') }}
           </button>
         </footer>
@@ -2622,6 +2755,35 @@ import BufferedInput from './BufferedInput.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 
 const directAppointmentSaves = new WeakMap();
+
+// کنترل‌های نوبتِ روزِ گذشته (نقش فقط مشاهده) و خدمتِ ثبت نهایی‌شده غیرفعال می‌شوند؛ دکمه‌های نمایشی
+// (پروفایل، خدمات، توضیحات، تاریخچه، جزئیات) با data-keep-enabled فعال می‌مانند. سرور هم همین را کنترل می‌کند.
+// هر قفل جدا ثبت می‌شود تا قفلِ بیرونی (روز گذشته) قفلِ درونی (ثبت نهایی) را باز نکند.
+let controlLockSequence = 0;
+const applyControlLock = (el, locked) => {
+  el.__controlLockId ||= String(++controlLockSequence);
+  const id = el.__controlLockId;
+  el.classList.toggle('readonly-locked', Boolean(locked));
+  el.querySelectorAll('input, select, textarea, button').forEach(control => {
+    if (control.closest('[data-keep-enabled]') || control.hasAttribute('data-keep-enabled')) return;
+    const owners = new Set((control.dataset.lockOwners || '').split(',').filter(Boolean));
+    const wasLocked = owners.size > 0;
+    if (locked) owners.add(id); else owners.delete(id);
+    if (owners.size) {
+      // کنترلی که خودش غیرفعال است (مثلاً دکمهٔ بدون داده) دست نمی‌خورد.
+      if (!wasLocked && control.disabled) return;
+      control.dataset.lockOwners = [...owners].join(',');
+      control.disabled = true;
+    } else if (wasLocked) {
+      delete control.dataset.lockOwners;
+      control.disabled = false;
+    }
+  });
+};
+const lockControls = {
+  mounted: (el, binding) => applyControlLock(el, binding.value),
+  updated: (el, binding) => applyControlLock(el, binding.value),
+};
 const tableFileNumberLookupTimers = new WeakMap();
 const patientFileLookupRequests = new WeakMap();
 
@@ -2633,8 +2795,11 @@ export default {
   props: {
     permissions: { type: Array, default: () => [] },
     roles: { type: Array, default: () => [] },
+    currentUserName: { type: String, default: '' },
     openViewRequest: { type: Object, default: null }
   },
+
+  directives: { lockControls },
 
   components: {
     BufferedInput,
@@ -2719,6 +2884,12 @@ export default {
       tablePatientSearchResults: [],
       tablePatientSearchLoading: false,
       tablePatientSearchTimer: null,
+      referrerSearch: { rowId: null, query: '', results: [], loading: false, requestId: 0, timer: null },
+      discountSourceOptions: [
+        { value: 'clinic', label: 'تخفیف کلینیک', hint: 'هزینهٔ تخفیف با کلینیک است؛ سهم پزشک از مبلغ قبل از تخفیف' },
+        { value: 'doctor', label: 'تخفیف پزشک', hint: 'کل تخفیف از سهم پزشک کم می‌شود' },
+        { value: 'shared', label: 'تخفیف مشترک', hint: 'تخفیف به نسبت سهم بین پزشک و کلینیک تقسیم می‌شود' },
+      ],
       tablePatientSearchRequest: 0,
       timelineFileNumberLookupTimer: null,
       timelineFileNumberLookupRequest: 0,
@@ -3191,8 +3362,27 @@ export default {
       return Number(moment().jDate()) >= monthDays - 2;
     },
 
+    // «مشاهده و ویرایش» / «فقط مشاهده» / «عدم مشاهده» نوبت‌های روزهای گذشته.
+    pastAppointmentAccess() {
+      if (!this.permissions.includes('appointments.past_view')) return 'none';
+      return this.permissions.includes('appointments.past_update') ? 'edit' : 'view';
+    },
+
+    canEditFinalizedServices() {
+      return this.permissions.includes('appointments.finalized_services_update');
+    },
+
+    visibleScheduleDays() {
+      if (this.pastAppointmentAccess !== 'none') return this.days;
+      return this.days.filter(day => !this.isPastScheduleDay(day));
+    },
+
+    timelineDraftReadonly() {
+      return Boolean(this.activeTimelineDay) && this.isDayReadonly(this.activeTimelineDay);
+    },
+
     timelineDays() {
-      return this.days
+      return this.visibleScheduleDays
         .map(day => {
           day.timelineRows = this.getFilteredRows(day);
           return day;
@@ -3785,12 +3975,14 @@ export default {
               ? this.formatDisplayMoney(service.discount || this.legacyServiceDiscount(item, serviceIndex)) : '',
             adjustment_mode: service.adjustment_mode || 'discount',
             surcharge_for_doctor_commission: Boolean(service.surcharge_for_doctor_commission),
+            ...this.serviceMeta(service),
             _lastSavedCc: parseInt(service.cc) || 0,
             addons: Array.isArray(service.addons) ? service.addons.map((addon, index) => ({
               name: addon.name || '', addon_definition_id: addon.addon_definition_id || null,
               cc: addon.cc || '', discount: addon.discount ? this.formatDisplayMoney(addon.discount) : '',
               adjustment_mode: addon.adjustment_mode || 'discount',
               surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission),
+              discount_source: addon.discount_source || 'shared',
               _key: `addon-realtime-${index}-${Date.now()}`
             })) : []
           }))
@@ -3821,6 +4013,7 @@ export default {
         paymentDetails: this.normalizePaymentDetails(item.payment_details || {}),
         paymentLink: item.payment_link || '', paymentLinkSentCount: Number(item.payment_link_sent_count || 0),
         paymentLinkLastSentAt: item.payment_link_last_sent_at || '', referrerPhone: item.referrer_phone || '',
+        ...this.referrerFieldsFromServer(item),
         referralScore: item.referral_score ? this.formatDisplayMoney(item.referral_score) : '',
         referralCommissionType: item.referral_commission_type || '',
         referralCommissionValue: Number(item.referral_commission_value || 0),
@@ -4579,8 +4772,9 @@ export default {
         discount: service.discount ? this.formatDisplayMoney(service.discount) : "",
         adjustment_mode: service.adjustment_mode || "discount",
         surcharge_for_doctor_commission: Boolean(service.surcharge_for_doctor_commission),
+        ...this.serviceMeta(service),
         _lastSavedCc: service._lastSavedCc || 0,
-        addons: Array.isArray(service.addons) ? service.addons.map(addon => ({ ...addon, discount: addon.discount ? this.formatDisplayMoney(addon.discount) : "", adjustment_mode: addon.adjustment_mode || "discount", surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) })) : []
+        addons: Array.isArray(service.addons) ? service.addons.map(addon => ({ ...addon, discount: addon.discount ? this.formatDisplayMoney(addon.discount) : "", adjustment_mode: addon.adjustment_mode || "discount", surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission), discount_source: addon.discount_source || "shared" })) : []
       }));
       draft.timelineDoctors = Array.isArray(draft.timelineDoctors)
         ? draft.timelineDoctors.slice(0, 1)
@@ -5186,6 +5380,11 @@ export default {
     async showDescription(row) {
       if (!row) return;
       const value = String(row.description || '');
+      const rowDay = this.days.find(day => (day.rows || []).includes(row));
+      if (rowDay && this.isDayReadonly(rowDay)) {
+        await Swal.fire({ title: 'توضیحات بیمار', text: value || 'بدون توضیحات', confirmButtonText: 'بستن', width: 700 });
+        return;
+      }
       const result = await Swal.fire({
         title: 'توضیحات بیمار',
         input: 'textarea',
@@ -6270,8 +6469,9 @@ export default {
                 discount: (s.discount || this.legacyServiceDiscount(item, serviceIndex)) ? this.formatDisplayMoney(s.discount || this.legacyServiceDiscount(item, serviceIndex)) : "",
                 adjustment_mode: s.adjustment_mode || "discount",
                 surcharge_for_doctor_commission: Boolean(s.surcharge_for_doctor_commission),
+                ...this.serviceMeta(s),
                 _lastSavedCc: parseInt(s.cc) || 0
-                ,addons: (s.addons || []).map((addon, index) => ({ name:addon.name || '', addon_definition_id:addon.addon_definition_id || null, cc:addon.cc || '', discount:addon.discount ? this.formatDisplayMoney(addon.discount) : '', adjustment_mode:addon.adjustment_mode || 'discount', surcharge_for_doctor_commission:Boolean(addon.surcharge_for_doctor_commission), _key:`addon-loaded-${index}-${Date.now()}` }))
+                ,addons: (s.addons || []).map((addon, index) => ({ name:addon.name || '', addon_definition_id:addon.addon_definition_id || null, cc:addon.cc || '', discount:addon.discount ? this.formatDisplayMoney(addon.discount) : '', adjustment_mode:addon.adjustment_mode || 'discount', discount_source:addon.discount_source || 'shared', surcharge_for_doctor_commission:Boolean(addon.surcharge_for_doctor_commission), _key:`addon-loaded-${index}-${Date.now()}` }))
               }))
             : [{
                 name: "",
@@ -6338,6 +6538,7 @@ export default {
             paymentLinkSentCount: Number(item.payment_link_sent_count || 0),
             paymentLinkLastSentAt: item.payment_link_last_sent_at || "",
             referrerPhone: item.referrer_phone || "",
+            ...this.referrerFieldsFromServer(item),
             referralScore: item.referral_score ? this.formatDisplayMoney(item.referral_score) : "",
             referralCommissionType: item.referral_commission_type || "",
             referralCommissionValue: Number(item.referral_commission_value || 0),
@@ -6540,8 +6741,10 @@ export default {
     },
 
     formatDisplayMoney(value) {
-      return Number(value || 0)
-        .toLocaleString();
+      // مبلغی که قبلاً جداکننده گرفته («500,000») هم درست خوانده می‌شود؛ قبلاً NaN می‌شد و
+      // باز کردن پنجرهٔ تایم‌لاین مبلغ تخفیف/مازاد خدمات را از بین می‌برد.
+      const amount = typeof value === 'string' ? this.moneyToNumber(value) : Number(value || 0);
+      return (Number.isFinite(amount) ? amount : 0).toLocaleString();
     },
 
     formatMoney(row, field) {
@@ -6682,11 +6885,27 @@ export default {
       const surcharge = service?.adjustment_mode === 'surcharge' ? adjustment : 0;
       const discount = surcharge ? 0 : Math.min(adjustment, gross);
       const includeSurcharge = recipientType !== 'doctor' || Boolean(service?.surcharge_for_doctor_commission);
-      const net = Math.max(0, gross + (includeSurcharge ? surcharge : 0) - discount);
-      const base = resource.commission_after_materials ? Math.max(0, net - Number(item.price || 0) * cc) : net;
-      const amount = (type, value) => type === 'fixed'
+      const materials = Number(item.price || 0) * cc;
+      const baseFor = lineDiscount => {
+        const lineNet = Math.max(0, gross + (includeSurcharge ? surcharge : 0) - lineDiscount);
+        return { net: lineNet, base: resource.commission_after_materials ? Math.max(0, lineNet - materials) : lineNet };
+      };
+      const discounted = baseFor(discount);
+      const commissionFor = (type, value, base) => type === 'fixed'
         ? Math.max(0, Number(value) || 0) * Math.max(1, cc)
         : base * Math.max(0, Number(value) || 0) / 100;
+      // منبع تخفیف همان قاعدهٔ سرور: کلینیک = پزشک از مبلغ قبل از تخفیف؛ پزشک = کل تخفیف از سهم پزشک
+      // (حداقل صفر)؛ مشترک = تخفیف به نسبت سهم. پورسانت مشاور همیشه از مبلغ بعد از تخفیف است.
+      const amount = (type, value) => {
+        const shared = commissionFor(type, value, discounted.base);
+        if (recipientType !== 'doctor' || discount <= 0) return shared;
+        const full = baseFor(0);
+        const beforeDiscount = commissionFor(type, value, full.base);
+        const source = ['clinic', 'doctor'].includes(service?.discount_source) ? service.discount_source : 'shared';
+        if (source === 'clinic') return beforeDiscount;
+        if (source === 'doctor') return Math.max(0, beforeDiscount - discount);
+        return type === 'fixed' ? (full.net > 0 ? beforeDiscount * discounted.net / full.net : 0) : shared;
+      };
 
       const nameKey = value => String(value || '').trim().toLocaleLowerCase('fa-IR');
       const rules = item.commissions || [];
@@ -7030,6 +7249,12 @@ this.calculateFinalAmount(row)
                   referrer_phone:
                     row.referrerPhone,
 
+                  referrer_type:
+                    row.referrerType || null,
+
+                  referrer_id:
+                    row.referrerId || null,
+
                   referral_score:
                     this.moneyToNumber(row.referralScore),
 
@@ -7071,7 +7296,8 @@ this.calculateFinalAmount(row)
                       discount: this.moneyToNumber(s.discount),
                       adjustment_mode: s.adjustment_mode || 'discount',
                       surcharge_for_doctor_commission: Boolean(s.surcharge_for_doctor_commission),
-                      addons: (s.addons || []).map(addon => ({ name:addon.name || '', addon_definition_id:addon.addon_definition_id || null, cc:addon.cc || '', discount:this.moneyToNumber(addon.discount), adjustment_mode: addon.adjustment_mode || 'discount', surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) }))
+                      ...this.serviceMeta(s),
+                      addons: (s.addons || []).map(addon => ({ name:addon.name || '', addon_definition_id:addon.addon_definition_id || null, cc:addon.cc || '', discount:this.moneyToNumber(addon.discount), adjustment_mode: addon.adjustment_mode || 'discount', discount_source: addon.discount_source || 'shared', surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission) }))
                     }))
 
                 });
@@ -7146,6 +7372,7 @@ this.calculateFinalAmount(row)
               const unchangedSinceRequest = rowDay && rowIndex >= 0
                 && this.appointmentRowStateFingerprint(rowDay, row, rowIndex) === payloadFingerprints[index];
               if (unchangedSinceRequest) {
+                this.applySavedServiceMeta(row, appointment);
                 row.arrivedAt = appointment.arrived_at || '';
                 row.completedAt = appointment.completed_at || '';
                 row.waitMinutes = appointment.wait_minutes == null ? null : Number(appointment.wait_minutes);
@@ -7212,6 +7439,177 @@ this.calculateFinalAmount(row)
       return completion;
     },
 
+    discountSourceHint(line) {
+      const source = line?.discount_source || 'shared';
+      return (this.discountSourceOptions.find(option => option.value === source) || {}).hint || '';
+    },
+
+    isPastScheduleDay(day) {
+      const month = this.months[this.currentMonth] || '';
+      if (!month || !day?.dayNum) return false;
+      const key = `${month}-${String(day.dayNum).padStart(2, '0')}`;
+      return key < moment().format('jYYYY-jMM-jDD');
+    },
+
+    isDayReadonly(day) {
+      return this.pastAppointmentAccess !== 'edit' && this.isPastScheduleDay(day);
+    },
+
+    canFinalizeService(service) {
+      return Boolean(String(service?.name || '').trim()) && Number(String(service?.cc ?? '').replace(/[^\d.]/g, '')) > 0;
+    },
+
+    finalizedServiceCaption(service) {
+      const at = service?.finalized_at ? new Date(service.finalized_at) : null;
+      const time = at && !Number.isNaN(at.getTime()) ? at.toLocaleString('fa-IR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+      return [service?.finalized_by_name && `توسط ${service.finalized_by_name}`, time].filter(Boolean).join(' — ');
+    },
+
+    // ثبت نهایی فقط اطلاعات خدمت را قفل می‌کند؛ نوبت را انجام‌شده نمی‌کند و اثر مالی و انباری ندارد.
+    async finalizeService(row, service, save = true) {
+      if (!this.canFinalizeService(service)) return;
+      const confirmation = await Swal.fire({
+        icon: 'question',
+        title: `ثبت نهایی «${service.name}»؟`,
+        text: 'بعد از ثبت نهایی، اطلاعات این خدمت (تعداد، پزشک، مشاور، تخفیف و خدمات جانبی) قفل می‌شود.',
+        showCancelButton: true,
+        confirmButtonText: 'ثبت نهایی',
+        cancelButtonText: 'انصراف',
+        confirmButtonColor: '#16a34a',
+      });
+      if (!confirmation.isConfirmed) return;
+      service.finalized = true;
+      service.finalized_at = new Date().toISOString();
+      service.finalized_by_name = this.currentUserName || service.finalized_by_name || '';
+      this.calculateRowAmount(row);
+      if (save) this.saveData(0);
+    },
+
+    async unlockService(row, service, save = true) {
+      if (!this.canEditFinalizedServices) return;
+      const confirmation = await Swal.fire({
+        icon: 'warning',
+        title: `ویرایش «${service.name}»؟`,
+        text: 'قفل این خدمت باز می‌شود و این کار با نام شما در سوابق فعالیت ثبت می‌شود. بعد از ویرایش دوباره آن را ثبت نهایی کنید.',
+        showCancelButton: true,
+        confirmButtonText: 'باز کردن قفل',
+        cancelButtonText: 'انصراف',
+        confirmButtonColor: '#d97706',
+      });
+      if (!confirmation.isConfirmed) return;
+      service.finalized = false;
+      service.finalized_at = null;
+      service.finalized_by_id = null;
+      service.finalized_by_name = null;
+      if (save) this.saveData(0);
+    },
+
+    referrerResourceOptions(type) {
+      return (type === 'doctor' ? this.doctors : this.staff || []).filter(person => person?.id && person?.name);
+    },
+
+    referrerResourceHint(row) {
+      const person = this.referrerResourceOptions(row.referrerType).find(item => Number(item.id) === Number(row.referrerId));
+      if (!person) return 'پورسانت معرفی جدا از پورسانت انجام خدمت محاسبه می‌شود.';
+      const value = Number(person.referral_commission_value || 0);
+      if (!value) return 'برای این شخص پورسانت معرفی تعریف نشده است (منابع).';
+      const label = person.referral_commission_type === 'fixed' ? `${this.formatDisplayMoney(value)} تومان` : `${value.toLocaleString('fa-IR')}٪ از مبلغ خدمات`;
+      return `پورسانت معرفی: ${label} — بعد از «انجام شد» ثبت می‌شود.`;
+    },
+
+    setReferrerType(row, type) {
+      row.referrerType = type || '';
+      row.referrerId = null;
+      row.referrerName = '';
+      row.referrerPhone = '';
+      this.referrerSearch = { ...this.referrerSearch, rowId: type === 'customer' ? row._rowId : null, query: '', results: [] };
+      this.calculateReferralRewardForRow(row);
+    },
+
+    setReferrerResource(row, id) {
+      const person = this.referrerResourceOptions(row.referrerType).find(item => Number(item.id) === Number(id));
+      row.referrerId = person ? Number(person.id) : null;
+      row.referrerName = person?.name || '';
+      row.referrerPhone = '';
+      this.calculateReferralRewardForRow(row);
+    },
+
+    clearReferrer(row) {
+      row.referrerId = null;
+      row.referrerName = '';
+      row.referrerPhone = '';
+      this.referrerSearch = { ...this.referrerSearch, rowId: row._rowId, query: '', results: [] };
+      this.calculateReferralRewardForRow(row);
+    },
+
+    searchReferrer(row, value) {
+      const query = String(value || '').trim();
+      clearTimeout(this.referrerSearch.timer);
+      const requestId = this.referrerSearch.requestId + 1;
+      this.referrerSearch = { ...this.referrerSearch, rowId: row._rowId, query, requestId, results: [], loading: query.length >= 2 };
+      if (query.length < 2) return;
+      this.referrerSearch.timer = setTimeout(async () => {
+        try {
+          const { data } = await axios.get('/api/patients/search', { params: { q: query } });
+          if (requestId !== this.referrerSearch.requestId) return;
+          this.referrerSearch.results = (Array.isArray(data) ? data : []).slice(0, 12);
+        } catch (error) {
+          if (requestId === this.referrerSearch.requestId) this.referrerSearch.results = [];
+        } finally {
+          if (requestId === this.referrerSearch.requestId) this.referrerSearch.loading = false;
+        }
+      }, 250);
+    },
+
+    async selectReferrerPatient(row, patient) {
+      const samePatient = (row.patientId && Number(row.patientId) === Number(patient.id))
+        || (row.fileNumber && patient.file_number && String(row.fileNumber) === String(patient.file_number))
+        || (row.phone && patient.phone && this.canonicalReferrerPhone(row.phone) === this.canonicalReferrerPhone(patient.phone));
+      if (samePatient) {
+        await Swal.fire({ icon: 'warning', title: 'مشتری نمی‌تواند معرف خودش باشد' });
+        return;
+      }
+      row.referrerType = 'customer';
+      row.referrerId = Number(patient.id);
+      row.referrerName = `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
+      row.referrerPhone = patient.phone || '';
+      this.referrerSearch = { ...this.referrerSearch, rowId: null, query: '', results: [], loading: false };
+      const phone = this.canonicalReferrerPhone(row.referrerPhone);
+      if (phone.length >= 10) this.lookupReferrer(phone, true);
+      this.calculateReferralRewardForRow(row);
+    },
+
+    // شناسهٔ ردیف خدمت، وضعیت «ثبت نهایی» و منبع تخفیف همراه خدمت ذخیره و دوباره خوانده می‌شود.
+    serviceMeta(service) {
+      return {
+        line_id: service?.line_id || null,
+        finalized: Boolean(service?.finalized),
+        finalized_at: service?.finalized_at || null,
+        finalized_by_id: service?.finalized_by_id || null,
+        finalized_by_name: service?.finalized_by_name || null,
+        discount_source: service?.discount_source || 'shared',
+      };
+    },
+
+    referrerFieldsFromServer(item) {
+      const type = item?.referrer_type || (String(item?.referrer_phone || '').trim() ? 'customer' : '');
+      return { referrerType: type, referrerId: item?.referrer_id || null, referrerName: item?.referrer_name || '' };
+    },
+
+    // پاسخ ذخیره شناسهٔ ردیف و نام/زمان ثبت نهایی را که سرور نوشته به همان ردیف‌ها برمی‌گرداند.
+    applySavedServiceMeta(row, appointment) {
+      const saved = Array.isArray(appointment?.services) ? appointment.services : [];
+      (row.services || []).forEach((service, index) => {
+        const server = saved[index];
+        if (!server || String(server.name || '') !== String(service.name || '')) return;
+        Object.assign(service, this.serviceMeta(server));
+      });
+      if ('referrer_type' in (appointment || {})) {
+        Object.assign(row, this.referrerFieldsFromServer(appointment));
+        row.referrerPhone = appointment.referrer_phone || '';
+      }
+    },
+
     createEmptyAppointmentRow() {
       return {
 
@@ -7262,6 +7660,9 @@ this.calculateFinalAmount(row)
         serviceTypes: [],
 
         referrerPhone: "",
+        referrerType: "",
+        referrerId: null,
+        referrerName: "",
         referralScore: "",
         referralCommissionType: "",
         referralCommissionValue: 0,
@@ -8426,6 +8827,7 @@ this.calculateFinalAmount(row)
         cc: "",
         doctor: "",
         consultant: "",
+        discount_source: "shared",
         discount: ""
         ,_lastSavedCc: 0
         ,addons: []
@@ -9277,6 +9679,7 @@ this.calculateFinalAmount(row)
         "paymentLink",
         "paymentLinkLastSentAt",
         "referrerPhone",
+        "referrerType",
         "appointmentSms",
         "infoSms"
       ];
@@ -9345,7 +9748,7 @@ this.calculateFinalAmount(row)
       if (!service.name) return;
       if (!Array.isArray(service.addons)) service.addons = [];
       service.addons.push({
-        name: "", cc: "1", discount: "", addon_definition_id: null,
+        name: "", cc: "1", discount: "", addon_definition_id: null, discount_source: "shared",
         parent_service: service.name,
         _key: `addon-${Date.now()}-${Math.random()}`
       });
@@ -10598,7 +11001,7 @@ smsColor(val) {
 
     calculateReferralRewardForRow(row) {
       if (!row) return 0;
-      if (!String(row.referrerPhone || '').trim() || this.sourceBlocksCommission(row, 'referral')) {
+      if (!String(row.referrerPhone || '').trim() || (row.referrerType && row.referrerType !== 'customer') || this.sourceBlocksCommission(row, 'referral')) {
         row.referralScore = '';
         row.referralCommissionType = '';
         row.referralCommissionValue = 0;
@@ -14743,4 +15146,57 @@ td.st-arrived select {
 .row-actions-trigger.automatic-sms-alert{border-color:#4ade80;background:#dcfce7;color:#14532d;animation:automaticSmsActionBlink 1.8s ease-in-out infinite}
 @keyframes automaticSmsActionBlink{0%,100%{background:#dcfce7;border-color:#4ade80;box-shadow:0 2px 8px rgba(22,163,74,.12)}50%{background:#86efac;border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.22)}}
 @media(prefers-reduced-motion:reduce){.row-actions-trigger.automatic-sms-alert{animation:none}}
+
+/* معرف نوبت: مشتری / پزشک / پرسنل */
+.referral-section.patient-services-referral-actions{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important;align-items:start}
+.referrer-search{position:relative}
+.referrer-search-input{width:100%;box-sizing:border-box}
+.referrer-chip{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:32px;padding:3px 8px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;box-sizing:border-box}
+.referrer-chip span{display:grid;min-width:0}.referrer-chip b{overflow:hidden;color:#1e3a8a;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.referrer-chip small{color:#64748b;font-size:9px;direction:ltr;text-align:right}
+.referrer-chip button{flex:0 0 22px;width:22px;height:22px;border:0;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-size:15px;line-height:1;cursor:pointer}
+.referrer-results{position:absolute;inset-inline:0;top:calc(100% + 4px);z-index:30;display:grid;max-height:240px;overflow:auto;padding:4px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;box-shadow:0 14px 30px rgba(15,23,42,.16)}
+.referrer-result{display:grid;gap:2px;padding:7px 9px;border:0;border-radius:7px;background:transparent;font-family:inherit;text-align:right;cursor:pointer}.referrer-result:hover{background:#eff6ff}
+.referrer-result b{color:#0f172a;font-size:11px}.referrer-result small{color:#64748b;font-size:9.5px}
+.referrer-results-state{padding:8px;color:#64748b;font-size:10px;text-align:center}
+.timeline-referrer-section{margin:10px 0}
+.referrer-resource-hint{display:block;margin-top:3px;color:#64748b;font-size:9.5px;line-height:1.5}
+
+/* منبع تخفیف */
+/* هم‌خانوادهٔ خانهٔ «تخفیف»: همان ارتفاع، گوشه و رنگ قرمز ملایم با فلش سفارشی */
+.discount-source-select{flex:0 0 104px;width:104px;height:32px!important;min-width:0!important;padding:0 9px 0 22px!important;border:1px solid #fecaca!important;border-radius:7px!important;background:#fff7f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b91c1c' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat left 8px center!important;color:#b91c1c!important;font-family:inherit;font-size:10px!important;font-weight:900;text-align:right;direction:rtl;appearance:none;-webkit-appearance:none;cursor:pointer;box-shadow:none;transition:border-color .15s,box-shadow .15s}
+.discount-source-select:hover{border-color:#fca5a5!important}
+.discount-source-select:focus{outline:0;border-color:#f87171!important;box-shadow:0 0 0 3px rgba(248,113,113,.15)}
+.discount-source-select:disabled{opacity:.7;cursor:default}
+.discount-source-select option{background:#fff;color:#0f172a;font-weight:700}
+.addon-adjustment-cell{display:grid;gap:4px;min-width:0}.addon-adjustment-cell .discount-source-select{width:100%;height:28px!important}
+.timeline-discount-source{display:grid;gap:4px}.timeline-discount-source select{height:38px;padding:0 10px 0 26px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b91c1c' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat left 10px center;color:#b91c1c;font-family:inherit;font-weight:900;appearance:none;-webkit-appearance:none}
+
+/* ثبت نهایی خدمت */
+.service-lock-scope{display:contents}
+.service-lock-scope.readonly-locked .multiselect{pointer-events:none;opacity:.8}
+.service-item.service-item-finalized,.timeline-service-row.service-item-finalized{border-color:#86efac!important;background:#f0fdf4!important}
+.service-item.service-item-finalized .service-main-row,.timeline-service-row.service-item-finalized .timeline-service-details{background:#ecfdf3!important;border-color:#bbf7d0!important}
+.service-finalize-bar{flex:0 0 100%;display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;padding-top:6px;border-top:1px dashed #e2e8f0;color:#64748b;font-size:10px}
+.service-finalize-bar small{margin-inline-end:auto}
+.service-finalize-bar.finalized{border-top-color:#86efac}
+.service-finalized-badge{padding:3px 8px;border-radius:999px;background:#dcfce7;color:#15803d;font-weight:900;white-space:nowrap}
+.service-finalize-btn,.service-unlock-btn{height:28px;padding:0 12px;border:0;border-radius:7px;font-family:inherit;font-size:10.5px;font-weight:900;cursor:pointer;white-space:nowrap}
+.service-finalize-btn{background:#16a34a;color:#fff}.service-finalize-btn:disabled{background:#cbd5e1;cursor:not-allowed}
+.service-unlock-btn{background:#fef3c7;color:#b45309}
+
+/* نوبت‌های روزهای گذشته در حالت فقط مشاهده */
+.readonly-locked .multiselect{pointer-events:none}
+.past-readonly-row td{background-image:linear-gradient(0deg,rgba(148,163,184,.08),rgba(148,163,184,.08))}
+.past-readonly-notice{margin-bottom:10px;padding:9px 12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:11px;font-weight:800}
+
+/* کارت خدمت در پنجرهٔ تایم‌لاین: خدمت تمام‌عرض، پزشک و مشاور کنار هم، نوار ثبت نهایی مرتب */
+.timeline-modal .timeline-service-fields { gap: 10px 12px; }
+.timeline-modal .timeline-service-fields > label { display: grid; gap: 5px; min-width: 0; }
+.timeline-modal .timeline-service-fields > label:has(.timeline-service-multiselect) { grid-column: 1 / -1; }
+.timeline-modal .timeline-service-fields select { height: 40px; border-radius: 10px; }
+.timeline-modal .timeline-service-row > header > button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; line-height: 1; font-size: 16px; transition: background .15s; }
+.timeline-modal .timeline-service-row > header > button:hover { background: #fecaca; }
+.timeline-finalize-bar { margin-top: 2px !important; padding: 9px 12px !important; border: 1px dashed #cbd5e1 !important; border-radius: 10px; background: #f8fafc; }
+.timeline-finalize-bar.finalized { border: 1px solid #bbf7d0 !important; background: #f0fdf4; }
+.timeline-discount-source span, .timeline-service-detail-grid label > span { color: #475569; font-size: 10px; font-weight: 900; }
 </style>

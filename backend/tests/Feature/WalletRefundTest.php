@@ -133,7 +133,7 @@ class WalletRefundTest extends TestCase
         $visit = Appointment::query()->create(['month' => '1405-08', 'day_num' => 6, 'file_number' => 'W-2', 'done' => 'انجام شد', 'amount' => '1200000', 'debt' => '0', 'services' => []]);
         AppointmentFinancialTransaction::query()->create(['appointment_id' => $visit->id, 'patient_id' => $patient->id, 'type' => 'payment', 'amount' => 1200000, 'payment_method' => 'نقد', 'occurred_at' => now()]);
 
-        $preview = app(AppointmentController::class)->deletePreview($visit->fresh())->getData(true);
+        $preview = app(AppointmentController::class)->deletePreview(Request::create("/"), $visit->fresh())->getData(true);
         $this->assertSame(1200000, $preview['paid_amount']);
         $this->assertSame(0, $preview['wallet_amount']);
         $this->assertSame(1200000, $preview['total']);

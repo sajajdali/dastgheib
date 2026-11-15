@@ -64,6 +64,7 @@ class PayrollReportController extends Controller
         $sum = fn (array $types) => (float) $activeLines->whereIn('earning_type', $types)->sum('amount');
         $serviceCommission = $sum(['base_commission']);
         $inventoryCommission = $sum(ResourceEarningLine::INVENTORY_COMMISSION_TYPES);
+        $referralCommission = $sum([ResourceEarningLine::REFERRAL_TYPE]);
         $salesBonus = $sum(['sales_bonus']);
         $overtime = $sum(['attendance_overtime']);
         $shortage = $sum(['attendance_shortage']);
@@ -82,13 +83,14 @@ class PayrollReportController extends Controller
                 'salary' => round($salary),
                 'service_commission' => round($serviceCommission),
                 'inventory_commission' => round($inventoryCommission),
+                'referral_commission' => round($referralCommission),
                 'sales_bonus' => round($salesBonus),
                 'overtime' => round($overtime),
                 'shortage' => round($shortage),
                 'absence' => round($absence),
                 'attendance_adjustment' => round($attendanceAdjustment),
                 'total_commission' => round($serviceCommission + $inventoryCommission),
-                'total_earned' => round($salary + $serviceCommission + $inventoryCommission + $salesBonus + $attendanceAdjustment),
+                'total_earned' => round($salary + $serviceCommission + $inventoryCommission + $referralCommission + $salesBonus + $attendanceAdjustment),
                 'target_sales' => round($targetSales),
                 'reached_tier' => $reachedTier,
             ],

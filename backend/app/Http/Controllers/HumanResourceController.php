@@ -186,6 +186,8 @@ class HumanResourceController extends Controller
             '*.commission_after_materials' => ['nullable', 'boolean'],
             '*.sales_bonus_enabled' => ['nullable', 'boolean'],
             '*.sales_bonus_tiers' => ['nullable', 'array'],
+            '*.referral_commission_type' => ['nullable', 'in:percent,fixed'],
+            '*.referral_commission_value' => ['nullable', 'numeric', 'min:0'],
             '*.salary' => ['nullable', 'numeric', 'min:0'],
             '*.hourly_rate' => ['nullable', 'numeric', 'min:0'],
             '*.overtime_hourly_rate' => ['nullable', 'numeric', 'min:0'],
@@ -221,6 +223,7 @@ class HumanResourceController extends Controller
                 'commission_after_materials' => (bool) ($doctor['commission_after_materials'] ?? false),
                 'sales_bonus_enabled' => (bool) ($doctor['sales_bonus_enabled'] ?? false),
                 'sales_bonus_tiers' => $this->normalizeSalesBonusTiers($doctor['sales_bonus_tiers'] ?? []),
+                ...$this->referralCommissionValues($doctor),
                 'salary' => $doctor['salary'] ?? 0,
                 'hourly_rate' => max(0, (int) ($doctor['hourly_rate'] ?? 0)),
                 'overtime_hourly_rate' => max(0, (int) ($doctor['overtime_hourly_rate'] ?? 0)),
@@ -273,6 +276,8 @@ public function saveStaff(Request $request)
             '*.commission_after_materials' => ['nullable', 'boolean'],
             '*.sales_bonus_enabled' => ['nullable', 'boolean'],
             '*.sales_bonus_tiers' => ['nullable', 'array'],
+            '*.referral_commission_type' => ['nullable', 'in:percent,fixed'],
+            '*.referral_commission_value' => ['nullable', 'numeric', 'min:0'],
             '*.salary' => ['nullable', 'numeric', 'min:0'],
             '*.hourly_rate' => ['nullable', 'numeric', 'min:0'],
             '*.overtime_hourly_rate' => ['nullable', 'numeric', 'min:0'],
@@ -306,6 +311,7 @@ public function saveStaff(Request $request)
                     'commission_after_materials' => (bool) ($staff['commission_after_materials'] ?? false),
                     'sales_bonus_enabled' => (bool) ($staff['sales_bonus_enabled'] ?? false),
                     'sales_bonus_tiers' => $this->normalizeSalesBonusTiers($staff['sales_bonus_tiers'] ?? []),
+                    ...$this->referralCommissionValues($staff),
                     'salary' => $staff['salary'] ?? 0,
                     'hourly_rate' => max(0, (int) ($staff['hourly_rate'] ?? 0)),
                     'overtime_hourly_rate' => max(0, (int) ($staff['overtime_hourly_rate'] ?? 0)),
@@ -358,7 +364,20 @@ public function saveStaff(Request $request)
     private function commissionSettingsChanged(Doctor|Staff $record): bool
     {
         return $record->wasChanged(['bonus', 'commission_customer_scope', 'new_customer_bonus', 'existing_customer_bonus',
-            'commission_after_materials', 'sales_bonus_enabled', 'sales_bonus_tiers']);
+            'commission_after_materials', 'sales_bonus_enabled', 'sales_bonus_tiers',
+            'referral_commission_type', 'referral_commission_value']);
+    }
+
+    /** پورسانت معرفی مشتری: درصدی (۰ تا ۱۰۰) یا مبلغ ثابت برای هر نوبت؛ خالی یعنی پورسانت معرفی ندارد. */
+    private function referralCommissionValues(array $row): array
+    {
+        if (! array_key_exists('referral_commission_type', $row) && ! array_key_exists('referral_commission_value', $row)) return [];
+        $type = ($row['referral_commission_type'] ?? 'percent') === 'fixed' ? 'fixed' : 'percent';
+        $value = $row['referral_commission_value'] ?? null;
+        if ($value === null || $value === '') return ['referral_commission_type' => $type, 'referral_commission_value' => null];
+        $value = max(0, (float) $value);
+
+        return ['referral_commission_type' => $type, 'referral_commission_value' => $type === 'percent' ? min(100, $value) : round($value)];
     }
 
     /** ماه‌های گذشته ممکن است تسویه شده باشند؛ تغییر تنظیمات پورسانت فقط ماه جاری را دوباره حساب می‌کند. */

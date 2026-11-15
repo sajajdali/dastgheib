@@ -24,6 +24,8 @@ class Doctor extends Model
         'commission_after_materials',
         'sales_bonus_enabled',
         'sales_bonus_tiers',
+        'referral_commission_type',
+        'referral_commission_value',
         'salary',
         'hourly_rate',
         'overtime_hourly_rate',
@@ -45,6 +47,7 @@ class Doctor extends Model
         'new_customer_bonus' => 'float',
         'existing_customer_bonus' => 'float',
         'allowed_shortage_hours' => 'decimal:2',
+        'referral_commission_value' => 'float',
     ];
 
     protected $appends = ['profile_photo_url', 'profile_thumbnail_url', 'avatar_url', 'save_version'];
