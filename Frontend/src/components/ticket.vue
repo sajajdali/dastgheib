@@ -973,18 +973,131 @@ h3 { margin-bottom: 10px; text-align: center; }
   }
 }
 
-body.dark .ticket-page,#app.dark .ticket-page{color:#e2e8f0}
-body.dark .ticket-page h3,#app.dark .ticket-page h3{color:#f8fafc}
-body.dark .today-ticket-alert,#app.dark .today-ticket-alert{background:linear-gradient(135deg,#1e293b,#172033);border-color:#7f1d1d;color:#e2e8f0;box-shadow:0 10px 24px rgba(0,0,0,.25)}
-body.dark .today-ticket-alert small,#app.dark .today-ticket-alert small{color:#94a3b8}
-body.dark .popup-form,#app.dark .popup-form{background:#172033;border-color:#334155;color:#e2e8f0;box-shadow:0 28px 80px rgba(0,0,0,.5)}
-body.dark .popup-form input,body.dark .popup-form textarea,body.dark .popup-form select,#app.dark .popup-form input,#app.dark .popup-form textarea,#app.dark .popup-form select{background:#1e293b;border-color:#334155;color:#e2e8f0}
-body.dark .popup-form input:focus,body.dark .popup-form textarea:focus,body.dark .popup-form select:focus,#app.dark .popup-form input:focus,#app.dark .popup-form textarea:focus,#app.dark .popup-form select:focus{background:#253349;border-color:#3b82f6}
-body.dark .priority-field,#app.dark .priority-field{color:#94a3b8}
-body.dark .owner-picker-trigger,body.dark .owner-picker-menu,#app.dark .owner-picker-trigger,#app.dark .owner-picker-menu{background:#1e293b;border-color:#334155;color:#e2e8f0}
-body.dark .owner-chips>span,#app.dark .owner-chips>span{background:#1e3a5f;color:#93c5fd}
-body.dark .owner-chips button,#app.dark .owner-chips button{background:#334155;color:#93c5fd}
-body.dark .reload-staff-btn,#app.dark .reload-staff-btn{background:#1e3a5f;border-color:#334155;color:#93c5fd}
-body.dark .cancel-btn,#app.dark .cancel-btn{background:#450a0a;color:#fca5a5}
-body.dark .popup-head,#app.dark .popup-head{color:#f8fafc}
+</style>
+
+<style>
+/* Dark mode tickets — unscoped so light card backgrounds cannot beat inherited text color */
+html body.dark .ticket-page,
+html #app.dark .ticket-page {
+  color: #e8eaed !important;
+}
+html body.dark .ticket-page h3,
+html #app.dark .ticket-page h3 {
+  color: #f1f3f4 !important;
+}
+html body.dark .ticket-page .ticket-item,
+html #app.dark .ticket-page .ticket-item {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #f1f3f4 !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .28) !important;
+}
+html body.dark .ticket-page .ticket-item.today,
+html #app.dark .ticket-page .ticket-item.today {
+  background: #3a1d1d !important;
+  border-left-color: #ef4444 !important;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, .18) !important;
+}
+html body.dark .ticket-page .ticket-item.done,
+html #app.dark .ticket-page .ticket-item.done {
+  background: #14352a !important;
+  border-left-color: #22c55e !important;
+}
+html body.dark .ticket-page .ticket-item.expired,
+html #app.dark .ticket-page .ticket-item.expired {
+  background: #3a1f24 !important;
+  border-left-color: #f87171 !important;
+}
+html body.dark .ticket-page .ticket-item .ticket-info,
+html body.dark .ticket-page .ticket-item .ticket-info p,
+html body.dark .ticket-page .ticket-item .ticket-title,
+html body.dark .ticket-page .ticket-item b,
+html body.dark .ticket-page .ticket-item strong,
+html body.dark .ticket-page .ticket-item span,
+html #app.dark .ticket-page .ticket-item .ticket-info,
+html #app.dark .ticket-page .ticket-item .ticket-info p,
+html #app.dark .ticket-page .ticket-item .ticket-title,
+html #app.dark .ticket-page .ticket-item b,
+html #app.dark .ticket-page .ticket-item strong,
+html #app.dark .ticket-page .ticket-item span {
+  color: #f1f3f4 !important;
+}
+html body.dark .ticket-page .drag-handle,
+html #app.dark .ticket-page .drag-handle {
+  color: #9aa0a6 !important;
+}
+html body.dark .ticket-page .priority-low,
+html #app.dark .ticket-page .priority-low {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .ticket-page .priority-medium,
+html #app.dark .ticket-page .priority-medium {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .ticket-page .priority-high,
+html #app.dark .ticket-page .priority-high {
+  background: #7c2d12 !important;
+  color: #fdba74 !important;
+}
+html body.dark .ticket-page .priority-urgent,
+html #app.dark .ticket-page .priority-urgent {
+  background: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .ticket-page .today-ticket-alert,
+html #app.dark .ticket-page .today-ticket-alert {
+  background: linear-gradient(135deg, #2a1a1a, #1a1c22) !important;
+  border-color: #7f1d1d !important;
+  color: #f1f3f4 !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .3) !important;
+}
+html body.dark .ticket-page .today-ticket-alert small,
+html #app.dark .ticket-page .today-ticket-alert small {
+  color: #9aa0a6 !important;
+}
+html body.dark .popup-form,
+html #app.dark .popup-form {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .55) !important;
+}
+html body.dark .popup-form .popup-head,
+html #app.dark .popup-form .popup-head {
+  color: #f1f3f4 !important;
+}
+html body.dark .popup-form input,
+html body.dark .popup-form textarea,
+html body.dark .popup-form select,
+html #app.dark .popup-form input,
+html #app.dark .popup-form textarea,
+html #app.dark .popup-form select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .popup-form .owner-picker-trigger,
+html body.dark .popup-form .owner-picker-menu,
+html #app.dark .popup-form .owner-picker-trigger,
+html #app.dark .popup-form .owner-picker-menu {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .popup-form .owner-chips > span,
+html #app.dark .popup-form .owner-chips > span {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
+html body.dark .popup-form .cancel-btn,
+html #app.dark .popup-form .cancel-btn {
+  background: #450a0a !important;
+  color: #fca5a5 !important;
+}
+html body.dark .popup-form .priority-field,
+html #app.dark .popup-form .priority-field {
+  color: #9aa0a6 !important;
+}
 </style>
