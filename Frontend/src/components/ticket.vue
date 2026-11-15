@@ -987,5 +987,4 @@ body.dark .owner-chips button,#app.dark .owner-chips button{background:#334155;c
 body.dark .reload-staff-btn,#app.dark .reload-staff-btn{background:#1e3a5f;border-color:#334155;color:#93c5fd}
 body.dark .cancel-btn,#app.dark .cancel-btn{background:#450a0a;color:#fca5a5}
 body.dark .popup-head,#app.dark .popup-head{color:#f8fafc}
-
 </style>
