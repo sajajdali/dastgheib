@@ -78,6 +78,13 @@
 
     <button v-if="uiMenuOpen" class="utility-menu-backdrop" type="button" aria-label="بستن منوی کاربری" @click="uiMenuOpen = false"></button>
 
+    <EmployeePortalNotifications
+      v-if="canViewPersonalReport || canManageEmployeePortal"
+      :manager="canManageEmployeePortal"
+      @open-personal-report="openMyReport"
+      @open-payroll="openEmployeePortalNotification"
+    />
+
     <aside v-if="uiMenuOpen" id="utility-menu-panel" class="utility-menu-panel" dir="rtl">
       <header>
         <button class="auth-avatar" type="button" :style="{ background: userAvatarUrl ? '#fff' : menuAvatarColor }" title="ویرایش پروفایل" @click="openProfileEditor">
@@ -129,30 +136,13 @@
       </button>
     </aside>
 
-    <div v-if="myReportOpen && canViewPersonalReport" class="my-report-overlay" dir="rtl" @click.self="myReportOpen = false">
-      <section class="my-report-modal">
-        <header>
-          <div><small>گزارش شخصی</small><h2>{{ myReport?.name || user.name }}</h2></div>
-          <button type="button" @click="myReportOpen = false">×</button>
-        </header>
-        <div class="my-report-month-nav">
-          <button type="button" title="ماه قبل" @click="shiftReportMonth(-1)">‹</button>
-          <strong>{{ personalReportMonthLabel }}</strong>
-          <button type="button" title="ماه بعد" :disabled="reportMonth >= currentJalaliMonth" @click="shiftReportMonth(1)">›</button>
-        </div>
-        <div v-if="myReportLoading" class="my-report-loading"><i></i><span>در حال محاسبه گزارش...</span></div>
-        <div v-else-if="myReportError" class="my-report-error">{{ myReportError }}</div>
-        <div v-else-if="myReport" class="my-report-grid">
-          <article class="earned"><span>مبلغ نهایی این ماه</span><strong>{{ formatReportMoney(myReport.total_earned) }}</strong><small>تومان</small></article>
-          <article><span>حقوق ثابت</span><strong>{{ formatReportMoney(myReport.salary) }}</strong><small>تومان</small></article>
-          <article><span>پورسانت</span><strong>{{ formatReportMoney(myReport.commission) }}</strong><small>تومان</small></article>
-          <article v-if="Number(myReport.referral_commission || 0)"><span>پورسانت معرفی مشتری</span><strong>{{ formatReportMoney(myReport.referral_commission) }}</strong><small>تومان</small></article>
-          <article><span>تعدیلات حضور و غیاب</span><strong>{{ formatReportMoney(myReport.attendance_adjustment) }}</strong><small>تومان</small></article>
-          <article><span>اضافه‌کاری</span><strong>{{ Number(myReport.overtime_hours || 0).toLocaleString('fa-IR') }}</strong><small>ساعت</small></article>
-          <article><span>تعداد وقت ثبت‌شده</span><strong>{{ Number(myReport.appointments_given || 0).toLocaleString('fa-IR') }}</strong><small>نوبت</small></article>
-        </div>
-      </section>
-    </div>
+    <PersonalReport
+      v-if="myReportOpen && canViewPersonalReport"
+      :current-month="currentJalaliMonth"
+      :current-user-id="Number(user?.id || 0)"
+      :initial-tab="personalReportInitialTab"
+      @close="myReportOpen = false"
+    />
 
     <Menu
       :currentPage="currentPage"
@@ -304,7 +294,12 @@
         :current-user="user"
       />
 
-      <PayrollSettlement v-if="currentPage === 'Payroll' && user.permissions?.includes('payroll.view')" />
+      <PayrollSettlement
+        v-if="currentPage === 'Payroll' && user.permissions?.includes('payroll.view')"
+        :current-user-id="Number(user?.id || 0)"
+        :initial-resource="pendingPayrollResource"
+        :can-manage-employee-portal="canManageEmployeePortal"
+      />
 
       <!-- وظایف پرسنل (قالب استاتیک) -->
       <StaffTasks v-if="currentPage === 'StaffTasks' && isClinicManager" />
@@ -480,6 +475,8 @@ import SubscriptionRenewal from "./components/SubscriptionRenewal.vue";
 
 import HRtimes from "./components/HRtimes.vue";
 import PayrollSettlement from "./components/PayrollSettlement.vue";
+import PersonalReport from "./components/PersonalReport.vue";
+import EmployeePortalNotifications from "./components/EmployeePortalNotifications.vue";
 import StaffTasks from "./components/staff-tasks/StaffTasks.vue";
 import AiAssistant from "./components/AiAssistant.vue";
 import AiUsageReport from "./components/AiUsageReport.vue";
@@ -539,6 +536,8 @@ export default {
 
     HRtimes,
     PayrollSettlement,
+    PersonalReport,
+    EmployeePortalNotifications,
     StaffTasks,
     AiAssistant,
     AiUsageReport,
@@ -572,6 +571,8 @@ export default {
       ,profilePasswordVisible: false
       ,profileForm: { name: "", nickname: "", mobile: "", gender: "", password: "" }
       ,myReportOpen: false
+      ,personalReportInitialTab: "summary"
+      ,pendingPayrollResource: null
       ,myReportLoading: false
       ,myReport: null
       ,myReportError: ""
@@ -771,7 +772,12 @@ export default {
     },
 
     canViewPersonalReport() {
-      return this.user?.permissions?.includes("personal_report.view");
+      return this.user?.has_personal_report_resource === true
+        && this.user?.permissions?.includes("personal_report.view");
+    },
+
+    canManageEmployeePortal() {
+      return this.user?.permissions?.includes("employee_portal.manage");
     },
 
     userAvatarUrl() {
@@ -953,11 +959,17 @@ export default {
       }, 500);
     },
 
-    openMyReport() {
+    openMyReport(item = null) {
       if (!this.canViewPersonalReport) return;
-      this.reportMonth = this.currentJalaliMonth;
+      this.personalReportInitialTab = item?.action_tab || "summary";
       this.myReportOpen = true;
-      this.loadMyReport();
+    },
+
+    openEmployeePortalNotification(item) {
+      this.pendingPayrollResource = item?.resource_type && item?.resource_id
+        ? { type: item.resource_type, id: Number(item.resource_id) }
+        : null;
+      this.changePage('Payroll');
     },
 
     async loadMyReport() {
@@ -1904,6 +1916,138 @@ body.central-host #app {
 
   background: #2563eb !important;
 
+}
+
+/* سطوح مشترک صفحات که هنوز سفید می‌مانند */
+.dark .dark-toggle {
+  background: #1e293b;
+  color: #e2e8f0;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+}
+
+.dark .page-container,
+.dark .content-area,
+.dark .main-content {
+  color: #e2e8f0;
+}
+
+.dark .card,
+.dark .panel,
+.dark .modal,
+.dark .modal-content,
+.dark .dialog,
+.dark .drawer,
+.dark .sidebar,
+.dark .sheet,
+.dark .popover,
+.dark .dropdown-menu,
+.dark .swal2-popup {
+  background: #172033 !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+.dark .swal2-title,
+.dark .swal2-html-container,
+.dark .swal2-content {
+  color: #e2e8f0 !important;
+}
+
+.dark .multiselect__tags,
+.dark .multiselect__content-wrapper,
+.dark .multiselect__single,
+.dark .multiselect__input {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .multiselect__option--highlight {
+  background: #1e40af !important;
+  color: #fff !important;
+}
+
+.dark .vpd-input-group input {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .muted,
+.dark .hint,
+.dark .subtitle,
+.dark .empty-state,
+.dark .placeholder {
+  color: #94a3b8;
+}
+
+.dark hr,
+.dark .divider {
+  border-color: #334155 !important;
+}
+
+/* پوسته‌های پرتکرار ماژول‌ها */
+.dark .manabe-container,
+.dark .payroll-layout,
+.dark .payroll-sidebar,
+.dark .payroll-content,
+.dark .bills-page,
+.dark .inventory-page,
+.dark .ticket-page,
+.dark .epa,
+.dark .epn,
+.dark .pr-shell,
+.dark .pr-card,
+.dark .create-card,
+.dark .edit-card,
+.dark .result-card {
+  background: #172033 !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+.dark .payroll-sidebar,
+.dark .settings-sidebar,
+.dark .manabe-tabs,
+.dark .epa > nav,
+.dark .epn-tabs {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+
+.dark .epa-form,
+.dark .epa-list article,
+.dark .epa-messages,
+.dark .epa-modal form,
+.dark .epn-card,
+.dark .pr-list article {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .epa-form input,
+.dark .epa-form select,
+.dark .epa-form textarea,
+.dark .epa-modal input,
+.dark .epa-modal select,
+.dark .epa-modal textarea,
+.dark .epa-send textarea {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .epa-date-field .vpd-input-group {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+.dark .my-report-modal > header > button,
+.dark .epa > header button,
+.dark .epa-list button:not(.danger):not(.approve) {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
 }
 
 /* موبایل */

@@ -1116,4 +1116,5 @@ body.dark .status-paid,#app.dark .status-paid{background:#052e16;color:#4ade80}
 body.dark .status-unpaid,#app.dark .status-unpaid{background:#450a0a;color:#fca5a5}
 body.dark .status-pending,#app.dark .status-pending{background:#422006;color:#fbbf24}
 
+
 </style>

@@ -15199,4 +15199,354 @@ td.st-arrived select {
 .timeline-finalize-bar { margin-top: 2px !important; padding: 9px 12px !important; border: 1px dashed #cbd5e1 !important; border-radius: 10px; background: #f8fafc; }
 .timeline-finalize-bar.finalized { border: 1px solid #bbf7d0 !important; background: #f0fdf4; }
 .timeline-discount-source span, .timeline-service-detail-grid label > span { color: #475569; font-size: 10px; font-weight: 900; }
+
+/* ===== Dark mode: نوبت‌دهی جدولی + پوستهٔ صفحه ===== */
+body.dark .time-page,
+#app.dark .time-page { color: #e2e8f0; }
+body.dark .time-page .top-actions,
+body.dark .time-page .timeline-actions,
+#app.dark .time-page .top-actions,
+#app.dark .time-page .timeline-actions {
+  background: #0f172a !important;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .35);
+  border-color: #1e293b;
+}
+body.dark .appointment-view-switch,
+#app.dark .appointment-view-switch {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+body.dark .appointment-view-switch button,
+#app.dark .appointment-view-switch button { color: #94a3b8; }
+body.dark .appointment-view-switch button:hover,
+#app.dark .appointment-view-switch button:hover { color: #93c5fd; }
+body.dark .appointment-view-switch button.active,
+#app.dark .appointment-view-switch button.active {
+  background: #0f172a;
+  color: #60a5fa;
+  box-shadow: 0 8px 20px rgba(0,0,0,.35);
+}
+body.dark .global-search-box,
+body.dark .appointment-search-navigation,
+body.dark .section-filter-toggle,
+body.dark .search-collapse-btn,
+#app.dark .global-search-box,
+#app.dark .appointment-search-navigation,
+#app.dark .section-filter-toggle,
+#app.dark .search-collapse-btn {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+body.dark .global-search-box:focus,
+#app.dark .global-search-box:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.25) !important;
+}
+body.dark .section-filter-menu,
+body.dark .filter-dropdown,
+body.dark .row-actions-menu,
+body.dark .service-type-options,
+body.dark .table-patient-results,
+body.dark .timeline-patient-results,
+#app.dark .section-filter-menu,
+#app.dark .filter-dropdown,
+#app.dark .row-actions-menu,
+#app.dark .service-type-options,
+#app.dark .table-patient-results,
+#app.dark .timeline-patient-results {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+  box-shadow: 0 18px 45px rgba(0,0,0,.45) !important;
+}
+body.dark .row-actions-trigger,
+#app.dark .row-actions-trigger {
+  background: linear-gradient(180deg,#1e293b,#0f172a);
+  border-color: #334155;
+  color: #cbd5e1;
+  box-shadow: 0 3px 8px rgba(0,0,0,.3);
+}
+body.dark .row-actions-trigger:hover,
+body.dark .row-actions-trigger.active,
+#app.dark .row-actions-trigger:hover,
+#app.dark .row-actions-trigger.active {
+  border-color: #3b82f6;
+  background: #172554;
+  color: #93c5fd;
+}
+body.dark .service-type-picker summary,
+#app.dark .service-type-picker summary {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+body.dark .service-type-options label:hover,
+body.dark .filter-dropdown label:hover,
+#app.dark .service-type-options label:hover,
+#app.dark .filter-dropdown label:hover { background: #334155 !important; }
+
+/* جدول */
+body.dark .main-schedule-table thead,
+body.dark .time-page.table-view-active .main-schedule-table thead th,
+#app.dark .main-schedule-table thead,
+#app.dark .time-page.table-view-active .main-schedule-table thead th {
+  background: #1e293b !important;
+  box-shadow: inset 0 -1px 0 #334155;
+}
+body.dark .sticky-header,
+#app.dark .sticky-header {
+  background: linear-gradient(180deg, #1e293b 0%, #172033 100%) !important;
+  border-left-color: #334155 !important;
+  border-bottom-color: #475569 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 4px 10px rgba(0,0,0,.35);
+}
+body.dark .sticky-header.filtered-header,
+#app.dark .sticky-header.filtered-header {
+  background: #1e3a5f !important;
+  color: #dbeafe !important;
+}
+body.dark .main-schedule-table td,
+#app.dark .main-schedule-table td {
+  background-color: #172033 !important;
+  border-left-color: #243046 !important;
+  border-bottom-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+body.dark .main-schedule-table th.soft-column-divider,
+body.dark .main-schedule-table td.soft-column-divider,
+#app.dark .main-schedule-table th.soft-column-divider,
+#app.dark .main-schedule-table td.soft-column-divider {
+  border-left-color: #475569 !important;
+}
+body.dark .data-row.stripe td,
+#app.dark .data-row.stripe td {
+  background-color: #1a2438 !important;
+}
+body.dark .main-schedule-table tbody tr.data-row:hover > td,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td {
+  background-color: #1e3a5f !important;
+}
+body.dark .main-schedule-table input,
+body.dark .main-schedule-table select,
+body.dark .main-schedule-table td.time-col,
+body.dark .time-col input,
+#app.dark .main-schedule-table input,
+#app.dark .main-schedule-table select,
+#app.dark .main-schedule-table td.time-col,
+#app.dark .time-col input {
+  color: #e2e8f0 !important;
+  background: transparent !important;
+}
+body.dark .main-schedule-table select option,
+#app.dark .main-schedule-table select option {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+body.dark .filter-btn,
+#app.dark .filter-btn { color: #94a3b8; }
+body.dark .no-patient-file,
+#app.dark .no-patient-file {
+  background: #1e293b;
+  border-color: #334155;
+  color: #64748b;
+}
+body.dark .payment-link-btn,
+#app.dark .payment-link-btn {
+  background: #172554;
+  border-color: #1e40af;
+  color: #93c5fd;
+}
+body.dark .payment-link-btn.sent,
+#app.dark .payment-link-btn.sent {
+  background: #052e16;
+  border-color: #166534;
+  color: #86efac;
+}
+body.dark .schedule-loading,
+#app.dark .schedule-loading { background: rgba(15, 23, 42, .82); }
+body.dark .schedule-loading-card,
+#app.dark .schedule-loading-card {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+body.dark .past-readonly-notice,
+#app.dark .past-readonly-notice {
+  background: #422006;
+  border-color: #854d0e;
+  color: #fde68a;
+}
+body.dark .past-readonly-row td,
+#app.dark .past-readonly-row td {
+  background-image: linear-gradient(0deg, rgba(51,65,85,.35), rgba(51,65,85,.35));
+}
+
+/* انجام کار — تیره ولی خوانا */
+body.dark .main-schedule-table td.dn-yes,
+body.dark .main-schedule-table td.dn-yes select,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-yes,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-yes select,
+body.dark .dn-yes,
+#app.dark .main-schedule-table td.dn-yes,
+#app.dark .main-schedule-table td.dn-yes select,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-yes,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-yes select,
+#app.dark .dn-yes { background-color: #14532d !important; color: #bbf7d0 !important; }
+body.dark .main-schedule-table td.dn-no,
+body.dark .main-schedule-table td.dn-no select,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-no,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-no select,
+body.dark .dn-no,
+#app.dark .main-schedule-table td.dn-no,
+#app.dark .main-schedule-table td.dn-no select,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-no,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-no select,
+#app.dark .dn-no { background-color: #7f1d1d !important; color: #fecaca !important; }
+body.dark .main-schedule-table td.dn-rep,
+body.dark .main-schedule-table td.dn-rep select,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-rep,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-rep select,
+body.dark .dn-rep,
+#app.dark .main-schedule-table td.dn-rep,
+#app.dark .main-schedule-table td.dn-rep select,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-rep,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-rep select,
+#app.dark .dn-rep { background-color: #581c87 !important; color: #e9d5ff !important; }
+body.dark .main-schedule-table td.dn-trans,
+body.dark .main-schedule-table td.dn-trans select,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-trans,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-trans select,
+body.dark .dn-trans,
+#app.dark .main-schedule-table td.dn-trans,
+#app.dark .main-schedule-table td.dn-trans select,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-trans,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-trans select,
+#app.dark .dn-trans { background-color: #1e3a5f !important; color: #bfdbfe !important; }
+body.dark .main-schedule-table td.dn-cons,
+body.dark .main-schedule-table td.dn-cons select,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-cons,
+body.dark .main-schedule-table tbody tr.data-row:hover > td.dn-cons select,
+body.dark .dn-cons,
+#app.dark .main-schedule-table td.dn-cons,
+#app.dark .main-schedule-table td.dn-cons select,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-cons,
+#app.dark .main-schedule-table tbody tr.data-row:hover > td.dn-cons select,
+#app.dark .dn-cons { background-color: #334155 !important; color: #e2e8f0 !important; }
+
+/* وضعیت نوبت */
+body.dark .main-schedule-table td.st-arrived,
+body.dark .st-arrived,
+#app.dark .main-schedule-table td.st-arrived,
+#app.dark .st-arrived { background-color: #14532d !important; color: #bbf7d0 !important; }
+body.dark .main-schedule-table td.st-noans,
+body.dark .st-noans,
+body.dark .sms-wait,
+#app.dark .main-schedule-table td.st-noans,
+#app.dark .st-noans,
+#app.dark .sms-wait { background-color: #7f1d1d !important; color: #fecaca !important; }
+body.dark .main-schedule-table td.st-follow,
+body.dark .st-follow,
+#app.dark .main-schedule-table td.st-follow,
+#app.dark .st-follow { background-color: #1e3a5f !important; color: #bfdbfe !important; }
+body.dark .sms-sent,
+#app.dark .sms-sent { background-color: #14532d !important; color: #bbf7d0 !important; }
+
+/* مودال‌ها و پنل‌های پرتکرار */
+body.dark .financial-panel,
+body.dark .booking-setup-card,
+body.dark .tracking-modal,
+body.dark .sms-queue-modal,
+body.dark .completion-sms-modal,
+#app.dark .financial-panel,
+#app.dark .booking-setup-card,
+#app.dark .tracking-modal,
+#app.dark .sms-queue-modal,
+#app.dark .completion-sms-modal {
+  background: #172033 !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+body.dark .financial-panel h3,
+body.dark .booking-setup-card h1,
+body.dark .tracking-modal header h3,
+body.dark .sms-queue-modal header h3,
+body.dark .completion-sms-modal header h3,
+#app.dark .financial-panel h3,
+#app.dark .booking-setup-card h1,
+#app.dark .tracking-modal header h3,
+#app.dark .sms-queue-modal header h3,
+#app.dark .completion-sms-modal header h3 { color: #f8fafc !important; }
+body.dark .financial-summary article,
+body.dark .financial-check-grid,
+body.dark .financial-advanced-toggle,
+body.dark .tracking-modal > header,
+body.dark .sms-queue-modal > header,
+body.dark .completion-sms-modal > header,
+#app.dark .financial-summary article,
+#app.dark .financial-check-grid,
+#app.dark .financial-advanced-toggle,
+#app.dark .tracking-modal > header,
+#app.dark .sms-queue-modal > header,
+#app.dark .completion-sms-modal > header {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+body.dark .financial-panel input,
+body.dark .financial-panel select,
+body.dark .financial-cancel,
+body.dark .tracking-modal header button,
+body.dark .sms-queue-modal header button,
+body.dark .completion-sms-modal header button,
+#app.dark .financial-panel input,
+#app.dark .financial-panel select,
+#app.dark .financial-cancel,
+#app.dark .tracking-modal header button,
+#app.dark .sms-queue-modal header button,
+#app.dark .completion-sms-modal header button {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+body.dark .booking-timeline-filters,
+body.dark .booking-filters-toggle,
+body.dark .timeline-addon-box,
+body.dark .timeline-addon-toggle,
+body.dark .timeline-sms-options > label,
+#app.dark .booking-timeline-filters,
+#app.dark .booking-filters-toggle,
+#app.dark .timeline-addon-box,
+#app.dark .timeline-addon-toggle,
+#app.dark .timeline-sms-options > label {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+body.dark .timeline-service-multiselect .multiselect__tags,
+body.dark .timeline-doctor-multiselect .multiselect__tags,
+body.dark .timeline-service-multiselect .multiselect__content-wrapper,
+body.dark .service-multiselect .multiselect__tags,
+body.dark .service-multiselect .multiselect__content-wrapper,
+#app.dark .timeline-service-multiselect .multiselect__tags,
+#app.dark .timeline-doctor-multiselect .multiselect__tags,
+#app.dark .timeline-service-multiselect .multiselect__content-wrapper,
+#app.dark .service-multiselect .multiselect__tags,
+#app.dark .service-multiselect .multiselect__content-wrapper {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+body.dark .timeline-add-card,
+#app.dark .timeline-add-card {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+body.dark .dark-toggle,
+#app.dark .dark-toggle {
+  background: #1e293b;
+  color: #e2e8f0;
+}
 </style>
