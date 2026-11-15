@@ -2451,3 +2451,231 @@ export default {
 
 .bf-chevron { width: 18px; height: 18px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 </style>
+
+<style>
+/* زیبایار dark mode — unscoped so white cards/inputs cannot win */
+html body.dark .beauty-flow,
+html #app.dark .beauty-flow {
+  background: transparent !important;
+  color: #e8eaed !important;
+  --bf-border: #2c3038;
+  --bf-muted: #9aa0a6;
+  --bf-accent-soft: #2a2f3a;
+  --bf-shadow: 0 12px 28px rgba(0, 0, 0, .35);
+}
+html body.dark .beauty-flow .beauty-flow-card,
+html body.dark .beauty-flow .beauty-flow-empty,
+html body.dark .beauty-flow .beauty-flow-create-panel,
+html body.dark .beauty-flow .beauty-flow-record,
+html body.dark .beauty-flow .beauty-flow-sidebar,
+html body.dark .beauty-flow .beauty-flow-photo-panel,
+html body.dark .beauty-flow .beauty-compare,
+html body.dark .beauty-flow .beauty-folders,
+html body.dark .beauty-flow .beauty-flow-editor,
+html body.dark .beauty-flow .beauty-flow-side-block,
+html body.dark .beauty-flow .beauty-flow-legacy-block,
+html body.dark .beauty-flow .beauty-flow-patient-box,
+html body.dark .beauty-flow .beauty-flow-table-wrap,
+html #app.dark .beauty-flow .beauty-flow-card,
+html #app.dark .beauty-flow .beauty-flow-empty,
+html #app.dark .beauty-flow .beauty-flow-create-panel,
+html #app.dark .beauty-flow .beauty-flow-record,
+html #app.dark .beauty-flow .beauty-flow-sidebar,
+html #app.dark .beauty-flow .beauty-flow-photo-panel,
+html #app.dark .beauty-flow .beauty-compare,
+html #app.dark .beauty-flow .beauty-folders,
+html #app.dark .beauty-flow .beauty-flow-editor,
+html #app.dark .beauty-flow .beauty-flow-side-block,
+html #app.dark .beauty-flow .beauty-flow-legacy-block,
+html #app.dark .beauty-flow .beauty-flow-patient-box,
+html #app.dark .beauty-flow .beauty-flow-table-wrap {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .32) !important;
+}
+html body.dark .beauty-flow h2,
+html body.dark .beauty-flow h3,
+html body.dark .beauty-flow .beauty-flow-card-header,
+html body.dark .beauty-flow .beauty-flow-record-title,
+html body.dark .beauty-flow .beauty-flow-record-header,
+html #app.dark .beauty-flow h2,
+html #app.dark .beauty-flow h3,
+html #app.dark .beauty-flow .beauty-flow-card-header,
+html #app.dark .beauty-flow .beauty-flow-record-title,
+html #app.dark .beauty-flow .beauty-flow-record-header {
+  color: #f1f3f4 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .beauty-flow .beauty-flow-muted,
+html body.dark .beauty-flow .beauty-flow-table-empty,
+html body.dark .beauty-flow small,
+html body.dark .beauty-flow .beauty-flow-record-title p,
+html #app.dark .beauty-flow .beauty-flow-muted,
+html #app.dark .beauty-flow .beauty-flow-table-empty,
+html #app.dark .beauty-flow small,
+html #app.dark .beauty-flow .beauty-flow-record-title p {
+  color: #9aa0a6 !important;
+}
+html body.dark .beauty-flow input,
+html body.dark .beauty-flow select,
+html body.dark .beauty-flow textarea,
+html body.dark .beauty-flow .vpd-input-group input,
+html #app.dark .beauty-flow input,
+html #app.dark .beauty-flow select,
+html #app.dark .beauty-flow textarea,
+html #app.dark .beauty-flow .vpd-input-group input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .beauty-flow .beauty-flow-search-result,
+html body.dark .beauty-flow .beauty-flow-create-results > button,
+html body.dark .beauty-flow .beauty-flow-light-btn,
+html body.dark .beauty-flow .beauty-flow-refresh-btn,
+html body.dark .beauty-flow .beauty-flow-settings-btn,
+html body.dark .beauty-flow .beauty-flow-problems-settings-btn,
+html body.dark .beauty-flow .beauty-flow-back,
+html body.dark .beauty-flow .beauty-flow-mini-btn,
+html body.dark .beauty-flow .beauty-flow-open-btn,
+html body.dark .beauty-flow .beauty-compare .beauty-compare-arrow,
+html body.dark .beauty-flow .beauty-folders .beauty-folder,
+html #app.dark .beauty-flow .beauty-flow-search-result,
+html #app.dark .beauty-flow .beauty-flow-create-results > button,
+html #app.dark .beauty-flow .beauty-flow-light-btn,
+html #app.dark .beauty-flow .beauty-flow-refresh-btn,
+html #app.dark .beauty-flow .beauty-flow-settings-btn,
+html #app.dark .beauty-flow .beauty-flow-problems-settings-btn,
+html #app.dark .beauty-flow .beauty-flow-back,
+html #app.dark .beauty-flow .beauty-flow-mini-btn,
+html #app.dark .beauty-flow .beauty-flow-open-btn,
+html #app.dark .beauty-flow .beauty-compare .beauty-compare-arrow,
+html #app.dark .beauty-flow .beauty-folders .beauty-folder {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .beauty-flow .beauty-flow-search-result:hover,
+html body.dark .beauty-flow .beauty-flow-create-results > button:hover,
+html body.dark .beauty-flow .beauty-folders .beauty-folder:hover,
+html #app.dark .beauty-flow .beauty-flow-search-result:hover,
+html #app.dark .beauty-flow .beauty-flow-create-results > button:hover,
+html #app.dark .beauty-flow .beauty-folders .beauty-folder:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .beauty-flow .beauty-flow-search-result b,
+html body.dark .beauty-flow .beauty-flow-search-result strong,
+html body.dark .beauty-flow .beauty-flow-search-result-info,
+html #app.dark .beauty-flow .beauty-flow-search-result b,
+html #app.dark .beauty-flow .beauty-flow-search-result strong,
+html #app.dark .beauty-flow .beauty-flow-search-result-info {
+  color: #f1f3f4 !important;
+}
+html body.dark .beauty-flow .beauty-flow-table th,
+html #app.dark .beauty-flow .beauty-flow-table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .beauty-flow .beauty-flow-table td,
+html body.dark .beauty-flow .beauty-flow-table tbody tr,
+html #app.dark .beauty-flow .beauty-flow-table td,
+html #app.dark .beauty-flow .beauty-flow-table tbody tr {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .beauty-flow .beauty-flow-table tbody tr:hover td,
+html #app.dark .beauty-flow .beauty-flow-table tbody tr:hover td {
+  background: #22252d !important;
+}
+html body.dark .beauty-flow .beauty-flow-status-pending,
+html #app.dark .beauty-flow .beauty-flow-status-pending {
+  background: #3a2e14 !important;
+  color: #fbbf24 !important;
+}
+html body.dark .beauty-flow .beauty-flow-status-done,
+html #app.dark .beauty-flow .beauty-flow-status-done {
+  background: #14352a !important;
+  color: #86efac !important;
+}
+html body.dark .beauty-flow .beauty-flow-record-header,
+html #app.dark .beauty-flow .beauty-flow-record-header {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .beauty-flow .beauty-flow-services-list article,
+html body.dark .beauty-flow .beauty-flow-profile-pick,
+html body.dark .beauty-flow .beauty-flow-legacy-pick,
+html body.dark .beauty-flow .beauty-flow-photo-empty,
+html body.dark .beauty-flow .beauty-flow-point-note,
+html body.dark .beauty-flow .beauty-compare-empty,
+html body.dark .beauty-flow .beauty-folder-cover,
+html #app.dark .beauty-flow .beauty-flow-services-list article,
+html #app.dark .beauty-flow .beauty-flow-profile-pick,
+html #app.dark .beauty-flow .beauty-flow-legacy-pick,
+html #app.dark .beauty-flow .beauty-flow-photo-empty,
+html #app.dark .beauty-flow .beauty-flow-point-note,
+html #app.dark .beauty-flow .beauty-compare-empty,
+html #app.dark .beauty-flow .beauty-folder-cover {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .beauty-flow .beauty-flow-profile-pick-active,
+html body.dark .beauty-flow .beauty-flow-legacy-pick-active,
+html body.dark .beauty-flow .beauty-flow-editor-selected,
+html #app.dark .beauty-flow .beauty-flow-profile-pick-active,
+html #app.dark .beauty-flow .beauty-flow-legacy-pick-active,
+html #app.dark .beauty-flow .beauty-flow-editor-selected {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .beauty-problems-modal,
+html #app.dark .beauty-problems-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .beauty-problems-modal h3,
+html #app.dark .beauty-problems-modal h3 { color: #f1f3f4 !important; }
+html body.dark .beauty-problems-modal > header p,
+html #app.dark .beauty-problems-modal > header p { color: #9aa0a6 !important; }
+html body.dark .beauty-problems-modal > header > button,
+html body.dark .beauty-problems-modal > footer button:first-child,
+html #app.dark .beauty-problems-modal > header > button,
+html #app.dark .beauty-problems-modal > footer button:first-child {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .beauty-problems-modal > form input,
+html #app.dark .beauty-problems-modal > form input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .beauty-problems-list,
+html #app.dark .beauty-problems-list {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .beauty-problems-list > span,
+html #app.dark .beauty-problems-list > span {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .beauty-flow .vpd-input-group,
+html #app.dark .beauty-flow .vpd-input-group {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .beauty-flow .beauty-flow-error,
+html #app.dark .beauty-flow .beauty-flow-error {
+  background: #3a1d1d !important;
+  color: #fecaca !important;
+}
+</style>

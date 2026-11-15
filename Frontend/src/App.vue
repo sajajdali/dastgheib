@@ -2011,7 +2011,16 @@ body.central-host #app {
 .dark .table-section,
 .dark .commission-panel,
 .dark .inventory-toolbar,
-.dark .table-wrap {
+.dark .table-wrap,
+.dark .beauty-flow-card,
+.dark .beauty-flow-create-panel,
+.dark .beauty-flow-record,
+.dark .beauty-flow-sidebar,
+.dark .beauty-flow-photo-panel,
+.dark .beauty-compare,
+.dark .beauty-folders,
+.dark .beauty-flow-editor,
+.dark .beauty-problems-modal {
   background: #1a1c22 !important;
   color: #e8eaed !important;
   border-color: #2c3038 !important;
