@@ -1204,18 +1204,24 @@ export default {
 
 :global(.dark) .menu-item {
   background: transparent !important;
-  color: #c5cad3 !important;
+  color: #f1f3f4 !important;
 }
 
 :global(.dark) .menu-item:hover {
-  border-color: #3a3f4a;
-  background: #22252d !important;
-  color: #e8eaed !important;
+  border-color: #5b6472;
+  background: #2a2f3a !important;
+  color: #fff !important;
 }
 
 :global(.dark) .menu-item.active {
-  background: #2a2f3a !important;
+  background: #2f3542 !important;
   color: #fff !important;
+  box-shadow: inset 0 0 0 1px #5b6472;
+}
+
+:global(.dark) .menu-dot {
+  background: #9aa0a6;
+  box-shadow: 0 0 0 3px rgba(154, 160, 166, .15);
 }
 
 :global(.dark) .more-submenu {

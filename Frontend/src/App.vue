@@ -1875,20 +1875,30 @@ body.central-host #app {
 
 }
 
-/* منو نباید نوار آبی یکدست شود؛ آیتم‌ها شفاف بمانند */
+/* منو: متن روشن و خوانا روی پس‌زمینه تیره */
 .dark .menu-item {
 
   background: transparent !important;
 
-  color: #c5cad3 !important;
+  color: #f1f3f4 !important;
+
+}
+
+.dark .menu-item:hover {
+
+  background: #2a2f3a !important;
+
+  color: #fff !important;
 
 }
 
 .dark .menu-item.active {
 
-  background: #2a2f3a !important;
+  background: #2f3542 !important;
 
   color: #fff !important;
+
+  box-shadow: inset 0 0 0 1px #5b6472;
 
 }
 

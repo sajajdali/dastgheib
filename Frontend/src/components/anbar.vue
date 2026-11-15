@@ -4742,191 +4742,291 @@ input[type="checkbox"] {
   .sm-actions .sm-btn { flex: 1; min-width: 0; }
 }
 
-/* ===== Dark mode: ساختار خدمات / آیتم‌ها ===== */
-:global(body.dark) .inventory-page,
-:global(#app.dark) .inventory-page { color: #e8eaed; background: transparent !important; }
-:global(body.dark) .section-panel,
-:global(body.dark) .table-section,
-:global(body.dark) .commission-panel,
-:global(body.dark) .chart-section,
-:global(body.dark) .inventory-toolbar,
-:global(body.dark) .table-wrap,
-:global(body.dark) .movement-page,
-:global(body.dark) .inventory-view-switch,
-:global(#app.dark) .section-panel,
-:global(#app.dark) .table-section,
-:global(#app.dark) .commission-panel,
-:global(#app.dark) .chart-section,
-:global(#app.dark) .inventory-toolbar,
-:global(#app.dark) .table-wrap,
-:global(#app.dark) .movement-page,
-:global(#app.dark) .inventory-view-switch {
+</style>
+
+<style>
+/* Dark mode for خدمات — unscoped so it always wins over local light rules */
+html body.dark .inventory-page,
+html #app.dark .inventory-page {
+  color: #e8eaed !important;
+  background: transparent !important;
+}
+html body.dark .inventory-page .section-panel,
+html body.dark .inventory-page .table-section,
+html body.dark .inventory-page .commission-panel,
+html body.dark .inventory-page .chart-section,
+html body.dark .inventory-page .inventory-toolbar,
+html body.dark .inventory-page .table-wrap,
+html body.dark .inventory-page .movement-page,
+html body.dark .inventory-page .inventory-view-switch,
+html #app.dark .inventory-page .section-panel,
+html #app.dark .inventory-page .table-section,
+html #app.dark .inventory-page .commission-panel,
+html #app.dark .inventory-page .chart-section,
+html #app.dark .inventory-page .inventory-toolbar,
+html #app.dark .inventory-page .table-wrap,
+html #app.dark .inventory-page .movement-page,
+html #app.dark .inventory-page .inventory-view-switch {
   background: #1a1c22 !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, .35) !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35) !important;
 }
-:global(body.dark) .inventory-structure-head h3,
-:global(body.dark) .panel-head h3,
-:global(body.dark) h3,
-:global(body.dark) .inventory-view-title h2,
-:global(#app.dark) .inventory-structure-head h3,
-:global(#app.dark) .panel-head h3,
-:global(#app.dark) h3,
-:global(#app.dark) .inventory-view-title h2 { color: #f1f3f4 !important; }
-:global(body.dark) p,
-:global(body.dark) .panel-head p,
-:global(body.dark) .inventory-view-title p,
-:global(#app.dark) p,
-:global(#app.dark) .panel-head p,
-:global(#app.dark) .inventory-view-title p { color: #9aa0a6 !important; }
-:global(body.dark) .inventory-tree-frame.expanded .inventory-tree,
-:global(#app.dark) .inventory-tree-frame.expanded .inventory-tree {
-  background: #22252d !important;
+html body.dark .inventory-page h3,
+html body.dark .inventory-page .panel-head h3,
+html body.dark .inventory-page .inventory-structure-head h3,
+html #app.dark .inventory-page h3,
+html #app.dark .inventory-page .panel-head h3,
+html #app.dark .inventory-page .inventory-structure-head h3 {
+  color: #f1f3f4 !important;
+}
+html body.dark .inventory-page p,
+html #app.dark .inventory-page p {
+  color: #9aa0a6 !important;
+}
+html body.dark .inventory-page .inventory-tree,
+html body.dark .inventory-page .inventory-tree-frame.expanded .inventory-tree,
+html #app.dark .inventory-page .inventory-tree,
+html #app.dark .inventory-page .inventory-tree-frame.expanded .inventory-tree {
+  background: #1a1c22 !important;
   border-color: #2c3038 !important;
-  box-shadow: 0 22px 50px rgba(0, 0, 0, .5) !important;
+  box-shadow: none !important;
 }
-:global(body.dark) .tree-node,
-:global(#app.dark) .tree-node {
+html body.dark .inventory-page .inventory-tree-frame.expanded .inventory-tree,
+html #app.dark .inventory-page .inventory-tree-frame.expanded .inventory-tree {
+  background: #22252d !important;
+  box-shadow: 0 22px 50px rgba(0,0,0,.55) !important;
+}
+html body.dark .inventory-page .tree-node,
+html body.dark .inventory-page .tree-node:hover,
+html body.dark .inventory-page .tree-node.active,
+html #app.dark .inventory-page .tree-node,
+html #app.dark .inventory-page .tree-node:hover,
+html #app.dark .inventory-page .tree-node.active {
   background: #22252d !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
 }
-:global(body.dark) .tree-node:hover,
-:global(#app.dark) .tree-node:hover { background: #2a2f3a !important; }
-:global(body.dark) .tree-node.active,
-:global(#app.dark) .tree-node.active {
+html body.dark .inventory-page .tree-node:hover,
+html #app.dark .inventory-page .tree-node:hover {
+  background: #2a2f3a !important;
+}
+html body.dark .inventory-page .tree-node.active,
+html #app.dark .inventory-page .tree-node.active {
   background: #2f3542 !important;
-  border-color: #4b5563 !important;
+  border-color: #5b6472 !important;
 }
-:global(body.dark) .tree-node input,
-:global(#app.dark) .tree-node input {
+html body.dark .inventory-page .tree-node input,
+html body.dark .inventory-page .tree-node:hover input,
+html body.dark .inventory-page .tree-node.active input,
+html #app.dark .inventory-page .tree-node input,
+html #app.dark .inventory-page .tree-node:hover input,
+html #app.dark .inventory-page .tree-node.active input {
   background: transparent !important;
-  color: #e8eaed !important;
+  color: #f1f3f4 !important;
   border: 0 !important;
   box-shadow: none !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
 }
-:global(body.dark) .tree-node.active input,
-:global(#app.dark) .tree-node.active input { color: #fff !important; }
-:global(body.dark) .tree-count,
-:global(#app.dark) .tree-count {
+html body.dark .inventory-page .tree-count,
+html #app.dark .inventory-page .tree-count {
   background: #121417 !important;
-  color: #9aa0a6 !important;
-}
-:global(body.dark) .inventory-inline-tabs,
-:global(#app.dark) .inventory-inline-tabs {
-  background: #121417 !important;
-  border-color: #2c3038 !important;
-}
-:global(body.dark) .inventory-search input,
-:global(body.dark) .inventory-toolbar input,
-:global(body.dark) .table-section input,
-:global(body.dark) .table-section select,
-:global(body.dark) .table-section textarea,
-:global(body.dark) .commission-panel input,
-:global(body.dark) .commission-panel select,
-:global(body.dark) td input,
-:global(body.dark) td select,
-:global(#app.dark) .inventory-search input,
-:global(#app.dark) .inventory-toolbar input,
-:global(#app.dark) .table-section input,
-:global(#app.dark) .table-section select,
-:global(#app.dark) .table-section textarea,
-:global(#app.dark) .commission-panel input,
-:global(#app.dark) .commission-panel select,
-:global(#app.dark) td input,
-:global(#app.dark) td select {
-  background: #121417 !important;
-  border-color: #3a3f4a !important;
-  color: #e8eaed !important;
-  box-shadow: none !important;
-}
-:global(body.dark) .service-tags-editor,
-:global(#app.dark) .service-tags-editor {
-  background: #121417 !important;
-  border-color: #3a3f4a !important;
-  box-shadow: none !important;
-}
-:global(body.dark) .service-tags-editor span,
-:global(#app.dark) .service-tags-editor span {
-  background: #2a2f3a !important;
-  border-color: #3a3f4a !important;
-  color: #d2d6dc !important;
-  box-shadow: none !important;
-}
-:global(body.dark) .service-tags-editor input,
-:global(body.dark) .service-tag-picker input,
-:global(#app.dark) .service-tags-editor input,
-:global(#app.dark) .service-tag-picker input {
-  background: #1a1c22 !important;
-  border-color: #3a3f4a !important;
   color: #c5cad3 !important;
 }
-:global(body.dark) .service-tag-popover,
-:global(#app.dark) .service-tag-popover {
-  background: #1a1c22 !important;
+html body.dark .inventory-page .tree-more-btn,
+html body.dark .inventory-page .tree-add-btn,
+html #app.dark .inventory-page .tree-more-btn,
+html #app.dark .inventory-page .tree-add-btn {
+  color: #c5cad3 !important;
+}
+html body.dark .inventory-page .tree-toggle-btn::before,
+html #app.dark .inventory-page .tree-toggle-btn::before {
+  border-top-color: #9aa0a6 !important;
+}
+html body.dark .inventory-page .section-color-btn,
+html body.dark .inventory-page .section-color-menu,
+html body.dark .inventory-page .tree-color-menu,
+html #app.dark .inventory-page .section-color-btn,
+html #app.dark .inventory-page .section-color-menu,
+html #app.dark .inventory-page .tree-color-menu {
+  background: #22252d !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
 }
-:global(body.dark) .commission-chip,
-:global(body.dark) .booking-settings-btn,
-:global(body.dark) .global-commission-btn,
-:global(body.dark) .service-tags-page-btn,
-:global(body.dark) .inventory-addons-page-btn,
-:global(body.dark) .icon-btn,
-:global(body.dark) .stock-cell button,
-:global(#app.dark) .commission-chip,
-:global(#app.dark) .booking-settings-btn,
-:global(#app.dark) .global-commission-btn,
-:global(#app.dark) .service-tags-page-btn,
-:global(#app.dark) .inventory-addons-page-btn,
-:global(#app.dark) .icon-btn,
-:global(#app.dark) .stock-cell button {
+html body.dark .inventory-page .inventory-search input,
+html body.dark .inventory-page .inventory-toolbar input,
+html body.dark .inventory-page .table-section input,
+html body.dark .inventory-page .table-section select,
+html body.dark .inventory-page .table-section textarea,
+html body.dark .inventory-page td input,
+html body.dark .inventory-page td select,
+html body.dark .inventory-page .commission-panel input,
+html body.dark .inventory-page .commission-panel select,
+html #app.dark .inventory-page .inventory-search input,
+html #app.dark .inventory-page .inventory-toolbar input,
+html #app.dark .inventory-page .table-section input,
+html #app.dark .inventory-page .table-section select,
+html #app.dark .inventory-page .table-section textarea,
+html #app.dark .inventory-page td input,
+html #app.dark .inventory-page td select,
+html #app.dark .inventory-page .commission-panel input,
+html #app.dark .inventory-page .commission-panel select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .inventory-page .service-tags-editor,
+html #app.dark .inventory-page .service-tags-editor {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  box-shadow: none !important;
+}
+html body.dark .inventory-page .service-tags-editor span,
+html #app.dark .inventory-page .service-tags-editor span {
   background: #2a2f3a !important;
   border-color: #3a3f4a !important;
-  color: #d2d6dc !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
 }
-:global(body.dark) .commission-chip small,
-:global(#app.dark) .commission-chip small { color: #9aa0a6 !important; }
-:global(body.dark) .commission-chip strong,
-:global(#app.dark) .commission-chip strong { color: #e8eaed !important; }
-:global(body.dark) .bulk-commission-bar,
-:global(#app.dark) .bulk-commission-bar {
+html body.dark .inventory-page .service-tags-editor input,
+html body.dark .inventory-page .service-tag-picker input,
+html #app.dark .inventory-page .service-tags-editor input,
+html #app.dark .inventory-page .service-tag-picker input {
+  background: #1a1c22 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .inventory-page .service-tag-popover,
+html #app.dark .inventory-page .service-tag-popover {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .inventory-page .commission-chip,
+html body.dark .inventory-page .booking-settings-btn,
+html body.dark .inventory-page .booking-table-cell,
+html body.dark .inventory-page .global-commission-btn,
+html body.dark .inventory-page .service-tags-page-btn,
+html body.dark .inventory-page .inventory-addons-page-btn,
+html body.dark .inventory-page .inventory-addons-btn,
+html body.dark .inventory-page .icon-btn,
+html body.dark .inventory-page .stock-cell button,
+html body.dark .inventory-page .row-duplicate,
+html body.dark .inventory-page .row-remove,
+html #app.dark .inventory-page .commission-chip,
+html #app.dark .inventory-page .booking-settings-btn,
+html #app.dark .inventory-page .booking-table-cell,
+html #app.dark .inventory-page .global-commission-btn,
+html #app.dark .inventory-page .service-tags-page-btn,
+html #app.dark .inventory-page .inventory-addons-page-btn,
+html #app.dark .inventory-page .inventory-addons-btn,
+html #app.dark .inventory-page .icon-btn,
+html #app.dark .inventory-page .stock-cell button,
+html #app.dark .inventory-page .row-duplicate,
+html #app.dark .inventory-page .row-remove {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .inventory-page .booking-table-cell span,
+html body.dark .inventory-page .booking-table-cell b,
+html body.dark .inventory-page .booking-table-cell small,
+html body.dark .inventory-page .booking-table-icon,
+html #app.dark .inventory-page .booking-table-cell span,
+html #app.dark .inventory-page .booking-table-cell b,
+html #app.dark .inventory-page .booking-table-cell small,
+html #app.dark .inventory-page .booking-table-icon {
+  color: #f1f3f4 !important;
+}
+html body.dark .inventory-page .booking-table-cell:hover,
+html #app.dark .inventory-page .booking-table-cell:hover {
+  background: #3a3f4a !important;
+  border-color: #5b6472 !important;
+  color: #fff !important;
+}
+html body.dark .inventory-page .booking-table-cell.enabled,
+html body.dark .inventory-page .booking-table-cell.enabled:hover,
+html #app.dark .inventory-page .booking-table-cell.enabled,
+html #app.dark .inventory-page .booking-table-cell.enabled:hover {
+  background: #14532d !important;
+  border-color: #166534 !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .inventory-page .inventory-structure-head,
+html #app.dark .inventory-page .inventory-structure-head {
+  border-bottom-color: #2c3038 !important;
+}
+html body.dark .inventory-page .inventory-addons-parent,
+html #app.dark .inventory-page .inventory-addons-parent {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .inventory-page .commission-chip small,
+html #app.dark .inventory-page .commission-chip small { color: #9aa0a6 !important; }
+html body.dark .inventory-page .commission-chip strong,
+html body.dark .inventory-page .booking-settings-btn b,
+html body.dark .inventory-page .booking-settings-btn small,
+html #app.dark .inventory-page .commission-chip strong,
+html #app.dark .inventory-page .booking-settings-btn b,
+html #app.dark .inventory-page .booking-settings-btn small {
+  color: #f1f3f4 !important;
+}
+html body.dark .inventory-page .bulk-commission-bar,
+html #app.dark .inventory-page .bulk-commission-bar {
   background: #22252d !important;
   border-color: #2c3038 !important;
 }
-:global(body.dark) table th,
-:global(#app.dark) table th {
+html body.dark .inventory-page table th,
+html #app.dark .inventory-page table th {
   background: #22252d !important;
-  color: #9aa0a6 !important;
+  color: #c5cad3 !important;
   border-color: #2c3038 !important;
 }
-:global(body.dark) table td,
-:global(#app.dark) table td {
+html body.dark .inventory-page table td,
+html #app.dark .inventory-page table td {
   background: #1a1c22 !important;
   color: #e8eaed !important;
   border-color: #2c3038 !important;
 }
-:global(body.dark) .inventory-branch-message,
-:global(#app.dark) .inventory-branch-message {
+html body.dark .inventory-page .inventory-branch-message,
+html #app.dark .inventory-page .inventory-branch-message {
   background: #22252d !important;
   border-color: #2c3038 !important;
   color: #9aa0a6 !important;
 }
-:global(body.dark) .commission-modal,
-:global(body.dark) .modal-head,
-:global(body.dark) .booking-hero,
-:global(body.dark) .booking-pane,
-:global(body.dark) .booking-off-state,
-:global(body.dark) .sm-modal,
-:global(#app.dark) .commission-modal,
-:global(#app.dark) .modal-head,
-:global(#app.dark) .booking-hero,
-:global(#app.dark) .booking-pane,
-:global(#app.dark) .booking-off-state,
-:global(#app.dark) .sm-modal {
+html body.dark .inventory-page .inventory-inline-tabs,
+html #app.dark .inventory-page .inventory-inline-tabs {
+  background: #121417 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .inventory-page .inventory-inline-tabs button,
+html #app.dark .inventory-page .inventory-inline-tabs button {
+  color: #c5cad3 !important;
+}
+html body.dark .inventory-page .search-icon,
+html body.dark .inventory-page .search-result-count,
+html #app.dark .inventory-page .search-icon,
+html #app.dark .inventory-page .search-result-count {
+  color: #9aa0a6 !important;
+}
+html body.dark .inventory-page .commission-modal,
+html body.dark .inventory-page .modal-head,
+html body.dark .sm-modal,
+html body.dark .booking-hero,
+html body.dark .booking-pane,
+html body.dark .booking-off-state,
+html #app.dark .inventory-page .commission-modal,
+html #app.dark .inventory-page .modal-head,
+html #app.dark .sm-modal,
+html #app.dark .booking-hero,
+html #app.dark .booking-pane,
+html #app.dark .booking-off-state {
   background: #1a1c22 !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
 }
 </style>
+
