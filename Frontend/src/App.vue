@@ -3247,4 +3247,49 @@ html #app.dark .service-page-hero small,
 html #app.dark .service-question-card small { color: #93c5fd !important; }
 html body.dark .service-question-card footer button:disabled,
 html #app.dark .service-question-card footer button:disabled { background: #2a2f3a !important; color: #9aa0a6 !important; }
+html body.dark .profile-page,
+html #app.dark .profile-page { background: transparent !important; color: #e8eaed !important; }
+html body.dark .profile-editor-modal,
+html #app.dark .profile-editor-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .profile-editor-modal h2,
+html body.dark .profile-editor-body strong,
+html #app.dark .profile-editor-modal h2,
+html #app.dark .profile-editor-body strong { color: #f1f3f4 !important; }
+html body.dark .profile-editor-modal header small,
+html #app.dark .profile-editor-modal header small { color: #93c5fd !important; }
+html body.dark .profile-editor-body,
+html #app.dark .profile-editor-body { background: #22252d !important; border-color: #3a3f4a !important; }
+html body.dark .profile-editor-body small,
+html #app.dark .profile-editor-body small { color: #9aa0a6 !important; }
+html body.dark .profile-editor-fields label,
+html #app.dark .profile-editor-fields label { color: #e8eaed !important; }
+html body.dark .profile-editor-fields input,
+html #app.dark .profile-editor-fields input {
+  background: #121417 !important;
+  border: 1px solid #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+html body.dark .profile-editor-fields input::placeholder,
+html #app.dark .profile-editor-fields input::placeholder {
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+  opacity: 1 !important;
+}
+html body.dark .profile-gender-picker,
+html #app.dark .profile-gender-picker { background: #121417 !important; border-color: #3a3f4a !important; }
+html body.dark .profile-gender-picker button,
+html #app.dark .profile-gender-picker button { background: #22252d !important; color: #c5cad3 !important; box-shadow: none !important; }
+html body.dark .profile-gender-picker button.active,
+html #app.dark .profile-gender-picker button.active { background: #4f8cff !important; color: #fff !important; }
+html body.dark .profile-remove-btn,
+html #app.dark .profile-remove-btn { background: #3a2426 !important; border-color: #7f1d1d !important; color: #fca5a5 !important; }
+html body.dark .profile-editor-modal header button,
+html #app.dark .profile-editor-modal header button { background: #2a2f3a !important; color: #e8eaed !important; }
 </style>

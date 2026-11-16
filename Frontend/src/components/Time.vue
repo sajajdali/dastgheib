@@ -17067,4 +17067,46 @@ html body.dark .completion-sms-card.failed,
 html #app.dark .completion-sms-card.failed { background: #3a2426 !important; border-color: #7f1d1d !important; }
 html body.dark .row-actions-menu > button:hover,
 html #app.dark .row-actions-menu > button:hover { background: #323846 !important; color: #f1f3f4 !important; }
+html body.dark .financial-transaction-history,
+html #app.dark .financial-transaction-history {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .financial-transaction-history > header,
+html #app.dark .financial-transaction-history > header { color: #f1f3f4 !important; }
+html body.dark .financial-transaction-history > header small,
+html #app.dark .financial-transaction-history > header small { background: #1e3a5f !important; color: #93c5fd !important; }
+html body.dark .financial-transaction-history article,
+html #app.dark .financial-transaction-history article {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .financial-transaction-history article > div > b,
+html #app.dark .financial-transaction-history article > div > b { color: #f1f3f4 !important; }
+html body.dark .financial-transaction-history article > div > small,
+html body.dark .financial-transaction-audit time,
+html #app.dark .financial-transaction-history article > div > small,
+html #app.dark .financial-transaction-audit time { color: #9aa0a6 !important; }
+html body.dark .financial-transaction-audit span,
+html #app.dark .financial-transaction-audit span { color: #c5cad3 !important; }
+html body.dark .financial-payment-allocation,
+html #app.dark .financial-payment-allocation { background: #2a2f3a !important; color: #c5cad3 !important; }
+html body.dark .financial-transaction-type,
+html #app.dark .financial-transaction-type { background: #14352a !important; color: #86efac !important; }
+html body.dark .financial-transaction-type.type-debt,
+html body.dark .financial-transaction-type.type-payment_void,
+html #app.dark .financial-transaction-type.type-debt,
+html #app.dark .financial-transaction-type.type-payment_void { background: #3a2426 !important; color: #fca5a5 !important; }
+html body.dark .financial-transaction-type.type-deposit,
+html #app.dark .financial-transaction-type.type-deposit { background: #2e2440 !important; color: #c4b5fd !important; }
+html body.dark .financial-transaction-type.type-debt_settlement,
+html #app.dark .financial-transaction-type.type-debt_settlement { background: #3a3420 !important; color: #fcd34d !important; }
+html body.dark .financial-transaction-delete,
+html #app.dark .financial-transaction-delete {
+  background: #3a2426 !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
 </style>

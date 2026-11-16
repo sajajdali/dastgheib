@@ -394,3 +394,146 @@ onMounted(fetchPaymentOptions)
 .service-table-actions{display:flex;align-items:center;gap:10px;position:relative;z-index:5;padding:16px 20px;border-top:1px solid #e8eef6;background:#fff;border-radius:0 0 24px 24px}.service-table-actions>div{display:grid;margin-left:auto}.service-table-actions strong{font-size:12px}.service-table-actions small{margin-top:3px;color:#94a3b8;font-size:9px}.service-table-actions button{height:40px;padding:0 14px;border-radius:11px;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.add-row-btn{display:flex;align-items:center;gap:7px;border:0;background:#2563eb;color:#fff;box-shadow:0 8px 18px rgba(37,99,235,.2)}.add-row-btn span{font-size:19px}
 @media(max-width:800px){.service-finder-page{padding:14px}.service-finder-hero{align-items:flex-start;flex-direction:column;padding:19px}.service-stats{width:100%}.service-stats span{flex:1}.service-table-actions{align-items:stretch;flex-direction:column}.service-table-actions>div{margin:0 0 5px;width:100%}.service-table-actions button{width:100%}.picker-modal-layer{align-items:end;padding:0}.picker-panel{width:100%;max-height:86vh;border-radius:22px 22px 0 0}.option-list{grid-template-columns:1fr;max-height:55vh}.table-card-head{align-items:stretch;flex-direction:column;gap:10px}.table-card-head>div:first-child{margin-left:0}.management-menus{display:grid;grid-template-columns:1fr 1fr}.management-menu-btn{width:100%;justify-content:center}.service-problem-search{width:100%;flex:auto}.service-filter-bar{grid-template-columns:1fr;padding:12px}.service-filter-count{justify-self:stretch;text-align:center}}
 </style>
+
+<style>
+html body.dark .service-finder-page,
+html #app.dark .service-finder-page { background: #121316 !important; color: #e8eaed !important; }
+html body.dark .service-finder-hero,
+html body.dark .service-table-card,
+html body.dark .service-table-actions,
+html body.dark .picker-panel,
+html body.dark .option-list,
+html body.dark .option-add,
+html #app.dark .service-finder-hero,
+html #app.dark .service-table-card,
+html #app.dark .service-table-actions,
+html #app.dark .picker-panel,
+html #app.dark .option-list,
+html #app.dark .option-add {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .service-finder-hero h1,
+html body.dark .table-card-head h2,
+html body.dark .service-table-actions strong,
+html body.dark .picker-panel header strong,
+html #app.dark .service-finder-hero h1,
+html #app.dark .table-card-head h2,
+html #app.dark .service-table-actions strong,
+html #app.dark .picker-panel header strong { color: #f1f3f4 !important; }
+html body.dark .service-finder-hero p,
+html body.dark .service-stats span,
+html body.dark .service-table-actions small,
+html body.dark .picker-panel header small,
+html body.dark .picker-empty,
+html body.dark .picker-placeholder,
+html body.dark .money-input small,
+html #app.dark .service-finder-hero p,
+html #app.dark .service-stats span,
+html #app.dark .service-table-actions small,
+html #app.dark .picker-panel header small,
+html #app.dark .picker-empty,
+html #app.dark .picker-placeholder,
+html #app.dark .money-input small { color: #9aa0a6 !important; }
+html body.dark .service-stats span,
+html body.dark .service-filter-bar,
+html body.dark .service-table-scroll th,
+html #app.dark .service-stats span,
+html #app.dark .service-filter-bar,
+html #app.dark .service-table-scroll th {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .service-stats b,
+html #app.dark .service-stats b { color: #93c5fd !important; }
+html body.dark .table-card-head,
+html body.dark .picker-panel header,
+html #app.dark .table-card-head,
+html #app.dark .picker-panel header { border-color: #2c3038 !important; }
+html body.dark .service-table-scroll td,
+html #app.dark .service-table-scroll td { background: #1a1c22 !important; border-color: #2c3038 !important; color: #e8eaed !important; }
+html body.dark .service-table-scroll tbody tr:hover td,
+html #app.dark .service-table-scroll tbody tr:hover td { background: #22252d !important; }
+html body.dark .instant-search,
+html body.dark .picker-search,
+html body.dark .money-input,
+html body.dark .picker-trigger,
+html body.dark .service-table-scroll input,
+html body.dark .service-table-scroll textarea,
+html body.dark .service-table-scroll select,
+html #app.dark .instant-search,
+html #app.dark .picker-search,
+html #app.dark .money-input,
+html #app.dark .picker-trigger,
+html #app.dark .service-table-scroll input,
+html #app.dark .service-table-scroll textarea,
+html #app.dark .service-table-scroll select {
+  background: #121417 !important;
+  border: 1px solid #3a3f4a !important;
+  color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+html body.dark .instant-search input,
+html body.dark .picker-search input,
+html body.dark .money-input input,
+html #app.dark .instant-search input,
+html #app.dark .picker-search input,
+html #app.dark .money-input input {
+  background: transparent !important;
+  border: 0 !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+html body.dark .service-finder-page input::placeholder,
+html body.dark .service-finder-page textarea::placeholder,
+html #app.dark .service-finder-page input::placeholder,
+html #app.dark .service-finder-page textarea::placeholder {
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+  opacity: 1 !important;
+}
+html body.dark .instant-search svg,
+html #app.dark .instant-search svg { stroke: #9aa0a6 !important; }
+html body.dark .instant-search button,
+html body.dark .picker-search button,
+html body.dark .picker-panel header > button,
+html body.dark .picker-trigger > b,
+html body.dark .service-filter-count,
+html #app.dark .instant-search button,
+html #app.dark .picker-search button,
+html #app.dark .picker-panel header > button,
+html #app.dark .picker-trigger > b,
+html #app.dark .service-filter-count { background: #2a2f3a !important; color: #e8eaed !important; }
+html body.dark .management-menu-btn,
+html #app.dark .management-menu-btn { background: #1e3a5f !important; border-color: #3a4f6a !important; color: #93c5fd !important; }
+html body.dark .management-menu-btn.green,
+html #app.dark .management-menu-btn.green { background: #14352a !important; border-color: #166534 !important; color: #86efac !important; }
+html body.dark .selection-chip,
+html #app.dark .selection-chip { background: #1e3a5f !important; color: #93c5fd !important; }
+html body.dark .selection-chip.green,
+html #app.dark .selection-chip.green { background: #14352a !important; color: #86efac !important; }
+html body.dark .option-item,
+html body.dark .management-option,
+html #app.dark .option-item,
+html #app.dark .management-option { background: #22252d !important; border-color: #3a3f4a !important; color: #e8eaed !important; }
+html body.dark .option-item.selected,
+html #app.dark .option-item.selected { background: #1e3a5f !important; border-color: #4f8cff !important; color: #f1f3f4 !important; }
+html body.dark .option-check,
+html #app.dark .option-check { border-color: #3a3f4a !important; }
+html body.dark .delete-service-row,
+html body.dark .clear-service-filters,
+html body.dark .option-delete,
+html body.dark .management-option button,
+html #app.dark .delete-service-row,
+html #app.dark .clear-service-filters,
+html #app.dark .option-delete,
+html #app.dark .management-option button { background: #3a2426 !important; border-color: #7f1d1d !important; color: #fca5a5 !important; }
+html body.dark .add-row-btn,
+html body.dark .option-add button,
+html #app.dark .add-row-btn,
+html #app.dark .option-add button { background: #4f8cff !important; color: #fff !important; }
+</style>
