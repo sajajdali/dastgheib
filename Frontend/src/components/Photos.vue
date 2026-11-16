@@ -269,3 +269,201 @@ export default {
 @media(max-width:700px){.photos-filter-primary,.photos-filter-secondary{grid-template-columns:1fr}.photos-filter-primary .search-main{grid-column:auto}.photos-filter-actions{justify-content:stretch}.photo-icon-action{flex:1}}
 .result-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 14px;padding:0 0 12px;border-bottom:1px solid #eef2f7}.result-nav-count{color:#475569;font-size:12px;font-weight:900}.result-nav-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid #dbe3ec;border-radius:11px;background:#fff;color:#1e293b;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}.result-nav-btn:hover{border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}.result-nav-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 </style>
+
+<style>
+/* Dark charcoal: photos-page */
+html body.dark .photos-page,
+html #app.dark .photos-page {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .photos-page .photos-title h1,
+html body.dark .photos-page .viewer-meta h2,
+html body.dark .photos-page .comparison-results strong,
+html body.dark .photos-page .before-after-grid header b,
+html #app.dark .photos-page .photos-title h1,
+html #app.dark .photos-page .viewer-meta h2,
+html #app.dark .photos-page .comparison-results strong,
+html #app.dark .photos-page .before-after-grid header b {
+  color: #f1f3f4 !important;
+}
+html body.dark .photos-page .photos-title p,
+html body.dark .photos-page .viewer-meta p,
+html body.dark .photos-page .comparison-results small,
+html body.dark .photos-page .before-after-grid header small,
+html body.dark .photos-page .result-nav-count,
+html body.dark .photos-page .result-section-title,
+html body.dark .photos-page .missing-photo,
+html body.dark .photos-page .search-main span,
+html #app.dark .photos-page .photos-title p,
+html #app.dark .photos-page .viewer-meta p,
+html #app.dark .photos-page .comparison-results small,
+html #app.dark .photos-page .before-after-grid header small,
+html #app.dark .photos-page .result-nav-count,
+html #app.dark .photos-page .result-section-title,
+html #app.dark .photos-page .missing-photo,
+html #app.dark .photos-page .search-main span {
+  color: #9aa0a6 !important;
+}
+html body.dark .photos-page .photos-title > span,
+html #app.dark .photos-page .photos-title > span {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .photos-page .advanced-search,
+html body.dark .photos-page .comparison-viewer,
+html body.dark .photos-page .photos-loading,
+html body.dark .photos-page .photos-empty,
+html body.dark .photos-page .comparison-results > button,
+html body.dark .photos-page .photos-date-field,
+html body.dark .photos-page .complete-filter,
+html body.dark .photos-page .angle-view-nav,
+html body.dark .photos-page .result-nav-btn,
+html body.dark .photos-page .angle-filter-row button,
+html body.dark .photos-page .angle-view-nav > div button,
+html body.dark .photos-page .before-after-grid header,
+html #app.dark .photos-page .advanced-search,
+html #app.dark .photos-page .comparison-viewer,
+html #app.dark .photos-page .photos-loading,
+html #app.dark .photos-page .photos-empty,
+html #app.dark .photos-page .comparison-results > button,
+html #app.dark .photos-page .photos-date-field,
+html #app.dark .photos-page .complete-filter,
+html #app.dark .photos-page .angle-view-nav,
+html #app.dark .photos-page .result-nav-btn,
+html #app.dark .photos-page .angle-filter-row button,
+html #app.dark .photos-page .angle-view-nav > div button,
+html #app.dark .photos-page .before-after-grid header {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.32) !important;
+}
+html body.dark .photos-page .advanced-search input,
+html body.dark .photos-page .advanced-search select,
+html body.dark .photos-page .tag-search-filter select,
+html body.dark .photos-page .photos-date-input,
+html body.dark .photos-page .photos-date-field :deep(.photos-date-input),
+html body.dark .photos-page .photos-date-field .photos-date-input,
+html #app.dark .photos-page .advanced-search input,
+html #app.dark .photos-page .advanced-search select,
+html #app.dark .photos-page .tag-search-filter select,
+html #app.dark .photos-page .photos-date-input,
+html #app.dark .photos-page .photos-date-field .photos-date-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .photos-page .clear-btn,
+html #app.dark .photos-page .clear-btn {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .photos-page .search-btn,
+html #app.dark .photos-page .search-btn {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .photos-page .comparison-results > button:hover,
+html body.dark .photos-page .result-nav-btn:hover,
+html body.dark .photos-page .angle-filter-row button:hover,
+html body.dark .photos-page .angle-view-nav > button:hover,
+html #app.dark .photos-page .comparison-results > button:hover,
+html #app.dark .photos-page .result-nav-btn:hover,
+html #app.dark .photos-page .angle-filter-row button:hover,
+html #app.dark .photos-page .angle-view-nav > button:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+  color: #e8eaed !important;
+}
+html body.dark .photos-page .comparison-results > button.active,
+html body.dark .photos-page .angle-filter-row button.active,
+html body.dark .photos-page .angle-view-nav > div button.active,
+html #app.dark .photos-page .comparison-results > button.active,
+html #app.dark .photos-page .angle-filter-row button.active,
+html #app.dark .photos-page .angle-view-nav > div button.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+  box-shadow: 0 0 0 2px rgba(79,140,255,.25) !important;
+}
+html body.dark .photos-page .comparison-results > button.featured,
+html #app.dark .photos-page .comparison-results > button.featured {
+  background: linear-gradient(180deg,#2a2416,#1a1c22) !important;
+  border-color: #f6c453 !important;
+}
+html body.dark .photos-page .result-thumbs,
+html #app.dark .photos-page .result-thumbs {
+  background: #121417 !important;
+}
+html body.dark .photos-page .tiny-tags em,
+html body.dark .photos-page .viewer-tags span,
+html #app.dark .photos-page .tiny-tags em,
+html #app.dark .photos-page .viewer-tags span {
+  background: #14352a !important;
+  color: #86efac !important;
+}
+html body.dark .photos-page .viewer-facts span,
+html body.dark .photos-page .photo-download-btn,
+html body.dark .photos-page .angle-view-nav > button,
+html #app.dark .photos-page .viewer-facts span,
+html #app.dark .photos-page .photo-download-btn,
+html #app.dark .photos-page .angle-view-nav > button {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+html body.dark .photos-page .photo-download-btn:hover,
+html #app.dark .photos-page .photo-download-btn:hover {
+  background: #254a73 !important;
+  border-color: #60a5fa !important;
+}
+html body.dark .photos-page .consent-filter,
+html #app.dark .photos-page .consent-filter {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .photos-page .photos-error,
+html #app.dark .photos-page .photos-error {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .photos-page .result-section-title b,
+html #app.dark .photos-page .result-section-title b {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .photos-page .featured-title,
+html #app.dark .photos-page .featured-title { color: #fbbf24 !important; }
+html body.dark .photos-page .featured-title b,
+html #app.dark .photos-page .featured-title b {
+  background: #3a2e14 !important;
+  color: #fde68a !important;
+}
+html body.dark .photos-page .result-nav,
+html #app.dark .photos-page .result-nav {
+  border-bottom-color: #2c3038 !important;
+}
+html body.dark .photos-page .before-after-grid article,
+html #app.dark .photos-page .before-after-grid article {
+  background: #0b0c0f !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .photos-page .photos-date-field :deep(.vpd-icon-btn),
+html #app.dark .photos-page .photos-date-field :deep(.vpd-icon-btn) {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+/* date input deep styles often lose to scoped !important — beat them */
+html body.dark .photos-page .photos-date-field input,
+html body.dark .photos-page input.photos-date-input,
+html #app.dark .photos-page .photos-date-field input,
+html #app.dark .photos-page input.photos-date-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+</style>
