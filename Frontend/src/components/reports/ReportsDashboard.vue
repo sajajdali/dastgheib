@@ -17,3 +17,188 @@ import axios from 'axios'; import ReportCard from './ReportCard.vue';
 export default {components:{ReportCard},emits:['open-patient'],data:()=>({filters:{from:'1405/02/01',to:'1405/04/31'},report:null,loading:false,error:'',sort:'revenue',drillData:null}),computed:{sortedServices(){return [...(this.report?.services||[])].sort((a,b)=>b[this.sort]-a[this.sort]);},prettyDrill(){return JSON.stringify(this.drillData,null,2)}},mounted(){this.load()},methods:{fa(v){return Number(v||0).toLocaleString('fa-IR')},money(v){return `${this.fa(v)} تومان`},bar(v){const max=Math.max(...(this.report?.sales_timeline||[]).map(x=>x.revenue),1);return `${Math.max(8,Number(v)/max*130)}px`},async load(){this.loading=true;this.error='';try{const {data}=await axios.get('/api/reports/dashboard',{params:this.filters});this.report=data}catch(e){this.error=e.response?.data?.message||'گزارش دریافت نشد.'}finally{this.loading=false}},async drill(metric){try{const {data}=await axios.get(`/api/reports/drilldown/${metric}`,{params:this.filters});this.drillData=data}catch(e){this.error='جزئیات دریافت نشد.'}},exportReport(){const q=new URLSearchParams(this.filters);window.open(`/api/reports/export?${q}`,'_blank')}}}
 </script>
 <style scoped>.reports{min-height:calc(100vh - 140px);padding:22px;background:#f1f4f9;color:#0f172a}.head,.filters,.two{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.head h1,.panel h2,.timeline h2{margin:4px 0;font-size:20px}.head small{color:#2563eb;font-weight:900}.head button,.filters button,.tabs button{border:0;border-radius:10px;padding:10px 14px;background:#2563eb;color:white;font-family:inherit;font-weight:900;cursor:pointer}.filters{margin:16px 0;padding:14px;border-radius:16px;background:#fff}.filters label{display:grid;gap:5px;font-size:11px;font-weight:900}.filters input{height:38px;border:1px solid #cbd5e1;border-radius:9px;padding:0 10px;font-family:inherit}.timeline,.panel{margin-bottom:16px;padding:18px;border:1px solid #e2e8f0;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.04)}.timeline-bars{height:190px;display:flex;gap:11px;align-items:end;overflow:auto}.timeline-bars article{min-width:88px;display:grid;gap:5px;justify-items:center}.timeline-bars b{width:28px;border-radius:8px 8px 0 0;background:linear-gradient(#38bdf8,#2563eb)}.timeline-bars strong{font-size:10px}.timeline-bars small,.rows em{color:#64748b;font-size:9px;font-style:normal}.kpis,.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:16px}.grid .panel{margin:0}.rate{font-size:30px;color:#2563eb}.rows{display:grid;gap:8px}.rows p{display:grid;grid-template-columns:1fr auto;gap:5px;margin:0;padding:10px;border-radius:10px;background:#f8fafc;font-size:12px}.rows em{grid-column:1/-1}.two{align-items:stretch}.two>.panel{width:calc(50% - 6px)}.wide{width:100%}.tabs{display:flex;gap:6px;margin-bottom:10px}.tabs button{background:#e2e8f0;color:#475569}.tabs button.active{background:#2563eb;color:#fff}.birthdays{display:grid;gap:6px;max-height:230px;overflow:auto}.birthdays button{display:flex;justify-content:space-between;border:0;border-radius:9px;padding:10px;background:#f8fafc;font-family:inherit;cursor:pointer}.birthdays small{color:#64748b}.loading,.error,.empty{padding:34px;text-align:center;border-radius:16px;background:#fff;color:#64748b}.loading i{display:inline-block;width:19px;height:19px;margin-left:8px;border:3px solid #bfdbfe;border-top-color:#2563eb;border-radius:50%;animation:s .7s linear infinite}.error{color:#b91c1c}.modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:16px;background:rgba(15,23,42,.55)}.modal section{width:min(700px,96vw);max-height:80vh;overflow:auto;padding:20px;border-radius:16px;background:white}.modal button{float:left;border:0;background:#e2e8f0;border-radius:8px;font-size:20px}@keyframes s{to{transform:rotate(360deg)}}@media(max-width:800px){.reports{padding:12px}.two>.panel{width:100%}}</style>
+
+<style>
+/* Dark charcoal: reports-static */
+html body.dark .nsr,
+html body.dark .reports-dashboard,
+html body.dark .report-card,
+html body.dark .native-reports,
+html body.dark .static-reports,
+html #app.dark .nsr,
+html #app.dark .reports-dashboard,
+html #app.dark .report-card,
+html #app.dark .native-reports,
+html #app.dark .static-reports {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .report-card,
+html body.dark .nsr-card,
+html body.dark .dashboard-card,
+html body.dark .stat-card,
+html #app.dark .report-card,
+html #app.dark .nsr-card,
+html #app.dark .dashboard-card,
+html #app.dark .stat-card {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .report-card:hover,
+html body.dark .nsr-card:hover,
+html #app.dark .report-card:hover,
+html #app.dark .nsr-card:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .nsr input,
+html body.dark .nsr select,
+html body.dark .reports-dashboard input,
+html body.dark .reports-dashboard select,
+html body.dark .report-card input,
+html body.dark .report-card select,
+html #app.dark .nsr input,
+html #app.dark .nsr select,
+html #app.dark .reports-dashboard input,
+html #app.dark .reports-dashboard select,
+html #app.dark .report-card input,
+html #app.dark .report-card select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .nsr table th,
+html body.dark .reports-dashboard table th,
+html #app.dark .nsr table th,
+html #app.dark .reports-dashboard table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+}
+html body.dark .nsr table td,
+html body.dark .reports-dashboard table td,
+html #app.dark .nsr table td,
+html #app.dark .reports-dashboard table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .nsr h1,
+html body.dark .nsr h2,
+html body.dark .nsr h3,
+html body.dark .reports-dashboard h1,
+html body.dark .reports-dashboard h2,
+html body.dark .reports-dashboard h3,
+html body.dark .report-card h3,
+html #app.dark .nsr h1,
+html #app.dark .nsr h2,
+html #app.dark .nsr h3,
+html #app.dark .reports-dashboard h1,
+html #app.dark .reports-dashboard h2,
+html #app.dark .reports-dashboard h3,
+html #app.dark .report-card h3 { color: #f1f3f4 !important; }
+html body.dark .nsr p,
+html body.dark .reports-dashboard p,
+html body.dark .report-card p,
+html body.dark .muted,
+html #app.dark .nsr p,
+html #app.dark .reports-dashboard p,
+html #app.dark .report-card p { color: #9aa0a6 !important; }
+</style>
+
+<style>
+/* ReportsDashboard dark mode */
+html body.dark .reports,
+html #app.dark .reports {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .reports .head h1,
+html body.dark .reports .panel h2,
+html body.dark .reports .timeline h2,
+html body.dark .reports .rate,
+html body.dark .reports .rows b,
+html #app.dark .reports .head h1,
+html #app.dark .reports .panel h2,
+html #app.dark .reports .timeline h2,
+html #app.dark .reports .rate,
+html #app.dark .reports .rows b {
+  color: #f1f3f4 !important;
+}
+html body.dark .reports .head small,
+html #app.dark .reports .head small {
+  color: #4f8cff !important;
+}
+html body.dark .reports .filters,
+html body.dark .reports .timeline,
+html body.dark .reports .panel,
+html body.dark .reports .loading,
+html body.dark .reports .empty,
+html body.dark .reports .error,
+html body.dark .reports .modal section,
+html #app.dark .reports .filters,
+html #app.dark .reports .timeline,
+html #app.dark .reports .panel,
+html #app.dark .reports .loading,
+html #app.dark .reports .empty,
+html #app.dark .reports .error,
+html #app.dark .reports .modal section {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
+}
+html body.dark .reports .filters input,
+html #app.dark .reports .filters input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .reports .rows p,
+html body.dark .reports .birthdays button,
+html body.dark .reports .tabs button,
+html #app.dark .reports .rows p,
+html #app.dark .reports .birthdays button,
+html #app.dark .reports .tabs button {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .reports .tabs button.active,
+html #app.dark .reports .tabs button.active {
+  background: #2a3a52 !important;
+  color: #93c5fd !important;
+}
+html body.dark .reports .rows em,
+html body.dark .reports .birthdays small,
+html body.dark .reports .timeline-bars small,
+html body.dark .reports .loading,
+html body.dark .reports .empty,
+html #app.dark .reports .rows em,
+html #app.dark .reports .birthdays small,
+html #app.dark .reports .timeline-bars small,
+html #app.dark .reports .loading,
+html #app.dark .reports .empty {
+  color: #9aa0a6 !important;
+}
+html body.dark .reports .error,
+html #app.dark .reports .error {
+  color: #f5a8a0 !important;
+}
+html body.dark .reports .modal,
+html #app.dark .reports .modal {
+  background: rgba(0,0,0,.62) !important;
+}
+html body.dark .reports .modal button,
+html #app.dark .reports .modal button {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+}
+html body.dark .reports .birthdays button:hover,
+html body.dark .reports .rows p:hover,
+html #app.dark .reports .birthdays button:hover,
+html #app.dark .reports .rows p:hover {
+  background: #2a2f3a !important;
+}
+</style>

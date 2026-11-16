@@ -6557,3 +6557,1133 @@ export default {
   z-index: 2147483580 !important;
 }
 .automatic-sms-hint{margin:0 16px 12px!important;color:#64748b!important;font-size:10.5px!important;line-height:1.8}.automatic-sms-cell .landing-multi-trigger b{color:#7c3aed}.landing-sms-modal-overlay{position:fixed;inset:0;z-index:1000010;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.landing-sms-modal{width:min(520px,96vw);overflow:hidden;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.landing-sms-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.landing-sms-modal header small{color:#2563eb;font-size:11px;font-weight:900}.landing-sms-modal h3{margin:4px 0;font-size:18px}.landing-sms-modal p{margin:0;color:#64748b;font-size:11px}.landing-sms-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.landing-sms-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding:16px}.landing-sms-list label{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:11px;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer}.landing-sms-list label.selected{border-color:#93c5fd;background:#eff6ff}.landing-sms-list label.sent{border-color:#86efac;background:#f0fdf4}.landing-sms-list input{width:17px;height:17px;accent-color:#2563eb}.landing-sms-list span{display:grid;gap:3px}.landing-sms-list b{font-size:12px}.landing-sms-list small{color:#64748b;font-size:10px}.landing-sms-list i{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-weight:1000}.landing-sms-empty{padding:20px;text-align:center}.landing-sms-error{margin:0 16px 12px!important;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c!important}.landing-sms-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #e2e8f0}.landing-sms-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.landing-sms-cancel{background:#e2e8f0;color:#475569}.landing-sms-send{background:#2563eb;color:#fff}.landing-sms-send:disabled{opacity:.55;cursor:wait}.followup-appointment-overlay{position:fixed;inset:0;z-index:1000011;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.56);backdrop-filter:blur(5px)}.followup-appointment-modal{width:min(570px,96vw);overflow:visible;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.followup-appointment-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.followup-appointment-modal header small{color:#2563eb;font-size:11px;font-weight:900}.followup-appointment-modal h3{margin:4px 0;font-size:18px}.followup-appointment-modal header p{margin:0;color:#64748b;font-size:11px}.followup-appointment-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.followup-appointment-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:18px}.followup-appointment-form label{display:grid;gap:6px;color:#475569;font-size:11px;font-weight:900}.followup-appointment-form label.full{grid-column:1/-1}.followup-appointment-form input,.followup-appointment-form select,.followup-appointment-form textarea{width:100%;min-height:40px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#1e293b;font:inherit;outline:0}.followup-appointment-form textarea{min-height:78px;resize:vertical}.followup-appointment-form input:focus,.followup-appointment-form select:focus,.followup-appointment-form textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.followup-appointment-modal :deep(.vpd-container){z-index:1000020!important}.followup-appointment-error{margin:0 18px 14px;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:800}.followup-appointment-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid #e2e8f0}.followup-appointment-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.followup-appointment-cancel{background:#e2e8f0;color:#475569}.followup-appointment-save{background:#2563eb;color:#fff}.followup-appointment-save:disabled{opacity:.55;cursor:wait}@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}@media(max-width:540px){.followup-appointment-form{grid-template-columns:1fr}.followup-appointment-modal footer{padding:12px}.followup-appointment-modal footer button{flex:1}}</style>
+
+<style>
+/* Dark mode پیگیری (flwup) — unscoped charcoal overrides */
+/* DARK_MODE_FLWUP */
+html body.dark .flwup-root,
+html #app.dark .flwup-root {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .page-shell,
+html #app.dark .flwup-root .page-shell {
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .title,
+html body.dark .flwup-root .modal-title,
+html body.dark .flwup-root .campaign-title,
+html body.dark .flwup-root .chart-title,
+html body.dark .flwup-root .side-card-title,
+html body.dark .flwup-root .empty-title,
+html body.dark .flwup-root .person-name,
+html #app.dark .flwup-root .title,
+html #app.dark .flwup-root .modal-title,
+html #app.dark .flwup-root .campaign-title,
+html #app.dark .flwup-root .chart-title,
+html #app.dark .flwup-root .side-card-title,
+html #app.dark .flwup-root .empty-title,
+html #app.dark .flwup-root .person-name {
+  color: #f1f3f4 !important;
+}
+html body.dark .flwup-root .subtitle,
+html body.dark .flwup-root .modal-subtitle,
+html body.dark .flwup-root .empty-text,
+html body.dark .flwup-root .person-meta,
+html body.dark .flwup-root .meta-label,
+html body.dark .flwup-root .score-label,
+html body.dark .flwup-root .score-from,
+html body.dark .flwup-root .stat-title,
+html body.dark .flwup-root .field-hint,
+html body.dark .flwup-root .automatic-sms-hint,
+html body.dark .flwup-root .empty-state,
+html #app.dark .flwup-root .subtitle,
+html #app.dark .flwup-root .modal-subtitle,
+html #app.dark .flwup-root .empty-text,
+html #app.dark .flwup-root .person-meta,
+html #app.dark .flwup-root .meta-label,
+html #app.dark .flwup-root .score-label,
+html #app.dark .flwup-root .score-from,
+html #app.dark .flwup-root .stat-title,
+html #app.dark .flwup-root .field-hint,
+html #app.dark .flwup-root .automatic-sms-hint,
+html #app.dark .flwup-root .empty-state {
+  color: #9aa0a6 !important;
+}
+
+/* Campaign cards + empty states */
+html body.dark .flwup-root .campaign-card,
+html body.dark .flwup-root .empty-campaigns,
+html body.dark .flwup-root .archive-empty-state,
+html body.dark .flwup-root .chart-card,
+html body.dark .flwup-root .table-panel,
+html body.dark .flwup-root .side-card,
+html body.dark .flwup-root .campaign-modal,
+html body.dark .flwup-root .campaign-table-modal,
+html #app.dark .flwup-root .campaign-card,
+html #app.dark .flwup-root .empty-campaigns,
+html #app.dark .flwup-root .archive-empty-state,
+html #app.dark .flwup-root .chart-card,
+html #app.dark .flwup-root .table-panel,
+html #app.dark .flwup-root .side-card,
+html #app.dark .flwup-root .campaign-modal,
+html #app.dark .flwup-root .campaign-table-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .32) !important;
+}
+html body.dark .flwup-root .campaign-card:hover,
+html #app.dark .flwup-root .campaign-card:hover {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .4) !important;
+}
+html body.dark .flwup-root .campaign-card.danger,
+html #app.dark .flwup-root .campaign-card.danger {
+  background: linear-gradient(180deg, #5a1f1f, #3a1515) !important;
+  border-color: #ef4444 !important;
+  color: #fecaca !important;
+}
+html body.dark .flwup-root .campaign-card.archived,
+html #app.dark .flwup-root .campaign-card.archived {
+  background: linear-gradient(180deg, #1a1c22, #1e1a28) !important;
+  border-color: #4c3b6e !important;
+}
+html body.dark .flwup-root .meta-chip,
+html #app.dark .flwup-root .meta-chip {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .flwup-root .meta-value,
+html #app.dark .flwup-root .meta-value {
+  color: #f1f3f4 !important;
+}
+html body.dark .flwup-root .urgent-pill,
+html #app.dark .flwup-root .urgent-pill {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .flwup-root .campaign-pin-btn,
+html #app.dark .flwup-root .campaign-pin-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .flwup-root .campaign-pin-btn:hover,
+html body.dark .flwup-root .campaign-pin-btn.pinned,
+html #app.dark .flwup-root .campaign-pin-btn:hover,
+html #app.dark .flwup-root .campaign-pin-btn.pinned {
+  background: #3a2f1a !important;
+  border-color: #b45309 !important;
+  color: #fbbf24 !important;
+}
+html body.dark .flwup-root .campaign-banner-indicator,
+html #app.dark .flwup-root .campaign-banner-indicator {
+  background: #2a2f3a !important;
+  color: #93c5fd !important;
+}
+
+/* Stats — keep semantic hues as dark-muted variants */
+html body.dark .flwup-root .stat-card.answered,
+html #app.dark .flwup-root .stat-card.answered {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .flwup-root .stat-card.noanswer,
+html #app.dark .flwup-root .stat-card.noanswer {
+  background: #3a1d24 !important;
+  border-color: #9f1239 !important;
+  color: #fda4af !important;
+}
+html body.dark .flwup-root .stat-card.pending,
+html #app.dark .flwup-root .stat-card.pending {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .flwup-root .stat-card.oktime,
+html #app.dark .flwup-root .stat-card.oktime {
+  background: #163528 !important;
+  border-color: #15803d !important;
+  color: #86efac !important;
+}
+html body.dark .flwup-root .stat-card .stat-title,
+html #app.dark .flwup-root .stat-card .stat-title {
+  color: inherit !important;
+  opacity: .78;
+}
+html body.dark .flwup-root .score-excellent,
+html #app.dark .flwup-root .score-excellent {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .flwup-root .score-good,
+html #app.dark .flwup-root .score-good {
+  background: #1e3a5f !important;
+  border-color: #1d4ed8 !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .score-medium,
+html #app.dark .flwup-root .score-medium {
+  background: #3a2f14 !important;
+  border-color: #b45309 !important;
+  color: #fcd34d !important;
+}
+html body.dark .flwup-root .score-low,
+html #app.dark .flwup-root .score-low {
+  background: #3a1d24 !important;
+  border-color: #9f1239 !important;
+  color: #fda4af !important;
+}
+html body.dark .flwup-root .bar-track,
+html #app.dark .flwup-root .bar-track {
+  background: #2a2f3a !important;
+}
+html body.dark .flwup-root .bar-label,
+html body.dark .flwup-root .bar-num,
+html #app.dark .flwup-root .bar-label,
+html #app.dark .flwup-root .bar-num {
+  color: #c5cad3 !important;
+}
+
+/* Today / missed / archive banners */
+html body.dark .flwup-root .today-alert-box,
+html #app.dark .flwup-root .today-alert-box {
+  background: linear-gradient(180deg, #2a1a1a, #1a1c22) !important;
+  border-color: #7f1d1d !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35) !important;
+}
+html body.dark .flwup-root .today-alert-title,
+html #app.dark .flwup-root .today-alert-title {
+  color: #fca5a5 !important;
+}
+html body.dark .flwup-root .today-alert-desc,
+html #app.dark .flwup-root .today-alert-desc {
+  color: #f5c2c2 !important;
+}
+html body.dark .flwup-root .today-followup-item,
+html #app.dark .flwup-root .today-followup-item {
+  background: #22252d !important;
+  border-color: #3a1f24 !important;
+}
+html body.dark .flwup-root .quick-open-btn,
+html #app.dark .flwup-root .quick-open-btn {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .flwup-root .missed-followups-panel,
+html #app.dark .flwup-root .missed-followups-panel {
+  background: #2a1a1a !important;
+  border-color: #7f1d1d !important;
+}
+html body.dark .flwup-root .missed-followups-panel h3,
+html #app.dark .flwup-root .missed-followups-panel h3 {
+  color: #fca5a5 !important;
+}
+html body.dark .flwup-root .missed-followup-row,
+html #app.dark .flwup-root .missed-followup-row {
+  border-bottom-color: #3a1f24 !important;
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .archive-view-banner,
+html #app.dark .flwup-root .archive-view-banner {
+  background: linear-gradient(135deg, #1e1a28, #1a1c22) !important;
+  border-color: #4c3b6e !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35) !important;
+}
+html body.dark .flwup-root .archive-view-banner strong,
+html #app.dark .flwup-root .archive-view-banner strong {
+  color: #e9d5ff !important;
+}
+html body.dark .flwup-root .archive-view-banner small,
+html #app.dark .flwup-root .archive-view-banner small {
+  color: #c4b5fd !important;
+}
+html body.dark .flwup-root .archive-view-banner span,
+html #app.dark .flwup-root .archive-view-banner span {
+  background: #2a2340 !important;
+  color: #ddd6fe !important;
+}
+html body.dark .flwup-root .archive-view-banner button,
+html body.dark .flwup-root .archive-empty-state button,
+html #app.dark .flwup-root .archive-view-banner button,
+html #app.dark .flwup-root .archive-empty-state button {
+  background: #22252d !important;
+  border-color: #4c3b6e !important;
+  color: #ddd6fe !important;
+}
+html body.dark .flwup-root .archive-view-banner button:hover,
+html body.dark .flwup-root .archive-empty-state button:hover,
+html #app.dark .flwup-root .archive-view-banner button:hover,
+html #app.dark .flwup-root .archive-empty-state button:hover {
+  background: #2a2340 !important;
+  border-color: #8b5cf6 !important;
+  color: #f1f3f4 !important;
+}
+
+/* Toolbar actions */
+html body.dark .flwup-root .followup-action,
+html #app.dark .flwup-root .followup-action {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .flwup-root .followup-action:hover,
+html #app.dark .flwup-root .followup-action:hover {
+  background: #2a2f3a !important;
+  border-color: #4f8cff !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .flwup-root .followup-action b,
+html #app.dark .flwup-root .followup-action b {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .followup-action.create-action,
+html #app.dark .flwup-root .followup-action.create-action {
+  background: #1e3a5f !important;
+  border-color: #2563eb !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .followup-action.create-action:hover,
+html #app.dark .flwup-root .followup-action.create-action:hover {
+  background: #1e40af !important;
+  color: #fff !important;
+}
+html body.dark .flwup-root .followup-action.missed-action,
+html body.dark .flwup-root .followup-action.missed-action.active,
+html #app.dark .flwup-root .followup-action.missed-action,
+html #app.dark .flwup-root .followup-action.missed-action.active {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .flwup-root .followup-action.missed-action b,
+html #app.dark .flwup-root .followup-action.missed-action b {
+  background: #450a0a !important;
+  color: #fecaca !important;
+}
+html body.dark .flwup-root .followup-action.general-followup-action,
+html #app.dark .flwup-root .followup-action.general-followup-action {
+  background: #2a2340 !important;
+  border-color: #6d28d9 !important;
+  color: #c4b5fd !important;
+}
+html body.dark .flwup-root .followup-action.general-followup-action:hover,
+html #app.dark .flwup-root .followup-action.general-followup-action:hover {
+  background: #3b2a5c !important;
+  color: #ede9fe !important;
+}
+html body.dark .flwup-root .followup-action.appointment-followups-action,
+html #app.dark .flwup-root .followup-action.appointment-followups-action {
+  background: #14352a !important;
+  border-color: #0f766e !important;
+  color: #5eead4 !important;
+}
+html body.dark .flwup-root .followup-action.appointment-followups-action:hover,
+html #app.dark .flwup-root .followup-action.appointment-followups-action:hover {
+  background: #115e59 !important;
+  color: #ccfbf1 !important;
+}
+html body.dark .flwup-root .followup-action.archive-action.active,
+html #app.dark .flwup-root .followup-action.archive-action.active {
+  background: #6d28d9 !important;
+  border-color: #8b5cf6 !important;
+  color: #fff !important;
+}
+html body.dark .flwup-root .campaign-footer > button,
+html body.dark .flwup-root .campaign-edit-btn,
+html body.dark .flwup-root .open-btn,
+html body.dark .flwup-root .archive-btn,
+html #app.dark .flwup-root .campaign-footer > button,
+html #app.dark .flwup-root .campaign-edit-btn,
+html #app.dark .flwup-root .open-btn,
+html #app.dark .flwup-root .archive-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .campaign-edit-btn:hover,
+html body.dark .flwup-root .campaign-footer > button:hover,
+html body.dark .flwup-root .open-btn:hover,
+html #app.dark .flwup-root .campaign-edit-btn:hover,
+html #app.dark .flwup-root .campaign-footer > button:hover,
+html #app.dark .flwup-root .open-btn:hover {
+  background: #2a2f3a !important;
+  border-color: #4f8cff !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .flwup-root .delete-btn,
+html #app.dark .flwup-root .delete-btn {
+  background: #450a0a !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+
+/* Campaign status select */
+html body.dark .flwup-root .campaign-status-active,
+html #app.dark .flwup-root .campaign-status-active {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .flwup-root .campaign-status-paused,
+html #app.dark .flwup-root .campaign-status-paused {
+  background: #3a2f14 !important;
+  border-color: #b45309 !important;
+  color: #fcd34d !important;
+}
+html body.dark .flwup-root .campaign-status-finished,
+html #app.dark .flwup-root .campaign-status-finished {
+  background: #1e3a5f !important;
+  border-color: #1d4ed8 !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .campaign-status-archived,
+html #app.dark .flwup-root .campaign-status-archived {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+  color: #c5cad3 !important;
+}
+
+/* Header icon actions inside campaign table */
+html body.dark .flwup-root .campaign-icon-action,
+html #app.dark .flwup-root .campaign-icon-action {
+  background: #1e3a5f !important;
+  border-color: #2563eb !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .campaign-icon-action:hover,
+html #app.dark .flwup-root .campaign-icon-action:hover {
+  background: #1e40af !important;
+  color: #fff !important;
+}
+html body.dark .flwup-root .campaign-excel-action,
+html #app.dark .flwup-root .campaign-excel-action {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .flwup-root .campaign-attachment-link,
+html #app.dark .flwup-root .campaign-attachment-link {
+  background: #2a2340 !important;
+  color: #c4b5fd !important;
+}
+html body.dark .flwup-root .campaign-form-banners > div,
+html #app.dark .flwup-root .campaign-form-banners > div {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .flwup-root .campaign-form-banners span,
+html #app.dark .flwup-root .campaign-form-banners span {
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .campaign-form-error,
+html body.dark .flwup-root .landing-sms-error,
+html body.dark .flwup-root .followup-appointment-error,
+html #app.dark .flwup-root .campaign-form-error,
+html #app.dark .flwup-root .landing-sms-error,
+html #app.dark .flwup-root .followup-appointment-error {
+  background: #3a1d1d !important;
+  color: #fca5a5 !important;
+}
+
+/* Forms / inputs */
+html body.dark .flwup-root .field label,
+html #app.dark .flwup-root .field label {
+  color: #c5cad3 !important;
+}
+html body.dark .flwup-root input,
+html body.dark .flwup-root select,
+html body.dark .flwup-root textarea,
+html body.dark .flwup-root .date-input,
+html body.dark .flwup-root .table-date-input,
+html body.dark .flwup-root .row-input,
+html body.dark .flwup-root .vpd-input-group input,
+html body.dark .flwup-root .phone-input-wrap input,
+html body.dark .flwup-root .followup-phone-input,
+html #app.dark .flwup-root input,
+html #app.dark .flwup-root select,
+html #app.dark .flwup-root textarea,
+html #app.dark .flwup-root .date-input,
+html #app.dark .flwup-root .table-date-input,
+html #app.dark .flwup-root .row-input,
+html #app.dark .flwup-root .vpd-input-group input,
+html #app.dark .flwup-root .phone-input-wrap input,
+html #app.dark .flwup-root .followup-phone-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+html body.dark .flwup-root input:focus,
+html body.dark .flwup-root select:focus,
+html body.dark .flwup-root textarea:focus,
+html body.dark .flwup-root .contacts-table input:focus,
+html body.dark .flwup-root .contacts-table select:focus,
+html #app.dark .flwup-root input:focus,
+html #app.dark .flwup-root select:focus,
+html #app.dark .flwup-root textarea:focus,
+html #app.dark .flwup-root .contacts-table input:focus,
+html #app.dark .flwup-root .contacts-table select:focus {
+  border-color: #4f8cff !important;
+  background: #121417 !important;
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, .18) !important;
+}
+html body.dark .flwup-root .phone-input-wrap.duplicate input,
+html #app.dark .flwup-root .phone-input-wrap.duplicate input {
+  border-color: #ef4444 !important;
+  background: #2a1515 !important;
+}
+
+/* Report filter panels */
+html body.dark .flwup-root .report-filter-tabs,
+html body.dark .flwup-root .report-filter-panel,
+html #app.dark .flwup-root .report-filter-tabs,
+html #app.dark .flwup-root .report-filter-panel {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .flwup-root .report-filter-tabs button,
+html #app.dark .flwup-root .report-filter-tabs button {
+  color: #9aa0a6 !important;
+  background: transparent !important;
+}
+html body.dark .flwup-root .report-filter-tabs button.active,
+html #app.dark .flwup-root .report-filter-tabs button.active {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .flwup-root .report-filter-tabs > span,
+html #app.dark .flwup-root .report-filter-tabs > span {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .flwup-root .report-filter-group > b,
+html #app.dark .flwup-root .report-filter-group > b {
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .report-filter-chips label,
+html #app.dark .flwup-root .report-filter-chips label {
+  background: #1a1c22 !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .flwup-root .report-filter-chips label.selected,
+html #app.dark .flwup-root .report-filter-chips label.selected {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .report-filter-actions button,
+html #app.dark .flwup-root .report-filter-actions button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+
+/* Contacts table */
+html body.dark .flwup-root .contacts-table,
+html #app.dark .flwup-root .contacts-table {
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .contacts-table thead th,
+html body.dark .flwup-root .campaign-table-modal .contacts-table thead th,
+html #app.dark .flwup-root .contacts-table thead th,
+html #app.dark .flwup-root .campaign-table-modal .contacts-table thead th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .flwup-root .contacts-table td,
+html body.dark .flwup-root .campaign-table-modal .contacts-table td,
+html #app.dark .flwup-root .contacts-table td,
+html #app.dark .flwup-root .campaign-table-modal .contacts-table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .flwup-root .contacts-table tbody tr:hover td,
+html #app.dark .flwup-root .contacts-table tbody tr:hover td {
+  background: #22252d !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .flwup-root .contacts-table tbody tr.duplicate-phone-row td,
+html #app.dark .flwup-root .contacts-table tbody tr.duplicate-phone-row td {
+  background: #3a1d1d !important;
+}
+html body.dark .flwup-root .campaign-table-modal .contacts-table tbody tr.followup-highlight-row td,
+html #app.dark .flwup-root .campaign-table-modal .contacts-table tbody tr.followup-highlight-row td {
+  background: #3a3214 !important;
+  color: #fde68a !important;
+  box-shadow: inset 0 2px 0 #ca8a04, inset 0 -2px 0 #ca8a04 !important;
+}
+html body.dark .flwup-root .filtered-cell,
+html #app.dark .flwup-root .filtered-cell {
+  background: #1e3a5f !important;
+}
+
+/* Status / interest / gender cells — muted but distinguishable */
+html body.dark .flwup-root .status-ok,
+html #app.dark .flwup-root .status-ok {
+  background: #166534 !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .flwup-root .status-no,
+html #app.dark .flwup-root .status-no {
+  background: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .flwup-root .status-wrong,
+html #app.dark .flwup-root .status-wrong {
+  background: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .flwup-root .status-follow,
+html #app.dark .flwup-root .status-follow {
+  background: #4c3b6e !important;
+  color: #e9d5ff !important;
+}
+html body.dark .flwup-root .interest-1,
+html #app.dark .flwup-root .interest-1 {
+  background: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .flwup-root .interest-2,
+html #app.dark .flwup-root .interest-2 {
+  background: #78350f !important;
+  color: #fde68a !important;
+}
+html body.dark .flwup-root .interest-3,
+html #app.dark .flwup-root .interest-3 {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .interest-ok,
+html #app.dark .flwup-root .interest-ok {
+  background: #166534 !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .flwup-root .gender-female,
+html #app.dark .flwup-root .gender-female {
+  background: #5b3a1a !important;
+  color: #fdba74 !important;
+}
+html body.dark .flwup-root .gender-male,
+html #app.dark .flwup-root .gender-male {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .followup-row-delete-btn,
+html #app.dark .flwup-root .followup-row-delete-btn {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .flwup-root .followup-row-delete-btn:hover,
+html #app.dark .flwup-root .followup-row-delete-btn:hover {
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+html body.dark .flwup-root .alert-card,
+html #app.dark .flwup-root .alert-card {
+  background: #2a1a1a !important;
+  border-color: #7f1d1d !important;
+}
+
+/* Filter dropdowns + subsection / landing menus */
+html body.dark .flwup-root .filter-dropdown,
+html body.dark .flwup-root .subsection-menu-floating,
+html body.dark .flwup-root .landing-multi-menu,
+html body.dark .landing-multi-menu-floating,
+html body.dark .subsection-menu-floating,
+html #app.dark .flwup-root .filter-dropdown,
+html #app.dark .flwup-root .subsection-menu-floating,
+html #app.dark .flwup-root .landing-multi-menu,
+html #app.dark .landing-multi-menu-floating,
+html #app.dark .subsection-menu-floating {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .45) !important;
+}
+html body.dark .flwup-root .filter-option,
+html body.dark .flwup-root .subsection-option,
+html body.dark .flwup-root .landing-multi-menu label,
+html body.dark .landing-multi-menu label,
+html body.dark .subsection-option,
+html #app.dark .flwup-root .filter-option,
+html #app.dark .flwup-root .subsection-option,
+html #app.dark .flwup-root .landing-multi-menu label,
+html #app.dark .landing-multi-menu label,
+html #app.dark .subsection-option {
+  color: #e8eaed !important;
+  background: transparent !important;
+}
+html body.dark .flwup-root .filter-option:hover,
+html body.dark .flwup-root .subsection-option:hover,
+html body.dark .flwup-root .landing-multi-menu label:hover,
+html body.dark .landing-multi-menu label:hover,
+html body.dark .subsection-option:hover,
+html #app.dark .flwup-root .filter-option:hover,
+html #app.dark .flwup-root .subsection-option:hover,
+html #app.dark .flwup-root .landing-multi-menu label:hover,
+html #app.dark .landing-multi-menu label:hover,
+html #app.dark .subsection-option:hover {
+  background: #2a2f3a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .flwup-root .subsection-trigger,
+html body.dark .flwup-root .landing-multi-trigger,
+html #app.dark .flwup-root .subsection-trigger,
+html #app.dark .flwup-root .landing-multi-trigger {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .flwup-root .subsection-trigger.active,
+html #app.dark .flwup-root .subsection-trigger.active {
+  background: #2a2340 !important;
+  border-color: #8b5cf6 !important;
+  color: #ddd6fe !important;
+}
+html body.dark .flwup-root .landing-multi-trigger.active,
+html #app.dark .flwup-root .landing-multi-trigger.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .flwup-root .landing-multi-title,
+html body.dark .landing-multi-title,
+html #app.dark .flwup-root .landing-multi-title,
+html #app.dark .landing-multi-title {
+  color: #e8eaed !important;
+  border-bottom-color: #2c3038 !important;
+}
+html body.dark .flwup-root .landing-multi-empty,
+html body.dark .landing-multi-empty,
+html #app.dark .flwup-root .landing-multi-empty,
+html #app.dark .landing-multi-empty {
+  color: #9aa0a6 !important;
+}
+html body.dark .flwup-root .automatic-sms-cell .landing-multi-trigger b,
+html #app.dark .flwup-root .automatic-sms-cell .landing-multi-trigger b {
+  color: #c4b5fd !important;
+}
+
+/* Modals that teleport / sit outside scoped root sometimes */
+html body.dark .landing-sms-modal,
+html body.dark .followup-appointment-modal,
+html body.dark .history-modal,
+html body.dark .description-modal,
+html body.dark .followup-profile-modal,
+html body.dark .banner-gallery-shell,
+html body.dark .banner-upload-loading-card,
+html #app.dark .landing-sms-modal,
+html #app.dark .followup-appointment-modal,
+html #app.dark .history-modal,
+html #app.dark .description-modal,
+html #app.dark .followup-profile-modal,
+html #app.dark .banner-gallery-shell,
+html #app.dark .banner-upload-loading-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .55) !important;
+}
+html body.dark .landing-sms-modal header,
+html body.dark .followup-appointment-modal header,
+html body.dark .history-modal > header,
+html body.dark .description-modal header,
+html body.dark .followup-profile-modal > header,
+html body.dark .banner-gallery-shell > header,
+html #app.dark .landing-sms-modal header,
+html #app.dark .followup-appointment-modal header,
+html #app.dark .history-modal > header,
+html #app.dark .description-modal header,
+html #app.dark .followup-profile-modal > header,
+html #app.dark .banner-gallery-shell > header {
+  background: #22252d !important;
+  border-bottom-color: #2c3038 !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .landing-sms-modal header small,
+html body.dark .followup-appointment-modal header small,
+html body.dark .history-modal small,
+html body.dark .description-modal header small,
+html body.dark .followup-profile-modal small,
+html body.dark .banner-gallery-shell header small,
+html #app.dark .landing-sms-modal header small,
+html #app.dark .followup-appointment-modal header small,
+html #app.dark .history-modal small,
+html #app.dark .description-modal header small,
+html #app.dark .followup-profile-modal small,
+html #app.dark .banner-gallery-shell header small {
+  color: #4f8cff !important;
+}
+html body.dark .landing-sms-modal h3,
+html body.dark .followup-appointment-modal h3,
+html body.dark .history-modal h3,
+html body.dark .description-modal h3,
+html body.dark .followup-profile-modal h3,
+html body.dark .banner-gallery-shell h2,
+html #app.dark .landing-sms-modal h3,
+html #app.dark .followup-appointment-modal h3,
+html #app.dark .history-modal h3,
+html #app.dark .description-modal h3,
+html #app.dark .followup-profile-modal h3,
+html #app.dark .banner-gallery-shell h2 {
+  color: #f1f3f4 !important;
+}
+html body.dark .landing-sms-modal p,
+html body.dark .followup-appointment-modal header p,
+html body.dark .history-modal p,
+html body.dark .banner-gallery-shell header p,
+html body.dark .followup-profile-modal header p,
+html body.dark .automatic-sms-hint,
+html #app.dark .landing-sms-modal p,
+html #app.dark .followup-appointment-modal header p,
+html #app.dark .history-modal p,
+html #app.dark .banner-gallery-shell header p,
+html #app.dark .followup-profile-modal header p,
+html #app.dark .automatic-sms-hint {
+  color: #9aa0a6 !important;
+}
+html body.dark .landing-sms-modal header button,
+html body.dark .followup-appointment-modal header button,
+html body.dark .history-modal > header > button,
+html body.dark .description-modal header button,
+html body.dark .followup-profile-modal header button,
+html body.dark .campaign-modal-header > button,
+html #app.dark .landing-sms-modal header button,
+html #app.dark .followup-appointment-modal header button,
+html #app.dark .history-modal > header > button,
+html #app.dark .description-modal header button,
+html #app.dark .followup-profile-modal header button,
+html #app.dark .campaign-modal-header > button {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .landing-sms-list label,
+html #app.dark .landing-sms-list label {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .landing-sms-list label:hover,
+html #app.dark .landing-sms-list label:hover {
+  background: #2a2f3a !important;
+}
+html body.dark .landing-sms-list label.selected,
+html #app.dark .landing-sms-list label.selected {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+}
+html body.dark .landing-sms-list label.sent,
+html #app.dark .landing-sms-list label.sent {
+  background: #14352a !important;
+  border-color: #166534 !important;
+}
+html body.dark .landing-sms-list small,
+html body.dark .landing-sms-empty,
+html #app.dark .landing-sms-list small,
+html #app.dark .landing-sms-empty {
+  color: #9aa0a6 !important;
+}
+html body.dark .landing-sms-cancel,
+html body.dark .followup-appointment-cancel,
+html #app.dark .landing-sms-cancel,
+html #app.dark .followup-appointment-cancel {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .landing-sms-send,
+html body.dark .followup-appointment-save,
+html #app.dark .landing-sms-send,
+html #app.dark .followup-appointment-save {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .followup-appointment-form label,
+html #app.dark .followup-appointment-form label {
+  color: #9aa0a6 !important;
+}
+html body.dark .followup-appointment-form input,
+html body.dark .followup-appointment-form select,
+html body.dark .followup-appointment-form textarea,
+html body.dark .description-modal textarea,
+html #app.dark .followup-appointment-form input,
+html #app.dark .followup-appointment-form select,
+html #app.dark .followup-appointment-form textarea,
+html #app.dark .description-modal textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .history-timeline,
+html body.dark .history-card,
+html body.dark .followup-profile-body,
+html body.dark .followup-profile-stats span,
+html body.dark .followup-profile-details,
+html body.dark .banner-gallery-grid article,
+html #app.dark .history-timeline,
+html #app.dark .history-card,
+html #app.dark .followup-profile-body,
+html #app.dark .followup-profile-stats span,
+html #app.dark .followup-profile-details,
+html #app.dark .banner-gallery-grid article {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .followup-profile-hint,
+html body.dark .followup-profile-loading,
+html body.dark .followup-profile-error,
+html body.dark .banner-upload-loading-card small,
+html #app.dark .followup-profile-hint,
+html #app.dark .followup-profile-loading,
+html #app.dark .followup-profile-error,
+html #app.dark .banner-upload-loading-card small {
+  color: #9aa0a6 !important;
+}
+html body.dark .campaign-modal-header,
+html body.dark .campaign-modal-title,
+html body.dark .campaign-modal-meta,
+html #app.dark .campaign-modal-header,
+html #app.dark .campaign-modal-title,
+html #app.dark .campaign-modal-meta {
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .modal-actions button,
+html #app.dark .modal-actions button {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .bulk-phone-paste-notice,
+html #app.dark .bulk-phone-paste-notice {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+  border-color: #2563eb !important;
+}
+</style>
+
+<style>
+/* Dark charcoal: followups-page */
+html body.dark .page-shell,
+html #app.dark .page-shell {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .page-shell .campaign-card,
+html body.dark .page-shell .chart-card,
+html body.dark .page-shell .missed-followups-panel,
+html body.dark .page-shell .stat-card,
+html body.dark .campaign-modal,
+html body.dark .campaign-table-modal,
+html body.dark .report-filter-panel,
+html body.dark .table-panel,
+html body.dark .auto-assign-panel,
+html body.dark .landing-sms-modal,
+html body.dark .followup-appointment-modal,
+html body.dark .history-modal,
+html body.dark .followup-profile-modal,
+html #app.dark .page-shell .campaign-card,
+html #app.dark .page-shell .chart-card,
+html #app.dark .page-shell .missed-followups-panel,
+html #app.dark .page-shell .stat-card,
+html #app.dark .campaign-modal,
+html #app.dark .campaign-table-modal,
+html #app.dark .report-filter-panel,
+html #app.dark .table-panel,
+html #app.dark .auto-assign-panel,
+html #app.dark .landing-sms-modal,
+html #app.dark .followup-appointment-modal,
+html #app.dark .history-modal,
+html #app.dark .followup-profile-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.32) !important;
+}
+html body.dark .page-shell .campaign-card:hover,
+html #app.dark .page-shell .campaign-card:hover {
+  background: #22252d !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .page-shell .stat-card.answered,
+html #app.dark .page-shell .stat-card.answered {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .page-shell .stat-card.noanswer,
+html #app.dark .page-shell .stat-card.noanswer {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .page-shell .stat-card.pending,
+html #app.dark .page-shell .stat-card.pending {
+  background: #3a2e14 !important;
+  border-color: #a16207 !important;
+  color: #fde68a !important;
+}
+html body.dark .page-shell .stat-card.oktime,
+html #app.dark .page-shell .stat-card.oktime {
+  background: #1e3a5f !important;
+  border-color: #1e40af !important;
+  color: #93c5fd !important;
+}
+html body.dark .campaign-modal-header,
+html body.dark .landing-sms-modal header,
+html body.dark .followup-appointment-modal header,
+html body.dark .history-modal header,
+html body.dark .campaign-card-top,
+html body.dark .title-wrap,
+html #app.dark .campaign-modal-header,
+html #app.dark .landing-sms-modal header,
+html #app.dark .followup-appointment-modal header,
+html #app.dark .history-modal header,
+html #app.dark .campaign-card-top,
+html #app.dark .title-wrap {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .page-shell h2,
+html body.dark .page-shell h3,
+html body.dark .campaign-modal-title,
+html body.dark .modal-title,
+html #app.dark .page-shell h2,
+html #app.dark .page-shell h3,
+html #app.dark .campaign-modal-title,
+html #app.dark .modal-title { color: #f1f3f4 !important; }
+html body.dark .page-shell small,
+html body.dark .page-shell p,
+html body.dark .modal-subtitle,
+html body.dark .campaign-modal-meta,
+html body.dark .automatic-sms-hint,
+html #app.dark .page-shell small,
+html #app.dark .page-shell p,
+html #app.dark .modal-subtitle,
+html #app.dark .campaign-modal-meta,
+html #app.dark .automatic-sms-hint { color: #9aa0a6 !important; }
+html body.dark .page-shell input,
+html body.dark .page-shell select,
+html body.dark .page-shell textarea,
+html body.dark .campaign-modal input,
+html body.dark .campaign-modal select,
+html body.dark .campaign-modal textarea,
+html body.dark .campaign-table-modal input,
+html body.dark .campaign-table-modal select,
+html body.dark .campaign-table-modal textarea,
+html body.dark .followup-appointment-form input,
+html body.dark .followup-appointment-form select,
+html body.dark .followup-appointment-form textarea,
+html body.dark .filter-dropdown,
+html body.dark .subsection-menu-floating,
+html #app.dark .page-shell input,
+html #app.dark .page-shell select,
+html #app.dark .page-shell textarea,
+html #app.dark .campaign-modal input,
+html #app.dark .campaign-modal select,
+html #app.dark .campaign-modal textarea,
+html #app.dark .campaign-table-modal input,
+html #app.dark .campaign-table-modal select,
+html #app.dark .campaign-table-modal textarea,
+html #app.dark .followup-appointment-form input,
+html #app.dark .followup-appointment-form select,
+html #app.dark .followup-appointment-form textarea,
+html #app.dark .filter-dropdown,
+html #app.dark .subsection-menu-floating {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .campaign-table-modal table th,
+html body.dark .table-panel table th,
+html #app.dark .campaign-table-modal table th,
+html #app.dark .table-panel table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .campaign-table-modal table td,
+html body.dark .table-panel table td,
+html #app.dark .campaign-table-modal table td,
+html #app.dark .table-panel table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .campaign-table-modal table tbody tr:hover td,
+html #app.dark .campaign-table-modal table tbody tr:hover td {
+  background: #22252d !important;
+}
+html body.dark .landing-sms-list label,
+html body.dark .subsection-option,
+html body.dark .filter-dropdown label,
+html #app.dark .landing-sms-list label,
+html #app.dark .subsection-option,
+html #app.dark .filter-dropdown label {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .landing-sms-list label.selected,
+html body.dark .subsection-option.selected,
+html #app.dark .landing-sms-list label.selected,
+html #app.dark .subsection-option.selected {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .landing-sms-list label.sent,
+html #app.dark .landing-sms-list label.sent {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .modal-actions button,
+html body.dark .landing-sms-cancel,
+html body.dark .followup-appointment-cancel,
+html body.dark .landing-sms-modal header button,
+html body.dark .followup-appointment-modal header button,
+html body.dark .history-modal header button,
+html #app.dark .modal-actions button,
+html #app.dark .landing-sms-cancel,
+html #app.dark .followup-appointment-cancel,
+html #app.dark .landing-sms-modal header button,
+html #app.dark .followup-appointment-modal header button,
+html #app.dark .history-modal header button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .landing-sms-send,
+html body.dark .followup-appointment-save,
+html #app.dark .landing-sms-send,
+html #app.dark .followup-appointment-save {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .landing-sms-error,
+html body.dark .followup-appointment-error,
+html #app.dark .landing-sms-error,
+html #app.dark .followup-appointment-error {
+  background: #3a1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .filtered-cell,
+html #app.dark .filtered-cell {
+  background: #1e3a5f !important;
+}
+</style>

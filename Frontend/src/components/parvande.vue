@@ -9775,3 +9775,145 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 .profile-auto-sms-chevron{display:block;width:22px;height:22px;flex:none;transition:transform .2s ease}
 .profile-auto-sms-chevron.expanded{transform:rotate(180deg)}
 </style>
+
+<style>
+/* Dark charcoal: patient-page */
+html body.dark .patient-page,
+html #app.dark .patient-page {
+  color: #e8eaed !important;
+}
+html body.dark .patient-page .card,
+html body.dark .patient-page .create-card,
+html body.dark .patient-page .search-card,
+html body.dark .patient-page .result-card,
+html body.dark .patient-page .profile-shell,
+html body.dark .patient-page .profile-main-card,
+html body.dark .patient-page .profile-extra-card,
+html body.dark .patient-page .profile-report-card,
+html body.dark .patient-page .profile-history-card,
+html body.dark .patient-page .profile-rating-card,
+html body.dark .patient-page .profile-satisfaction-card,
+html body.dark .patient-page .profile-automatic-sms-card,
+html body.dark .patient-page .edit-modal,
+html body.dark .patient-page .customer-level-modal,
+html body.dark .patient-page .wallet-modal,
+html body.dark .patient-page .media-modal,
+html body.dark .patient-page .compare-modal,
+html body.dark .patient-page .media-edit-modal,
+html body.dark .patient-page .profile-crop-modal,
+html body.dark .patient-page .media-viewer-modal,
+html body.dark .patient-page .angle-upload-panel,
+html body.dark .patient-page .angle-stage-card,
+html body.dark .patient-page .upload-card,
+html body.dark .patient-page .wallet-report,
+html #app.dark .patient-page .card,
+html #app.dark .patient-page .create-card,
+html #app.dark .patient-page .search-card,
+html #app.dark .patient-page .result-card,
+html #app.dark .patient-page .profile-shell,
+html #app.dark .patient-page .profile-main-card,
+html #app.dark .patient-page .profile-extra-card,
+html #app.dark .patient-page .profile-report-card,
+html #app.dark .patient-page .profile-history-card,
+html #app.dark .patient-page .profile-rating-card,
+html #app.dark .patient-page .profile-satisfaction-card,
+html #app.dark .patient-page .profile-automatic-sms-card,
+html #app.dark .patient-page .edit-modal,
+html #app.dark .patient-page .customer-level-modal,
+html #app.dark .patient-page .wallet-modal,
+html #app.dark .patient-page .media-modal,
+html #app.dark .patient-page .compare-modal,
+html #app.dark .patient-page .media-edit-modal,
+html #app.dark .patient-page .profile-crop-modal,
+html #app.dark .patient-page .media-viewer-modal,
+html #app.dark .patient-page .angle-upload-panel,
+html #app.dark .patient-page .angle-stage-card,
+html #app.dark .patient-page .upload-card,
+html #app.dark .patient-page .wallet-report {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.32) !important;
+}
+html body.dark .patient-page .section-header,
+html body.dark .patient-page .profile-card-title,
+html body.dark .patient-page .wallet-modal-header,
+html body.dark .patient-page .result-table-wrap,
+html body.dark .patient-page .profile-table-wrap,
+html #app.dark .patient-page .section-header,
+html #app.dark .patient-page .profile-card-title,
+html #app.dark .patient-page .wallet-modal-header,
+html #app.dark .patient-page .result-table-wrap,
+html #app.dark .patient-page .profile-table-wrap {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .patient-page h2,
+html body.dark .patient-page h3,
+html body.dark .patient-page strong,
+html body.dark .patient-page label,
+html #app.dark .patient-page h2,
+html #app.dark .patient-page h3,
+html #app.dark .patient-page strong,
+html #app.dark .patient-page label { color: #e8eaed !important; }
+html body.dark .patient-page small,
+html body.dark .patient-page .muted,
+html body.dark .patient-page p,
+html #app.dark .patient-page small,
+html #app.dark .patient-page .muted,
+html #app.dark .patient-page p { color: #9aa0a6 !important; }
+html body.dark .patient-page input,
+html body.dark .patient-page select,
+html body.dark .patient-page textarea,
+html body.dark .patient-page .vpd-input-group input,
+html #app.dark .patient-page input,
+html #app.dark .patient-page select,
+html #app.dark .patient-page textarea,
+html #app.dark .patient-page .vpd-input-group input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .patient-page table th,
+html #app.dark .patient-page table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .patient-page table td,
+html body.dark .patient-page table tr,
+html #app.dark .patient-page table td,
+html #app.dark .patient-page table tr {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .patient-page table tbody tr:hover td,
+html #app.dark .patient-page table tbody tr:hover td {
+  background: #22252d !important;
+}
+html body.dark .patient-page button,
+html body.dark .patient-page .modal-actions button,
+html #app.dark .patient-page button,
+html #app.dark .patient-page .modal-actions button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .patient-page .compare-pair-card,
+html body.dark .patient-page .profile-section-list,
+html body.dark .patient-page .angle-upload-loader-card,
+html #app.dark .patient-page .compare-pair-card,
+html #app.dark .patient-page .profile-section-list,
+html #app.dark .patient-page .angle-upload-loader-card {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .patient-page .modal-overlay,
+html #app.dark .patient-page .modal-overlay {
+  background: rgba(0,0,0,.62) !important;
+}
+</style>

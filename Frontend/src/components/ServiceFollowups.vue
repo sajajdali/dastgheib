@@ -516,3 +516,385 @@ onMounted(async () => {
   .fu-item .fu-select, .fu-item .fu-input, .fu-item .fu-btn-primary { grid-column: 1 / -1; }
 }
 </style>
+
+<style>
+/* Dark charcoal: service-followups */
+html body.dark .fu,
+html #app.dark .fu {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .fu .fu-wrap,
+html body.dark .fu .fu-cal,
+html body.dark .fu .fu-head,
+html #app.dark .fu .fu-wrap,
+html #app.dark .fu .fu-cal,
+html #app.dark .fu .fu-head {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .fu .fu-day,
+html body.dark .fu .fu-nav,
+html body.dark .fu .fu-btn-ghost,
+html body.dark .fu .fu-tab,
+html #app.dark .fu .fu-day,
+html #app.dark .fu .fu-nav,
+html #app.dark .fu .fu-btn-ghost,
+html #app.dark .fu .fu-tab {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .fu .fu-day.sel,
+html body.dark .fu .fu-tab.active,
+html #app.dark .fu .fu-day.sel,
+html #app.dark .fu .fu-tab.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .fu .fu-day.today,
+html #app.dark .fu .fu-day.today {
+  box-shadow: inset 0 0 0 2px #4f8cff !important;
+}
+html body.dark .fu .fu-day.overdue,
+html #app.dark .fu .fu-day.overdue {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .fu .fu-chip-overdue,
+html body.dark .fu .od,
+html #app.dark .fu .fu-chip-overdue,
+html #app.dark .fu .od {
+  background: #3a1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .fu .badge,
+html #app.dark .fu .badge {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .fu .fu-list-eyebrow,
+html body.dark .fu .fu-legend,
+html body.dark .fu .y,
+html #app.dark .fu .fu-list-eyebrow,
+html #app.dark .fu .fu-legend,
+html #app.dark .fu .y { color: #9aa0a6 !important; }
+html body.dark .fu .fu-btn-primary,
+html #app.dark .fu .fu-btn-primary {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .fu .fu-back-btn,
+html #app.dark .fu .fu-back-btn {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
+html body.dark .fu article,
+html body.dark .fu .fu-card,
+html body.dark .fu .fu-item,
+html #app.dark .fu article,
+html #app.dark .fu .fu-card,
+html #app.dark .fu .fu-item {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .fu input,
+html body.dark .fu select,
+html body.dark .fu textarea,
+html #app.dark .fu input,
+html #app.dark .fu select,
+html #app.dark .fu textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+</style>
+
+<style>
+/* Dark mode پیگیری نوبت (ServiceFollowups) — unscoped charcoal overrides */
+/* DARK_MODE_SERVICE_FOLLOWUPS */
+html body.dark .fu,
+html #app.dark .fu {
+  background: #121316 !important;
+  color: #e8eaed !important;
+  --accent: #4f8cff;
+  --accent-dark: #3b73e0;
+  --accent-soft: #1e3a5f;
+  --red: #ef4444;
+  --red-dark: #dc2626;
+  --red-deep: #991b1b;
+  --red-soft: #3a1d1d;
+  --ink: #e8eaed;
+  --muted: #9aa0a6;
+  --faint: #9aa0a6;
+  --line: #2c3038;
+  --bg: #121316;
+}
+html body.dark .fu .fu-head-text h1,
+html body.dark .fu .fu-list-title h2,
+html #app.dark .fu .fu-head-text h1,
+html #app.dark .fu .fu-list-title h2 {
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-head-text p,
+html body.dark .fu .fu-list-title span,
+html body.dark .fu .fu-list-eyebrow,
+html body.dark .fu .fu-eyebrow,
+html body.dark .fu .fu-cal-title .y,
+html body.dark .fu .fu-legend,
+html body.dark .fu .fu-meta-sub,
+html #app.dark .fu .fu-head-text p,
+html #app.dark .fu .fu-list-title span,
+html #app.dark .fu .fu-list-eyebrow,
+html #app.dark .fu .fu-eyebrow,
+html #app.dark .fu .fu-cal-title .y,
+html #app.dark .fu .fu-legend,
+html #app.dark .fu .fu-meta-sub {
+  color: #9aa0a6 !important;
+}
+
+html body.dark .fu .fu-back-btn,
+html body.dark .fu .fu-btn-ghost,
+html body.dark .fu .fu-chip-overdue,
+html body.dark .fu .fu-nav,
+html body.dark .fu .fu-day,
+html #app.dark .fu .fu-back-btn,
+html #app.dark .fu .fu-btn-ghost,
+html #app.dark .fu .fu-chip-overdue,
+html #app.dark .fu .fu-nav,
+html #app.dark .fu .fu-day {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .fu .fu-back-btn:hover,
+html body.dark .fu .fu-btn-ghost:hover,
+html body.dark .fu .fu-nav:hover,
+html #app.dark .fu .fu-back-btn:hover,
+html #app.dark .fu .fu-btn-ghost:hover,
+html #app.dark .fu .fu-nav:hover {
+  background: #2a2f3a !important;
+  border-color: #4f8cff !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-btn-primary,
+html #app.dark .fu .fu-btn-primary {
+  background: #4f8cff !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px rgba(79, 140, 255, .28) !important;
+}
+html body.dark .fu .fu-btn-primary:hover,
+html #app.dark .fu .fu-btn-primary:hover {
+  background: #3b73e0 !important;
+}
+
+/* Calendar strip */
+html body.dark .fu .fu-cal,
+html body.dark .fu .fu-item,
+html body.dark .fu .fu-empty,
+html body.dark .fu .fu-profile-modal,
+html #app.dark .fu .fu-cal,
+html #app.dark .fu .fu-item,
+html #app.dark .fu .fu-empty,
+html #app.dark .fu .fu-profile-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .32) !important;
+}
+html body.dark .fu .fu-cal-title .m,
+html #app.dark .fu .fu-cal-title .m {
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-strip-scroll::-webkit-scrollbar-thumb,
+html #app.dark .fu .fu-strip-scroll::-webkit-scrollbar-thumb {
+  background: #3a3f4a !important;
+}
+html body.dark .fu .fu-day:hover,
+html #app.dark .fu .fu-day:hover {
+  background: #2a2f3a !important;
+  border-color: #4f8cff !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-day .badge,
+html #app.dark .fu .fu-day .badge {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .fu .fu-day.today,
+html #app.dark .fu .fu-day.today {
+  border-color: #4f8cff !important;
+}
+html body.dark .fu .fu-day.overdue,
+html #app.dark .fu .fu-day.overdue {
+  background: #7f1d1d !important;
+  border-color: #991b1b !important;
+  color: #fecaca !important;
+  box-shadow: 0 4px 12px rgba(127, 29, 29, .35) !important;
+}
+html body.dark .fu .fu-day.overdue .badge,
+html #app.dark .fu .fu-day.overdue .badge {
+  background: #fecaca !important;
+  color: #7f1d1d !important;
+}
+html body.dark .fu .fu-day.sel,
+html #app.dark .fu .fu-day.sel {
+  background: #4f8cff !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+html body.dark .fu .fu-day.sel .badge,
+html #app.dark .fu .fu-day.sel .badge {
+  background: rgba(255, 255, 255, .22) !important;
+  color: #fff !important;
+}
+html body.dark .fu .fu-day.sel.overdue,
+html #app.dark .fu .fu-day.sel.overdue {
+  background: #991b1b !important;
+  border-color: #7f1d1d !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .28) !important;
+}
+html body.dark .fu .fu-day.sel.overdue .badge,
+html #app.dark .fu .fu-day.sel.overdue .badge {
+  background: #fecaca !important;
+  color: #7f1d1d !important;
+}
+html body.dark .fu .fu-legend,
+html #app.dark .fu .fu-legend {
+  border-top-color: #2c3038 !important;
+}
+html body.dark .fu .sw-today,
+html #app.dark .fu .sw-today {
+  background: #1a1c22 !important;
+  border-color: #4f8cff !important;
+}
+
+/* Tabs + list */
+html body.dark .fu .fu-tabs,
+html #app.dark .fu .fu-tabs {
+  background: #121417 !important;
+}
+html body.dark .fu .fu-tab,
+html #app.dark .fu .fu-tab {
+  color: #9aa0a6 !important;
+  background: transparent !important;
+}
+html body.dark .fu .fu-tab.on,
+html #app.dark .fu .fu-tab.on {
+  background: #22252d !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-item:hover,
+html #app.dark .fu .fu-item:hover {
+  border-color: #4f8cff !important;
+  background: #22252d !important;
+}
+html body.dark .fu .fu-item.overdue,
+html #app.dark .fu .fu-item.overdue {
+  border-color: #7f1d1d !important;
+}
+html body.dark .fu .fu-avatar,
+html #app.dark .fu .fu-avatar {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .fu .fu-item.overdue .fu-avatar,
+html #app.dark .fu .fu-item.overdue .fu-avatar {
+  background: #3a1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .fu .fu-meta.is-link:hover,
+html #app.dark .fu .fu-meta.is-link:hover {
+  background: #2a2f3a !important;
+}
+html body.dark .fu .fu-meta-top .name,
+html #app.dark .fu .fu-meta-top .name {
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-meta-top .service,
+html #app.dark .fu .fu-meta-top .service {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .fu .fu-meta-top .tag-od,
+html #app.dark .fu .fu-meta-top .tag-od {
+  background: #3a1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .fu .fu-appointment-date,
+html #app.dark .fu .fu-appointment-date {
+  color: #4f8cff !important;
+}
+html body.dark .fu .fu-meta-sub .sep,
+html #app.dark .fu .fu-meta-sub .sep {
+  background: #3a3f4a !important;
+}
+html body.dark .fu .fu-select,
+html body.dark .fu .fu-input,
+html #app.dark .fu .fu-select,
+html #app.dark .fu .fu-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-input::placeholder,
+html #app.dark .fu .fu-input::placeholder {
+  color: #9aa0a6 !important;
+}
+html body.dark .fu .fu-empty .t,
+html #app.dark .fu .fu-empty .t {
+  color: #c5cad3 !important;
+}
+html body.dark .fu .fu-empty .s,
+html #app.dark .fu .fu-empty .s {
+  color: #9aa0a6 !important;
+}
+
+/* Patient profile modal */
+html body.dark .fu .fu-profile-modal > header,
+html #app.dark .fu .fu-profile-modal > header {
+  background: #22252d !important;
+  border-bottom-color: #2c3038 !important;
+}
+html body.dark .fu .fu-profile-modal small,
+html #app.dark .fu .fu-profile-modal small {
+  color: #4f8cff !important;
+}
+html body.dark .fu .fu-profile-modal h3,
+html #app.dark .fu .fu-profile-modal h3 {
+  color: #f1f3f4 !important;
+}
+html body.dark .fu .fu-profile-modal header p,
+html body.dark .fu .fu-profile-loading,
+html #app.dark .fu .fu-profile-modal header p,
+html #app.dark .fu .fu-profile-loading {
+  color: #9aa0a6 !important;
+}
+html body.dark .fu .fu-profile-modal header button,
+html #app.dark .fu .fu-profile-modal header button {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .fu .fu-profile-letter,
+html #app.dark .fu .fu-profile-letter {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .fu .fu-profile-grid span,
+html body.dark .fu .fu-profile-body > p,
+html #app.dark .fu .fu-profile-grid span,
+html #app.dark .fu .fu-profile-body > p {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .fu .fu-profile-grid b,
+html #app.dark .fu .fu-profile-grid b {
+  color: #f1f3f4 !important;
+}
+</style>
+

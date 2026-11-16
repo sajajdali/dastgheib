@@ -1314,3 +1314,379 @@ export default {
 @keyframes rb-pulse { 0%,100% { opacity: .25; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
 @keyframes rb-fade { from { opacity: 0; } to { opacity: 1; } }
 </style>
+
+<style>
+/* ReportBuilder dark mode — charcoal */
+html body.dark .rb,
+html #app.dark .rb {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .rb .rb-card,
+html body.dark .rb .rb-modal,
+html body.dark .rb .rb-summary,
+html body.dark .rb .rb-empty,
+html body.dark .rb .rb-overlay,
+html #app.dark .rb .rb-card,
+html #app.dark .rb .rb-modal,
+html #app.dark .rb .rb-summary,
+html #app.dark .rb .rb-empty,
+html #app.dark .rb .rb-overlay {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35) !important;
+}
+html body.dark .rb .rb-title,
+html body.dark .rb .rb-h2,
+html body.dark .rb .rb-modaltitle,
+html body.dark .rb .rb-loadertitle,
+html body.dark .rb .rb-grouphead,
+html body.dark .rb .rb-scope-label,
+html body.dark .rb .rb-assistant-banner b,
+html #app.dark .rb .rb-title,
+html #app.dark .rb .rb-h2,
+html #app.dark .rb .rb-modaltitle,
+html #app.dark .rb .rb-loadertitle,
+html #app.dark .rb .rb-grouphead,
+html #app.dark .rb .rb-scope-label,
+html #app.dark .rb .rb-assistant-banner b {
+  color: #f1f3f4 !important;
+}
+html body.dark .rb .rb-sub,
+html body.dark .rb .rb-muted,
+html body.dark .rb .rb-dim,
+html body.dark .rb .rb-collapse,
+html body.dark .rb .rb-text-hint,
+html body.dark .rb .rb-label,
+html body.dark .rb .rb-showtext,
+html body.dark .rb .rb-assistant-banner small,
+html body.dark .rb .rb-empty,
+html #app.dark .rb .rb-sub,
+html #app.dark .rb .rb-muted,
+html #app.dark .rb .rb-dim,
+html #app.dark .rb .rb-collapse,
+html #app.dark .rb .rb-text-hint,
+html #app.dark .rb .rb-label,
+html #app.dark .rb .rb-showtext,
+html #app.dark .rb .rb-assistant-banner small,
+html #app.dark .rb .rb-empty {
+  color: #9aa0a6 !important;
+}
+html body.dark .rb .rb-body,
+html body.dark .rb .rb-scope-row,
+html body.dark .rb .rb-modalhead,
+html body.dark .rb .rb-modalfoot,
+html body.dark .rb .rb-line,
+html body.dark .rb .rb-hr,
+html #app.dark .rb .rb-body,
+html #app.dark .rb .rb-scope-row,
+html #app.dark .rb .rb-modalhead,
+html #app.dark .rb .rb-modalfoot,
+html #app.dark .rb .rb-line,
+html #app.dark .rb .rb-hr {
+  border-color: #2c3038 !important;
+  background-color: transparent !important;
+}
+html body.dark .rb .rb-line,
+html body.dark .rb .rb-hr,
+html #app.dark .rb .rb-line,
+html #app.dark .rb .rb-hr {
+  background: #2c3038 !important;
+}
+html body.dark .rb .rb-icon,
+html body.dark .rb .rb-badge,
+html body.dark .rb .rb-chip,
+html body.dark .rb .rb-built-range,
+html body.dark .rb .rb-assistant-banner,
+html body.dark .rb .rb-display,
+html body.dark .rb .rb-report-range-picker,
+html #app.dark .rb .rb-icon,
+html #app.dark .rb .rb-badge,
+html #app.dark .rb .rb-chip,
+html #app.dark .rb .rb-built-range,
+html #app.dark .rb .rb-assistant-banner,
+html #app.dark .rb .rb-display,
+html #app.dark .rb .rb-report-range-picker {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .rb .rb-built-range strong,
+html body.dark .rb .rb-badge,
+html body.dark .rb .rb-chip,
+html body.dark .rb .rb-icon,
+html #app.dark .rb .rb-built-range strong,
+html #app.dark .rb .rb-badge,
+html #app.dark .rb .rb-chip,
+html #app.dark .rb .rb-icon {
+  color: #4f8cff !important;
+}
+html body.dark .rb .rb-required,
+html #app.dark .rb .rb-required {
+  background: #3a2426 !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .rb .rb-report-error,
+html #app.dark .rb .rb-report-error {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .rb .rb-input,
+html body.dark .rb .rb-select,
+html body.dark .rb .rb-compare-op,
+html body.dark .rb .rb-picker,
+html body.dark .rb .rb-minisel,
+html body.dark .rb .rb-cal-select,
+html body.dark .rb .rb-modalsearch input,
+html body.dark .rb input,
+html body.dark .rb select,
+html body.dark .rb textarea,
+html #app.dark .rb .rb-input,
+html #app.dark .rb .rb-select,
+html #app.dark .rb .rb-compare-op,
+html #app.dark .rb .rb-picker,
+html #app.dark .rb .rb-minisel,
+html #app.dark .rb .rb-cal-select,
+html #app.dark .rb .rb-modalsearch input,
+html #app.dark .rb .rb-input,
+html #app.dark .rb input,
+html #app.dark .rb select,
+html #app.dark .rb textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .rb .rb-picker:hover,
+html body.dark .rb .rb-btn--ghost:hover,
+html body.dark .rb .rb-btn--ghostTeal:hover,
+html body.dark .rb .rb-btn--dashed:hover,
+html body.dark .rb .rb-navbtn:hover,
+html body.dark .rb .rb-pg:hover,
+html body.dark .rb .rb-opt:hover,
+html body.dark .rb .rb-day:hover,
+html #app.dark .rb .rb-picker:hover,
+html #app.dark .rb .rb-btn--ghost:hover,
+html #app.dark .rb .rb-btn--ghostTeal:hover,
+html #app.dark .rb .rb-btn--dashed:hover,
+html #app.dark .rb .rb-navbtn:hover,
+html #app.dark .rb .rb-pg:hover,
+html #app.dark .rb .rb-opt:hover,
+html #app.dark .rb .rb-day:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .rb .rb-btn--ghost,
+html body.dark .rb .rb-btn--ghostTeal,
+html body.dark .rb .rb-btn--dashed,
+html body.dark .rb .rb-navbtn,
+html body.dark .rb .rb-pg,
+html body.dark .rb .rb-tab,
+html body.dark .rb .rb-x,
+html body.dark .rb .rb-picker-clear,
+html body.dark .rb .rb-preset,
+html #app.dark .rb .rb-btn--ghost,
+html #app.dark .rb .rb-btn--ghostTeal,
+html #app.dark .rb .rb-btn--dashed,
+html #app.dark .rb .rb-navbtn,
+html #app.dark .rb .rb-pg,
+html #app.dark .rb .rb-tab,
+html #app.dark .rb .rb-x,
+html #app.dark .rb .rb-picker-clear,
+html #app.dark .rb .rb-preset {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .rb .rb-preset--on,
+html body.dark .rb .rb-pg--on,
+html body.dark .rb .rb-tab--on,
+html body.dark .rb .rb-day--on,
+html body.dark .rb .rb-day--range:not(.rb-day--on),
+html body.dark .rb .rb-check--on,
+html #app.dark .rb .rb-preset--on,
+html #app.dark .rb .rb-pg--on,
+html #app.dark .rb .rb-tab--on,
+html #app.dark .rb .rb-day--on,
+html #app.dark .rb .rb-day--range:not(.rb-day--on),
+html #app.dark .rb .rb-check--on {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .rb .rb-check,
+html #app.dark .rb .rb-check {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .rb .rb-tablewrap,
+html #app.dark .rb .rb-tablewrap {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .rb .rb-table th,
+html #app.dark .rb .rb-table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .rb .rb-table td,
+html #app.dark .rb .rb-table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .rb .rb-table tbody tr:hover,
+html body.dark .rb .rb-table tbody tr:hover td,
+html #app.dark .rb .rb-table tbody tr:hover,
+html #app.dark .rb .rb-table tbody tr:hover td {
+  background: #22252d !important;
+}
+html body.dark .rb .rb-total-row td,
+html #app.dark .rb .rb-total-row td {
+  background: #1e2a28 !important;
+  border-top-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+html body.dark .rb .rb-pager,
+html body.dark .rb .rb-pagesize,
+html body.dark .rb .rb-pagenums,
+html #app.dark .rb .rb-pager,
+html #app.dark .rb .rb-pagesize,
+html #app.dark .rb .rb-pagenums {
+  color: #9aa0a6 !important;
+}
+html body.dark .rb .rb-scrim,
+html #app.dark .rb .rb-scrim {
+  background: rgba(0,0,0,.62) !important;
+}
+html body.dark .rb .rb-opt,
+html body.dark .rb .rb-optlist,
+html #app.dark .rb .rb-opt,
+html #app.dark .rb .rb-optlist {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .rb .rb-optmeta,
+html #app.dark .rb .rb-optmeta {
+  color: #9aa0a6 !important;
+}
+html body.dark .rb .rb-warn,
+html #app.dark .rb .rb-warn {
+  background: #3a2426 !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .rb .rb-patient-link,
+html #app.dark .rb .rb-patient-link {
+  color: #4f8cff !important;
+}
+html body.dark .rb .rb-progress,
+html body.dark .rb .rb-loader-track,
+html #app.dark .rb .rb-progress,
+html #app.dark .rb .rb-loader-track {
+  background: #2c3038 !important;
+}
+html body.dark .rb .rb-progress-fill,
+html #app.dark .rb .rb-progress-fill {
+  background: #4f8cff !important;
+}
+</style>
+
+<style>
+/* Dark charcoal: report-builder */
+html body.dark .rb-card,
+html body.dark .rb-modal,
+html #app.dark .rb-card,
+html #app.dark .rb-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.35) !important;
+}
+html body.dark .rb-builder-head,
+html body.dark .rb-reporthead,
+html body.dark .rb-modalhead,
+html body.dark .rb-modalsearch,
+html body.dark .rb-modalfoot,
+html body.dark .rb-modalactions,
+html body.dark .rb-picker,
+html body.dark .rb-tablewrap,
+html body.dark .rb-pager,
+html #app.dark .rb-builder-head,
+html #app.dark .rb-reporthead,
+html #app.dark .rb-modalhead,
+html #app.dark .rb-modalsearch,
+html #app.dark .rb-modalfoot,
+html #app.dark .rb-modalactions,
+html #app.dark .rb-picker,
+html #app.dark .rb-tablewrap,
+html #app.dark .rb-pager {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .rb-sub,
+html body.dark .rb-report-range-copy p,
+html body.dark .rb-report-error,
+html #app.dark .rb-sub,
+html #app.dark .rb-report-range-copy p,
+html #app.dark .rb-report-error { color: #9aa0a6 !important; }
+html body.dark .rb-card input,
+html body.dark .rb-card select,
+html body.dark .rb-card textarea,
+html body.dark .rb-modal input,
+html body.dark .rb-modal select,
+html body.dark .rb-modal textarea,
+html #app.dark .rb-card input,
+html #app.dark .rb-card select,
+html #app.dark .rb-card textarea,
+html #app.dark .rb-modal input,
+html #app.dark .rb-modal select,
+html #app.dark .rb-modal textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .rb-tab,
+html body.dark .rb-pg,
+html body.dark .rb-pagesize button,
+html #app.dark .rb-tab,
+html #app.dark .rb-pg,
+html #app.dark .rb-pagesize button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .rb-tab--on,
+html body.dark .rb-pg--on,
+html #app.dark .rb-tab--on,
+html #app.dark .rb-pg--on {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+  border-color: #4f8cff !important;
+}
+html body.dark .rb-card table th,
+html #app.dark .rb-card table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .rb-card table td,
+html #app.dark .rb-card table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .rb-card button,
+html body.dark .rb-modal button,
+html #app.dark .rb-card button,
+html #app.dark .rb-modal button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+</style>

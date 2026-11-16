@@ -2586,3 +2586,375 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 @keyframes report-refresh-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.report-refresh-button:disabled svg{animation:none}}
 </style>
+
+<style>
+/* Dark charcoal: reports-static */
+html body.dark .nsr,
+html body.dark .reports-dashboard,
+html body.dark .report-card,
+html body.dark .native-reports,
+html body.dark .static-reports,
+html #app.dark .nsr,
+html #app.dark .reports-dashboard,
+html #app.dark .report-card,
+html #app.dark .native-reports,
+html #app.dark .static-reports {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .report-card,
+html body.dark .nsr-card,
+html body.dark .dashboard-card,
+html body.dark .stat-card,
+html #app.dark .report-card,
+html #app.dark .nsr-card,
+html #app.dark .dashboard-card,
+html #app.dark .stat-card {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .report-card:hover,
+html body.dark .nsr-card:hover,
+html #app.dark .report-card:hover,
+html #app.dark .nsr-card:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .nsr input,
+html body.dark .nsr select,
+html body.dark .reports-dashboard input,
+html body.dark .reports-dashboard select,
+html body.dark .report-card input,
+html body.dark .report-card select,
+html #app.dark .nsr input,
+html #app.dark .nsr select,
+html #app.dark .reports-dashboard input,
+html #app.dark .reports-dashboard select,
+html #app.dark .report-card input,
+html #app.dark .report-card select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .nsr table th,
+html body.dark .reports-dashboard table th,
+html #app.dark .nsr table th,
+html #app.dark .reports-dashboard table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+}
+html body.dark .nsr table td,
+html body.dark .reports-dashboard table td,
+html #app.dark .nsr table td,
+html #app.dark .reports-dashboard table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .nsr h1,
+html body.dark .nsr h2,
+html body.dark .nsr h3,
+html body.dark .reports-dashboard h1,
+html body.dark .reports-dashboard h2,
+html body.dark .reports-dashboard h3,
+html body.dark .report-card h3,
+html #app.dark .nsr h1,
+html #app.dark .nsr h2,
+html #app.dark .nsr h3,
+html #app.dark .reports-dashboard h1,
+html #app.dark .reports-dashboard h2,
+html #app.dark .reports-dashboard h3,
+html #app.dark .report-card h3 { color: #f1f3f4 !important; }
+html body.dark .nsr p,
+html body.dark .reports-dashboard p,
+html body.dark .report-card p,
+html body.dark .muted,
+html #app.dark .nsr p,
+html #app.dark .reports-dashboard p,
+html #app.dark .report-card p { color: #9aa0a6 !important; }
+</style>
+
+<style>
+/* NativeStaticReports dark mode — shell + classed widgets + inline light surfaces */
+html body.dark .reports-page > div[dir="rtl"],
+html #app.dark .reports-page > div[dir="rtl"] {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .reports-page h1,
+html #app.dark .reports-page h1 {
+  color: #f1f3f4 !important;
+}
+/* inline white / pale surfaces used throughout the dashboard */
+html body.dark .reports-page [style*="background:#ffffff"],
+html body.dark .reports-page [style*="background:#fff"],
+html body.dark .reports-page [style*="background: #fff"],
+html body.dark .reports-page [style*="background:#FFFFFF"],
+html body.dark .reports-page [style*="background:#f8fafc"],
+html body.dark .reports-page [style*="background:#f1f4f9"],
+html body.dark .reports-page [style*="background:#f1f5f9"],
+html body.dark .reports-page [style*="background:#e6ebf3"],
+html body.dark .reports-page [style*="background:#eff6ff"],
+html body.dark .reports-page [style*="background:#f8fbff"],
+html #app.dark .reports-page [style*="background:#ffffff"],
+html #app.dark .reports-page [style*="background:#fff"],
+html #app.dark .reports-page [style*="background: #fff"],
+html #app.dark .reports-page [style*="background:#FFFFFF"],
+html #app.dark .reports-page [style*="background:#f8fafc"],
+html #app.dark .reports-page [style*="background:#f1f4f9"],
+html #app.dark .reports-page [style*="background:#f1f5f9"],
+html #app.dark .reports-page [style*="background:#e6ebf3"],
+html #app.dark .reports-page [style*="background:#eff6ff"],
+html #app.dark .reports-page [style*="background:#f8fbff"] {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
+}
+html body.dark .reports-page [style*="color:#0f172a"],
+html body.dark .reports-page [style*="color:#1e293b"],
+html body.dark .reports-page [style*="color:#334155"],
+html body.dark .reports-page [style*="color:#172554"],
+html #app.dark .reports-page [style*="color:#0f172a"],
+html #app.dark .reports-page [style*="color:#1e293b"],
+html #app.dark .reports-page [style*="color:#334155"],
+html #app.dark .reports-page [style*="color:#172554"] {
+  color: #e8eaed !important;
+}
+html body.dark .reports-page [style*="color:#64748b"],
+html body.dark .reports-page [style*="color:#94a3b8"],
+html #app.dark .reports-page [style*="color:#64748b"],
+html #app.dark .reports-page [style*="color:#94a3b8"] {
+  color: #9aa0a6 !important;
+}
+html body.dark .reports-page [style*="border:1px solid #e2e8f0"],
+html body.dark .reports-page [style*="border:1px solid #e2e8f0"],
+html body.dark .reports-page [style*="border:1px solid #cbd5e1"],
+html #app.dark .reports-page [style*="border:1px solid #e2e8f0"],
+html #app.dark .reports-page [style*="border:1px solid #cbd5e1"] {
+  border-color: #2c3038 !important;
+}
+html body.dark .reports-page .report-date-input,
+html #app.dark .reports-page .report-date-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .reports-page .kpi-summary-toolbar strong,
+html body.dark .reports-page .satisfaction-report-question header strong,
+html body.dark .reports-page .rpt-money,
+html body.dark .reports-page .expense-money,
+html body.dark .reports-page .expense-summary-value,
+html body.dark .reports-page .expense-row__name,
+html body.dark .reports-page .cac-campaign-row > span,
+html body.dark .reports-page .cac-campaign-row > b,
+html #app.dark .reports-page .kpi-summary-toolbar strong,
+html #app.dark .reports-page .satisfaction-report-question header strong,
+html #app.dark .reports-page .rpt-money,
+html #app.dark .reports-page .expense-money,
+html #app.dark .reports-page .expense-summary-value,
+html #app.dark .reports-page .expense-row__name,
+html #app.dark .reports-page .cac-campaign-row > span,
+html #app.dark .reports-page .cac-campaign-row > b {
+  color: #f1f3f4 !important;
+}
+html body.dark .reports-page .kpi-summary-toolbar small,
+html body.dark .reports-page .report-calculated-at,
+html body.dark .reports-page .report-widget-empty,
+html body.dark .reports-page .satisfaction-report-empty,
+html body.dark .reports-page .cac-campaign-row > small,
+html #app.dark .reports-page .kpi-summary-toolbar small,
+html #app.dark .reports-page .report-calculated-at,
+html #app.dark .reports-page .report-widget-empty,
+html #app.dark .reports-page .satisfaction-report-empty,
+html #app.dark .reports-page .cac-campaign-row > small {
+  color: #9aa0a6 !important;
+}
+html body.dark .reports-page .satisfaction-report-summary div,
+html body.dark .reports-page .satisfaction-report-question,
+html body.dark .reports-page .expense-row,
+html body.dark .reports-page .cac-campaign-row,
+html body.dark .reports-page .report-widget-empty,
+html #app.dark .reports-page .satisfaction-report-summary div,
+html #app.dark .reports-page .satisfaction-report-question,
+html #app.dark .reports-page .expense-row,
+html #app.dark .reports-page .cac-campaign-row,
+html #app.dark .reports-page .report-widget-empty {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .reports-page .satisfaction-report-row > div,
+html body.dark .reports-page .expense-row__bar,
+html body.dark .reports-page .report-card-scroll::-webkit-scrollbar-track,
+html #app.dark .reports-page .satisfaction-report-row > div,
+html #app.dark .reports-page .expense-row__bar,
+html #app.dark .reports-page .report-card-scroll::-webkit-scrollbar-track {
+  background: #121417 !important;
+}
+html body.dark .reports-page .report-card-scroll::-webkit-scrollbar-thumb,
+html #app.dark .reports-page .report-card-scroll::-webkit-scrollbar-thumb {
+  background: #3a3f4a !important;
+}
+html body.dark .reports-page [data-hover="1"]:hover,
+html body.dark .reports-page [data-drag-handle]:hover,
+html #app.dark .reports-page [data-hover="1"]:hover,
+html #app.dark .reports-page [data-drag-handle]:hover {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
+html body.dark .reports-page .report-refresh-button,
+html body.dark .reports-page .kpi-calculate-button,
+html body.dark .reports-page .staff-income-calculate-button,
+html body.dark .reports-page .roi-calculate-button,
+html #app.dark .reports-page .report-refresh-button,
+html #app.dark .reports-page .kpi-calculate-button,
+html #app.dark .reports-page .staff-income-calculate-button,
+html #app.dark .reports-page .roi-calculate-button {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #4f8cff !important;
+  box-shadow: none !important;
+}
+html body.dark .reports-page .report-refresh-button:hover:not(:disabled),
+html #app.dark .reports-page .report-refresh-button:hover:not(:disabled) {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .reports-page .cancellation-calculate-button,
+html #app.dark .reports-page .cancellation-calculate-button {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+  box-shadow: none !important;
+}
+html body.dark .reports-page .loyalty-calculate-button,
+html #app.dark .reports-page .loyalty-calculate-button {
+  background: #1e2a28 !important;
+  border-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+/* loading overlays stay dark, not washed white */
+html body.dark .reports-page .cancel-rate-loading,
+html body.dark .reports-page .customer-segment-loading,
+html body.dark .reports-page .kpi-summary-loading,
+html body.dark .reports-page .staff-income-loading,
+html body.dark .reports-page .roi-loading,
+html body.dark .reports-page .loyalty-loading,
+html body.dark .reports-page .age-statistics-loading,
+html body.dark .reports-page .city-statistics-loading,
+html #app.dark .reports-page .cancel-rate-loading,
+html #app.dark .reports-page .customer-segment-loading,
+html #app.dark .reports-page .kpi-summary-loading,
+html #app.dark .reports-page .staff-income-loading,
+html #app.dark .reports-page .roi-loading,
+html #app.dark .reports-page .loyalty-loading,
+html #app.dark .reports-page .age-statistics-loading,
+html #app.dark .reports-page .city-statistics-loading {
+  background: rgba(18,19,22,.86) !important;
+}
+html body.dark .reports-page .customer-segment-loading-card,
+html body.dark .reports-page .kpi-summary-loading-card,
+html body.dark .reports-page .staff-income-loading-card,
+html body.dark .reports-page .roi-loading-card,
+html body.dark .reports-page .loyalty-loading-card,
+html body.dark .reports-page .age-statistics-loading-card,
+html body.dark .reports-page .city-statistics-loading-card,
+html #app.dark .reports-page .customer-segment-loading-card,
+html #app.dark .reports-page .kpi-summary-loading-card,
+html #app.dark .reports-page .staff-income-loading-card,
+html #app.dark .reports-page .roi-loading-card,
+html #app.dark .reports-page .loyalty-loading-card,
+html #app.dark .reports-page .age-statistics-loading-card,
+html #app.dark .reports-page .city-statistics-loading-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 16px 38px rgba(0,0,0,.4) !important;
+}
+html body.dark .reports-page .customer-segment-loading-card strong,
+html body.dark .reports-page .kpi-summary-loading-card strong,
+html body.dark .reports-page .staff-income-loading-card strong,
+html body.dark .reports-page .roi-loading-card strong,
+html body.dark .reports-page .loyalty-loading-card strong,
+html body.dark .reports-page .age-statistics-loading-card strong,
+html body.dark .reports-page .city-statistics-loading-card strong,
+html #app.dark .reports-page .customer-segment-loading-card strong,
+html #app.dark .reports-page .kpi-summary-loading-card strong,
+html #app.dark .reports-page .staff-income-loading-card strong,
+html #app.dark .reports-page .roi-loading-card strong,
+html #app.dark .reports-page .loyalty-loading-card strong,
+html #app.dark .reports-page .age-statistics-loading-card strong,
+html #app.dark .reports-page .city-statistics-loading-card strong {
+  color: #f1f3f4 !important;
+}
+html body.dark .reports-page .top-services-more,
+html #app.dark .reports-page .top-services-more {
+  color: #4f8cff !important;
+}
+/* muted semantic KPI pastels */
+html body.dark .reports-page [style*="background:#ecfdf5"],
+html body.dark .reports-page [style*="background:#f0fdf4"],
+html body.dark .reports-page [style*="background:#fef2f2"],
+html body.dark .reports-page [style*="background:#fff7ed"],
+html body.dark .reports-page [style*="background:#fffbeb"],
+html body.dark .reports-page [style*="background:#f5f3ff"],
+html #app.dark .reports-page [style*="background:#ecfdf5"],
+html #app.dark .reports-page [style*="background:#f0fdf4"],
+html #app.dark .reports-page [style*="background:#fef2f2"],
+html #app.dark .reports-page [style*="background:#fff7ed"],
+html #app.dark .reports-page [style*="background:#fffbeb"],
+html #app.dark .reports-page [style*="background:#f5f3ff"] {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+}
+</style>
+
+<style>
+/* Dark charcoal: nsr-inline-root */
+html body.dark .reports-page [style*="background:#f1f4f9"],
+html body.dark .reports-page [style*="background: #f1f4f9"],
+html #app.dark .reports-page [style*="background:#f1f4f9"],
+html #app.dark .reports-page [style*="background: #f1f4f9"] {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .kpi-summary-section,
+html body.dark .staff-income-loading-card,
+html body.dark .report-card-scroll,
+html body.dark .expense-row,
+html body.dark .report-refresh-button,
+html #app.dark .kpi-summary-section,
+html #app.dark .staff-income-loading-card,
+html #app.dark .report-card-scroll,
+html #app.dark .expense-row,
+html #app.dark .report-refresh-button {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .rpt-money,
+html body.dark [style*="color:#0f172a"],
+html body.dark [style*="color:#334155"],
+html #app.dark .rpt-money,
+html #app.dark [style*="color:#0f172a"],
+html #app.dark [style*="color:#334155"] {
+  color: #e8eaed !important;
+}
+html body.dark .report-calculated-at,
+html body.dark [style*="color:#64748b"],
+html #app.dark .report-calculated-at,
+html #app.dark [style*="color:#64748b"] {
+  color: #9aa0a6 !important;
+}
+html body.dark .kpi-summary-toolbar,
+html body.dark .kpi-summary-loading,
+html #app.dark .kpi-summary-toolbar,
+html #app.dark .kpi-summary-loading {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+</style>

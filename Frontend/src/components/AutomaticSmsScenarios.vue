@@ -203,3 +203,272 @@ export default {
   .page-heading-actions{align-items:stretch;flex-direction:column}.new-project-btn{justify-content:center;width:100%}.project-tools{grid-template-columns:1fr}.new-scenario-btn{grid-column:auto}.step-card{flex-basis:220px;min-width:220px;max-width:220px}.step-timing label{width:100%;justify-content:flex-start}.step-timing>button{position:absolute}.step-card{position:relative}.step-timing>button{left:8px;top:7px}.template-label small{display:none}
 }
 </style>
+
+<style>
+/* Dark charcoal: automatic-sms-page */
+html body.dark .automatic-sms-page,
+html #app.dark .automatic-sms-page { color: #e8eaed !important; }
+html body.dark .automatic-sms-page .page-heading,
+html body.dark .automatic-sms-page .project-panel,
+html body.dark .automatic-sms-page .scenario-card,
+html body.dark .automatic-sms-page .step-card,
+html body.dark .automatic-sms-page .guide-modal,
+html #app.dark .automatic-sms-page .page-heading,
+html #app.dark .automatic-sms-page .project-panel,
+html #app.dark .automatic-sms-page .scenario-card,
+html #app.dark .automatic-sms-page .step-card,
+html #app.dark .automatic-sms-page .guide-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .automatic-sms-page .project-tabs button,
+html body.dark .automatic-sms-page .active-project-label,
+html body.dark .automatic-sms-page .project-tools,
+html body.dark .automatic-sms-page .flow-start,
+html #app.dark .automatic-sms-page .project-tabs button,
+html #app.dark .automatic-sms-page .active-project-label,
+html #app.dark .automatic-sms-page .project-tools,
+html #app.dark .automatic-sms-page .flow-start {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .automatic-sms-page .project-tabs button.selected,
+html #app.dark .automatic-sms-page .project-tabs button.selected {
+  background: #2a2f3a !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .automatic-sms-page input,
+html body.dark .automatic-sms-page select,
+html body.dark .automatic-sms-page textarea,
+html #app.dark .automatic-sms-page input,
+html #app.dark .automatic-sms-page select,
+html #app.dark .automatic-sms-page textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .automatic-sms-page .empty-state,
+html body.dark .automatic-sms-page .tag-warning,
+html body.dark .automatic-sms-page .page-heading p,
+html #app.dark .automatic-sms-page .empty-state,
+html #app.dark .automatic-sms-page .tag-warning,
+html #app.dark .automatic-sms-page .page-heading p { color: #9aa0a6 !important; }
+html body.dark .automatic-sms-page .scenario-card.inactive,
+html #app.dark .automatic-sms-page .scenario-card.inactive {
+  background: #16181d !important;
+  opacity: .85;
+}
+html body.dark .automatic-sms-page .scenario-actions button,
+html body.dark .automatic-sms-page .guide-btn,
+html body.dark .automatic-sms-page .new-scenario-btn,
+html body.dark .automatic-sms-page .new-project-btn,
+html body.dark .automatic-sms-page .add-step,
+html body.dark .automatic-sms-page .guide-modal header button,
+html #app.dark .automatic-sms-page .scenario-actions button,
+html #app.dark .automatic-sms-page .guide-btn,
+html #app.dark .automatic-sms-page .new-scenario-btn,
+html #app.dark .automatic-sms-page .new-project-btn,
+html #app.dark .automatic-sms-page .add-step,
+html #app.dark .automatic-sms-page .guide-modal header button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .automatic-sms-page .scenario-actions button.delete,
+html #app.dark .automatic-sms-page .scenario-actions button.delete {
+  background: #3a1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .automatic-sms-page .guide-modal .params > div,
+html #app.dark .automatic-sms-page .guide-modal .params > div {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+</style>
+
+<style>
+/* AutomaticSmsScenarios dark mode */
+html body.dark .automatic-sms-page,
+html #app.dark .automatic-sms-page {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .automatic-sms-page h1,
+html body.dark .automatic-sms-page h2,
+html body.dark .automatic-sms-page .active-project-label b,
+html body.dark .automatic-sms-page .flow-start b,
+html body.dark .automatic-sms-page .step-timing > b,
+html body.dark .automatic-sms-page .params span,
+html #app.dark .automatic-sms-page h1,
+html #app.dark .automatic-sms-page h2,
+html #app.dark .automatic-sms-page .active-project-label b,
+html #app.dark .automatic-sms-page .flow-start b,
+html #app.dark .automatic-sms-page .step-timing > b,
+html #app.dark .automatic-sms-page .params span {
+  color: #f1f3f4 !important;
+}
+html body.dark .automatic-sms-page .page-heading p,
+html body.dark .automatic-sms-page .active-project-label,
+html body.dark .automatic-sms-page .project-edit small,
+html body.dark .automatic-sms-page .project-tabs p,
+html body.dark .automatic-sms-page .scenario-main-fields span,
+html body.dark .automatic-sms-page .flow-start span,
+html body.dark .automatic-sms-page .flow-arrow,
+html body.dark .automatic-sms-page .template-label,
+html body.dark .automatic-sms-page .empty-state,
+html body.dark .automatic-sms-page .guide-modal p,
+html body.dark .automatic-sms-page .params small,
+html #app.dark .automatic-sms-page .page-heading p,
+html #app.dark .automatic-sms-page .active-project-label,
+html #app.dark .automatic-sms-page .project-edit small,
+html #app.dark .automatic-sms-page .project-tabs p,
+html #app.dark .automatic-sms-page .scenario-main-fields span,
+html #app.dark .automatic-sms-page .flow-start span,
+html #app.dark .automatic-sms-page .flow-arrow,
+html #app.dark .automatic-sms-page .template-label,
+html #app.dark .automatic-sms-page .empty-state,
+html #app.dark .automatic-sms-page .guide-modal p,
+html #app.dark .automatic-sms-page .params small {
+  color: #9aa0a6 !important;
+}
+html body.dark .automatic-sms-page .active-project-label,
+html body.dark .automatic-sms-page .project-tabs button,
+html body.dark .automatic-sms-page .project-panel,
+html body.dark .automatic-sms-page .scenario-card,
+html body.dark .automatic-sms-page .empty-state,
+html body.dark .automatic-sms-page .guide-modal,
+html body.dark .automatic-sms-page .step-card,
+html #app.dark .automatic-sms-page .active-project-label,
+html #app.dark .automatic-sms-page .project-tabs button,
+html #app.dark .automatic-sms-page .project-panel,
+html #app.dark .automatic-sms-page .scenario-card,
+html #app.dark .automatic-sms-page .empty-state,
+html #app.dark .automatic-sms-page .guide-modal,
+html #app.dark .automatic-sms-page .step-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
+}
+html body.dark .automatic-sms-page .project-tabs button.selected,
+html #app.dark .automatic-sms-page .project-tabs button.selected {
+  background: #2a3a52 !important;
+  color: #f1f3f4 !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,.35) !important;
+}
+html body.dark .automatic-sms-page .project-tabs b,
+html body.dark .automatic-sms-page .project-state,
+html body.dark .automatic-sms-page .guide-btn,
+html body.dark .automatic-sms-page .scenario-actions button,
+html body.dark .automatic-sms-page .params > div,
+html body.dark .automatic-sms-page .guide-modal header > button,
+html #app.dark .automatic-sms-page .project-tabs b,
+html #app.dark .automatic-sms-page .project-state,
+html #app.dark .automatic-sms-page .guide-btn,
+html #app.dark .automatic-sms-page .scenario-actions button,
+html #app.dark .automatic-sms-page .params > div,
+html #app.dark .automatic-sms-page .guide-modal header > button {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .automatic-sms-page .project-tabs button.selected b,
+html #app.dark .automatic-sms-page .project-tabs button.selected b {
+  background: rgba(255,255,255,.12) !important;
+  color: #fff !important;
+}
+html body.dark .automatic-sms-page .project-edit > input,
+html body.dark .automatic-sms-page .project-tools input,
+html body.dark .automatic-sms-page .project-tools select,
+html body.dark .automatic-sms-page .scenario-main-fields select,
+html body.dark .automatic-sms-page .step-timing > input,
+html body.dark .automatic-sms-page .step-timing label input,
+html body.dark .automatic-sms-page .template-input,
+html #app.dark .automatic-sms-page .project-edit > input,
+html #app.dark .automatic-sms-page .project-tools input,
+html #app.dark .automatic-sms-page .project-tools select,
+html #app.dark .automatic-sms-page .scenario-main-fields select,
+html #app.dark .automatic-sms-page .step-timing > input,
+html #app.dark .automatic-sms-page .step-timing label input,
+html #app.dark .automatic-sms-page .template-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .automatic-sms-page .project-edit > input,
+html #app.dark .automatic-sms-page .project-edit > input {
+  border-bottom-color: #3a3f4a !important;
+  background: transparent !important;
+}
+html body.dark .automatic-sms-page .scenario-head,
+html body.dark .automatic-sms-page .guide-modal header,
+html #app.dark .automatic-sms-page .scenario-head,
+html #app.dark .automatic-sms-page .guide-modal header {
+  border-color: #2c3038 !important;
+}
+html body.dark .automatic-sms-page .scenario-card.inactive,
+html #app.dark .automatic-sms-page .scenario-card.inactive {
+  border-color: #2c3038 !important;
+  opacity: .72 !important;
+}
+html body.dark .automatic-sms-page .scenario-actions button:hover,
+html body.dark .automatic-sms-page .guide-btn:hover,
+html body.dark .automatic-sms-page .project-tabs button:hover:not(.selected),
+html #app.dark .automatic-sms-page .scenario-actions button:hover,
+html #app.dark .automatic-sms-page .guide-btn:hover,
+html #app.dark .automatic-sms-page .project-tabs button:hover:not(.selected) {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .automatic-sms-page .scenario-actions button.delete,
+html #app.dark .automatic-sms-page .scenario-actions button.delete {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .automatic-sms-page .tag-warning,
+html #app.dark .automatic-sms-page .tag-warning {
+  background: #3a3220 !important;
+  border-color: #6b5a2e !important;
+  color: #fbbf24 !important;
+}
+html body.dark .automatic-sms-page .project-state > b.on,
+html #app.dark .automatic-sms-page .project-state > b.on {
+  color: #86efac !important;
+}
+html body.dark .automatic-sms-page .add-step,
+html #app.dark .automatic-sms-page .add-step {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #4f8cff !important;
+}
+html body.dark .automatic-sms-page .template-label button,
+html #app.dark .automatic-sms-page .template-label button {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .automatic-sms-page .guide-backdrop,
+html #app.dark .automatic-sms-page .guide-backdrop {
+  background: rgba(0,0,0,.62) !important;
+}
+html body.dark .automatic-sms-page .params b,
+html body.dark .automatic-sms-page .scenario-main-fields em,
+html #app.dark .automatic-sms-page .params b,
+html #app.dark .automatic-sms-page .scenario-main-fields em {
+  color: #4f8cff !important;
+}
+html body.dark .automatic-sms-page .params > div:nth-child(even),
+html #app.dark .automatic-sms-page .params > div:nth-child(even) {
+  background: #1a1c22 !important;
+}
+html body.dark .automatic-sms-page .switch:not(.on),
+html #app.dark .automatic-sms-page .switch:not(.on) {
+  background: #3a3f4a !important;
+}
+</style>

@@ -15550,3 +15550,601 @@ body.dark .dark-toggle,
   color: #e2e8f0;
 }
 </style>
+
+<style>
+/* ===== Dark charcoal: timeline + all Time.vue modals ===== */
+html body.dark .time-page,
+html #app.dark .time-page {
+  color: #e8eaed !important;
+}
+html body.dark .time-page .top-actions,
+html body.dark .time-page .timeline-actions,
+html #app.dark .time-page .top-actions,
+html #app.dark .time-page .timeline-actions {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35) !important;
+}
+html body.dark .appointment-view-switch,
+html #app.dark .appointment-view-switch {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .appointment-view-switch button.active,
+html #app.dark .appointment-view-switch button.active {
+  background: #121417 !important;
+  color: #4f8cff !important;
+}
+html body.dark .booking-timeline-filters,
+html body.dark .booking-filters-toggle,
+html body.dark .booking-slot-filter,
+html #app.dark .booking-timeline-filters,
+html #app.dark .booking-filters-toggle,
+html #app.dark .booking-slot-filter {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .booking-filters-toggle:hover,
+html body.dark .booking-filters-toggle.active,
+html #app.dark .booking-filters-toggle:hover,
+html #app.dark .booking-filters-toggle.active {
+  background: #2a2f3a !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .booking-slot-filter button,
+html #app.dark .booking-slot-filter button { color: #9aa0a6 !important; }
+html body.dark .booking-slot-filter button.active,
+html #app.dark .booking-slot-filter button.active {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .booking-timeline-filters select,
+html #app.dark .booking-timeline-filters select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .booking-filter-clear,
+html #app.dark .booking-filter-clear {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .appointment-timeline,
+html #app.dark .appointment-timeline {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .timeline-schedule-loading,
+html #app.dark .timeline-schedule-loading {
+  background: rgba(18, 20, 23, .88) !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-schedule-loading small,
+html #app.dark .timeline-schedule-loading small { color: #9aa0a6 !important; }
+html body.dark .timeline-empty-state,
+html #app.dark .timeline-empty-state {
+  background: #1a1c22 !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .timeline-day-row,
+html body.dark .timeline-day-label,
+html body.dark .timeline-slots,
+html #app.dark .timeline-day-row,
+html #app.dark .timeline-day-label,
+html #app.dark .timeline-slots {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-day-label strong,
+html #app.dark .timeline-day-label strong { color: #f1f3f4 !important; }
+html body.dark .timeline-day-label span,
+html #app.dark .timeline-day-label span { color: #9aa0a6 !important; }
+html body.dark .timeline-day-label small,
+html #app.dark .timeline-day-label small {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .timeline-day-row.today-day .timeline-day-label,
+html #app.dark .timeline-day-row.today-day .timeline-day-label {
+  background: #22252d !important;
+  box-shadow: inset -3px 0 0 #4f8cff;
+}
+html body.dark .timeline-day-row.holiday-day .timeline-day-label,
+html #app.dark .timeline-day-row.holiday-day .timeline-day-label {
+  background: #2a1f1f !important;
+  color: #fecaca !important;
+}
+html body.dark .timeline-day-actions button,
+html #app.dark .timeline-day-actions button {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #93c5fd !important;
+}
+html body.dark .timeline-day-actions .timeline-add-next-day-btn,
+html #app.dark .timeline-day-actions .timeline-add-next-day-btn {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .timeline-day-actions .timeline-delete-day-btn,
+html #app.dark .timeline-day-actions .timeline-delete-day-btn {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .timeline-slots::-webkit-scrollbar-track,
+html #app.dark .timeline-slots::-webkit-scrollbar-track { background: #121417 !important; }
+html body.dark .timeline-slots::-webkit-scrollbar-thumb,
+html #app.dark .timeline-slots::-webkit-scrollbar-thumb { background: #3a3f4a !important; }
+html body.dark .timeline-card,
+html #app.dark .timeline-card {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .28) !important;
+}
+html body.dark .timeline-card.is-empty,
+html #app.dark .timeline-card.is-empty {
+  background: #1a1c22 !important;
+  border-color: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .timeline-card.is-arrived,
+html #app.dark .timeline-card.is-arrived {
+  background: #14532d !important;
+  border-color: #22c55e !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .timeline-card.is-follow,
+html #app.dark .timeline-card.is-follow {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #bfdbfe !important;
+}
+html body.dark .timeline-card.is-canceled,
+html #app.dark .timeline-card.is-canceled {
+  background: #7f1d1d !important;
+  border-color: #ef4444 !important;
+  color: #fecaca !important;
+}
+html body.dark .timeline-card.is-no-answer,
+html #app.dark .timeline-card.is-no-answer {
+  background: #4c1d1d !important;
+  border-color: #f87171 !important;
+  color: #fecaca !important;
+}
+html body.dark .timeline-card.is-debtor,
+html #app.dark .timeline-card.is-debtor {
+  background: #3a2e14 !important;
+  border-color: #f59e0b !important;
+  color: #fde68a !important;
+}
+html body.dark .timeline-card.is-creditor,
+html #app.dark .timeline-card.is-creditor {
+  background: #3a1d1d !important;
+  border-color: #f87171 !important;
+  color: #fecaca !important;
+}
+html body.dark .timeline-card.is-highlighted,
+html #app.dark .timeline-card.is-highlighted {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, .28), 0 12px 22px rgba(0, 0, 0, .35) !important;
+}
+html body.dark .timeline-time-chip,
+html #app.dark .timeline-time-chip {
+  background: #16a34a !important;
+  color: #fff !important;
+}
+html body.dark .timeline-card.is-empty .timeline-time-chip,
+html #app.dark .timeline-card.is-empty .timeline-time-chip {
+  background: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .timeline-card.is-arrived .timeline-time-chip,
+html #app.dark .timeline-card.is-arrived .timeline-time-chip {
+  background: #86efac !important;
+  color: #14532d !important;
+}
+html body.dark .timeline-card.is-canceled .timeline-time-chip,
+html #app.dark .timeline-card.is-canceled .timeline-time-chip {
+  background: #b91c1c !important;
+  color: #fff !important;
+}
+html body.dark .timeline-card.is-no-answer .timeline-time-chip,
+html #app.dark .timeline-card.is-no-answer .timeline-time-chip {
+  background: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .timeline-card.is-follow .timeline-time-chip,
+html #app.dark .timeline-card.is-follow .timeline-time-chip {
+  background: #1e40af !important;
+  color: #dbeafe !important;
+}
+html body.dark .timeline-add-card,
+html #app.dark .timeline-add-card {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .timeline-add-card:hover,
+html #app.dark .timeline-add-card:hover {
+  background: #22252d !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .timeline-add-card .timeline-time-chip,
+html #app.dark .timeline-add-card .timeline-time-chip {
+  background: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .timeline-add-card .timeline-card-empty span,
+html #app.dark .timeline-add-card .timeline-card-empty span {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .timeline-patient-results,
+html #app.dark .timeline-patient-results {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .main-schedule-table thead,
+html body.dark .sticky-header,
+html #app.dark .main-schedule-table thead,
+html #app.dark .sticky-header {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .main-schedule-table td,
+html #app.dark .main-schedule-table td {
+  background-color: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .data-row.stripe td,
+html #app.dark .data-row.stripe td { background-color: #1f2229 !important; }
+html body.dark .main-schedule-table tbody tr.data-row:hover > td,
+html #app.dark .main-schedule-table tbody tr.data-row:hover > td {
+  background-color: #2a2f3a !important;
+}
+html body.dark .main-schedule-table td.dn-yes,
+html body.dark .dn-yes,
+html #app.dark .main-schedule-table td.dn-yes,
+html #app.dark .dn-yes { background-color: #14532d !important; color: #bbf7d0 !important; }
+html body.dark .main-schedule-table td.dn-no,
+html body.dark .dn-no,
+html #app.dark .main-schedule-table td.dn-no,
+html #app.dark .dn-no { background-color: #7f1d1d !important; color: #fecaca !important; }
+html body.dark .main-schedule-table td.dn-rep,
+html body.dark .dn-rep,
+html #app.dark .main-schedule-table td.dn-rep,
+html #app.dark .dn-rep { background-color: #581c87 !important; color: #e9d5ff !important; }
+html body.dark .main-schedule-table td.dn-trans,
+html body.dark .dn-trans,
+html #app.dark .main-schedule-table td.dn-trans,
+html #app.dark .dn-trans { background-color: #1e3a5f !important; color: #bfdbfe !important; }
+html body.dark .main-schedule-table td.dn-cons,
+html body.dark .dn-cons,
+html #app.dark .main-schedule-table td.dn-cons,
+html #app.dark .dn-cons { background-color: #3a3f4a !important; color: #e8eaed !important; }
+html body.dark .main-schedule-table td.st-arrived,
+html body.dark .st-arrived,
+html #app.dark .main-schedule-table td.st-arrived,
+html #app.dark .st-arrived { background-color: #14532d !important; color: #bbf7d0 !important; }
+html body.dark .main-schedule-table td.st-noans,
+html body.dark .st-noans,
+html body.dark .sms-wait,
+html #app.dark .main-schedule-table td.st-noans,
+html #app.dark .st-noans,
+html #app.dark .sms-wait { background-color: #7f1d1d !important; color: #fecaca !important; }
+html body.dark .main-schedule-table td.st-follow,
+html body.dark .st-follow,
+html #app.dark .main-schedule-table td.st-follow,
+html #app.dark .st-follow { background-color: #1e3a5f !important; color: #bfdbfe !important; }
+html body.dark .sms-sent,
+html #app.dark .sms-sent { background-color: #14532d !important; color: #86efac !important; }
+html body.dark .debt-amount-input,
+html #app.dark .debt-amount-input {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .paid-amount-input,
+html #app.dark .paid-amount-input {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .timeline-modal,
+html body.dark .tracking-modal,
+html body.dark .sms-queue-modal,
+html body.dark .completion-sms-modal,
+html body.dark .automatic-sms-modal,
+html body.dark .appointment-history-modal,
+html body.dark .service-filter-modal,
+html body.dark .amount-filter-modal,
+html body.dark .payment-link-modal,
+html body.dark .doctor-note-modal,
+html body.dark .daily-report-modal,
+html body.dark .balance-audit-modal,
+html body.dark .time-profile-modal,
+html body.dark .financial-panel,
+html body.dark .booking-setup-card,
+html #app.dark .timeline-modal,
+html #app.dark .tracking-modal,
+html #app.dark .sms-queue-modal,
+html #app.dark .completion-sms-modal,
+html #app.dark .automatic-sms-modal,
+html #app.dark .appointment-history-modal,
+html #app.dark .service-filter-modal,
+html #app.dark .amount-filter-modal,
+html #app.dark .payment-link-modal,
+html #app.dark .doctor-note-modal,
+html #app.dark .daily-report-modal,
+html #app.dark .balance-audit-modal,
+html #app.dark .time-profile-modal,
+html #app.dark .financial-panel,
+html #app.dark .booking-setup-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .55) !important;
+}
+html body.dark .timeline-modal-header,
+html body.dark .tracking-modal > header,
+html body.dark .sms-queue-modal > header,
+html body.dark .completion-sms-modal > header,
+html body.dark .automatic-sms-modal > header,
+html body.dark .appointment-history-modal > header,
+html body.dark .amount-filter-modal > header,
+html body.dark .daily-report-modal header,
+html body.dark .balance-audit-modal header,
+html body.dark .time-profile-modal > header,
+html body.dark .doctor-note-modal-header,
+html #app.dark .timeline-modal-header,
+html #app.dark .tracking-modal > header,
+html #app.dark .sms-queue-modal > header,
+html #app.dark .completion-sms-modal > header,
+html #app.dark .automatic-sms-modal > header,
+html #app.dark .appointment-history-modal > header,
+html #app.dark .amount-filter-modal > header,
+html #app.dark .daily-report-modal header,
+html #app.dark .balance-audit-modal header,
+html #app.dark .time-profile-modal > header,
+html #app.dark .doctor-note-modal-header {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-modal-header h3,
+html body.dark .tracking-modal header h3,
+html body.dark .sms-queue-modal header h3,
+html body.dark .completion-sms-modal header h3,
+html body.dark .automatic-sms-modal h2,
+html body.dark .appointment-history-modal h3,
+html body.dark .amount-filter-modal h3,
+html body.dark .daily-report-modal header h3,
+html body.dark .balance-audit-modal header h3,
+html body.dark .time-profile-head h3,
+html body.dark .financial-panel h3,
+html #app.dark .timeline-modal-header h3,
+html #app.dark .tracking-modal header h3,
+html #app.dark .sms-queue-modal header h3,
+html #app.dark .completion-sms-modal header h3,
+html #app.dark .automatic-sms-modal h2,
+html #app.dark .appointment-history-modal h3,
+html #app.dark .amount-filter-modal h3,
+html #app.dark .daily-report-modal header h3,
+html #app.dark .balance-audit-modal header h3,
+html #app.dark .time-profile-head h3,
+html #app.dark .financial-panel h3 {
+  color: #f1f3f4 !important;
+}
+html body.dark .timeline-modal-header span,
+html body.dark .timeline-modal-header p,
+html body.dark .tracking-modal header span,
+html body.dark .tracking-modal header p,
+html body.dark .sms-queue-modal header span,
+html body.dark .sms-queue-modal header p,
+html body.dark .completion-sms-modal header span,
+html body.dark .completion-sms-modal header p,
+html body.dark .automatic-sms-modal-heading small,
+html body.dark .appointment-history-modal header p,
+html body.dark .time-profile-head p,
+html body.dark .time-profile-head small,
+html #app.dark .timeline-modal-header span,
+html #app.dark .timeline-modal-header p,
+html #app.dark .tracking-modal header span,
+html #app.dark .tracking-modal header p,
+html #app.dark .sms-queue-modal header span,
+html #app.dark .sms-queue-modal header p,
+html #app.dark .completion-sms-modal header span,
+html #app.dark .completion-sms-modal header p,
+html #app.dark .automatic-sms-modal-heading small,
+html #app.dark .appointment-history-modal header p,
+html #app.dark .time-profile-head p,
+html #app.dark .time-profile-head small {
+  color: #9aa0a6 !important;
+}
+html body.dark .timeline-modal-header button,
+html body.dark .tracking-modal header button,
+html body.dark .sms-queue-modal header button,
+html body.dark .completion-sms-modal header button,
+html body.dark .automatic-sms-modal-close,
+html body.dark .appointment-history-modal header button,
+html body.dark .amount-filter-modal header button,
+html body.dark .daily-report-modal header button,
+html body.dark .balance-audit-modal header button,
+html body.dark .time-profile-modal > header > button,
+html body.dark .financial-panel header button,
+html body.dark .timeline-modal-cancel,
+html #app.dark .timeline-modal-header button,
+html #app.dark .tracking-modal header button,
+html #app.dark .sms-queue-modal header button,
+html #app.dark .completion-sms-modal header button,
+html #app.dark .automatic-sms-modal-close,
+html #app.dark .appointment-history-modal header button,
+html #app.dark .amount-filter-modal header button,
+html #app.dark .daily-report-modal header button,
+html #app.dark .balance-audit-modal header button,
+html #app.dark .time-profile-modal > header > button,
+html #app.dark .financial-panel header button,
+html #app.dark .timeline-modal-cancel {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .timeline-modal-body,
+html body.dark .timeline-modal-footer,
+html body.dark .automatic-sms-modal-summary,
+html body.dark .automatic-sms-modal-list,
+html body.dark .financial-summary article,
+html body.dark .financial-check-grid,
+html body.dark .tracking-grid article,
+html body.dark .time-profile-details,
+html body.dark .time-profile-details-grid article,
+html body.dark .time-profile-media,
+html body.dark .amount-filter-body,
+html body.dark .amount-filter-input,
+html body.dark .amount-filter-input b,
+html body.dark .balance-audit-table th,
+html body.dark .completion-sms-history,
+html #app.dark .timeline-modal-body,
+html #app.dark .timeline-modal-footer,
+html #app.dark .automatic-sms-modal-summary,
+html #app.dark .automatic-sms-modal-list,
+html #app.dark .financial-summary article,
+html #app.dark .financial-check-grid,
+html #app.dark .tracking-grid article,
+html #app.dark .time-profile-details,
+html #app.dark .time-profile-details-grid article,
+html #app.dark .time-profile-media,
+html #app.dark .amount-filter-body,
+html #app.dark .amount-filter-input,
+html #app.dark .amount-filter-input b,
+html #app.dark .balance-audit-table th,
+html #app.dark .completion-sms-history {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-modal input,
+html body.dark .timeline-modal select,
+html body.dark .timeline-modal textarea,
+html body.dark .timeline-modal-input,
+html body.dark .financial-panel input,
+html body.dark .financial-panel select,
+html body.dark .financial-panel textarea,
+html body.dark .amount-filter-modal input,
+html body.dark .doctor-note-modal textarea,
+html body.dark .payment-link-modal input,
+html body.dark .time-profile-modal input,
+html body.dark .time-profile-modal select,
+html body.dark .time-profile-modal textarea,
+html #app.dark .timeline-modal input,
+html #app.dark .timeline-modal select,
+html #app.dark .timeline-modal textarea,
+html #app.dark .timeline-modal-input,
+html #app.dark .financial-panel input,
+html #app.dark .financial-panel select,
+html #app.dark .financial-panel textarea,
+html #app.dark .amount-filter-modal input,
+html #app.dark .doctor-note-modal textarea,
+html #app.dark .payment-link-modal input,
+html #app.dark .time-profile-modal input,
+html #app.dark .time-profile-modal select,
+html #app.dark .time-profile-modal textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .timeline-modal label,
+html body.dark .amount-filter-body > label,
+html body.dark .time-profile-details-grid span,
+html body.dark .time-profile-section-head span,
+html #app.dark .timeline-modal label,
+html #app.dark .amount-filter-body > label,
+html #app.dark .time-profile-details-grid span,
+html #app.dark .time-profile-section-head span {
+  color: #c5cad3 !important;
+}
+html body.dark .timeline-modal .timeline-service-row,
+html body.dark .timeline-addon-box,
+html body.dark .timeline-addon-toggle,
+html body.dark .timeline-sms-options > label,
+html body.dark .timeline-sms-options--compact > label,
+html #app.dark .timeline-modal .timeline-service-row,
+html #app.dark .timeline-addon-box,
+html #app.dark .timeline-addon-toggle,
+html #app.dark .timeline-sms-options > label,
+html #app.dark .timeline-sms-options--compact > label {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-service-section-options label,
+html #app.dark .timeline-service-section-options label {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .timeline-service-section-options label.active,
+html #app.dark .timeline-service-section-options label.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .timeline-modal-save,
+html #app.dark .timeline-modal-save {
+  background: #4f8cff !important;
+  border-color: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .balance-audit-table td,
+html body.dark .time-profile-history table td,
+html body.dark .appointment-history-modal table td,
+html #app.dark .balance-audit-table td,
+html #app.dark .time-profile-history table td,
+html #app.dark .appointment-history-modal table td {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .balance-audit-empty,
+html body.dark .automatic-sms-modal-empty,
+html body.dark .completion-sms-empty,
+html #app.dark .balance-audit-empty,
+html #app.dark .automatic-sms-modal-empty,
+html #app.dark .completion-sms-empty {
+  background: #22252d !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .finance-chat-trigger,
+html #app.dark .finance-chat-trigger {
+  background: #1e3a5f !important;
+  border-color: #1e40af !important;
+  color: #93c5fd !important;
+}
+html body.dark .finance-chat-trigger.danger,
+html #app.dark .finance-chat-trigger.danger {
+  background: #3a1d1d !important;
+  border-color: #7f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .financial-wallet-settle,
+html #app.dark .financial-wallet-settle {
+  background: linear-gradient(135deg, #14352a, #14532d) !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .dark-toggle,
+html #app.dark .dark-toggle {
+  background: #22252d !important;
+  color: #e8eaed !important;
+}
+</style>

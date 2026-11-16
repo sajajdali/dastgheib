@@ -3019,3 +3019,480 @@ textarea{ min-height:120px; resize:none; }
 }
 @media (max-width: 440px) { .birthday-days-before { align-items: flex-start; flex-direction: column; } }
 </style>
+
+<style>
+/* Dark charcoal: settings-page */
+html body.dark .settings-page,
+html #app.dark .settings-page {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .accordion,
+html body.dark .settings-page .accordion-body,
+html body.dark .settings-page .content-wrapper,
+html body.dark .settings-page .payment-settings-wrapper,
+html body.dark .settings-page .sms-settings-wrapper,
+html body.dark .settings-page .birthday-automation-card,
+html body.dark .settings-page .payment-option-card,
+html body.dark .settings-page .sms-provider-card,
+html body.dark .settings-page .lead-alert-sms-card,
+html body.dark .settings-page .birthday-sms-card,
+html body.dark .settings-page .lead-alert-template-card,
+html body.dark .settings-page .provider-choice-card,
+html body.dark .settings-page .provider-token-card,
+html body.dark .settings-page .user-definition-card,
+html body.dark .settings-page .level-settings-card,
+html body.dark .settings-page .level-period-modal,
+html body.dark .settings-page .wallet-settings-card,
+html #app.dark .settings-page .accordion,
+html #app.dark .settings-page .accordion-body,
+html #app.dark .settings-page .content-wrapper,
+html #app.dark .settings-page .payment-settings-wrapper,
+html #app.dark .settings-page .sms-settings-wrapper,
+html #app.dark .settings-page .birthday-automation-card,
+html #app.dark .settings-page .payment-option-card,
+html #app.dark .settings-page .sms-provider-card,
+html #app.dark .settings-page .lead-alert-sms-card,
+html #app.dark .settings-page .birthday-sms-card,
+html #app.dark .settings-page .lead-alert-template-card,
+html #app.dark .settings-page .provider-choice-card,
+html #app.dark .settings-page .provider-token-card,
+html #app.dark .settings-page .user-definition-card,
+html #app.dark .settings-page .level-settings-card,
+html #app.dark .settings-page .level-period-modal,
+html #app.dark .settings-page .wallet-settings-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .accordion-header,
+html #app.dark .settings-page .accordion-header {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .accordion-header:hover,
+html #app.dark .settings-page .accordion-header:hover {
+  background: #2a2f3a !important;
+}
+html body.dark .settings-page input,
+html body.dark .settings-page select,
+html body.dark .settings-page textarea,
+html #app.dark .settings-page input,
+html #app.dark .settings-page select,
+html #app.dark .settings-page textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .settings-page .section-eyebrow,
+html body.dark .settings-page small,
+html body.dark .settings-page .hint,
+html body.dark .settings-page p,
+html #app.dark .settings-page .section-eyebrow,
+html #app.dark .settings-page small,
+html #app.dark .settings-page .hint,
+html #app.dark .settings-page p { color: #9aa0a6 !important; }
+html body.dark .settings-page h2,
+html body.dark .settings-page h3,
+html body.dark .settings-page label,
+html #app.dark .settings-page h2,
+html #app.dark .settings-page h3,
+html #app.dark .settings-page label { color: #e8eaed !important; }
+html body.dark .settings-page button,
+html #app.dark .settings-page button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .lead-alert-template-card.active,
+html body.dark .settings-page .birthday-sms-card:not(.is-inactive),
+html #app.dark .settings-page .lead-alert-template-card.active,
+html #app.dark .settings-page .birthday-sms-card:not(.is-inactive) {
+  border-color: #166534 !important;
+}
+html body.dark .settings-page .is-inactive,
+html #app.dark .settings-page .is-inactive {
+  background: #16181d !important;
+  opacity: .88;
+}
+html body.dark .settings-page .level-period-modal-backdrop,
+html #app.dark .settings-page .level-period-modal-backdrop {
+  background: rgba(0,0,0,.62) !important;
+}
+</style>
+
+<style>
+/* Setting dark mode — charcoal for all sections/accordions/modals */
+html body.dark .settings-page,
+html #app.dark .settings-page {
+  background: transparent !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .content-wrapper,
+html body.dark .settings-page .accordion,
+html body.dark .settings-page .payment-settings-wrapper,
+html body.dark .settings-page .payment-option-card,
+html body.dark .settings-page .sms-provider-card,
+html body.dark .settings-page .sms-templates-section,
+html body.dark .settings-page .sms-settings-wrapper,
+html body.dark .settings-page .voip-settings-wrapper,
+html body.dark .settings-page .voip-card,
+html body.dark .settings-page .voip-incoming-card,
+html body.dark .settings-page .birthday-sms-card,
+html body.dark .settings-page .birthday-automation-card,
+html body.dark .settings-page .lead-alert-sms-card,
+html body.dark .settings-page .lead-alert-template-card,
+html body.dark .settings-page .satisfaction-settings-wrapper,
+html body.dark .settings-page .satisfaction-integration-card,
+html body.dark .settings-page .roles-settings-wrapper,
+html body.dark .settings-page .user-definition-card,
+html body.dark .settings-page .permission-box,
+html body.dark .settings-page .upload-box,
+html body.dark .settings-page .template-card,
+html body.dark .settings-page .level-settings-card,
+html body.dark .settings-page .level-period-modal,
+html body.dark .settings-page .wallet-service-rules,
+html #app.dark .settings-page .content-wrapper,
+html #app.dark .settings-page .accordion,
+html #app.dark .settings-page .payment-settings-wrapper,
+html #app.dark .settings-page .payment-option-card,
+html #app.dark .settings-page .sms-provider-card,
+html #app.dark .settings-page .sms-templates-section,
+html #app.dark .settings-page .sms-settings-wrapper,
+html #app.dark .settings-page .voip-settings-wrapper,
+html #app.dark .settings-page .voip-card,
+html #app.dark .settings-page .voip-incoming-card,
+html #app.dark .settings-page .birthday-sms-card,
+html #app.dark .settings-page .birthday-automation-card,
+html #app.dark .settings-page .lead-alert-sms-card,
+html #app.dark .settings-page .lead-alert-template-card,
+html #app.dark .settings-page .satisfaction-settings-wrapper,
+html #app.dark .settings-page .satisfaction-integration-card,
+html #app.dark .settings-page .roles-settings-wrapper,
+html #app.dark .settings-page .user-definition-card,
+html #app.dark .settings-page .permission-box,
+html #app.dark .settings-page .upload-box,
+html #app.dark .settings-page .template-card,
+html #app.dark .settings-page .level-settings-card,
+html #app.dark .settings-page .level-period-modal,
+html #app.dark .settings-page .wallet-service-rules {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
+}
+html body.dark .settings-page h2,
+html body.dark .settings-page h3,
+html body.dark .settings-page h4,
+html body.dark .settings-page .payment-settings-head h2,
+html body.dark .settings-page .payment-option-card h3,
+html body.dark .settings-page .profile-setting-group-title,
+html body.dark .settings-page .birthday-automation-intro strong,
+html body.dark .settings-page .birthday-timing-options strong,
+html body.dark .settings-page .birthday-days-before strong,
+html body.dark .settings-page .lead-phone-privacy-copy strong,
+html body.dark .settings-page .file-number-lock-setting-copy strong,
+html body.dark .settings-page .level-period-modal h4,
+html #app.dark .settings-page h2,
+html #app.dark .settings-page h3,
+html #app.dark .settings-page h4,
+html #app.dark .settings-page .payment-settings-head h2,
+html #app.dark .settings-page .payment-option-card h3,
+html #app.dark .settings-page .profile-setting-group-title,
+html #app.dark .settings-page .birthday-automation-intro strong,
+html #app.dark .settings-page .birthday-timing-options strong,
+html #app.dark .settings-page .birthday-days-before strong,
+html #app.dark .settings-page .lead-phone-privacy-copy strong,
+html #app.dark .settings-page .file-number-lock-setting-copy strong,
+html #app.dark .settings-page .level-period-modal h4 {
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .report-target-help,
+html body.dark .settings-page .payment-settings-head p,
+html body.dark .settings-page .payment-option-card p,
+html body.dark .settings-page .level-settings-help,
+html body.dark .settings-page .sms-template-group-note,
+html body.dark .settings-page .sms-clinic-info-note,
+html body.dark .settings-page .section-eyebrow,
+html body.dark .settings-page .birthday-automation-intro small,
+html body.dark .settings-page .birthday-timing-options small,
+html body.dark .settings-page .birthday-days-before small,
+html body.dark .settings-page .lead-phone-privacy-copy small,
+html body.dark .settings-page .file-number-lock-setting-copy small,
+html body.dark .settings-page .wallet-enable-row small,
+html body.dark .settings-page .wallet-service-rules small,
+html body.dark .settings-page .wallet-sms-template small,
+html body.dark .settings-page .level-period-modal p,
+html body.dark .settings-page .voip-incoming-empty,
+html body.dark .settings-page .empty-templates,
+html #app.dark .settings-page .report-target-help,
+html #app.dark .settings-page .payment-settings-head p,
+html #app.dark .settings-page .payment-option-card p,
+html #app.dark .settings-page .level-settings-help,
+html #app.dark .settings-page .sms-template-group-note,
+html #app.dark .settings-page .sms-clinic-info-note,
+html #app.dark .settings-page .section-eyebrow,
+html #app.dark .settings-page .birthday-automation-intro small,
+html #app.dark .settings-page .birthday-timing-options small,
+html #app.dark .settings-page .birthday-days-before small,
+html #app.dark .settings-page .lead-phone-privacy-copy small,
+html #app.dark .settings-page .file-number-lock-setting-copy small,
+html #app.dark .settings-page .wallet-enable-row small,
+html #app.dark .settings-page .wallet-service-rules small,
+html #app.dark .settings-page .wallet-sms-template small,
+html #app.dark .settings-page .level-period-modal p,
+html #app.dark .settings-page .voip-incoming-empty,
+html #app.dark .settings-page .empty-templates {
+  color: #9aa0a6 !important;
+}
+html body.dark .settings-page .tab-btn,
+html #app.dark .settings-page .tab-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+  box-shadow: none !important;
+}
+html body.dark .settings-page .tab-btn:hover,
+html #app.dark .settings-page .tab-btn:hover {
+  background: #2a2f3a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .tab-btn.active,
+html #app.dark .settings-page .tab-btn.active {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .accordion-header:hover,
+html #app.dark .settings-page .accordion-header:hover {
+  background: #22252d !important;
+}
+html body.dark .settings-page .accordion-body,
+html body.dark .settings-page .payment-option-card > header,
+html body.dark .settings-page .level-settings-card h4,
+html body.dark .settings-page .level-period-control,
+html #app.dark .settings-page .accordion-body,
+html #app.dark .settings-page .payment-option-card > header,
+html #app.dark .settings-page .level-settings-card h4,
+html #app.dark .settings-page .level-period-control {
+  border-color: #2c3038 !important;
+}
+html body.dark .settings-page input,
+html body.dark .settings-page textarea,
+html body.dark .settings-page select,
+html body.dark .settings-page .payment-option-row input,
+html body.dark .settings-page .level-criterion-input input,
+html body.dark .settings-page .green-input,
+html body.dark .settings-page .birthday-days-before input,
+html #app.dark .settings-page input,
+html #app.dark .settings-page textarea,
+html #app.dark .settings-page select,
+html #app.dark .settings-page .payment-option-row input,
+html #app.dark .settings-page .level-criterion-input input,
+html #app.dark .settings-page .green-input,
+html #app.dark .settings-page .birthday-days-before input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .settings-page .green-input:focus,
+html #app.dark .settings-page .green-input:focus {
+  background: #1e2a28 !important;
+  box-shadow: 0 0 0 3px rgba(61,107,95,.25) !important;
+}
+html body.dark .settings-page .compact-checks label,
+html body.dark .settings-page .compact-checks .profile-optional-fields,
+html body.dark .settings-page .compact-checks .profile-optional-fields-grid label,
+html body.dark .settings-page .compact-checks .lead-phone-privacy-setting,
+html body.dark .settings-page .compact-checks .file-number-lock-setting,
+html body.dark .settings-page .user-role-picker label,
+html body.dark .settings-page .schedule-day-row,
+html body.dark .settings-page .level-criterion-toggle,
+html body.dark .settings-page .level-criterion-input,
+html body.dark .settings-page .birthday-automation-head,
+html body.dark .settings-page .birthday-timing-options label,
+html body.dark .settings-page .birthday-days-before,
+html body.dark .settings-page .wallet-enable-row,
+html body.dark .settings-page .gender-icon-picker,
+html body.dark .settings-page .gender-icon-picker button,
+html body.dark .settings-page .settings-user-avatar,
+html body.dark .settings-page .payment-option-row > span,
+html body.dark .settings-page .add-payment-option,
+html body.dark .settings-page .level-period-control button,
+html body.dark .settings-page .level-period-cancel,
+html #app.dark .settings-page .compact-checks label,
+html #app.dark .settings-page .compact-checks .profile-optional-fields,
+html #app.dark .settings-page .compact-checks .profile-optional-fields-grid label,
+html #app.dark .settings-page .compact-checks .lead-phone-privacy-setting,
+html #app.dark .settings-page .compact-checks .file-number-lock-setting,
+html #app.dark .settings-page .user-role-picker label,
+html #app.dark .settings-page .schedule-day-row,
+html #app.dark .settings-page .level-criterion-toggle,
+html #app.dark .settings-page .level-criterion-input,
+html #app.dark .settings-page .birthday-automation-head,
+html #app.dark .settings-page .birthday-timing-options label,
+html #app.dark .settings-page .birthday-days-before,
+html #app.dark .settings-page .wallet-enable-row,
+html #app.dark .settings-page .gender-icon-picker,
+html #app.dark .settings-page .gender-icon-picker button,
+html #app.dark .settings-page .settings-user-avatar,
+html #app.dark .settings-page .payment-option-row > span,
+html #app.dark .settings-page .add-payment-option,
+html #app.dark .settings-page .level-period-control button,
+html #app.dark .settings-page .level-period-cancel {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .settings-page .compact-checks label:hover,
+html body.dark .settings-page .level-criterion-toggle:hover,
+html body.dark .settings-page .birthday-timing-options label:hover,
+html body.dark .settings-page .add-payment-option:hover,
+html body.dark .settings-page .custom-password-toggle:hover,
+html #app.dark .settings-page .compact-checks label:hover,
+html #app.dark .settings-page .level-criterion-toggle:hover,
+html #app.dark .settings-page .birthday-timing-options label:hover,
+html #app.dark .settings-page .add-payment-option:hover,
+html #app.dark .settings-page .custom-password-toggle:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+}
+html body.dark .settings-page .level-criterion-toggle.active,
+html body.dark .settings-page .profile-optional-fields-grid label:has(input:checked),
+html body.dark .settings-page .birthday-timing-options label.selected,
+html body.dark .settings-page .compact-checks .lead-phone-privacy-setting.active,
+html body.dark .settings-page .compact-checks .file-number-lock-setting.active,
+html body.dark .settings-page .gender-icon-picker button.active,
+html #app.dark .settings-page .level-criterion-toggle.active,
+html #app.dark .settings-page .profile-optional-fields-grid label:has(input:checked),
+html #app.dark .settings-page .birthday-timing-options label.selected,
+html #app.dark .settings-page .compact-checks .lead-phone-privacy-setting.active,
+html #app.dark .settings-page .compact-checks .file-number-lock-setting.active,
+html #app.dark .settings-page .gender-icon-picker button.active {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+  box-shadow: none !important;
+}
+html body.dark .settings-page .level-criterion-toggle b,
+html body.dark .settings-page .level-criterion-toggle.active b,
+html body.dark .settings-page .level-criterion-input em,
+html #app.dark .settings-page .level-criterion-toggle b,
+html #app.dark .settings-page .level-criterion-toggle.active b,
+html #app.dark .settings-page .level-criterion-input em {
+  background: #121417 !important;
+  color: #9aa0a6 !important;
+}
+/* level cards keep muted semantic tint */
+html body.dark .settings-page .level-settings-card.blue,
+html #app.dark .settings-page .level-settings-card.blue {
+  background: #1a2230 !important;
+  border-color: #2f4668 !important;
+}
+html body.dark .settings-page .level-settings-card.blue h4,
+html #app.dark .settings-page .level-settings-card.blue h4 {
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .level-settings-card.silver,
+html #app.dark .settings-page .level-settings-card.silver {
+  background: #1c1e24 !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .settings-page .level-settings-card.silver h4,
+html #app.dark .settings-page .level-settings-card.silver h4 {
+  color: #c5cad3 !important;
+}
+html body.dark .settings-page .level-settings-card.gold,
+html #app.dark .settings-page .level-settings-card.gold {
+  background: #2a2618 !important;
+  border-color: #6b5a2e !important;
+}
+html body.dark .settings-page .level-settings-card.gold h4,
+html #app.dark .settings-page .level-settings-card.gold h4 {
+  color: #fbbf24 !important;
+}
+html body.dark .settings-page .payment-settings-status,
+html body.dark .settings-page .wallet-enable-row,
+html body.dark .settings-page .birthday-template-ready,
+html body.dark .settings-page .api-token-saved-status,
+html #app.dark .settings-page .payment-settings-status,
+html #app.dark .settings-page .wallet-enable-row,
+html #app.dark .settings-page .birthday-template-ready,
+html #app.dark .settings-page .api-token-saved-status {
+  background: #1e2a28 !important;
+  border-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .birthday-template-warning,
+html body.dark .settings-page .project-owner-badge,
+html #app.dark .settings-page .birthday-template-warning,
+html #app.dark .settings-page .project-owner-badge {
+  background: #3a3220 !important;
+  border-color: #6b5a2e !important;
+  color: #fbbf24 !important;
+}
+html body.dark .settings-page .birthday-template-warning button,
+html #app.dark .settings-page .birthday-template-warning button {
+  background: #22252d !important;
+  border-color: #6b5a2e !important;
+  color: #fbbf24 !important;
+}
+html body.dark .settings-page .payment-option-row button,
+html body.dark .settings-page .user-delete-btn,
+html body.dark .settings-page .delete-template-btn,
+html body.dark .settings-page .access-lock-btn,
+html body.dark .settings-page .wallet-rule-remove,
+html body.dark .settings-page .remove-btn,
+html #app.dark .settings-page .payment-option-row button,
+html #app.dark .settings-page .user-delete-btn,
+html #app.dark .settings-page .delete-template-btn,
+html #app.dark .settings-page .access-lock-btn,
+html #app.dark .settings-page .wallet-rule-remove,
+html #app.dark .settings-page .remove-btn {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .settings-page .user-delete-btn:hover:not(:disabled),
+html #app.dark .settings-page .user-delete-btn:hover:not(:disabled) {
+  background: #4a2e30 !important;
+}
+html body.dark .settings-page .level-period-modal-backdrop,
+html #app.dark .settings-page .level-period-modal-backdrop {
+  background: rgba(0,0,0,.62) !important;
+}
+html body.dark .settings-page .birthday-automation-icon,
+html body.dark .settings-page .file-number-lock-setting-icon,
+html body.dark .settings-page .compact-checks .file-number-lock-setting.active .file-number-lock-setting-icon,
+html #app.dark .settings-page .birthday-automation-icon,
+html #app.dark .settings-page .file-number-lock-setting-icon,
+html #app.dark .settings-page .compact-checks .file-number-lock-setting.active .file-number-lock-setting-icon {
+  background: #2a2f3a !important;
+  color: #4f8cff !important;
+}
+html body.dark .settings-page .file-number-lock-switch,
+html body.dark .settings-page .birthday-switch-track,
+html #app.dark .settings-page .file-number-lock-switch,
+html #app.dark .settings-page .birthday-switch-track {
+  background: #3a3f4a !important;
+}
+html body.dark .settings-page .wallet-service-rules header button,
+html body.dark .settings-page .sms-sample-text-btn,
+html body.dark .settings-page .birthday-sample-text-btn,
+html #app.dark .settings-page .wallet-service-rules header button,
+html #app.dark .settings-page .sms-sample-text-btn,
+html #app.dark .settings-page .birthday-sample-text-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #4f8cff !important;
+}
+html body.dark .settings-page .payment-settings-actions span.error,
+html #app.dark .settings-page .payment-settings-actions span.error {
+  color: #f5a8a0 !important;
+}
+</style>

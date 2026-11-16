@@ -1825,3 +1825,303 @@ td input {
 }
 
 </style>
+
+<style>
+/* Dark charcoal: hr-page */
+html body.dark .hr-page,
+html #app.dark .hr-page {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .hr-page .staff-card,
+html body.dark .hr-page .month-card,
+html body.dark .hr-page .summary-card,
+html body.dark .hr-page .content-wrapper,
+html body.dark .hr-page .table-wrapper,
+html body.dark .hr-page .modal-box,
+html #app.dark .hr-page .staff-card,
+html #app.dark .hr-page .month-card,
+html #app.dark .hr-page .summary-card,
+html #app.dark .hr-page .content-wrapper,
+html #app.dark .hr-page .table-wrapper,
+html #app.dark .hr-page .modal-box {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .hr-page .staff-card:hover,
+html body.dark .hr-page .staff-card.active,
+html #app.dark .hr-page .staff-card:hover,
+html #app.dark .hr-page .staff-card.active {
+  background: #22252d !important;
+  border-color: #4f8cff !important;
+}
+html body.dark .hr-page table th,
+html #app.dark .hr-page table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .hr-page table td,
+html #app.dark .hr-page table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .hr-page input,
+html body.dark .hr-page select,
+html body.dark .hr-page textarea,
+html #app.dark .hr-page input,
+html #app.dark .hr-page select,
+html #app.dark .hr-page textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .hr-page .money-card,
+html #app.dark .hr-page .money-card {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .hr-page .leave-modal-close,
+html body.dark .hr-page .modal-actions button,
+html #app.dark .hr-page .leave-modal-close,
+html #app.dark .hr-page .modal-actions button {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+  border-color: #3a3f4a !important;
+}
+</style>
+
+<style>
+/* HRtimes dark mode — charcoal */
+html body.dark .hr-page,
+html #app.dark .hr-page {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .hr-page .staff-sidebar,
+html body.dark .hr-page .top-header,
+html body.dark .hr-page .month-card,
+html body.dark .hr-page .summary-card,
+html body.dark .hr-page .modal-box,
+html body.dark .hr-page .leave-modal,
+html body.dark .hr-page .old-months-list,
+html body.dark .hr-page .table-wrapper,
+html #app.dark .hr-page .staff-sidebar,
+html #app.dark .hr-page .top-header,
+html #app.dark .hr-page .month-card,
+html #app.dark .hr-page .summary-card,
+html #app.dark .hr-page .modal-box,
+html #app.dark .hr-page .leave-modal,
+html #app.dark .hr-page .old-months-list,
+html #app.dark .hr-page .table-wrapper {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.32) !important;
+}
+html body.dark .hr-page .sidebar-header,
+html body.dark .hr-page .top-header,
+html body.dark .hr-page .month-header,
+html body.dark .hr-page .month-footer,
+html body.dark .hr-page .month-tabs-bar,
+html body.dark .hr-page .sidebar-header,
+html #app.dark .hr-page .sidebar-header,
+html #app.dark .hr-page .top-header,
+html #app.dark .hr-page .month-header,
+html #app.dark .hr-page .month-footer,
+html #app.dark .hr-page .month-tabs-bar {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .hr-page .month-footer,
+html #app.dark .hr-page .month-footer {
+  background: #121417 !important;
+}
+html body.dark .hr-page h2,
+html body.dark .hr-page h3,
+html body.dark .hr-page .month-title,
+html body.dark .hr-page .summary-card h3,
+html body.dark .hr-page .leave-modal-heading,
+html #app.dark .hr-page h2,
+html #app.dark .hr-page h3,
+html #app.dark .hr-page .month-title,
+html #app.dark .hr-page .summary-card h3,
+html #app.dark .hr-page .leave-modal-heading {
+  color: #f1f3f4 !important;
+}
+html body.dark .hr-page .sidebar-header p,
+html body.dark .hr-page .empty-state,
+html body.dark .hr-page .empty-months,
+html body.dark .hr-page .summary-card span,
+html body.dark .hr-page .resource-pay-summary small,
+html body.dark .hr-page .attendance-loading small,
+html #app.dark .hr-page .sidebar-header p,
+html #app.dark .hr-page .empty-state,
+html #app.dark .hr-page .empty-months,
+html #app.dark .hr-page .summary-card span,
+html #app.dark .hr-page .resource-pay-summary small,
+html #app.dark .hr-page .attendance-loading small {
+  color: #9aa0a6 !important;
+}
+html body.dark .hr-page .staff-card,
+html body.dark .hr-page .resource-pay-summary,
+html body.dark .hr-page .month-tabs button,
+html body.dark .hr-page .old-months-trigger,
+html body.dark .hr-page .manager-switch,
+html body.dark .hr-page .leave-modal-close,
+html body.dark .hr-page .cancel-btn,
+html #app.dark .hr-page .staff-card,
+html #app.dark .hr-page .resource-pay-summary,
+html #app.dark .hr-page .month-tabs button,
+html #app.dark .hr-page .old-months-trigger,
+html #app.dark .hr-page .manager-switch,
+html #app.dark .hr-page .leave-modal-close,
+html #app.dark .hr-page .cancel-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .hr-page .staff-card:hover,
+html body.dark .hr-page .staff-card.active,
+html body.dark .hr-page .month-tabs button.active,
+html body.dark .hr-page .month-tabs button:hover,
+html #app.dark .hr-page .staff-card:hover,
+html #app.dark .hr-page .staff-card.active,
+html #app.dark .hr-page .month-tabs button.active,
+html #app.dark .hr-page .month-tabs button:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+  box-shadow: none !important;
+}
+html body.dark .hr-page .resource-pay-summary span,
+html #app.dark .hr-page .resource-pay-summary span {
+  background: #121417 !important;
+  color: #c5cad3 !important;
+}
+html body.dark .hr-page .resource-pay-summary b,
+html #app.dark .hr-page .resource-pay-summary b {
+  color: #4f8cff !important;
+}
+html body.dark .hr-page input,
+html body.dark .hr-page select,
+html body.dark .hr-page textarea,
+html body.dark .hr-page td input,
+html body.dark .hr-page .rule-item input,
+html body.dark .hr-page .month-picker-grid select,
+html body.dark .hr-page .leave-reason-field textarea,
+html body.dark .hr-page .modal-box input[type="text"],
+html #app.dark .hr-page input,
+html #app.dark .hr-page select,
+html #app.dark .hr-page textarea,
+html #app.dark .hr-page td input,
+html #app.dark .hr-page .rule-item input,
+html #app.dark .hr-page .month-picker-grid select,
+html #app.dark .hr-page .leave-reason-field textarea,
+html #app.dark .hr-page .modal-box input[type="text"] {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .hr-page thead,
+html body.dark .hr-page th,
+html #app.dark .hr-page thead,
+html #app.dark .hr-page th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .hr-page td,
+html #app.dark .hr-page td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .hr-page tbody tr:hover td,
+html #app.dark .hr-page tbody tr:hover td {
+  background: #22252d !important;
+}
+html body.dark .hr-page .attendance-loading,
+html #app.dark .hr-page .attendance-loading {
+  background: rgba(18,19,22,.92) !important;
+  color: #e8eaed !important;
+}
+html body.dark .hr-page .modal-overlay,
+html #app.dark .hr-page .modal-overlay {
+  background: rgba(0,0,0,.62) !important;
+}
+/* semantic status chips — muted */
+html body.dark .hr-page .attendance-status-control > span,
+html body.dark .hr-page .absence-toggle.absent,
+html body.dark .hr-page .delete-month-btn,
+html body.dark .hr-page .cancel-leave-request-btn,
+html body.dark .hr-page .month-form-error,
+html #app.dark .hr-page .attendance-status-control > span,
+html #app.dark .hr-page .absence-toggle.absent,
+html #app.dark .hr-page .delete-month-btn,
+html #app.dark .hr-page .cancel-leave-request-btn,
+html #app.dark .hr-page .month-form-error {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .hr-page .attendance-status-control > span.enabled,
+html body.dark .hr-page .absence-toggle,
+html body.dark .hr-page .approval-toggle.approved,
+html body.dark .hr-page .leave-approval.approved,
+html #app.dark .hr-page .attendance-status-control > span.enabled,
+html #app.dark .hr-page .absence-toggle,
+html #app.dark .hr-page .approval-toggle.approved,
+html #app.dark .hr-page .leave-approval.approved {
+  background: #1e2a28 !important;
+  border-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+html body.dark .hr-page .approval-toggle,
+html body.dark .hr-page .leave-approval,
+html body.dark .hr-page .leave-request-btn.pending,
+html body.dark .hr-page .leave-request-status,
+html #app.dark .hr-page .approval-toggle,
+html #app.dark .hr-page .leave-approval,
+html #app.dark .hr-page .leave-request-btn.pending,
+html #app.dark .hr-page .leave-request-status {
+  background: #3a3220 !important;
+  border-color: #6b5a2e !important;
+  color: #fbbf24 !important;
+}
+html body.dark .hr-page .upload-label,
+html #app.dark .hr-page .upload-label {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .hr-page .save-btn,
+html #app.dark .hr-page .save-btn {
+  background: #2a2f3a !important;
+  color: #f1f3f4 !important;
+}
+@media (max-width: 1450px) {
+  html body.dark .hr-page .table-wrapper tbody,
+  html #app.dark .hr-page .table-wrapper tbody {
+    background: #121417 !important;
+  }
+  html body.dark .hr-page .table-wrapper tbody tr,
+  html #app.dark .hr-page .table-wrapper tbody tr {
+    background: #1a1c22 !important;
+    border-color: #2c3038 !important;
+  }
+  html body.dark .hr-page .table-wrapper tbody td,
+  html #app.dark .hr-page .table-wrapper tbody td {
+    border-color: #2c3038 !important;
+  }
+  html body.dark .hr-page .table-wrapper tbody td:first-child,
+  html #app.dark .hr-page .table-wrapper tbody td:first-child {
+    background: #22252d !important;
+    color: #4f8cff !important;
+  }
+}
+</style>
