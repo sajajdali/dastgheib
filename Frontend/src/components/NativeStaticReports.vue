@@ -1186,7 +1186,7 @@ export default {
         val: dashboardReady ? reportMoney(Number(row.revenue || 0) / 1000000) : '--',
         g: dashboardReady ? (growth == null ? 'بدون مبنای مقایسه' : `${fa(Math.abs(growth))}٪`) : '--',
         arrow: !dashboardReady || growth == null ? '' : (growth >= 0 ? '↑' : '↓'),
-        col: !dashboardReady || growth == null ? '#94a3b8' : (growth >= 0 ? '#16a34a' : '#dc2626'),
+        col: !dashboardReady || growth == null ? (dark?'#9aa0a6':'#94a3b8') : (growth >= 0 ? (dark?'#86efac':'#16a34a') : (dark?'#fca5a5':'#dc2626')),
         pts: !dashboardReady ? '0,20 60,20' : (growth == null ? '0,18 60,18' : (growth >= 0 ? '0,24 15,22 30,18 45,14 60,7' : '0,7 15,11 30,15 45,19 60,24')),
         st: box(String(S.from || '').replaceAll('/','-').startsWith(row.month)),
         on: () => this.selectReportMonthKey(row.month)
@@ -2884,5 +2884,167 @@ html #app.dark .nsr [data-screen-label="نوار تاریخ و ابزارها"] 
   background: #1a1c22 !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
+}
+</style>
+
+<style>
+/* Reports text+tint remap */
+html body.dark .nsr [style*="color:#0"],
+html body.dark .nsr [style*="color:#1"],
+html body.dark .nsr [style*="color:#2"],
+html body.dark .nsr [style*="color:#3"],
+html body.dark .nsr [style*="color:#4"],
+html body.dark .nsr [style*="color:#5"],
+html #app.dark .nsr [style*="color:#0"],
+html #app.dark .nsr [style*="color:#1"],
+html #app.dark .nsr [style*="color:#2"],
+html #app.dark .nsr [style*="color:#3"],
+html #app.dark .nsr [style*="color:#4"],
+html #app.dark .nsr [style*="color:#5"] {
+  color: #e8eaed !important;
+}
+html body.dark .nsr [style*="color:#6"],
+html body.dark .nsr [style*="color:#7"],
+html body.dark .nsr [style*="color:#8"],
+html body.dark .nsr [style*="color:#9"],
+html #app.dark .nsr [style*="color:#6"],
+html #app.dark .nsr [style*="color:#7"],
+html #app.dark .nsr [style*="color:#8"],
+html #app.dark .nsr [style*="color:#9"] {
+  color: #9aa0a6 !important;
+}
+html body.dark .nsr [style*="color:#15803d"],
+html body.dark .nsr [style*="color:#166534"],
+html body.dark .nsr [style*="color:#16a34a"],
+html body.dark .nsr [style*="color:#047857"],
+html body.dark .nsr [style*="color:#0d9488"],
+html body.dark .nsr [style*="color:#0f766e"],
+html body.dark .nsr .rpt-money[style*="color:#15803d"],
+html #app.dark .nsr [style*="color:#15803d"],
+html #app.dark .nsr [style*="color:#166534"],
+html #app.dark .nsr [style*="color:#16a34a"],
+html #app.dark .nsr [style*="color:#0d9488"],
+html #app.dark .nsr [style*="color:#0f766e"] {
+  color: #86efac !important;
+}
+html body.dark .nsr [style*="color:#b91c1c"],
+html body.dark .nsr [style*="color:#dc2626"],
+html body.dark .nsr [style*="color:#991b1b"],
+html body.dark .nsr [style*="color:#be123c"],
+html body.dark .nsr [style*="color:#e02424"],
+html body.dark .nsr .rpt-money[style*="color:#b91c1c"],
+html body.dark .nsr .rpt-money[style*="color:#dc2626"],
+html #app.dark .nsr [style*="color:#b91c1c"],
+html #app.dark .nsr [style*="color:#dc2626"],
+html #app.dark .nsr [style*="color:#991b1b"] {
+  color: #fca5a5 !important;
+}
+html body.dark .nsr [style*="color:#b45309"],
+html body.dark .nsr [style*="color:#c2410c"],
+html body.dark .nsr [style*="color:#a16207"],
+html body.dark .nsr [style*="color:#92400e"],
+html #app.dark .nsr [style*="color:#b45309"],
+html #app.dark .nsr [style*="color:#c2410c"],
+html #app.dark .nsr [style*="color:#a16207"] {
+  color: #fdba74 !important;
+}
+html body.dark .nsr [style*="color:#1d4ed8"],
+html body.dark .nsr [style*="color:#2563eb"],
+html body.dark .nsr [style*="color:#1e40af"],
+html body.dark .nsr [style*="color:#1e3a8a"],
+html #app.dark .nsr [style*="color:#1d4ed8"],
+html #app.dark .nsr [style*="color:#2563eb"],
+html #app.dark .nsr [style*="color:#1e40af"],
+html #app.dark .nsr [style*="color:#1e3a8a"] {
+  color: #93c5fd !important;
+}
+html body.dark .nsr [style*="color:#7c3aed"],
+html body.dark .nsr [style*="color:#6d28d9"],
+html body.dark .nsr [style*="color:#5b21b6"],
+html body.dark .nsr [style*="color:#7e22ce"],
+html #app.dark .nsr [style*="color:#7c3aed"],
+html #app.dark .nsr [style*="color:#5b21b6"],
+html #app.dark .nsr [style*="color:#7e22ce"] {
+  color: #c4b5fd !important;
+}
+html body.dark .nsr [style*="background:#f"],
+html body.dark .nsr [style*="background:#e"],
+html body.dark .nsr [style*="background:#d"],
+html #app.dark .nsr [style*="background:#f"],
+html #app.dark .nsr [style*="background:#e"],
+html #app.dark .nsr [style*="background:#d"] {
+  background-color: #1a1c22 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .nsr [style*="background:#eff6ff"],
+html body.dark .nsr [style*="background:#dbeafe"],
+html body.dark .nsr [style*="background:#f0f9ff"],
+html #app.dark .nsr [style*="background:#eff6ff"],
+html #app.dark .nsr [style*="background:#dbeafe"] {
+  background-color: #1e3a5f !important;
+  border-color: #2f4668 !important;
+  color: #93c5fd !important;
+}
+html body.dark .nsr [style*="background:#f0fdf4"],
+html body.dark .nsr [style*="background:#dcfce7"],
+html body.dark .nsr [style*="background:#ecfdf5"],
+html body.dark .nsr [style*="background:#f0fdfa"],
+html #app.dark .nsr [style*="background:#f0fdf4"],
+html #app.dark .nsr [style*="background:#dcfce7"],
+html #app.dark .nsr [style*="background:#ecfdf5"] {
+  background-color: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .nsr [style*="background:#fef2f2"],
+html body.dark .nsr [style*="background:#fee2e2"],
+html body.dark .nsr [style*="background:#fff1f2"],
+html body.dark .nsr [style*="background:#fff7f7"],
+html body.dark .nsr [style*="background:#fecaca"],
+html #app.dark .nsr [style*="background:#fef2f2"],
+html #app.dark .nsr [style*="background:#fee2e2"],
+html #app.dark .nsr [style*="background:#fff7f7"] {
+  background-color: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #fca5a5 !important;
+}
+html body.dark .nsr [style*="background:#fffbeb"],
+html body.dark .nsr [style*="background:#fff7ed"],
+html body.dark .nsr [style*="background:#fefce8"],
+html #app.dark .nsr [style*="background:#fffbeb"],
+html #app.dark .nsr [style*="background:#fff7ed"] {
+  background-color: #3a3220 !important;
+  border-color: #6b5a2e !important;
+  color: #fde68a !important;
+}
+html body.dark .nsr [style*="background:#faf5ff"],
+html body.dark .nsr [style*="background:#f5f3ff"],
+html body.dark .nsr [style*="background:#f1e5f5"],
+html #app.dark .nsr [style*="background:#faf5ff"],
+html #app.dark .nsr [style*="background:#f5f3ff"] {
+  background-color: #2e1065 !important;
+  border-color: #6d28d9 !important;
+  color: #e9d5ff !important;
+}
+html body.dark .nsr [style*="linear-gradient(135deg,#1d4ed8"],
+html #app.dark .nsr [style*="linear-gradient(135deg,#1d4ed8"] {
+  background: linear-gradient(135deg,#1e3a5f,#16324f) !important;
+  box-shadow: none !important;
+}
+html body.dark .nsr svg path[fill="#eff6ff"],
+html #app.dark .nsr svg path[fill="#eff6ff"] {
+  fill: #243044 !important;
+  stroke: #3a4a63 !important;
+}
+html body.dark .nsr input,
+html body.dark .nsr select,
+html body.dark .nsr textarea,
+html #app.dark .nsr input,
+html #app.dark .nsr select,
+html #app.dark .nsr textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
 }
 </style>
