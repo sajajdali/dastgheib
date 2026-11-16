@@ -2060,6 +2060,7 @@ body.central-host #app {
 .dark .leave-modal,
 .dark .reports-page,
 .dark .reports,
+.dark .nsr,
 .dark .rb-card,
 .dark .rb-modal,
 .dark .report-card,
