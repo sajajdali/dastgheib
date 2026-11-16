@@ -3120,4 +3120,42 @@ body.dark .timeline-patient-result,
   color: #e8eaed !important;
 }
 
+
+/* Dark fix: timeline title + sms keys */
+body.dark .timeline-modal-header .timeline-modal-date,
+#app.dark .timeline-modal-header .timeline-modal-date {
+  background: #22252d !important;
+  border: 1px solid #3a3f4a !important;
+  color: #e8eaed !important;
+}
+body.dark .timeline-modal-header h3,
+#app.dark .timeline-modal-header h3 { color: #f1f3f4 !important; }
+body.dark .timeline-modal .timeline-sms-options > label,
+body.dark .timeline-modal .timeline-sms-options > label b,
+body.dark .timeline-modal .timeline-sms-options > label span,
+#app.dark .timeline-modal .timeline-sms-options > label,
+#app.dark .timeline-modal .timeline-sms-options > label b,
+#app.dark .timeline-modal .timeline-sms-options > label span {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+body.dark .timeline-modal .timeline-sms-options > label.active,
+body.dark .timeline-modal .timeline-sms-options > label.active b,
+#app.dark .timeline-modal .timeline-sms-options > label.active,
+#app.dark .timeline-modal .timeline-sms-options > label.active b {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #dbeafe !important;
+}
+body.dark .top-actions .icon-sms-btn,
+body.dark .timeline-actions .icon-sms-btn,
+#app.dark .top-actions .icon-sms-btn,
+#app.dark .timeline-actions .icon-sms-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+
 </style>

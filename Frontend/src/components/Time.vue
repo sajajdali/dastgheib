@@ -16766,3 +16766,91 @@ html #app.dark .timeline-sms-options > label {
   color: #e8eaed !important;
 }
 </style>
+
+<style>
+/* Dark fix: timeline title + sms keys */
+html body.dark .timeline-modal-header,
+html #app.dark .timeline-modal-header {
+  background: #1a1c22 !important;
+  border-bottom-color: #2c3038 !important;
+}
+html body.dark .timeline-modal-header h3,
+html body.dark .timeline-modal-header #timeline-modal-title,
+html #app.dark .timeline-modal-header h3,
+html #app.dark .timeline-modal-header #timeline-modal-title {
+  color: #f1f3f4 !important;
+  background: transparent !important;
+}
+html body.dark .timeline-modal-header .timeline-modal-date,
+html #app.dark .timeline-modal-header .timeline-modal-date {
+  background: #22252d !important;
+  border: 1px solid #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .timeline-modal-header button,
+html #app.dark .timeline-modal-header button {
+  background: #22252d !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-modal .timeline-sms-options > label,
+html body.dark .timeline-modal .timeline-sms-options--compact > label,
+html body.dark .timeline-sms-options > label,
+html #app.dark .timeline-modal .timeline-sms-options > label,
+html #app.dark .timeline-modal .timeline-sms-options--compact > label,
+html #app.dark .timeline-sms-options > label {
+  background: #22252d !important;
+  border: 1px solid #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .timeline-modal .timeline-sms-options > label b,
+html body.dark .timeline-modal .timeline-sms-options > label small,
+html body.dark .timeline-modal .timeline-sms-options > label span,
+html body.dark .timeline-sms-options b,
+html body.dark .timeline-sms-options small,
+html #app.dark .timeline-modal .timeline-sms-options > label b,
+html #app.dark .timeline-modal .timeline-sms-options > label small,
+html #app.dark .timeline-modal .timeline-sms-options > label span,
+html #app.dark .timeline-sms-options b,
+html #app.dark .timeline-sms-options small {
+  color: #e8eaed !important;
+}
+html body.dark .timeline-modal .timeline-sms-options > label.active,
+html body.dark .timeline-modal .timeline-sms-options > label:hover,
+html body.dark .timeline-sms-options > label.active,
+html #app.dark .timeline-modal .timeline-sms-options > label.active,
+html #app.dark .timeline-modal .timeline-sms-options > label:hover,
+html #app.dark .timeline-sms-options > label.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #dbeafe !important;
+}
+html body.dark .timeline-modal .timeline-sms-options > label.active b,
+html body.dark .timeline-modal .timeline-sms-options > label.active span,
+html #app.dark .timeline-modal .timeline-sms-options > label.active b,
+html #app.dark .timeline-modal .timeline-sms-options > label.active span {
+  color: #dbeafe !important;
+}
+html body.dark .time-page .top-actions .icon-sms-btn,
+html body.dark .time-page .timeline-actions .icon-sms-btn,
+html body.dark .top-actions .icon-sms-btn,
+html body.dark .timeline-actions .icon-sms-btn,
+html #app.dark .time-page .top-actions .icon-sms-btn,
+html #app.dark .time-page .timeline-actions .icon-sms-btn,
+html #app.dark .top-actions .icon-sms-btn,
+html #app.dark .timeline-actions .icon-sms-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .time-page .top-actions .icon-sms-btn:hover,
+html body.dark .time-page .timeline-actions .icon-sms-btn:hover,
+html #app.dark .time-page .top-actions .icon-sms-btn:hover,
+html #app.dark .time-page .timeline-actions .icon-sms-btn:hover {
+  background: #2a2f3a !important;
+  border-color: #5b6472 !important;
+  color: #f1f3f4 !important;
+}
+</style>
