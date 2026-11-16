@@ -3847,4 +3847,82 @@ html #app.dark .settings-page .satisfaction-integration-docs > a,
 html #app.dark .settings-page .satisfaction-integration-actions a {
   color: #93c5fd !important;
 }
+html body.dark .settings-page .provider-field,
+html body.dark .settings-page .provider-token-card,
+html body.dark .settings-page .api-token-saved,
+html body.dark .settings-page .sms-clinic-info-note,
+html body.dark .settings-page .lead-alert-template-card,
+html body.dark .settings-page .lead-alert-options label,
+html #app.dark .settings-page .provider-field,
+html #app.dark .settings-page .provider-token-card,
+html #app.dark .settings-page .api-token-saved,
+html #app.dark .settings-page .sms-clinic-info-note,
+html #app.dark .settings-page .lead-alert-template-card,
+html #app.dark .settings-page .lead-alert-options label {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .provider-field-title,
+html body.dark .settings-page .sms-provider-card h3,
+html body.dark .settings-page .lead-alert-head h3,
+html body.dark .settings-page .birthday-sms-card h3,
+html body.dark .settings-page .lead-alert-template-card b,
+html body.dark .settings-page .sms-clinic-info-note,
+html body.dark .settings-page .sms-clinic-info-note b,
+html #app.dark .settings-page .provider-field-title,
+html #app.dark .settings-page .sms-provider-card h3,
+html #app.dark .settings-page .lead-alert-head h3,
+html #app.dark .settings-page .birthday-sms-card h3,
+html #app.dark .settings-page .lead-alert-template-card b,
+html #app.dark .settings-page .sms-clinic-info-note,
+html #app.dark .settings-page .sms-clinic-info-note b { color: #f1f3f4 !important; }
+html body.dark .settings-page .sms-provider-card p,
+html body.dark .settings-page .lead-alert-head p,
+html body.dark .settings-page .birthday-sms-card p,
+html body.dark .settings-page .provider-field small,
+html body.dark .settings-page .lead-alert-template-card small,
+html body.dark .settings-page .lead-alert-template-card li,
+html body.dark .settings-page .lead-recipient-field,
+html body.dark .settings-page .lead-recipient-field small,
+html #app.dark .settings-page .sms-provider-card p,
+html #app.dark .settings-page .lead-alert-head p,
+html #app.dark .settings-page .birthday-sms-card p,
+html #app.dark .settings-page .provider-field small,
+html #app.dark .settings-page .lead-alert-template-card small,
+html #app.dark .settings-page .lead-alert-template-card li,
+html #app.dark .settings-page .lead-recipient-field,
+html #app.dark .settings-page .lead-recipient-field small { color: #9aa0a6 !important; }
+html body.dark .settings-page .api-token-saved-status,
+html #app.dark .settings-page .api-token-saved-status {
+  background: #14352a !important;
+  border-color: #166534 !important;
+}
+html body.dark .settings-page .api-token-saved-status strong,
+html #app.dark .settings-page .api-token-saved-status strong { color: #86efac !important; }
+html body.dark .settings-page .api-token-saved-status small,
+html #app.dark .settings-page .api-token-saved-status small { color: #9aa0a6 !important; }
+html body.dark .settings-page .api-token-saved button,
+html #app.dark .settings-page .api-token-saved button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .active-switch,
+html #app.dark .settings-page .active-switch {
+  background: #3a2426 !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .settings-page .active-switch:has(input:checked),
+html #app.dark .settings-page .active-switch:has(input:checked) {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .lead-recipient-list > span,
+html #app.dark .settings-page .lead-recipient-list > span {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
 </style>

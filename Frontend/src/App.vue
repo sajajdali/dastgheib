@@ -3168,4 +3168,83 @@ body.dark .timeline-actions .icon-sms-btn,
   box-shadow: none !important;
 }
 
+html body.dark .service-status-page,
+html #app.dark .service-status-page { color: #e8eaed !important; }
+html body.dark .service-page-hero,
+html body.dark .service-status-card,
+html body.dark .service-metric-card,
+html body.dark .service-modules-card,
+html body.dark .service-page-card,
+html body.dark .service-question-card,
+html body.dark .service-purchase-list article,
+html #app.dark .service-page-hero,
+html #app.dark .service-status-card,
+html #app.dark .service-metric-card,
+html #app.dark .service-modules-card,
+html #app.dark .service-page-card,
+html #app.dark .service-question-card,
+html #app.dark .service-purchase-list article {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .service-page-hero h1,
+html body.dark .service-question-card h2,
+html body.dark .service-status-card strong,
+html body.dark .service-metric-card strong,
+html body.dark .service-card-head strong,
+html body.dark .service-purchase-list article strong,
+html #app.dark .service-page-hero h1,
+html #app.dark .service-question-card h2,
+html #app.dark .service-status-card strong,
+html #app.dark .service-metric-card strong,
+html #app.dark .service-card-head strong,
+html #app.dark .service-purchase-list article strong { color: #f1f3f4 !important; }
+html body.dark .service-page-hero p,
+html body.dark .service-page-hero small,
+html body.dark .service-status-card span,
+html body.dark .service-metric-card span,
+html body.dark .service-purchase-list article small,
+html body.dark .service-modules-card p,
+html body.dark .service-question-card small,
+html #app.dark .service-page-hero p,
+html #app.dark .service-page-hero small,
+html #app.dark .service-status-card span,
+html #app.dark .service-metric-card span,
+html #app.dark .service-purchase-list article small,
+html #app.dark .service-modules-card p,
+html #app.dark .service-question-card small { color: #9aa0a6 !important; }
+html body.dark .service-page-hero button,
+html body.dark .service-module-list span,
+html #app.dark .service-page-hero button,
+html #app.dark .service-module-list span {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .service-status-card small,
+html #app.dark .service-status-card small { background: #14352a !important; color: #86efac !important; }
+html body.dark .service-question-card textarea,
+html #app.dark .service-question-card textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .service-question-card footer button,
+html #app.dark .service-question-card footer button { background: #4f8cff !important; color: #fff !important; }
+html body.dark .service-purchase-list article button,
+html #app.dark .service-purchase-list article button { background: #16a34a !important; color: #fff !important; }
+html body.dark .service-question-card footer span,
+html #app.dark .service-question-card footer span { color: #86efac !important; }
+html body.dark .service-status-card b,
+html #app.dark .service-status-card b { background: #2a2f3a !important; color: #f1f3f4 !important; }
+html body.dark .service-card-head span,
+html body.dark .service-page-hero small,
+html body.dark .service-question-card small,
+html #app.dark .service-card-head span,
+html #app.dark .service-page-hero small,
+html #app.dark .service-question-card small { color: #93c5fd !important; }
+html body.dark .service-question-card footer button:disabled,
+html #app.dark .service-question-card footer button:disabled { background: #2a2f3a !important; color: #9aa0a6 !important; }
 </style>

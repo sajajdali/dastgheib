@@ -1187,3 +1187,126 @@ export default {
 
 @media(max-width:760px){.store-invoice-sheet{padding:22px 16px;border-radius:0;border:0;box-shadow:none}.store-invoice-top,.store-invoice-summary-row,.store-invoice-total-card,.store-invoice-actions,.store-invoice-pay{grid-template-columns:1fr}.store-invoice-brand{order:2;align-items:center}.store-invoice-city{margin:0}.store-invoice-heading{text-align:center}.store-invoice-status{width:100%}.store-invoice-date-card{grid-template-columns:1fr}.store-invoice-divider{width:100%;height:1px;margin:5px 0}.store-invoice-date-item{padding:10px}.store-invoice-paper{display:none}.store-invoice-section{overflow:auto}.store-invoice-table{min-width:720px}.store-invoice-totals>div{grid-template-columns:1.2fr 1fr}.store-invoice-pay .checkout-btn,.store-invoice-pay .invoice-back{width:100%}}
 </style>
+
+<style>
+html body.dark .store-page,
+html #app.dark .store-page { background: transparent !important; color: #e8eaed !important; }
+html body.dark .store-hero,
+html body.dark .store-toolbar,
+html body.dark .plugin-card,
+html body.dark .cart-panel,
+html body.dark .store-modal > section,
+html #app.dark .store-hero,
+html #app.dark .store-toolbar,
+html #app.dark .plugin-card,
+html #app.dark .cart-panel,
+html #app.dark .store-modal > section {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,.35) !important;
+}
+html body.dark .store-page h1,
+html body.dark .store-page h2,
+html body.dark .store-page h3,
+html body.dark .plugin-meta strong,
+html body.dark .cart-total strong,
+html body.dark .modal-price strong,
+html #app.dark .store-page h1,
+html #app.dark .store-page h2,
+html #app.dark .store-page h3,
+html #app.dark .plugin-meta strong,
+html #app.dark .cart-total strong,
+html #app.dark .modal-price strong { color: #f1f3f4 !important; }
+html body.dark .store-page p,
+html body.dark .store-page small,
+html body.dark .plugin-content p,
+html body.dark .modal-description,
+html body.dark .cart-empty,
+html body.dark .modal-price span,
+html #app.dark .store-page p,
+html #app.dark .store-page small,
+html #app.dark .plugin-content p,
+html #app.dark .modal-description,
+html #app.dark .cart-empty,
+html #app.dark .modal-price span { color: #9aa0a6 !important; }
+html body.dark .store-tabs,
+html #app.dark .store-tabs { background: #121417 !important; border-color: #2c3038 !important; }
+html body.dark .store-tabs button,
+html body.dark .period-options button,
+html body.dark .details-btn,
+html #app.dark .store-tabs button,
+html #app.dark .period-options button,
+html #app.dark .details-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .store-tabs button.active,
+html body.dark .period-options button.active,
+html #app.dark .store-tabs button.active,
+html #app.dark .period-options button.active {
+  background: #4f8cff !important;
+  border-color: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .store-search input,
+html #app.dark .store-search input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .store-modal,
+html #app.dark .store-modal { background: rgba(0,0,0,.62) !important; }
+html body.dark .modal-close,
+html #app.dark .modal-close { background: #2a2f3a !important; color: #e8eaed !important; }
+html body.dark .modal-plugin-head,
+html #app.dark .modal-plugin-head { border-color: #2c3038 !important; }
+html body.dark .select-btn,
+html #app.dark .select-btn { background: #4f8cff !important; color: #fff !important; }
+html body.dark .store-hero aside,
+html #app.dark .store-hero aside {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .plugin-actions,
+html body.dark .modal-actions,
+html body.dark .cart-list article,
+html #app.dark .plugin-actions,
+html #app.dark .modal-actions,
+html #app.dark .cart-list article {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .plugin-card.selected,
+html #app.dark .plugin-card.selected {
+  background: #1a2433 !important;
+  border-color: #4f8cff !important;
+}
+html body.dark .select-btn.selected,
+html #app.dark .select-btn.selected { background: #3a3f4a !important; color: #e8eaed !important; }
+html body.dark .select-btn:disabled,
+html #app.dark .select-btn:disabled { background: #14352a !important; color: #86efac !important; }
+html body.dark .checkout-btn,
+html #app.dark .checkout-btn { background: #16a34a !important; color: #fff !important; }
+html body.dark .checkout-btn:disabled,
+html #app.dark .checkout-btn:disabled { background: #2a2f3a !important; color: #9aa0a6 !important; }
+html body.dark .cart-list button,
+html #app.dark .cart-list button { background: #3a2426 !important; color: #fca5a5 !important; }
+html body.dark .plugin-meta span,
+html body.dark .modal-plugin-head small,
+html body.dark .store-hero > div > span,
+html body.dark .cart-total span,
+html #app.dark .plugin-meta span,
+html #app.dark .modal-plugin-head small,
+html #app.dark .store-hero > div > span,
+html #app.dark .cart-total span { color: #9aa0a6 !important; }
+html body.dark .coming-soon-section,
+html #app.dark .coming-soon-section { border-color: #3a3f4a !important; }
+html body.dark .coming-soon-badge,
+html body.dark .purchased-badge,
+html #app.dark .coming-soon-badge,
+html #app.dark .purchased-badge { background: #2a2f3a !important; color: #e8eaed !important; }
+</style>

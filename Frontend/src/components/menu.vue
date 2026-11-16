@@ -1239,3 +1239,24 @@ export default {
   color: #e8eaed;
 }
 </style>
+
+<style>
+html body.dark .more-submenu,
+html #app.dark .more-submenu {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .45) !important;
+}
+html body.dark .more-submenu button,
+html #app.dark .more-submenu button {
+  background: transparent !important;
+  color: #e8eaed !important;
+}
+html body.dark .more-submenu button:hover,
+html body.dark .more-submenu button.active,
+html #app.dark .more-submenu button:hover,
+html #app.dark .more-submenu button.active {
+  background: #2a2f3a !important;
+  color: #f1f3f4 !important;
+}
+</style>
