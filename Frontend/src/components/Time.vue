@@ -16334,3 +16334,295 @@ html #app.dark .appointment-timeline .timeline-card:has(.patient-avatar.level-pr
   color: #fca5a5 !important;
 }
 </style>
+
+<style>
+/* Dark fix: service popup (table+timeline) + month bar + muted badges */
+html body.dark .service-popup,
+html #app.dark .service-popup,
+html body.dark .timeline-service-panel,
+html #app.dark .timeline-service-panel {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 18px 48px rgba(0,0,0,.55) !important;
+}
+html body.dark .service-popup-title,
+html body.dark .timeline-service-panel .service-popup-title,
+html body.dark .service-prerequisite strong,
+html body.dark .service-row-caption,
+html #app.dark .service-popup-title,
+html #app.dark .timeline-service-panel .service-popup-title,
+html #app.dark .service-prerequisite strong,
+html #app.dark .service-row-caption {
+  color: #f1f3f4 !important;
+}
+html body.dark .service-details-row .service-row-caption,
+html body.dark .service-prerequisite p,
+html body.dark .service-popup-meta,
+html #app.dark .service-details-row .service-row-caption,
+html #app.dark .service-prerequisite p,
+html #app.dark .service-popup-meta {
+  color: #9aa0a6 !important;
+}
+html body.dark .service-popup-close-btn,
+html #app.dark .service-popup-close-btn {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .service-popup-close-btn:hover,
+html #app.dark .service-popup-close-btn:hover {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .service-main-row,
+html body.dark .service-prerequisite,
+html body.dark .timeline-service-details,
+html body.dark .timeline-addon-box,
+html body.dark .service-choice-row,
+html body.dark .referral-section,
+html #app.dark .service-main-row,
+html #app.dark .service-prerequisite,
+html #app.dark .timeline-service-details,
+html #app.dark .timeline-addon-box,
+html #app.dark .referral-section {
+  background: #121417 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .service-details-row,
+html #app.dark .service-details-row {
+  border-top-color: #3a3f4a !important;
+}
+html body.dark .service-popup input,
+html body.dark .service-popup select,
+html body.dark .service-popup textarea,
+html body.dark .service-select,
+html body.dark .service-popup .service-select,
+html body.dark .timeline-service-panel input,
+html body.dark .timeline-service-panel select,
+html body.dark .timeline-service-panel textarea,
+html body.dark .service-discount-input,
+html body.dark .multiselect__tags,
+html body.dark .timeline-service-multiselect .multiselect__tags,
+html body.dark .service-tag-trigger,
+html body.dark .service-tag-menu,
+html body.dark .multiselect__content-wrapper,
+html body.dark .timeline-service-multiselect .multiselect__content-wrapper,
+html body.dark .service-tags-multiselect .multiselect__content-wrapper,
+html #app.dark .service-popup input,
+html #app.dark .service-popup select,
+html #app.dark .service-popup textarea,
+html #app.dark .service-select,
+html #app.dark .timeline-service-panel input,
+html #app.dark .timeline-service-panel select,
+html #app.dark .timeline-service-panel textarea,
+html #app.dark .service-discount-input,
+html #app.dark .multiselect__tags,
+html #app.dark .timeline-service-multiselect .multiselect__tags,
+html #app.dark .service-tag-trigger,
+html #app.dark .service-tag-menu,
+html #app.dark .multiselect__content-wrapper {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+html body.dark .multiselect__option,
+html body.dark .service-tags-multiselect .multiselect__option,
+html #app.dark .multiselect__option,
+html #app.dark .service-tags-multiselect .multiselect__option {
+  color: #e8eaed !important;
+  background: transparent !important;
+}
+html body.dark .multiselect__option--highlight,
+html body.dark .multiselect__option--selected,
+html body.dark .multiselect__option--selected.multiselect__option--highlight,
+html body.dark .service-tags-multiselect .multiselect__option--highlight,
+html #app.dark .multiselect__option--highlight,
+html #app.dark .multiselect__option--selected {
+  background: #2a3a52 !important;
+  color: #93c5fd !important;
+}
+html body.dark .multiselect__tag,
+html body.dark .timeline-doctor-multiselect .multiselect__tag,
+html #app.dark .multiselect__tag {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .service-price-chip,
+html #app.dark .service-price-chip {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+html body.dark .addon-price-chip,
+html #app.dark .addon-price-chip {
+  background: #14352a !important;
+  border-color: #166534 !important;
+  color: #86efac !important;
+}
+html body.dark .service-discount-wrap .service-discount-input,
+html body.dark .service-discount-wrap > span,
+html body.dark .service-discount-wrap > button,
+html #app.dark .service-discount-wrap .service-discount-input,
+html #app.dark .service-discount-wrap > span,
+html #app.dark .service-discount-wrap > button {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .service-discount-wrap.surcharge .service-discount-input,
+html body.dark .service-discount-wrap.surcharge > span,
+html body.dark .service-discount-wrap.surcharge > button,
+html body.dark .surcharge-commission-toggle,
+html #app.dark .service-discount-wrap.surcharge .service-discount-input,
+html #app.dark .surcharge-commission-toggle {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+html body.dark .add-service-line-btn,
+html #app.dark .add-service-line-btn {
+  background: #2a3a52 !important;
+  color: #93c5fd !important;
+  border: 1px solid #4f8cff !important;
+}
+html body.dark .timeline-addon-add,
+html body.dark .timeline-addon-toggle,
+html body.dark .timeline-service-details-toggle,
+html #app.dark .timeline-addon-add,
+html #app.dark .timeline-addon-toggle,
+html #app.dark .timeline-service-details-toggle {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-addon-toggle.active,
+html body.dark .timeline-service-details-toggle.active,
+html body.dark .timeline-service-section-options label.active,
+html #app.dark .timeline-addon-toggle.active,
+html #app.dark .timeline-service-details-toggle.active,
+html #app.dark .timeline-service-section-options label.active {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .service-mini-btn,
+html #app.dark .service-mini-btn {
+  background: linear-gradient(135deg,#1e3a5f,#1a2230) !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+  box-shadow: none !important;
+}
+html body.dark .service-mini-btn:hover,
+html #app.dark .service-mini-btn:hover {
+  background: linear-gradient(135deg,#2563eb,#1d4ed8) !important;
+  color: #fff !important;
+}
+html body.dark .service-mini-btn.service-active,
+html #app.dark .service-mini-btn.service-active {
+  background: linear-gradient(135deg,#14352a,#1a2e24) !important;
+  border-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+html body.dark .service-mini-summary,
+html #app.dark .service-mini-summary {
+  color: inherit !important;
+}
+
+/* month bar */
+html body.dark .fixed-bottom-bar,
+html #app.dark .fixed-bottom-bar {
+  background: rgba(26,28,34,.96) !important;
+  border: 1px solid #2c3038 !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.45) !important;
+}
+html body.dark .month-pill,
+html #app.dark .month-pill {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+}
+html body.dark .month-pill.active,
+html #app.dark .month-pill.active {
+  background: #2a3a52 !important;
+  color: #93c5fd !important;
+}
+html body.dark .month-action-btn,
+html #app.dark .month-action-btn {
+  color: #e8eaed !important;
+}
+html body.dark .schedule-year-picker,
+html #app.dark .schedule-year-picker {
+  background: #1a1c22 !important;
+  border-color: #3a3f4a !important;
+  color: #93c5fd !important;
+}
+html body.dark .schedule-year-picker select,
+html #app.dark .schedule-year-picker select {
+  background: transparent !important;
+  color: #e8eaed !important;
+  border: 0 !important;
+}
+
+/* mute day separators + status/done cells further */
+html body.dark .day-separator-row.holiday-day td,
+html #app.dark .day-separator-row.holiday-day td {
+  background: linear-gradient(135deg,#3a1d28,#2a141c) !important;
+}
+html body.dark .day-separator-row.today-day td,
+html #app.dark .day-separator-row.today-day td {
+  background: linear-gradient(135deg,#1e3a5f,#16324f) !important;
+}
+html body.dark .main-schedule-table td.st-arrived,
+html body.dark .main-schedule-table td.st-arrived select,
+html body.dark td.st-arrived,
+html body.dark td.st-arrived select,
+html body.dark .st-arrived,
+html body.dark select.st-arrived,
+html #app.dark .main-schedule-table td.st-arrived,
+html #app.dark .main-schedule-table td.st-arrived select,
+html #app.dark td.st-arrived,
+html #app.dark td.st-arrived select,
+html #app.dark .st-arrived,
+html #app.dark select.st-arrived {
+  background-color: #14352a !important;
+  color: #86efac !important;
+}
+html body.dark .main-schedule-table td.dn-yes,
+html body.dark .main-schedule-table td.dn-yes select,
+html body.dark td.dn-yes,
+html body.dark td.dn-yes select,
+html body.dark .dn-yes,
+html body.dark select.dn-yes,
+html #app.dark .main-schedule-table td.dn-yes,
+html #app.dark .main-schedule-table td.dn-yes select,
+html #app.dark td.dn-yes,
+html #app.dark td.dn-yes select,
+html #app.dark .dn-yes,
+html #app.dark select.dn-yes {
+  background-color: #14532d !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .paid-amount-input,
+html #app.dark .paid-amount-input {
+  background: #14352a !important;
+  border-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+html body.dark .debt-amount-input,
+html #app.dark .debt-amount-input {
+  background: #3a2426 !important;
+  border-color: #6b3a3a !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .service-main-row select:disabled,
+html body.dark .service-multiselect.multiselect--disabled,
+html #app.dark .service-main-row select:disabled,
+html #app.dark .service-multiselect.multiselect--disabled {
+  background: #1a1c22 !important;
+  color: #6b7280 !important;
+}
+</style>

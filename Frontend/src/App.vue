@@ -2992,4 +2992,92 @@ body.dark .storage-dashboard .storage-overview.critical,
   border-color:#7f1d1d !important;
 }
 
+
+
+/* NUCLEAR service-popup booking dark */
+body.dark .service-popup,
+body.dark .timeline-service-panel,
+#app.dark .service-popup,
+#app.dark .timeline-service-panel {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 18px 48px rgba(0,0,0,.55) !important;
+}
+body.dark .service-popup input,
+body.dark .service-popup select,
+body.dark .service-popup textarea,
+body.dark .service-select,
+body.dark .timeline-service-panel input,
+body.dark .timeline-service-panel select,
+body.dark .multiselect__tags,
+body.dark .multiselect__content-wrapper,
+body.dark .service-tag-trigger,
+body.dark .service-tag-menu,
+#app.dark .service-popup input,
+#app.dark .service-popup select,
+#app.dark .service-popup textarea,
+#app.dark .service-select,
+#app.dark .timeline-service-panel input,
+#app.dark .timeline-service-panel select,
+#app.dark .multiselect__tags,
+#app.dark .multiselect__content-wrapper {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+body.dark .service-main-row,
+body.dark .service-prerequisite,
+body.dark .timeline-service-details,
+body.dark .timeline-addon-box,
+#app.dark .service-main-row,
+#app.dark .service-prerequisite,
+#app.dark .timeline-service-details,
+#app.dark .timeline-addon-box {
+  background: #121417 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+body.dark .service-mini-btn.service-active,
+#app.dark .service-mini-btn.service-active {
+  background: linear-gradient(135deg,#14352a,#1a2e24) !important;
+  border-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+body.dark .fixed-bottom-bar,
+#app.dark .fixed-bottom-bar {
+  background: rgba(26,28,34,.96) !important;
+  border: 1px solid #2c3038 !important;
+}
+body.dark .month-pill,
+#app.dark .month-pill { background:#22252d !important; color:#c5cad3 !important; }
+body.dark .month-pill.active,
+#app.dark .month-pill.active { background:#2a3a52 !important; color:#93c5fd !important; }
+body.dark .day-separator-row.today-day td,
+#app.dark .day-separator-row.today-day td { background: linear-gradient(135deg,#1e3a5f,#16324f) !important; }
+body.dark .day-separator-row.holiday-day td,
+#app.dark .day-separator-row.holiday-day td { background: linear-gradient(135deg,#3a1d28,#2a141c) !important; }
+body.dark .main-schedule-table td.st-arrived,
+body.dark .main-schedule-table td.st-arrived select,
+body.dark .st-arrived,
+body.dark select.st-arrived,
+#app.dark .main-schedule-table td.st-arrived,
+#app.dark .main-schedule-table td.st-arrived select,
+#app.dark .st-arrived,
+#app.dark select.st-arrived { background-color:#14352a !important; color:#86efac !important; }
+body.dark .main-schedule-table td.dn-yes,
+body.dark .main-schedule-table td.dn-yes select,
+body.dark .dn-yes,
+body.dark select.dn-yes,
+#app.dark .main-schedule-table td.dn-yes,
+#app.dark .main-schedule-table td.dn-yes select,
+#app.dark .dn-yes,
+#app.dark select.dn-yes { background-color:#14532d !important; color:#bbf7d0 !important; }
+body.dark .add-service-line-btn,
+#app.dark .add-service-line-btn {
+  background:#2a3a52 !important;
+  color:#93c5fd !important;
+  border:1px solid #4f8cff !important;
+}
+
 </style>
