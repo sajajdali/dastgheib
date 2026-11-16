@@ -68,25 +68,3 @@ html #app.dark .reports-page .builder-page-tabs button.active {
   box-shadow: 0 1px 4px rgba(0,0,0,.35) !important;
 }
 </style>
-
-<style>
-/* Dark charcoal: reports-page */
-html body.dark .reports-page,
-html #app.dark .reports-page {
-  background: #121316 !important;
-  color: #e8eaed !important;
-}
-html body.dark .builder-page-tabs button,
-html #app.dark .builder-page-tabs button {
-  background: #22252d !important;
-  color: #9aa0a6 !important;
-}
-html body.dark .builder-page-tabs button:hover,
-html body.dark .builder-page-tabs button.active,
-html #app.dark .builder-page-tabs button:hover,
-html #app.dark .builder-page-tabs button.active {
-  background: #1a1c22 !important;
-  color: #4f8cff !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,.35) !important;
-}
-</style>
