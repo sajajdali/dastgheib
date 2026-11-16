@@ -3452,3 +3452,399 @@ html #app.dark .settings-page .level-period-save {
   border-color: #4f8cff !important;
 }
 </style>
+
+<style>
+/* Setting dark: satisfaction + all tabs polish */
+html body.dark .settings-page .content-wrapper,
+html #app.dark .settings-page .content-wrapper {
+  background: #121316 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .settings-page .satisfaction-settings-wrapper,
+html body.dark .settings-page .satisfaction-settings-wrapper *,
+html #app.dark .settings-page .satisfaction-settings-wrapper {
+  color: #e8eaed;
+}
+html body.dark .settings-page .satisfaction-settings-wrapper,
+html body.dark .settings-page .satisfaction-question-editor,
+html body.dark .settings-page .satisfaction-copy-editor,
+html body.dark .settings-page .satisfaction-preview,
+html body.dark .settings-page .satisfaction-option-editor,
+html body.dark .settings-page .satisfaction-preview-question,
+html body.dark .settings-page .satisfaction-integration-docs,
+html body.dark .settings-page .clinic-location-picker,
+html body.dark .settings-page .select-all-leads,
+html body.dark .settings-page .lead-alert-template-card,
+html body.dark .settings-page .sms-clinic-info-note,
+html body.dark .settings-page .sms-template-parameter-list,
+html body.dark .settings-page .provider-choice-card,
+html #app.dark .settings-page .satisfaction-settings-wrapper,
+html #app.dark .settings-page .satisfaction-question-editor,
+html #app.dark .settings-page .satisfaction-copy-editor,
+html #app.dark .settings-page .satisfaction-preview,
+html #app.dark .settings-page .satisfaction-option-editor,
+html #app.dark .settings-page .satisfaction-preview-question,
+html #app.dark .settings-page .satisfaction-integration-docs,
+html #app.dark .settings-page .clinic-location-picker,
+html #app.dark .settings-page .select-all-leads,
+html #app.dark .settings-page .lead-alert-template-card,
+html #app.dark .settings-page .sms-clinic-info-note,
+html #app.dark .settings-page .sms-template-parameter-list,
+html #app.dark .settings-page .provider-choice-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.32) !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .satisfaction-settings-head span,
+html body.dark .settings-page .satisfaction-integration-heading span,
+html body.dark .settings-page .satisfaction-preview-title,
+html body.dark .settings-page .clinic-location-picker strong,
+html body.dark .settings-page .lead-alert-options-head strong,
+html body.dark .settings-page .satisfaction-integration-docs strong,
+html #app.dark .settings-page .satisfaction-settings-head span,
+html #app.dark .settings-page .satisfaction-integration-heading span,
+html #app.dark .settings-page .satisfaction-preview-title,
+html #app.dark .settings-page .clinic-location-picker strong,
+html #app.dark .settings-page .lead-alert-options-head strong,
+html #app.dark .settings-page .satisfaction-integration-docs strong {
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .satisfaction-settings-head h2,
+html body.dark .settings-page .satisfaction-integration-heading h3,
+html body.dark .settings-page .satisfaction-preview h3,
+html body.dark .settings-page .lead-alert-head h3,
+html body.dark .settings-page .birthday-sms-card h3,
+html body.dark .settings-page .sms-provider-card h3,
+html #app.dark .settings-page .satisfaction-settings-head h2,
+html #app.dark .settings-page .satisfaction-integration-heading h3,
+html #app.dark .settings-page .satisfaction-preview h3,
+html #app.dark .settings-page .lead-alert-head h3,
+html #app.dark .settings-page .birthday-sms-card h3,
+html #app.dark .settings-page .sms-provider-card h3 {
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .satisfaction-settings-head p,
+html body.dark .settings-page .satisfaction-preview-copy,
+html body.dark .settings-page .satisfaction-preview-completion,
+html body.dark .settings-page .satisfaction-integration-heading p,
+html body.dark .settings-page .satisfaction-integration-hint,
+html body.dark .settings-page .satisfaction-no-options,
+html body.dark .settings-page .clinic-location-picker small,
+html body.dark .settings-page .lead-alert-head p,
+html body.dark .settings-page .birthday-sms-card p,
+html body.dark .settings-page .sms-provider-card p,
+html body.dark .settings-page .satisfaction-integration-docs small,
+html #app.dark .settings-page .satisfaction-settings-head p,
+html #app.dark .settings-page .satisfaction-preview-copy,
+html #app.dark .settings-page .satisfaction-preview-completion,
+html #app.dark .settings-page .satisfaction-integration-heading p,
+html #app.dark .settings-page .satisfaction-integration-hint,
+html #app.dark .settings-page .satisfaction-no-options,
+html #app.dark .settings-page .clinic-location-picker small,
+html #app.dark .settings-page .lead-alert-head p,
+html #app.dark .settings-page .birthday-sms-card p,
+html #app.dark .settings-page .sms-provider-card p,
+html #app.dark .settings-page .satisfaction-integration-docs small {
+  color: #9aa0a6 !important;
+}
+html body.dark .settings-page .satisfaction-title-field,
+html body.dark .settings-page .satisfaction-integration-url,
+html body.dark .settings-page .satisfaction-question-editor label,
+html body.dark .settings-page .satisfaction-option-editor-row,
+html body.dark .settings-page .satisfaction-required-toggle,
+html body.dark .settings-page .satisfaction-option-toggle,
+html #app.dark .settings-page .satisfaction-title-field,
+html #app.dark .settings-page .satisfaction-integration-url,
+html #app.dark .settings-page .satisfaction-question-editor label,
+html #app.dark .settings-page .satisfaction-option-editor-row,
+html #app.dark .settings-page .satisfaction-required-toggle,
+html #app.dark .settings-page .satisfaction-option-toggle {
+  color: #c5cad3 !important;
+}
+html body.dark .settings-page .satisfaction-option,
+html body.dark .settings-page .satisfaction-required-toggle,
+html body.dark .settings-page .satisfaction-option-toggle,
+html body.dark .settings-page .satisfaction-switch,
+html body.dark .settings-page .clinic-location-result a,
+html body.dark .settings-page .clinic-location-result button,
+html #app.dark .settings-page .satisfaction-option,
+html #app.dark .settings-page .satisfaction-required-toggle,
+html #app.dark .settings-page .satisfaction-option-toggle,
+html #app.dark .settings-page .satisfaction-switch,
+html #app.dark .settings-page .clinic-location-result a,
+html #app.dark .settings-page .clinic-location-result button {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .satisfaction-option.selected,
+html body.dark .settings-page .satisfaction-required-toggle.required,
+html body.dark .settings-page .satisfaction-option-toggle.active,
+html #app.dark .settings-page .satisfaction-option.selected,
+html #app.dark .settings-page .satisfaction-required-toggle.required,
+html #app.dark .settings-page .satisfaction-option-toggle.active {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .satisfaction-integration-icon,
+html #app.dark .settings-page .satisfaction-integration-icon {
+  background: #2a2f3a !important;
+  color: #4f8cff !important;
+}
+html body.dark .settings-page .satisfaction-integration-switch i,
+html #app.dark .settings-page .satisfaction-integration-switch i {
+  background: #3a3f4a !important;
+}
+html body.dark .settings-page .satisfaction-integration-hint code,
+html body.dark .settings-page .sms-template-parameter-list li b,
+html #app.dark .settings-page .satisfaction-integration-hint code,
+html #app.dark .settings-page .sms-template-parameter-list li b {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .satisfaction-integration-body,
+html body.dark .settings-page .satisfaction-option-editor-head,
+html body.dark .settings-page .lead-alert-options-head,
+html body.dark .settings-page .sms-provider-head,
+html #app.dark .settings-page .satisfaction-integration-body,
+html #app.dark .settings-page .satisfaction-option-editor-head,
+html #app.dark .settings-page .lead-alert-options-head,
+html #app.dark .settings-page .sms-provider-head {
+  border-color: #2c3038 !important;
+}
+html body.dark .settings-page .lead-alert-sms-card,
+html #app.dark .settings-page .lead-alert-sms-card {
+  background: linear-gradient(135deg,#1a2230,#1a1c22) !important;
+  border-color: #2f4668 !important;
+}
+html body.dark .settings-page .birthday-sms-card,
+html #app.dark .settings-page .birthday-sms-card {
+  background: linear-gradient(135deg,#2a2618,#1a1c22) !important;
+  border-color: #6b5a2e !important;
+}
+html body.dark .settings-page .roles-settings-wrapper,
+html #app.dark .settings-page .roles-settings-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+html body.dark .settings-page .payment-settings-wrapper,
+html body.dark .settings-page .sms-settings-wrapper,
+html body.dark .settings-page .voip-settings-wrapper,
+html #app.dark .settings-page .payment-settings-wrapper,
+html #app.dark .settings-page .sms-settings-wrapper,
+html #app.dark .settings-page .voip-settings-wrapper {
+  background: transparent !important;
+}
+html body.dark .settings-page .voip-token-row button,
+html body.dark .settings-page .voip-user-toggles label,
+html body.dark .settings-page .voip-incoming-row,
+html #app.dark .settings-page .voip-token-row button,
+html #app.dark .settings-page .voip-user-toggles label,
+html #app.dark .settings-page .voip-incoming-row {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .voip-off,
+html body.dark .settings-page .voip-incoming-feedback,
+html #app.dark .settings-page .voip-off,
+html #app.dark .settings-page .voip-incoming-feedback {
+  color: #9aa0a6 !important;
+}
+html body.dark .settings-page .accordion-header,
+html #app.dark .settings-page .accordion-header {
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .lead-recipient-list > span,
+html #app.dark .settings-page .lead-recipient-list > span {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+</style>
+
+<style>
+/* Setting dark: satisfaction semantic + voip polish */
+html body.dark .settings-page .satisfaction-question-editor,
+html body.dark .settings-page .satisfaction-copy-editor,
+html body.dark .settings-page .satisfaction-option-editor-row,
+html body.dark .settings-page .satisfaction-preview,
+html body.dark .settings-page .satisfaction-preview-question,
+html body.dark .settings-page .satisfaction-option-editor,
+html body.dark .settings-page .satisfaction-integration-card,
+html body.dark .settings-page .voip-user-row,
+html body.dark .settings-page .voip-incoming-row,
+html body.dark .settings-page .drag-handle,
+html #app.dark .settings-page .satisfaction-question-editor,
+html #app.dark .settings-page .satisfaction-copy-editor,
+html #app.dark .settings-page .satisfaction-option-editor-row,
+html #app.dark .settings-page .satisfaction-preview,
+html #app.dark .settings-page .satisfaction-preview-question,
+html #app.dark .settings-page .satisfaction-option-editor,
+html #app.dark .settings-page .satisfaction-integration-card,
+html #app.dark .settings-page .voip-user-row,
+html #app.dark .settings-page .voip-incoming-row,
+html #app.dark .settings-page .drag-handle {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .satisfaction-question-editor.dragging,
+html #app.dark .settings-page .satisfaction-question-editor.dragging {
+  background: #22252d !important;
+  border-color: #4f8cff !important;
+}
+html body.dark .settings-page .question-editor-head strong,
+html body.dark .settings-page .satisfaction-preview-question strong,
+html body.dark .settings-page .satisfaction-option-editor-head strong,
+html body.dark .settings-page .voip-user-name strong,
+html body.dark .settings-page .voip-incoming-row strong,
+html body.dark .settings-page .voip-incoming-list-head,
+html #app.dark .settings-page .question-editor-head strong,
+html #app.dark .settings-page .satisfaction-preview-question strong,
+html #app.dark .settings-page .satisfaction-option-editor-head strong,
+html #app.dark .settings-page .voip-user-name strong,
+html #app.dark .settings-page .voip-incoming-row strong,
+html #app.dark .settings-page .voip-incoming-list-head {
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .question-actions button,
+html #app.dark .settings-page .question-actions button {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+}
+html body.dark .settings-page .question-actions button:last-child,
+html body.dark .settings-page .question-editor-head button,
+html #app.dark .settings-page .question-actions button:last-child,
+html #app.dark .settings-page .question-editor-head button {
+  background: #3a2426 !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .settings-page .satisfaction-option.excellent,
+html #app.dark .settings-page .satisfaction-option.excellent {
+  background: #14352a !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .satisfaction-option.good,
+html #app.dark .settings-page .satisfaction-option.good {
+  background: #1a2e24 !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .satisfaction-option.average,
+html #app.dark .settings-page .satisfaction-option.average {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+}
+html body.dark .settings-page .satisfaction-option.bad,
+html #app.dark .settings-page .satisfaction-option.bad {
+  background: #3a2426 !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .settings-page .satisfaction-option.weak,
+html #app.dark .settings-page .satisfaction-option.weak {
+  background: #7f1d1d !important;
+  color: #fff !important;
+}
+html body.dark .settings-page .satisfaction-option.excellent.selected,
+html #app.dark .settings-page .satisfaction-option.excellent.selected {
+  background: #166534 !important;
+  border-color: #86efac !important;
+  color: #fff !important;
+}
+html body.dark .settings-page .satisfaction-option.good.selected,
+html #app.dark .settings-page .satisfaction-option.good.selected {
+  background: #14532d !important;
+  border-color: #4ade80 !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .settings-page .satisfaction-option.average.selected,
+html #app.dark .settings-page .satisfaction-option.average.selected {
+  background: #3a3f4a !important;
+  border-color: #9aa0a6 !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .satisfaction-option.bad.selected,
+html #app.dark .settings-page .satisfaction-option.bad.selected {
+  background: #7f1d1d !important;
+  border-color: #f87171 !important;
+  color: #fecaca !important;
+}
+html body.dark .settings-page .satisfaction-option.weak.selected,
+html #app.dark .settings-page .satisfaction-option.weak.selected {
+  background: #991b1b !important;
+  border-color: #fecaca !important;
+  color: #fff !important;
+}
+html body.dark .settings-page .satisfaction-preview-title,
+html #app.dark .settings-page .satisfaction-preview-title {
+  background: #1e2a28 !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .satisfaction-preview-completion,
+html body.dark .settings-page .satisfaction-actions span,
+html body.dark .settings-page .satisfaction-integration-actions span,
+html body.dark .settings-page .satisfaction-integration-feedback,
+html #app.dark .settings-page .satisfaction-preview-completion,
+html #app.dark .settings-page .satisfaction-actions span,
+html #app.dark .settings-page .satisfaction-integration-actions span,
+html #app.dark .settings-page .satisfaction-integration-feedback {
+  background: #1e2a28 !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .satisfaction-required-toggle.required,
+html #app.dark .settings-page .satisfaction-required-toggle.required {
+  background: #1e2a28 !important;
+  border-color: #3d6b5f !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .satisfaction-option-editor-row.disabled,
+html body.dark .settings-page .voip-user-row.off,
+html #app.dark .settings-page .satisfaction-option-editor-row.disabled,
+html #app.dark .settings-page .voip-user-row.off {
+  background: #121417 !important;
+  opacity: .7 !important;
+}
+html body.dark .settings-page .voip-off,
+html #app.dark .settings-page .voip-off {
+  background: #3a3220 !important;
+  color: #fbbf24 !important;
+}
+html body.dark .settings-page .voip-token-row input,
+html #app.dark .settings-page .voip-token-row input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .settings-page .voip-token-row button,
+html body.dark .settings-page .voip-incoming-list-head button,
+html #app.dark .settings-page .voip-token-row button,
+html #app.dark .settings-page .voip-incoming-list-head button {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .voip-incoming-state,
+html #app.dark .settings-page .voip-incoming-state {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .voip-incoming-state.live,
+html #app.dark .settings-page .voip-incoming-state.live {
+  background: #1e2a28 !important;
+  color: #86efac !important;
+}
+html body.dark .settings-page .voip-incoming-state.missed,
+html #app.dark .settings-page .voip-incoming-state.missed {
+  background: #3a2426 !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .settings-page .satisfaction-integration-docs > a,
+html body.dark .settings-page .satisfaction-integration-actions a,
+html #app.dark .settings-page .satisfaction-integration-docs > a,
+html #app.dark .settings-page .satisfaction-integration-actions a {
+  color: #93c5fd !important;
+}
+</style>

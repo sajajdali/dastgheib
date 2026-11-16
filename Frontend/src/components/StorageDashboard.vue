@@ -79,3 +79,153 @@ onMounted(() => { load(); loadPhotoSettings(); });
 .photo-settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.photo-settings-grid label{display:grid;gap:7px;padding:13px;border:1px solid #e0ebe9;border-radius:12px}.photo-settings-grid strong{font-size:12px}.photo-settings-grid span{min-height:32px;color:#72828a;font-size:11px}.photo-settings-grid input{width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}.photo-settings-grid input[type=range]{padding:0;accent-color:#087e72}.photo-settings-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:15px}.photo-settings-actions p{margin-left:auto;color:#087e72!important}
 @media(max-width:760px){.photo-settings-grid{grid-template-columns:1fr}}@media(max-width:560px){.photo-settings-actions{align-items:stretch;flex-direction:column}}
 </style>
+
+<style>
+/* Dark charcoal: storage-dashboard */
+html body.dark .storage-dashboard,
+html #app.dark .storage-dashboard {
+  background: transparent !important;
+  color: #e8eaed !important;
+}
+html body.dark .storage-dashboard .storage-heading h1,
+html body.dark .storage-dashboard .storage-card h2,
+html body.dark .storage-dashboard .storage-card h3,
+html body.dark .storage-dashboard .storage-overview-numbers strong,
+html body.dark .storage-dashboard .database-number,
+html body.dark .storage-dashboard .storage-metrics strong,
+html #app.dark .storage-dashboard .storage-heading h1,
+html #app.dark .storage-dashboard .storage-card h2,
+html #app.dark .storage-dashboard .storage-card h3,
+html #app.dark .storage-dashboard .storage-overview-numbers strong,
+html #app.dark .storage-dashboard .database-number,
+html #app.dark .storage-dashboard .storage-metrics strong {
+  color: #f1f3f4 !important;
+}
+html body.dark .storage-dashboard .storage-eyebrow,
+html body.dark .storage-dashboard .storage-heading p,
+html body.dark .storage-dashboard .storage-card > header > span,
+html body.dark .storage-dashboard .storage-card > header p,
+html body.dark .storage-dashboard .storage-metrics span,
+html body.dark .storage-dashboard .storage-metrics small,
+html body.dark .storage-dashboard .storage-category > div,
+html body.dark .storage-dashboard .storage-order small,
+html body.dark .storage-dashboard .storage-empty,
+html body.dark .storage-dashboard .storage-loading,
+html #app.dark .storage-dashboard .storage-eyebrow,
+html #app.dark .storage-dashboard .storage-heading p,
+html #app.dark .storage-dashboard .storage-card > header > span,
+html #app.dark .storage-dashboard .storage-card > header p,
+html #app.dark .storage-dashboard .storage-metrics span,
+html #app.dark .storage-dashboard .storage-metrics small,
+html #app.dark .storage-dashboard .storage-category > div,
+html #app.dark .storage-dashboard .storage-order small,
+html #app.dark .storage-dashboard .storage-empty,
+html #app.dark .storage-dashboard .storage-loading {
+  color: #9aa0a6 !important;
+}
+html body.dark .storage-dashboard .storage-overview:not(.full):not(.critical):not(.warning),
+html body.dark .storage-dashboard .storage-metrics article,
+html body.dark .storage-dashboard .storage-card,
+html body.dark .storage-dashboard .package-grid > article,
+html body.dark .storage-dashboard .photo-settings-card,
+html #app.dark .storage-dashboard .storage-overview:not(.full):not(.critical):not(.warning),
+html #app.dark .storage-dashboard .storage-metrics article,
+html #app.dark .storage-dashboard .storage-card,
+html #app.dark .storage-dashboard .package-grid > article,
+html #app.dark .storage-dashboard .photo-settings-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.32) !important;
+  color: #e8eaed !important;
+}
+html body.dark .storage-dashboard .storage-overview-label,
+html body.dark .storage-dashboard .storage-overview-numbers span,
+html body.dark .storage-dashboard .storage-overview-bottom,
+html body.dark .storage-dashboard .storage-overview-bottom strong,
+html #app.dark .storage-dashboard .storage-overview-label,
+html #app.dark .storage-dashboard .storage-overview-numbers span,
+html #app.dark .storage-dashboard .storage-overview-bottom,
+html #app.dark .storage-dashboard .storage-overview-bottom strong {
+  color: #9aa0a6 !important;
+}
+html body.dark .storage-dashboard .storage-state,
+html #app.dark .storage-dashboard .storage-state {
+  background: #1e2a28 !important;
+  color: #86efac !important;
+}
+html body.dark .storage-dashboard .storage-progress,
+html body.dark .storage-dashboard .storage-category i,
+html #app.dark .storage-dashboard .storage-progress,
+html #app.dark .storage-dashboard .storage-category i {
+  background: #121417 !important;
+}
+html body.dark .storage-dashboard .storage-refresh,
+html body.dark .storage-dashboard .storage-database button,
+html body.dark .storage-dashboard .photo-settings-actions button,
+html body.dark .storage-dashboard .package-grid button,
+html #app.dark .storage-dashboard .storage-refresh,
+html #app.dark .storage-dashboard .storage-database button,
+html #app.dark .storage-dashboard .photo-settings-actions button,
+html #app.dark .storage-dashboard .package-grid button {
+  background: #2a3a52 !important;
+  border: 1px solid #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .storage-dashboard .storage-error,
+html #app.dark .storage-dashboard .storage-error {
+  background: #3a2a1a !important;
+  color: #fdba74 !important;
+}
+html body.dark .storage-dashboard .storage-order,
+html #app.dark .storage-dashboard .storage-order {
+  border-top-color: #2c3038 !important;
+}
+html body.dark .storage-dashboard .photo-settings-grid label,
+html body.dark .storage-dashboard .photo-settings-grid input,
+html body.dark .storage-dashboard .photo-settings-grid select,
+html #app.dark .storage-dashboard .photo-settings-grid label,
+html #app.dark .storage-dashboard .photo-settings-grid input,
+html #app.dark .storage-dashboard .photo-settings-grid select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .storage-dashboard .storage-category strong,
+html body.dark .storage-dashboard .storage-order strong,
+html #app.dark .storage-dashboard .storage-category strong,
+html #app.dark .storage-dashboard .storage-order strong {
+  color: #e8eaed !important;
+}
+</style>
+
+<style>
+/* storage-overview.warning dark polish */
+html body.dark .storage-dashboard .storage-overview.warning,
+html #app.dark .storage-dashboard .storage-overview.warning {
+  background: linear-gradient(120deg,#3a3220,#1a1c22) !important;
+  border-color: #6b5a2e !important;
+  color: #e8eaed !important;
+}
+html body.dark .storage-dashboard .storage-overview.warning .storage-state,
+html #app.dark .storage-dashboard .storage-overview.warning .storage-state {
+  background: #3a3220 !important;
+  color: #fbbf24 !important;
+}
+html body.dark .storage-dashboard .storage-overview.critical,
+html #app.dark .storage-dashboard .storage-overview.critical {
+  background: linear-gradient(120deg,#3a1d1d,#1a1c22) !important;
+  border-color: #7f1d1d !important;
+  color: #e8eaed !important;
+}
+html body.dark .storage-dashboard .storage-overview.critical .storage-state,
+html body.dark .storage-dashboard .storage-overview.critical .storage-warning,
+html #app.dark .storage-dashboard .storage-overview.critical .storage-state,
+html #app.dark .storage-dashboard .storage-overview.critical .storage-warning {
+  background: #3a2426 !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .storage-dashboard .photo-settings-actions p,
+html #app.dark .storage-dashboard .photo-settings-actions p {
+  color: #86efac !important;
+}
+</style>

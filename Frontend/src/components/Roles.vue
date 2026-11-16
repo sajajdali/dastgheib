@@ -276,3 +276,110 @@ onMounted(() => loadData());
 .permission-choice-option{display:flex;align-items:center;gap:7px;padding:5px 2px;font-size:12px;cursor:pointer}
 .permission-choice-option input{width:16px;height:16px;accent-color:#d97706}
 </style>
+
+<style>
+/* Dark charcoal: roles-page */
+html body.dark .roles-page,
+html #app.dark .roles-page {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .roles-page.embedded,
+html #app.dark .roles-page.embedded {
+  background: transparent !important;
+}
+html body.dark .roles-page .roles-header h1,
+html body.dark .roles-page .panel-title,
+html body.dark .roles-page .group-title,
+html body.dark .roles-page .permissions-title,
+html #app.dark .roles-page .roles-header h1,
+html #app.dark .roles-page .panel-title,
+html #app.dark .roles-page .group-title,
+html #app.dark .roles-page .permissions-title {
+  color: #f1f3f4 !important;
+}
+html body.dark .roles-page .roles-header p,
+html body.dark .roles-page .section-help,
+html body.dark .roles-page .role-list-item small,
+html body.dark .roles-page .empty-state,
+html body.dark .roles-page .field-label,
+html #app.dark .roles-page .roles-header p,
+html #app.dark .roles-page .section-help,
+html #app.dark .roles-page .role-list-item small,
+html #app.dark .roles-page .empty-state,
+html #app.dark .roles-page .field-label {
+  color: #9aa0a6 !important;
+}
+html body.dark .roles-page .panel,
+html body.dark .roles-page .permission-group,
+html body.dark .roles-page .permission-choice,
+html #app.dark .roles-page .panel,
+html #app.dark .roles-page .permission-group,
+html #app.dark .roles-page .permission-choice {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.32) !important;
+  color: #e8eaed !important;
+}
+html body.dark .roles-page .role-list-item,
+html #app.dark .roles-page .role-list-item {
+  background: #22252d !important;
+  color: #e8eaed !important;
+}
+html body.dark .roles-page .role-list-item:hover,
+html #app.dark .roles-page .role-list-item:hover {
+  background: #2a2f3a !important;
+}
+html body.dark .roles-page .role-list-item.active,
+html #app.dark .roles-page .role-list-item.active {
+  background: #2a3a52 !important;
+  color: #93c5fd !important;
+}
+html body.dark .roles-page .text-input,
+html #app.dark .roles-page .text-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .roles-page .secondary-btn,
+html body.dark .roles-page .text-btn,
+html #app.dark .roles-page .secondary-btn,
+html #app.dark .roles-page .text-btn {
+  background: #22252d !important;
+  color: #93c5fd !important;
+}
+html body.dark .roles-page .primary-btn,
+html #app.dark .roles-page .primary-btn {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .roles-page .protected-badge,
+html body.dark .roles-page .permission-choice legend,
+html #app.dark .roles-page .protected-badge,
+html #app.dark .roles-page .permission-choice legend {
+  background: #3a3220 !important;
+  color: #fbbf24 !important;
+}
+html body.dark .roles-page .permission-choice,
+html #app.dark .roles-page .permission-choice {
+  background: #2a2618 !important;
+  border-color: #6b5a2e !important;
+}
+html body.dark .roles-page .permission-item,
+html body.dark .roles-page .user-role-list label,
+html body.dark .roles-page .permission-choice-option,
+html #app.dark .roles-page .permission-item,
+html #app.dark .roles-page .user-role-list label,
+html #app.dark .roles-page .permission-choice-option {
+  color: #e8eaed !important;
+}
+html body.dark .roles-page .danger-link,
+html #app.dark .roles-page .danger-link {
+  color: #f5a8a0 !important;
+}
+html body.dark .roles-page .loader,
+html #app.dark .roles-page .loader {
+  border-color: #3a3f4a !important;
+  border-top-color: #4f8cff !important;
+}
+</style>
