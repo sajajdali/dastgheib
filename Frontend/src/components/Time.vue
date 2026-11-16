@@ -16626,3 +16626,143 @@ html #app.dark .service-multiselect.multiselect--disabled {
   color: #6b7280 !important;
 }
 </style>
+
+<style>
+/* Dark fix: timeline ثبت نوبت modal — بخش box + date pill */
+html body.dark .timeline-service-sections,
+html #app.dark .timeline-service-sections {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-service-sections-head strong,
+html #app.dark .timeline-service-sections-head strong {
+  color: #93c5fd !important;
+}
+html body.dark .timeline-service-sections-head small,
+html body.dark .timeline-service-section-options p,
+html #app.dark .timeline-service-sections-head small,
+html #app.dark .timeline-service-section-options p {
+  color: #9aa0a6 !important;
+}
+html body.dark .timeline-service-section-options label,
+html #app.dark .timeline-service-section-options label {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-service-section-options label.active,
+html #app.dark .timeline-service-section-options label.active {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .timeline-modal-date,
+html #app.dark .timeline-modal-date {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+html body.dark .timeline-modal,
+html #app.dark .timeline-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-modal-body,
+html #app.dark .timeline-modal-body {
+  background: transparent !important;
+  color: #e8eaed !important;
+  scrollbar-color: #3a3f4a #121417;
+}
+html body.dark .timeline-modal-body::-webkit-scrollbar,
+html #app.dark .timeline-modal-body::-webkit-scrollbar {
+  width: 10px;
+}
+html body.dark .timeline-modal-body::-webkit-scrollbar-track,
+html #app.dark .timeline-modal-body::-webkit-scrollbar-track {
+  background: #121417 !important;
+}
+html body.dark .timeline-modal-body::-webkit-scrollbar-thumb,
+html #app.dark .timeline-modal-body::-webkit-scrollbar-thumb {
+  background: #3a3f4a !important;
+  border-radius: 999px;
+}
+html body.dark .timeline-modal input,
+html body.dark .timeline-modal select,
+html body.dark .timeline-modal textarea,
+html body.dark .timeline-modal .timeline-modal-input,
+html body.dark input.timeline-modal-input,
+html #app.dark .timeline-modal input,
+html #app.dark .timeline-modal select,
+html #app.dark .timeline-modal textarea,
+html #app.dark .timeline-modal .timeline-modal-input,
+html #app.dark input.timeline-modal-input {
+  background: #121417 !important;
+  border: 1px solid #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+html body.dark .timeline-modal label,
+html body.dark .timeline-form-grid label,
+html #app.dark .timeline-modal label,
+html #app.dark .timeline-form-grid label {
+  color: #c5cad3 !important;
+}
+html body.dark .timeline-patient-results,
+html body.dark .timeline-patient-result,
+html #app.dark .timeline-patient-results,
+html #app.dark .timeline-patient-result {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .timeline-patient-result:hover,
+html #app.dark .timeline-patient-result:hover {
+  background: #2a2f3a !important;
+}
+html body.dark .timeline-modal-cancel,
+html #app.dark .timeline-modal-cancel {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .timeline-modal-save,
+html #app.dark .timeline-modal-save {
+  background: #2a3a52 !important;
+  border: 1px solid #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .service-prerequisite,
+html #app.dark .service-prerequisite {
+  background: linear-gradient(135deg,#1a2230,#1a1c22) !important;
+  border-color: #2f4668 !important;
+}
+html body.dark .service-prerequisite strong,
+html #app.dark .service-prerequisite strong {
+  color: #93c5fd !important;
+}
+html body.dark .service-prerequisite p,
+html #app.dark .service-prerequisite p {
+  color: #9aa0a6 !important;
+}
+html body.dark .service-prerequisite > span,
+html #app.dark .service-prerequisite > span {
+  background: #2a3a52 !important;
+  color: #93c5fd !important;
+  box-shadow: none !important;
+}
+html body.dark .timeline-service-row,
+html body.dark .timeline-service-row header,
+html body.dark .timeline-quick-team,
+html body.dark .timeline-sms-options > label,
+html #app.dark .timeline-service-row,
+html #app.dark .timeline-service-row header,
+html #app.dark .timeline-quick-team,
+html #app.dark .timeline-sms-options > label {
+  background: #121417 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+</style>

@@ -3080,4 +3080,44 @@ body.dark .add-service-line-btn,
   border:1px solid #4f8cff !important;
 }
 
+
+
+/* NUCLEAR timeline-service-sections */
+body.dark .timeline-service-sections,
+#app.dark .timeline-service-sections {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+body.dark .timeline-service-sections-head strong,
+#app.dark .timeline-service-sections-head strong { color: #93c5fd !important; }
+body.dark .timeline-service-sections-head small,
+#app.dark .timeline-service-sections-head small { color: #9aa0a6 !important; }
+body.dark .timeline-modal-date,
+#app.dark .timeline-modal-date {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+body.dark .timeline-modal input,
+body.dark .timeline-modal select,
+body.dark .timeline-modal textarea,
+body.dark input.timeline-modal-input,
+#app.dark .timeline-modal input,
+#app.dark .timeline-modal select,
+#app.dark .timeline-modal textarea,
+#app.dark input.timeline-modal-input {
+  background: #121417 !important;
+  border: 1px solid #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+body.dark .timeline-patient-results,
+body.dark .timeline-patient-result,
+#app.dark .timeline-patient-results,
+#app.dark .timeline-patient-result {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+
 </style>
