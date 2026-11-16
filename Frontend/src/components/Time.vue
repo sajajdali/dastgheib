@@ -16853,4 +16853,46 @@ html #app.dark .time-page .timeline-actions .icon-sms-btn:hover {
   border-color: #5b6472 !important;
   color: #f1f3f4 !important;
 }
+html body.dark .monthly-financial-summary,
+html body.dark .monthly-financial-summary.is-open,
+html #app.dark .monthly-financial-summary,
+html #app.dark .monthly-financial-summary.is-open {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  box-shadow: none !important;
+  color: #e8eaed !important;
+}
+html body.dark .monthly-financial-period,
+html #app.dark .monthly-financial-period {
+  background: #1a1c22 !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .monthly-financial-item,
+html body.dark .monthly-financial-item strong,
+html #app.dark .monthly-financial-item,
+html #app.dark .monthly-financial-item strong {
+  color: #f1f3f4 !important;
+}
+html body.dark .monthly-financial-item small,
+html body.dark .monthly-financial-item em,
+html #app.dark .monthly-financial-item small,
+html #app.dark .monthly-financial-item em {
+  color: #9aa0a6 !important;
+}
+html body.dark .monthly-financial-item + .monthly-financial-item,
+html #app.dark .monthly-financial-item + .monthly-financial-item {
+  border-right-color: #3a3f4a !important;
+}
+html body.dark .monthly-financial-toggle,
+html #app.dark .monthly-financial-toggle {
+  background: #2a2f3a !important;
+  color: #93c5fd !important;
+  box-shadow: inset 0 0 0 1px #3a3f4a !important;
+}
+html body.dark .monthly-financial-summary.is-open .monthly-financial-toggle,
+html #app.dark .monthly-financial-summary.is-open .monthly-financial-toggle {
+  background: #4f8cff !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
 </style>
