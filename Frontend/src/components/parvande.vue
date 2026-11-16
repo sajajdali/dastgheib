@@ -9777,16 +9777,384 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 </style>
 
 <style>
-/* Dark charcoal: patient-page */
+/* Dark mode پرونده‌ها / مشاهده پرونده — unscoped high-specificity charcoal theme */
 html body.dark .patient-page,
 html #app.dark .patient-page {
+  background: #121316 !important;
   color: #e8eaed !important;
 }
+
 html body.dark .patient-page .card,
 html body.dark .patient-page .create-card,
 html body.dark .patient-page .search-card,
 html body.dark .patient-page .result-card,
-html body.dark .patient-page .profile-shell,
+html body.dark .patient-page .services-history-card,
+html #app.dark .patient-page .card,
+html #app.dark .patient-page .create-card,
+html #app.dark .patient-page .search-card,
+html #app.dark .patient-page .result-card,
+html #app.dark .patient-page .services-history-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .35) !important;
+}
+
+html body.dark .patient-page .section-header,
+html #app.dark .patient-page .section-header {
+  border-bottom-color: #2c3038 !important;
+  background: transparent !important;
+}
+
+html body.dark .patient-page .section-header h3,
+html body.dark .patient-page h1,
+html body.dark .patient-page h2,
+html body.dark .patient-page h3,
+html #app.dark .patient-page .section-header h3,
+html #app.dark .patient-page h1,
+html #app.dark .patient-page h2,
+html #app.dark .patient-page h3 {
+  color: #f1f3f4 !important;
+}
+
+html body.dark .patient-page .section-header span,
+html body.dark .patient-page .result-count,
+html body.dark .patient-page .search-loading-line,
+html body.dark .patient-page small,
+html body.dark .patient-page .profile-hero p,
+html body.dark .patient-page .profile-card-title span,
+html body.dark .patient-page .profile-empty-history,
+html body.dark .patient-page .profile-loading-line,
+html body.dark .patient-page .media-header p,
+html body.dark .patient-page .media-path,
+html body.dark .patient-page .media-empty,
+html body.dark .patient-page .media-loading,
+html #app.dark .patient-page .section-header span,
+html #app.dark .patient-page .result-count,
+html #app.dark .patient-page .search-loading-line,
+html #app.dark .patient-page small,
+html #app.dark .patient-page .profile-hero p,
+html #app.dark .patient-page .profile-card-title span,
+html #app.dark .patient-page .profile-empty-history,
+html #app.dark .patient-page .profile-loading-line,
+html #app.dark .patient-page .media-header p,
+html #app.dark .patient-page .media-path,
+html #app.dark .patient-page .media-empty,
+html #app.dark .patient-page .media-loading {
+  color: #9aa0a6 !important;
+}
+
+/* Inputs */
+html body.dark .patient-page input,
+html body.dark .patient-page select,
+html body.dark .patient-page textarea,
+html body.dark .patient-page .vpd-input-group input,
+html body.dark .edit-modal input,
+html body.dark .edit-modal select,
+html body.dark .edit-modal textarea,
+html body.dark .wallet-modal input,
+html body.dark .media-edit-modal input,
+html body.dark .media-edit-modal select,
+html body.dark .media-edit-modal textarea,
+html body.dark .customer-level-modal input,
+html body.dark .profile-crop-modal input,
+html #app.dark .patient-page input,
+html #app.dark .patient-page select,
+html #app.dark .patient-page textarea,
+html #app.dark .patient-page .vpd-input-group input,
+html #app.dark .edit-modal input,
+html #app.dark .edit-modal select,
+html #app.dark .edit-modal textarea,
+html #app.dark .wallet-modal input,
+html #app.dark .media-edit-modal input,
+html #app.dark .media-edit-modal select,
+html #app.dark .media-edit-modal textarea,
+html #app.dark .customer-level-modal input,
+html #app.dark .profile-crop-modal input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+
+html body.dark .patient-page input::placeholder,
+html body.dark .edit-modal input::placeholder,
+html body.dark .wallet-modal input::placeholder,
+html body.dark .media-edit-modal textarea::placeholder,
+html #app.dark .patient-page input::placeholder,
+html #app.dark .edit-modal input::placeholder,
+html #app.dark .wallet-modal input::placeholder,
+html #app.dark .media-edit-modal textarea::placeholder {
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+  opacity: 1 !important;
+}
+
+html body.dark .patient-page .city-select .multiselect__tags,
+html body.dark .edit-modal .city-select .multiselect__tags,
+html body.dark .patient-page .city-select .multiselect__content-wrapper,
+html body.dark .edit-modal .city-select .multiselect__content-wrapper,
+html #app.dark .patient-page .city-select .multiselect__tags,
+html #app.dark .edit-modal .city-select .multiselect__tags,
+html #app.dark .patient-page .city-select .multiselect__content-wrapper,
+html #app.dark .edit-modal .city-select .multiselect__content-wrapper {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+
+html body.dark .patient-page .city-select .multiselect__single,
+html body.dark .patient-page .city-select .multiselect__input,
+html body.dark .patient-page .city-select .multiselect__placeholder,
+html body.dark .edit-modal .city-select .multiselect__single,
+html body.dark .edit-modal .city-select .multiselect__input,
+html body.dark .edit-modal .city-select .multiselect__placeholder,
+html #app.dark .patient-page .city-select .multiselect__single,
+html #app.dark .patient-page .city-select .multiselect__input,
+html #app.dark .patient-page .city-select .multiselect__placeholder,
+html #app.dark .edit-modal .city-select .multiselect__single,
+html #app.dark .edit-modal .city-select .multiselect__input,
+html #app.dark .edit-modal .city-select .multiselect__placeholder {
+  color: #f1f3f4 !important;
+  background: transparent !important;
+}
+
+html body.dark .patient-page .city-select .multiselect__option,
+html body.dark .edit-modal .city-select .multiselect__option,
+html #app.dark .patient-page .city-select .multiselect__option,
+html #app.dark .edit-modal .city-select .multiselect__option {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+}
+
+html body.dark .patient-page .city-select .multiselect__option--highlight,
+html body.dark .edit-modal .city-select .multiselect__option--highlight,
+html #app.dark .patient-page .city-select .multiselect__option--highlight,
+html #app.dark .edit-modal .city-select .multiselect__option--highlight {
+  background: #2a2f3a !important;
+  color: #f1f3f4 !important;
+}
+
+html body.dark .patient-page .file-number-field.is-available input,
+html #app.dark .patient-page .file-number-field.is-available input {
+  border-color: #22c55e !important;
+  background: #14352a !important;
+  color: #86efac !important;
+  -webkit-text-fill-color: #86efac !important;
+}
+html body.dark .patient-page .file-number-field.is-available small,
+html #app.dark .patient-page .file-number-field.is-available small { color: #86efac !important; }
+html body.dark .patient-page .file-number-field.is-taken input,
+html #app.dark .patient-page .file-number-field.is-taken input {
+  border-color: #ef4444 !important;
+  background: #3a1f24 !important;
+  color: #fca5a5 !important;
+  -webkit-text-fill-color: #fca5a5 !important;
+}
+html body.dark .patient-page .file-number-field.is-taken small,
+html #app.dark .patient-page .file-number-field.is-taken small { color: #fca5a5 !important; }
+html body.dark .patient-page .file-number-field .file-number-availability-note,
+html #app.dark .patient-page .file-number-field .file-number-availability-note { background: #1a1c22 !important; }
+html body.dark .patient-page .file-number-field.is-locked input,
+html #app.dark .patient-page .file-number-field.is-locked input {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+}
+html body.dark .patient-page .file-number-field .file-number-lock-icon,
+html #app.dark .patient-page .file-number-field .file-number-lock-icon { color: #9aa0a6 !important; }
+
+/* Buttons */
+html body.dark .patient-page .primary-btn,
+html body.dark .edit-modal .primary-btn,
+html body.dark .wallet-modal .primary-btn,
+html body.dark .profile-crop-actions .primary-btn,
+html body.dark .media-edit-modal .primary-btn,
+html body.dark .customer-level-modal .primary-btn,
+html #app.dark .patient-page .primary-btn,
+html #app.dark .edit-modal .primary-btn,
+html #app.dark .wallet-modal .primary-btn,
+html #app.dark .profile-crop-actions .primary-btn,
+html #app.dark .media-edit-modal .primary-btn,
+html #app.dark .customer-level-modal .primary-btn {
+  background: #4f8cff !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+html body.dark .patient-page .secondary-btn,
+html body.dark .edit-modal .secondary-btn,
+html body.dark .wallet-modal .secondary-btn,
+html body.dark .profile-crop-actions .secondary-btn,
+html body.dark .media-edit-modal .secondary-btn,
+html body.dark .customer-level-modal .secondary-btn,
+html body.dark .patient-page .media-back,
+html #app.dark .patient-page .secondary-btn,
+html #app.dark .edit-modal .secondary-btn,
+html #app.dark .wallet-modal .secondary-btn,
+html #app.dark .profile-crop-actions .secondary-btn,
+html #app.dark .media-edit-modal .secondary-btn,
+html #app.dark .customer-level-modal .secondary-btn,
+html #app.dark .patient-page .media-back {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .patient-page .secondary-btn:not(:disabled):hover,
+html body.dark .edit-modal .secondary-btn:not(:disabled):hover,
+html body.dark .profile-crop-actions .secondary-btn:hover,
+html #app.dark .patient-page .secondary-btn:not(:disabled):hover,
+html #app.dark .edit-modal .secondary-btn:not(:disabled):hover,
+html #app.dark .profile-crop-actions .secondary-btn:hover {
+  background: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .patient-page .primary-btn:hover,
+html #app.dark .patient-page .primary-btn:hover { filter: brightness(1.08); }
+html body.dark .patient-page .edit-btn,
+html #app.dark .patient-page .edit-btn {
+  background: #14352a !important;
+  color: #86efac !important;
+}
+html body.dark .patient-page .edit-btn:hover,
+html #app.dark .patient-page .edit-btn:hover {
+  background: #1a4735 !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .patient-page .media-btn,
+html #app.dark .patient-page .media-btn {
+  background: #3b2a5c !important;
+  color: #d8b4fe !important;
+}
+html body.dark .patient-page .media-btn:hover,
+html #app.dark .patient-page .media-btn:hover {
+  background: #4c1d95 !important;
+  color: #ede9fe !important;
+}
+html body.dark .patient-page .open-profile-btn,
+html #app.dark .patient-page .open-profile-btn {
+  background: linear-gradient(135deg, #0f766e, #1d4ed8) !important;
+  color: #fff !important;
+}
+html body.dark .patient-page .delete-patient-btn,
+html #app.dark .patient-page .delete-patient-btn {
+  background: #3a1f24 !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .patient-page .delete-patient-btn:hover,
+html #app.dark .patient-page .delete-patient-btn:hover {
+  background: #4c1f2c !important;
+  border-color: #ef4444 !important;
+  color: #fecaca !important;
+}
+html body.dark .patient-page .btn-spinner.dark,
+html #app.dark .patient-page .btn-spinner.dark {
+  border-color: rgba(79, 140, 255, .25) !important;
+  border-top-color: #4f8cff !important;
+}
+
+/* Tables */
+html body.dark .patient-page .result-table-wrap,
+html body.dark .patient-page .profile-table-wrap,
+html #app.dark .patient-page .result-table-wrap,
+html #app.dark .patient-page .profile-table-wrap {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .patient-page .result-table thead th,
+html body.dark .patient-page .profile-services-table th,
+html body.dark .wallet-reward-table th,
+html #app.dark .patient-page .result-table thead th,
+html #app.dark .patient-page .profile-services-table th,
+html #app.dark .wallet-reward-table th {
+  background: #22252d !important;
+  color: #c5cad3 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .patient-page .result-table tbody td,
+html body.dark .patient-page .profile-services-table td,
+html body.dark .wallet-reward-table td,
+html #app.dark .patient-page .result-table tbody td,
+html #app.dark .patient-page .profile-services-table td,
+html #app.dark .wallet-reward-table td {
+  background: #1a1c22 !important;
+  color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .patient-page .result-table tbody tr:nth-child(even) td,
+html body.dark .wallet-reward-table tbody tr:nth-child(even) td,
+html #app.dark .patient-page .result-table tbody tr:nth-child(even) td,
+html #app.dark .wallet-reward-table tbody tr:nth-child(even) td {
+  background: #16181e !important;
+}
+html body.dark .patient-page .result-table tbody tr:hover td,
+html body.dark .patient-page .profile-services-table tbody tr:hover td,
+html body.dark .wallet-reward-table tbody tr:hover td,
+html #app.dark .patient-page .result-table tbody tr:hover td,
+html #app.dark .patient-page .profile-services-table tbody tr:hover td,
+html #app.dark .wallet-reward-table tbody tr:hover td {
+  background: #22252d !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .patient-page .patient-name-link,
+html #app.dark .patient-page .patient-name-link { color: #4f8cff !important; }
+html body.dark .patient-page .patient-name-link:hover,
+html body.dark .patient-page .patient-name-link:focus-visible,
+html #app.dark .patient-page .patient-name-link:hover,
+html #app.dark .patient-page .patient-name-link:focus-visible { color: #93c5fd !important; }
+
+/* Badges */
+html body.dark .patient-page .customer-level-badge.level-silver,
+html #app.dark .patient-page .customer-level-badge.level-silver {
+  background: #2a2f3a !important; color: #c5cad3 !important; border-color: #5b6472 !important;
+}
+html body.dark .patient-page .customer-level-badge.level-blue,
+html #app.dark .patient-page .customer-level-badge.level-blue {
+  background: #1e3a5f !important; color: #93c5fd !important; border-color: #3b82f6 !important;
+}
+html body.dark .patient-page .customer-level-badge.level-gold,
+html #app.dark .patient-page .customer-level-badge.level-gold {
+  background: #3a2e14 !important; color: #fde68a !important; border-color: #d4a72c !important;
+}
+html body.dark .patient-page .customer-level-badge.level-problematic,
+html #app.dark .patient-page .customer-level-badge.level-problematic {
+  background: #3a1f24 !important; color: #fca5a5 !important; border-color: #ef4444 !important;
+}
+html body.dark .patient-page .customer-level-badge.level-empty,
+html #app.dark .patient-page .customer-level-badge.level-empty {
+  background: #22252d !important; color: #9aa0a6 !important; border-color: #3a3f4a !important;
+}
+html body.dark .patient-page .customer-level-change-btn,
+html #app.dark .patient-page .customer-level-change-btn {
+  background: #22252d !important; border-color: #3a3f4a !important; color: #e8eaed !important;
+}
+html body.dark .patient-page .customer-level-change-btn:hover,
+html #app.dark .patient-page .customer-level-change-btn:hover {
+  background: #2a2f3a !important; border-color: #4f8cff !important; color: #93c5fd !important;
+}
+
+/* Profile shell */
+html body.dark .patient-page .direct-profile-loading,
+html #app.dark .patient-page .direct-profile-loading {
+  background: linear-gradient(145deg, #1a1c22, #121417) !important;
+  border-color: #2c3038 !important;
+  color: #c5cad3 !important;
+}
+html body.dark .patient-page .direct-profile-spinner,
+html #app.dark .patient-page .direct-profile-spinner {
+  border-color: #2c3038 !important;
+  border-top-color: #4f8cff !important;
+}
+html body.dark .patient-page .profile-back-btn,
+html #app.dark .patient-page .profile-back-btn {
+  background: #2a2f3a !important; border-color: #3a3f4a !important; color: #c5cad3 !important;
+}
+html body.dark .patient-page .profile-back-btn:hover,
+html #app.dark .patient-page .profile-back-btn:hover {
+  background: #3a3f4a !important; color: #f1f3f4 !important;
+}
 html body.dark .patient-page .profile-main-card,
 html body.dark .patient-page .profile-extra-card,
 html body.dark .patient-page .profile-report-card,
@@ -9794,126 +10162,780 @@ html body.dark .patient-page .profile-history-card,
 html body.dark .patient-page .profile-rating-card,
 html body.dark .patient-page .profile-satisfaction-card,
 html body.dark .patient-page .profile-automatic-sms-card,
-html body.dark .patient-page .edit-modal,
-html body.dark .patient-page .customer-level-modal,
-html body.dark .patient-page .wallet-modal,
-html body.dark .patient-page .media-modal,
-html body.dark .patient-page .compare-modal,
-html body.dark .patient-page .media-edit-modal,
-html body.dark .patient-page .profile-crop-modal,
-html body.dark .patient-page .media-viewer-modal,
-html body.dark .patient-page .angle-upload-panel,
-html body.dark .patient-page .angle-stage-card,
-html body.dark .patient-page .upload-card,
-html body.dark .patient-page .wallet-report,
-html #app.dark .patient-page .card,
-html #app.dark .patient-page .create-card,
-html #app.dark .patient-page .search-card,
-html #app.dark .patient-page .result-card,
-html #app.dark .patient-page .profile-shell,
 html #app.dark .patient-page .profile-main-card,
 html #app.dark .patient-page .profile-extra-card,
 html #app.dark .patient-page .profile-report-card,
 html #app.dark .patient-page .profile-history-card,
 html #app.dark .patient-page .profile-rating-card,
 html #app.dark .patient-page .profile-satisfaction-card,
-html #app.dark .patient-page .profile-automatic-sms-card,
-html #app.dark .patient-page .edit-modal,
-html #app.dark .patient-page .customer-level-modal,
-html #app.dark .patient-page .wallet-modal,
-html #app.dark .patient-page .media-modal,
-html #app.dark .patient-page .compare-modal,
-html #app.dark .patient-page .media-edit-modal,
-html #app.dark .patient-page .profile-crop-modal,
-html #app.dark .patient-page .media-viewer-modal,
-html #app.dark .patient-page .angle-upload-panel,
-html #app.dark .patient-page .angle-stage-card,
-html #app.dark .patient-page .upload-card,
-html #app.dark .patient-page .wallet-report {
+html #app.dark .patient-page .profile-automatic-sms-card {
   background: #1a1c22 !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
-  box-shadow: 0 12px 28px rgba(0,0,0,.32) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .35) !important;
 }
-html body.dark .patient-page .section-header,
-html body.dark .patient-page .profile-card-title,
-html body.dark .patient-page .wallet-modal-header,
-html body.dark .patient-page .result-table-wrap,
-html body.dark .patient-page .profile-table-wrap,
-html #app.dark .patient-page .section-header,
-html #app.dark .patient-page .profile-card-title,
-html #app.dark .patient-page .wallet-modal-header,
-html #app.dark .patient-page .result-table-wrap,
-html #app.dark .patient-page .profile-table-wrap {
+html body.dark .patient-page .profile-main-card,
+html #app.dark .patient-page .profile-main-card {
+  background:
+    radial-gradient(circle at top right, rgba(79, 140, 255, .12), transparent 30%),
+    #1a1c22 !important;
+}
+html body.dark .patient-page .profile-hero,
+html #app.dark .patient-page .profile-hero {
   background: #22252d !important;
-  border-color: #2c3038 !important;
-  color: #f1f3f4 !important;
-}
-html body.dark .patient-page h2,
-html body.dark .patient-page h3,
-html body.dark .patient-page strong,
-html body.dark .patient-page label,
-html #app.dark .patient-page h2,
-html #app.dark .patient-page h3,
-html #app.dark .patient-page strong,
-html #app.dark .patient-page label { color: #e8eaed !important; }
-html body.dark .patient-page small,
-html body.dark .patient-page .muted,
-html body.dark .patient-page p,
-html #app.dark .patient-page small,
-html #app.dark .patient-page .muted,
-html #app.dark .patient-page p { color: #9aa0a6 !important; }
-html body.dark .patient-page input,
-html body.dark .patient-page select,
-html body.dark .patient-page textarea,
-html body.dark .patient-page .vpd-input-group input,
-html #app.dark .patient-page input,
-html #app.dark .patient-page select,
-html #app.dark .patient-page textarea,
-html #app.dark .patient-page .vpd-input-group input {
-  background: #121417 !important;
   border-color: #3a3f4a !important;
-  color: #f1f3f4 !important;
-  -webkit-text-fill-color: #f1f3f4 !important;
 }
-html body.dark .patient-page table th,
-html #app.dark .patient-page table th {
+html body.dark .patient-page .profile-edit-action,
+html body.dark .patient-page .profile-wallet-action,
+html body.dark .patient-page .profile-beauty-action,
+html body.dark .patient-page .profile-followup-action,
+html body.dark .patient-page .profile-gallery-action,
+html #app.dark .patient-page .profile-edit-action,
+html #app.dark .patient-page .profile-wallet-action,
+html #app.dark .patient-page .profile-beauty-action,
+html #app.dark .patient-page .profile-followup-action,
+html #app.dark .patient-page .profile-gallery-action {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+html body.dark .patient-page .profile-edit-action:hover,
+html body.dark .patient-page .profile-wallet-action:hover,
+html body.dark .patient-page .profile-beauty-action:hover,
+html body.dark .patient-page .profile-followup-action:hover,
+html body.dark .patient-page .profile-gallery-action:hover,
+html #app.dark .patient-page .profile-edit-action:hover,
+html #app.dark .patient-page .profile-wallet-action:hover,
+html #app.dark .patient-page .profile-beauty-action:hover,
+html #app.dark .patient-page .profile-followup-action:hover,
+html #app.dark .patient-page .profile-gallery-action:hover {
+  background: #254a78 !important;
+  border-color: #60a5fa !important;
+  color: #dbeafe !important;
+}
+html body.dark .patient-page .profile-photo-large,
+html #app.dark .patient-page .profile-photo-large {
+  border-color: #2c3038 !important;
+  background: linear-gradient(135deg, #22252d, #1a1c22) !important;
+}
+html body.dark .patient-page .profile-info-row,
+html #app.dark .patient-page .profile-info-row {
   background: #22252d !important;
+  border-color: #2c3038 !important;
   color: #c5cad3 !important;
-  border-color: #2c3038 !important;
 }
-html body.dark .patient-page table td,
-html body.dark .patient-page table tr,
-html #app.dark .patient-page table td,
-html #app.dark .patient-page table tr {
-  background: #1a1c22 !important;
-  color: #e8eaed !important;
-  border-color: #2c3038 !important;
-}
-html body.dark .patient-page table tbody tr:hover td,
-html #app.dark .patient-page table tbody tr:hover td {
-  background: #22252d !important;
-}
-html body.dark .patient-page button,
-html body.dark .patient-page .modal-actions button,
-html #app.dark .patient-page button,
-html #app.dark .patient-page .modal-actions button {
+html body.dark .patient-page .profile-info-row:hover,
+html #app.dark .patient-page .profile-info-row:hover {
   background: #2a2f3a !important;
   border-color: #3a3f4a !important;
-  color: #e8eaed !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .28) !important;
 }
-html body.dark .patient-page .compare-pair-card,
-html body.dark .patient-page .profile-section-list,
-html body.dark .patient-page .angle-upload-loader-card,
-html #app.dark .patient-page .compare-pair-card,
-html #app.dark .patient-page .profile-section-list,
-html #app.dark .patient-page .angle-upload-loader-card {
+html body.dark .patient-page .profile-info-row b,
+html body.dark .patient-page .profile-info-row strong,
+html #app.dark .patient-page .profile-info-row b,
+html #app.dark .patient-page .profile-info-row strong { color: #f1f3f4 !important; }
+html body.dark .patient-page .profile-info-row .green-value,
+html #app.dark .patient-page .profile-info-row .green-value { color: #86efac !important; }
+html body.dark .patient-page .profile-info-icon,
+html #app.dark .patient-page .profile-info-icon {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .patient-page .profile-info-icon::before,
+html #app.dark .patient-page .profile-info-icon::before { background: #93c5fd !important; }
+html body.dark .patient-page .profile-info-row.profile-debt-warning,
+html #app.dark .patient-page .profile-info-row.profile-debt-warning {
+  background: #3a1f24 !important;
+  border-color: #7f1d1d !important;
+}
+html body.dark .patient-page .profile-info-row.profile-debt-warning b,
+html body.dark .patient-page .profile-info-row.profile-debt-warning strong,
+html #app.dark .patient-page .profile-info-row.profile-debt-warning b,
+html #app.dark .patient-page .profile-info-row.profile-debt-warning strong { color: #fca5a5 !important; }
+html body.dark .patient-page .problematic-profile-toggle,
+html #app.dark .patient-page .problematic-profile-toggle {
+  background: #22252d !important; border-color: #3a3f4a !important; color: #c5cad3 !important;
+}
+html body.dark .patient-page .problematic-profile-toggle:hover,
+html #app.dark .patient-page .problematic-profile-toggle:hover {
+  background: #2a2f3a !important; color: #f1f3f4 !important;
+}
+html body.dark .patient-page .problematic-profile-toggle.active,
+html #app.dark .patient-page .problematic-profile-toggle.active {
+  background: #3a1f24 !important; border-color: #ef4444 !important; color: #fca5a5 !important;
+}
+
+html body.dark .patient-page .profile-extra-grid article,
+html #app.dark .patient-page .profile-extra-grid article {
+  background: #22252d !important; border-color: #2c3038 !important; color: #e8eaed !important;
+}
+html body.dark .patient-page .profile-extra-grid small,
+html #app.dark .patient-page .profile-extra-grid small { color: #9aa0a6 !important; }
+html body.dark .patient-page .profile-extra-grid strong,
+html #app.dark .patient-page .profile-extra-grid strong { color: #f1f3f4 !important; }
+html body.dark .patient-page .profile-extra-grid strong.empty,
+html #app.dark .patient-page .profile-extra-grid strong.empty { color: #9aa0a6 !important; }
+html body.dark .patient-page .profile-extra-icon,
+html #app.dark .patient-page .profile-extra-icon {
+  background: #2a2f3a !important; color: #c5cad3 !important;
+}
+html body.dark .patient-page .profile-stat-box,
+html #app.dark .patient-page .profile-stat-box {
   background: #22252d !important;
-  border-color: #3a3f4a !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .28) !important;
+}
+html body.dark .patient-page .profile-stat-box:hover,
+html #app.dark .patient-page .profile-stat-box:hover {
+  background: #2a2f3a !important; border-color: #3a3f4a !important;
+}
+html body.dark .patient-page .stat-chart,
+html #app.dark .patient-page .stat-chart {
+  background: conic-gradient(var(--stat-accent) calc(var(--stat-percent) * 1%), #2c3038 0) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06) !important;
+}
+html body.dark .patient-page .stat-chart span,
+html #app.dark .patient-page .stat-chart span {
+  background: #1a1c22 !important; color: #f1f3f4 !important;
+}
+html body.dark .patient-page .stat-body small,
+html body.dark .patient-page .stat-body em,
+html #app.dark .patient-page .stat-body small,
+html #app.dark .patient-page .stat-body em { color: #9aa0a6 !important; }
+html body.dark .patient-page .stat-body strong,
+html #app.dark .patient-page .stat-body strong { color: #f1f3f4 !important; }
+html body.dark .patient-page .stat-line,
+html #app.dark .patient-page .stat-line { background: #2c3038 !important; }
+
+html body.dark .patient-page .profile-check-alert,
+html #app.dark .patient-page .profile-check-alert {
+  background: #3a2e14 !important; border-color: #d4a72c !important; color: #fde68a !important;
+}
+html body.dark .patient-page .profile-filter-head button,
+html #app.dark .patient-page .profile-filter-head button {
+  background: #22252d !important; border-color: #3a3f4a !important; color: #c5cad3 !important;
+}
+html body.dark .patient-page .profile-filter-head button:hover,
+html #app.dark .patient-page .profile-filter-head button:hover {
+  background: #2a2f3a !important; color: #f1f3f4 !important;
+}
+html body.dark .patient-page .profile-services-table th.filtered-cell,
+html #app.dark .patient-page .profile-services-table th.filtered-cell {
+  background: #1e3a5f !important; color: #93c5fd !important;
+}
+html body.dark .patient-page .profile-filter-menu,
+html #app.dark .patient-page .profile-filter-menu {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .45) !important;
   color: #e8eaed !important;
 }
-html body.dark .patient-page .modal-overlay,
-html #app.dark .patient-page .modal-overlay {
-  background: rgba(0,0,0,.62) !important;
+html body.dark .patient-page .profile-filter-menu label,
+html #app.dark .patient-page .profile-filter-menu label { color: #e8eaed !important; }
+html body.dark .patient-page .profile-filter-menu label:hover,
+html #app.dark .patient-page .profile-filter-menu label:hover { background: #22252d !important; }
+html body.dark .patient-page .profile-filter-menu button,
+html #app.dark .patient-page .profile-filter-menu button {
+  background: #2a2f3a !important; border-color: #3a3f4a !important; color: #c5cad3 !important;
+}
+html body.dark .patient-page .profile-date-cell b,
+html #app.dark .patient-page .profile-date-cell b { color: #f1f3f4 !important; }
+html body.dark .patient-page .profile-date-cell small,
+html body.dark .patient-page .profile-section-list span,
+html body.dark .patient-page .profile-payment-summary,
+html body.dark .patient-page .profile-empty-row,
+html #app.dark .patient-page .profile-date-cell small,
+html #app.dark .patient-page .profile-section-list span,
+html #app.dark .patient-page .profile-payment-summary,
+html #app.dark .patient-page .profile-empty-row { color: #9aa0a6 !important; }
+html body.dark .patient-page .profile-check-warning-row td,
+html #app.dark .patient-page .profile-check-warning-row td {
+  background: #3a2e14 !important; color: #fde68a !important;
+}
+html body.dark .patient-page .profile-check-icon,
+html #app.dark .patient-page .profile-check-icon {
+  background: #3a2e14 !important; color: #fde68a !important; border-color: #d4a72c !important;
+}
+html body.dark .patient-page .profile-check-icon.urgent,
+html #app.dark .patient-page .profile-check-icon.urgent {
+  background: #3a1f24 !important; color: #fca5a5 !important; border-color: #ef4444 !important;
+}
+html body.dark .patient-page .profile-auto-sms-badge,
+html #app.dark .patient-page .profile-auto-sms-badge {
+  background: #14352a !important; border-color: #166534 !important; color: #86efac !important;
+}
+
+/* Satisfaction */
+html body.dark .patient-page .profile-satisfaction-overview,
+html #app.dark .patient-page .profile-satisfaction-overview {
+  background: #22252d !important; border-color: #2c3038 !important;
+}
+html body.dark .patient-page .profile-satisfaction-overview:hover,
+html #app.dark .patient-page .profile-satisfaction-overview:hover { background: #2a2f3a !important; }
+html body.dark .patient-page .profile-satisfaction-details,
+html #app.dark .patient-page .profile-satisfaction-details { background: #1a1c22 !important; }
+html body.dark .patient-page .rating-bar-row > div,
+html #app.dark .patient-page .rating-bar-row > div { background: #2c3038 !important; }
+html body.dark .patient-page .rating-summary,
+html body.dark .patient-page .rating-stars,
+html #app.dark .patient-page .rating-summary,
+html #app.dark .patient-page .rating-stars { color: #fde68a !important; }
+html body.dark .patient-page .profile-satisfaction-toggle,
+html #app.dark .patient-page .profile-satisfaction-toggle {
+  background: #2a2f3a !important; color: #c5cad3 !important;
+}
+html body.dark .patient-page .profile-satisfaction-item,
+html #app.dark .patient-page .profile-satisfaction-item {
+  background: #22252d !important; border-color: #2c3038 !important;
+}
+html body.dark .patient-page .profile-satisfaction-item > header b,
+html body.dark .patient-page .profile-satisfaction-answer strong,
+html #app.dark .patient-page .profile-satisfaction-item > header b,
+html #app.dark .patient-page .profile-satisfaction-answer strong { color: #f1f3f4 !important; }
+html body.dark .patient-page .profile-satisfaction-item > header span,
+html body.dark .patient-page .profile-satisfaction-meta,
+html body.dark .patient-page .profile-satisfaction-answer span,
+html #app.dark .patient-page .profile-satisfaction-item > header span,
+html #app.dark .patient-page .profile-satisfaction-meta,
+html #app.dark .patient-page .profile-satisfaction-answer span { color: #9aa0a6 !important; }
+html body.dark .patient-page .profile-satisfaction-score,
+html #app.dark .patient-page .profile-satisfaction-score {
+  background: #1e3a5f !important; color: #93c5fd !important;
+}
+html body.dark .patient-page .profile-satisfaction-answer,
+html #app.dark .patient-page .profile-satisfaction-answer {
+  background: #1a1c22 !important; border-color: #2c3038 !important;
+}
+html body.dark .patient-page .profile-satisfaction-answer small,
+html #app.dark .patient-page .profile-satisfaction-answer small { color: #86efac !important; }
+html body.dark .patient-page .profile-satisfaction-error,
+html #app.dark .patient-page .profile-satisfaction-error {
+  background: #3a1f24 !important; color: #fca5a5 !important;
+}
+
+/* Automatic SMS */
+html body.dark .patient-page .profile-auto-sms-head,
+html #app.dark .patient-page .profile-auto-sms-head { border-bottom-color: #2c3038 !important; }
+html body.dark .patient-page .profile-auto-sms-heading h3,
+html body.dark .patient-page .profile-auto-sms-scenario-title > strong,
+html body.dark .patient-page .profile-auto-sms-step-delay b,
+html #app.dark .patient-page .profile-auto-sms-heading h3,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > strong,
+html #app.dark .patient-page .profile-auto-sms-step-delay b { color: #f1f3f4 !important; }
+html body.dark .patient-page .profile-auto-sms-heading p,
+html body.dark .patient-page .profile-auto-sms-legend span,
+html body.dark .patient-page .profile-auto-sms-scenario-title > span,
+html body.dark .patient-page .profile-auto-sms-scenario-title > small,
+html body.dark .patient-page .profile-auto-sms-scenario-title > b,
+html body.dark .patient-page .profile-auto-sms-scenario-action > span,
+html body.dark .patient-page .profile-auto-sms-step-delay span,
+html #app.dark .patient-page .profile-auto-sms-heading p,
+html #app.dark .patient-page .profile-auto-sms-legend span,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > span,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > small,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > b,
+html #app.dark .patient-page .profile-auto-sms-scenario-action > span,
+html #app.dark .patient-page .profile-auto-sms-step-delay span { color: #9aa0a6 !important; }
+html body.dark .patient-page .profile-auto-sms-legend,
+html #app.dark .patient-page .profile-auto-sms-legend { background: #22252d !important; }
+html body.dark .patient-page .profile-auto-sms-tools select,
+html #app.dark .patient-page .profile-auto-sms-tools select {
+  background: #121417 !important; border-color: #3a3f4a !important; color: #f1f3f4 !important;
+}
+html body.dark .patient-page .profile-auto-sms-cancel-all,
+html body.dark .patient-page .profile-auto-sms-scenario-action > button,
+html #app.dark .patient-page .profile-auto-sms-cancel-all,
+html #app.dark .patient-page .profile-auto-sms-scenario-action > button {
+  background: #3a1f24 !important; border-color: #7f1d1d !important; color: #fca5a5 !important;
+}
+html body.dark .patient-page .profile-auto-sms-cancel-all:hover,
+html body.dark .patient-page .profile-auto-sms-scenario-action > button:hover,
+html #app.dark .patient-page .profile-auto-sms-cancel-all:hover,
+html #app.dark .patient-page .profile-auto-sms-scenario-action > button:hover {
+  background: #4c1f2c !important; color: #fecaca !important;
+}
+html body.dark .patient-page .profile-auto-sms-scenario,
+html #app.dark .patient-page .profile-auto-sms-scenario {
+  background: #22252d !important; border-color: #2c3038 !important;
+}
+html body.dark .patient-page .profile-auto-sms-scenario.scenario-running,
+html #app.dark .patient-page .profile-auto-sms-scenario.scenario-running {
+  background: linear-gradient(135deg, #1a1c22, #1e3a5f) !important; border-color: #3b82f6 !important;
+}
+html body.dark .patient-page .profile-auto-sms-scenario.scenario-cancelled,
+html #app.dark .patient-page .profile-auto-sms-scenario.scenario-cancelled { background: #16181e !important; }
+html body.dark .patient-page .profile-auto-sms-scenario-title > i,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > i { background: #3a3f4a !important; }
+html body.dark .patient-page .profile-auto-sms-scenario-title > em,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > em {
+  background: #1e3a5f !important; color: #93c5fd !important;
+}
+html body.dark .patient-page .profile-auto-sms-scenario-title > em.done,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > em.done {
+  background: #14352a !important; color: #86efac !important;
+}
+html body.dark .patient-page .profile-auto-sms-scenario-title > em.cancelled,
+html #app.dark .patient-page .profile-auto-sms-scenario-title > em.cancelled {
+  background: #3a1f24 !important; color: #fca5a5 !important;
+}
+html body.dark .patient-page .profile-auto-sms-progress,
+html #app.dark .patient-page .profile-auto-sms-progress { background: #2c3038 !important; }
+html body.dark .patient-page .profile-auto-sms-step-tabs span,
+html body.dark .patient-page .profile-auto-sms-step-tabs time,
+html body.dark .patient-page .profile-auto-sms-step-body,
+html #app.dark .patient-page .profile-auto-sms-step-tabs span,
+html #app.dark .patient-page .profile-auto-sms-step-tabs time,
+html #app.dark .patient-page .profile-auto-sms-step-body {
+  background: #1e3a5f !important; border-color: #3b82f6 !important; color: #93c5fd !important;
+}
+html body.dark .patient-page .profile-auto-sms-step-body > strong,
+html #app.dark .patient-page .profile-auto-sms-step-body > strong { color: #e8eaed !important; }
+html body.dark .patient-page .profile-auto-sms-step-status > span,
+html #app.dark .patient-page .profile-auto-sms-step-status > span { color: #93c5fd !important; }
+html body.dark .patient-page .profile-auto-sms-step-status button:hover,
+html #app.dark .patient-page .profile-auto-sms-step-status button:hover {
+  background: #3a1f24 !important; color: #fca5a5 !important;
+}
+html body.dark .patient-page .profile-auto-sms-step-status button.restore:hover,
+html #app.dark .patient-page .profile-auto-sms-step-status button.restore:hover {
+  background: #2a2f3a !important; color: #c5cad3 !important;
+}
+html body.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-tabs span,
+html body.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-tabs time,
+html body.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-body,
+html #app.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-tabs span,
+html #app.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-tabs time,
+html #app.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-body {
+  background: #14352a !important; border-color: #166534 !important; color: #86efac !important;
+}
+html body.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-status > span,
+html #app.dark .patient-page .profile-auto-sms-step.step-sent .profile-auto-sms-step-status > span { color: #86efac !important; }
+html body.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-tabs span,
+html body.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-tabs time,
+html body.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-body,
+html #app.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-tabs span,
+html #app.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-tabs time,
+html #app.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-body {
+  background: #3a1f24 !important; border-color: #7f1d1d !important; color: #fca5a5 !important;
+}
+html body.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-status > span,
+html #app.dark .patient-page .profile-auto-sms-step.step-cancelled .profile-auto-sms-step-status > span { color: #fca5a5 !important; }
+html body.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-tabs span,
+html body.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-tabs time,
+html body.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-body,
+html #app.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-tabs span,
+html #app.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-tabs time,
+html #app.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-body {
+  background: #22252d !important; border-color: #3a3f4a !important; color: #9aa0a6 !important;
+}
+html body.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-status > span,
+html #app.dark .patient-page .profile-auto-sms-step.step-skipped .profile-auto-sms-step-status > span { color: #9aa0a6 !important; }
+html body.dark .patient-page .profile-auto-sms-arrow,
+html #app.dark .patient-page .profile-auto-sms-arrow { color: #5b6472 !important; }
+html body.dark .patient-page .profile-auto-sms-toggle,
+html #app.dark .patient-page .profile-auto-sms-toggle {
+  background: #1e3a5f !important; border-color: #3b82f6 !important; color: #93c5fd !important;
+}
+html body.dark .patient-page .profile-auto-sms-toggle:hover,
+html #app.dark .patient-page .profile-auto-sms-toggle:hover { background: #254a78 !important; }
+
+/* Modals — page + teleported */
+html body.dark .edit-modal,
+html body.dark .customer-level-modal,
+html body.dark .wallet-modal,
+html body.dark .media-modal,
+html body.dark .compare-modal,
+html body.dark .media-edit-modal,
+html body.dark .profile-crop-modal,
+html body.dark .media-viewer-modal,
+html #app.dark .edit-modal,
+html #app.dark .customer-level-modal,
+html #app.dark .wallet-modal,
+html #app.dark .media-modal,
+html #app.dark .compare-modal,
+html #app.dark .media-edit-modal,
+html #app.dark .profile-crop-modal,
+html #app.dark .media-viewer-modal {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .55) !important;
+}
+html body.dark .edit-modal h3,
+html body.dark .wallet-modal-header h3,
+html body.dark .customer-level-modal h3,
+html body.dark .media-header h3,
+html body.dark .compare-head h3,
+html body.dark .profile-crop-header h3,
+html body.dark .media-edit-modal h3,
+html #app.dark .edit-modal h3,
+html #app.dark .wallet-modal-header h3,
+html #app.dark .customer-level-modal h3,
+html #app.dark .media-header h3,
+html #app.dark .compare-head h3,
+html #app.dark .profile-crop-header h3,
+html #app.dark .media-edit-modal h3 { color: #f1f3f4 !important; }
+
+html body.dark .customer-level-help,
+html #app.dark .customer-level-help {
+  background: linear-gradient(135deg, #22252d, #1e3a5f) !important;
+  border-color: #2c3038 !important;
+  color: #c5cad3 !important;
+}
+html body.dark .customer-level-help strong,
+html #app.dark .customer-level-help strong { color: #f1f3f4 !important; }
+html body.dark .customer-level-option,
+html #app.dark .customer-level-option {
+  background: #22252d !important; border-color: #3a3f4a !important;
+}
+html body.dark .customer-level-option span,
+html #app.dark .customer-level-option span { color: #f1f3f4 !important; }
+html body.dark .customer-level-option small,
+html #app.dark .customer-level-option small { color: #9aa0a6 !important; }
+html body.dark .customer-level-option.active,
+html #app.dark .customer-level-option.active {
+  background: color-mix(in srgb, var(--level-color) 18%, #1a1c22) !important;
+}
+html body.dark .customer-level-option:hover,
+html #app.dark .customer-level-option:hover { background: #2a2f3a !important; }
+
+html body.dark .edit-grid input,
+html body.dark .edit-grid select,
+html body.dark .edit-grid textarea,
+html body.dark .edit-grid .vpd-input-group input,
+html body.dark .edit-grid .city-select .multiselect__tags,
+html #app.dark .edit-grid input,
+html #app.dark .edit-grid select,
+html #app.dark .edit-grid textarea,
+html #app.dark .edit-grid .vpd-input-group input,
+html #app.dark .edit-grid .city-select .multiselect__tags {
+  background: #121417 !important; border-color: #3a3f4a !important; color: #f1f3f4 !important;
+}
+html body.dark .edit-file-number-field small,
+html #app.dark .edit-file-number-field small { color: #9aa0a6 !important; }
+html body.dark .edit-file-number-field input:not([readonly]),
+html #app.dark .edit-file-number-field input:not([readonly]) {
+  border-color: #3b82f6 !important; background: #1e3a5f !important; color: #93c5fd !important;
+  -webkit-text-fill-color: #93c5fd !important;
+}
+html body.dark .edit-grid input:focus,
+html body.dark .edit-grid select:focus,
+html body.dark .edit-grid textarea:focus,
+html #app.dark .edit-grid input:focus,
+html #app.dark .edit-grid select:focus,
+html #app.dark .edit-grid textarea:focus {
+  background: #16181e !important; border-color: #4f8cff !important;
+}
+
+html body.dark .wallet-modal .patient-name,
+html #app.dark .wallet-modal .patient-name { color: #c5cad3 !important; }
+html body.dark .wallet-modal .balance-box,
+html #app.dark .wallet-modal .balance-box {
+  background: linear-gradient(135deg, #14352a, #1a4735) !important;
+  color: #86efac !important;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .28) !important;
+}
+html body.dark .wallet-modal .wallet-expiry-banner,
+html #app.dark .wallet-modal .wallet-expiry-banner {
+  background: linear-gradient(135deg, #3a2e14, #493914) !important;
+  border-color: #d4a72c !important;
+  color: #fde68a !important;
+}
+html body.dark .wallet-reward-total,
+html #app.dark .wallet-reward-total {
+  background: linear-gradient(135deg, #1e3a5f, #1a1c22) !important;
+  border-color: #3b82f6 !important;
+  color: #93c5fd !important;
+}
+html body.dark .wallet-modal .wallet-input-group,
+html #app.dark .wallet-modal .wallet-input-group {
+  background: #22252d !important; border-color: #2c3038 !important; color: #e8eaed !important;
+}
+html body.dark .wallet-modal .wallet-input-group input,
+html #app.dark .wallet-modal .wallet-input-group input {
+  background: #121417 !important; border-color: #3a3f4a !important; color: #f1f3f4 !important;
+}
+html body.dark .wallet-reward-report,
+html body.dark .wallet-report-in-modal,
+html #app.dark .wallet-reward-report,
+html #app.dark .wallet-report-in-modal {
+  background: #1a1c22 !important; border-color: #2c3038 !important; box-shadow: none !important;
+}
+html body.dark .wallet-reward-report > header strong,
+html body.dark .wallet-report-head strong,
+html #app.dark .wallet-reward-report > header strong,
+html #app.dark .wallet-report-head strong { color: #f1f3f4 !important; }
+html body.dark .wallet-reward-report > header small,
+html #app.dark .wallet-reward-report > header small { color: #9aa0a6 !important; }
+html body.dark .wallet-reward-table-wrap,
+html #app.dark .wallet-reward-table-wrap { border-color: #2c3038 !important; }
+html body.dark .wallet-report-head button,
+html #app.dark .wallet-report-head button {
+  background: #1e3a5f !important; border-color: #3b82f6 !important; color: #93c5fd !important;
+}
+html body.dark .wallet-report-list > p,
+html #app.dark .wallet-report-list > p { color: #9aa0a6 !important; }
+html body.dark .wallet-report-list article,
+html #app.dark .wallet-report-list article {
+  background: #22252d !important; border-color: #2c3038 !important; border-right-color: #ef4444 !important;
+}
+html body.dark .wallet-report-list article.deposit,
+html #app.dark .wallet-report-list article.deposit { border-right-color: #22c55e !important; }
+html body.dark .wallet-report-list article.deposit > div strong,
+html #app.dark .wallet-report-list article.deposit > div strong { color: #86efac !important; }
+html body.dark .wallet-report-list article.withdraw > div strong,
+html #app.dark .wallet-report-list article.withdraw > div strong { color: #fca5a5 !important; }
+html body.dark .wallet-report-list article span,
+html body.dark .wallet-report-list details,
+html #app.dark .wallet-report-list article span,
+html #app.dark .wallet-report-list details { color: #c5cad3 !important; }
+html body.dark .wallet-report-list article small,
+html #app.dark .wallet-report-list article small { color: #9aa0a6 !important; }
+html body.dark .wallet-report-list details,
+html #app.dark .wallet-report-list details { border-top-color: #3a3f4a !important; }
+html body.dark .wallet-reward-delete,
+html #app.dark .wallet-reward-delete {
+  background: #3a1f24 !important; border-color: #7f1d1d !important; color: #fca5a5 !important;
+}
+html body.dark .wallet-reward-delete:hover,
+html #app.dark .wallet-reward-delete:hover {
+  background: #4c1f2c !important; color: #fecaca !important;
+}
+html body.dark .close-btn,
+html body.dark .profile-crop-close,
+html #app.dark .close-btn,
+html #app.dark .profile-crop-close {
+  background: #2a2f3a !important; color: #c5cad3 !important;
+}
+html body.dark .close-btn:hover,
+html body.dark .profile-crop-close:hover,
+html #app.dark .close-btn:hover,
+html #app.dark .profile-crop-close:hover {
+  background: #3a3f4a !important; color: #f1f3f4 !important;
+}
+html body.dark .deposit-btn,
+html #app.dark .deposit-btn { background: #166534 !important; color: #bbf7d0 !important; }
+html body.dark .deposit-btn:hover,
+html #app.dark .deposit-btn:hover { background: #14532d !important; }
+html body.dark .withdraw-btn,
+html #app.dark .withdraw-btn { background: #7f1d1d !important; color: #fecaca !important; }
+html body.dark .withdraw-btn:hover,
+html #app.dark .withdraw-btn:hover { background: #991b1b !important; }
+
+html body.dark .profile-crop-header p,
+html body.dark .profile-crop-help,
+html body.dark .profile-crop-zoom,
+html #app.dark .profile-crop-header p,
+html #app.dark .profile-crop-help,
+html #app.dark .profile-crop-zoom { color: #9aa0a6 !important; }
+html body.dark .angle-photo-nudge button,
+html #app.dark .angle-photo-nudge button {
+  background: #1e3a5f !important; border-color: #3b82f6 !important; color: #93c5fd !important;
+}
+html body.dark .angle-photo-nudge button:active,
+html body.dark .angle-photo-nudge button:hover,
+html #app.dark .angle-photo-nudge button:active,
+html #app.dark .angle-photo-nudge button:hover {
+  background: #254a78 !important; color: #dbeafe !important;
+}
+html body.dark .profile-photo-picker,
+html #app.dark .profile-photo-picker {
+  border-color: #2c3038 !important;
+  background: linear-gradient(135deg, #22252d, #1a1c22) !important;
+  color: #93c5fd !important;
+}
+
+/* Media modal */
+html body.dark .media-header,
+html body.dark .media-toolbar,
+html body.dark .compare-head,
+html #app.dark .media-header,
+html #app.dark .media-toolbar,
+html #app.dark .compare-head {
+  background: #22252d !important; border-bottom-color: #2c3038 !important; color: #e8eaed !important;
+}
+html body.dark .media-all-btn,
+html #app.dark .media-all-btn {
+  background: #2a2f3a !important; border-color: #3a3f4a !important; color: #c5cad3 !important;
+}
+html body.dark .media-all-btn:hover,
+html #app.dark .media-all-btn:hover {
+  background: #3a3f4a !important; color: #f1f3f4 !important; box-shadow: none !important;
+}
+html body.dark .media-all-btn.active,
+html #app.dark .media-all-btn.active {
+  background: #4f8cff !important; border-color: #4f8cff !important; color: #fff !important;
+}
+html body.dark .media-path button,
+html #app.dark .media-path button { color: #4f8cff !important; }
+html body.dark .media-side,
+html #app.dark .media-side {
+  background: #16181e !important; border-left-color: #2c3038 !important;
+}
+html body.dark .folder-create,
+html body.dark .upload-card,
+html body.dark .media-content,
+html body.dark .angle-upload-panel,
+html body.dark .angle-stage-card,
+html #app.dark .folder-create,
+html #app.dark .upload-card,
+html #app.dark .media-content,
+html #app.dark .angle-upload-panel,
+html #app.dark .angle-stage-card {
+  background: #1a1c22 !important; border-color: #2c3038 !important; color: #e8eaed !important;
+}
+html body.dark .upload-card label,
+html body.dark .service-picker strong,
+html body.dark .guided-folder-create strong,
+html body.dark .service-folder-create strong,
+html body.dark .guided-folder-note strong,
+html #app.dark .upload-card label,
+html #app.dark .service-picker strong,
+html #app.dark .guided-folder-create strong,
+html #app.dark .service-folder-create strong,
+html #app.dark .guided-folder-note strong { color: #c5cad3 !important; }
+html body.dark .service-picker,
+html #app.dark .service-picker {
+  border-color: #2c3038 !important; background: #121417 !important;
+}
+html body.dark .service-group > span,
+html #app.dark .service-group > span { color: #86efac !important; }
+html body.dark .service-group label,
+html #app.dark .service-group label { color: #c5cad3 !important; }
+html body.dark .media-inventory-tree,
+html body.dark .media-tree-node,
+html #app.dark .media-inventory-tree,
+html #app.dark .media-tree-node {
+  background: #22252d !important; border-color: #2c3038 !important; color: #e8eaed !important;
+}
+html body.dark .media-tree-node:hover,
+html #app.dark .media-tree-node:hover {
+  background: #2a2f3a !important; color: #f1f3f4 !important;
+}
+html body.dark .media-selected-services,
+html body.dark .media-section-required,
+html #app.dark .media-selected-services,
+html #app.dark .media-section-required {
+  background: #22252d !important; border-color: #2c3038 !important; color: #c5cad3 !important;
+}
+html body.dark .folder-tile,
+html #app.dark .folder-tile {
+  background: #1e3a5f !important; border-color: #3b82f6 !important; color: #93c5fd !important;
+}
+html body.dark .folder-tile:hover,
+html #app.dark .folder-tile:hover {
+  background: #254a78 !important; color: #dbeafe !important;
+}
+html body.dark .folder-tile.no-consent-folder,
+html #app.dark .folder-tile.no-consent-folder {
+  background: #3a1f24 !important; border-color: #ef4444 !important; color: #fca5a5 !important;
+}
+html body.dark .folder-delete-btn:hover,
+html body.dark .folder-delete-btn:focus-visible,
+html #app.dark .folder-delete-btn:hover,
+html #app.dark .folder-delete-btn:focus-visible {
+  background: #3a1f24 !important; color: #fca5a5 !important;
+}
+html body.dark .folder-context-menu,
+html #app.dark .folder-context-menu {
+  background: #1a1c22 !important; border-color: #2c3038 !important;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .45) !important;
+}
+html body.dark .folder-context-menu button,
+html #app.dark .folder-context-menu button {
+  background: #3a1f24 !important; color: #fca5a5 !important;
+}
+html body.dark .folder-context-menu button:hover,
+html #app.dark .folder-context-menu button:hover {
+  background: #4c1f2c !important; color: #fecaca !important;
+}
+html body.dark .media-item,
+html #app.dark .media-item {
+  background: #22252d !important; border-color: #2c3038 !important; color: #e8eaed !important;
+}
+html body.dark .media-item:hover,
+html #app.dark .media-item:hover {
+  background: #2a2f3a !important; border-color: #3a3f4a !important; color: #f1f3f4 !important;
+}
+html body.dark .media-item.no-consent-media,
+html #app.dark .media-item.no-consent-media {
+  background: #3a1f24 !important; border-color: #7f1d1d !important;
+}
+html body.dark .media-info,
+html body.dark .media-path-label,
+html body.dark .media-audit,
+html #app.dark .media-info,
+html #app.dark .media-path-label,
+html #app.dark .media-audit { color: #c5cad3 !important; }
+html body.dark .media-angle-badge,
+html #app.dark .media-angle-badge {
+  background: #1e3a5f !important; color: #93c5fd !important;
+}
+html body.dark .media-download-btn,
+html #app.dark .media-download-btn {
+  background: #14352a !important; color: #86efac !important;
+}
+html body.dark .media-download-btn:hover,
+html #app.dark .media-download-btn:hover {
+  background: #1a4735 !important; color: #bbf7d0 !important;
+}
+html body.dark .media-edit-btn,
+html #app.dark .media-edit-btn {
+  background: #2a2f3a !important; border-color: #3a3f4a !important; color: #c5cad3 !important;
+}
+html body.dark .media-edit-btn:hover,
+html #app.dark .media-edit-btn:hover {
+  background: #3a3f4a !important; color: #f1f3f4 !important;
+}
+html body.dark .media-list-search,
+html #app.dark .media-list-search {
+  background: #22252d !important; border-color: #2c3038 !important;
+}
+html body.dark .media-edit-body,
+html #app.dark .media-edit-body { background: #16181e !important; }
+html body.dark .media-edit-form label,
+html #app.dark .media-edit-form label { color: #c5cad3 !important; }
+html body.dark .angle-upload-overlay,
+html body.dark .angle-upload-loader-card,
+html #app.dark .angle-upload-overlay,
+html #app.dark .angle-upload-loader-card {
+  background: rgba(18, 19, 22, .82) !important; color: #e8eaed !important;
+  border-color: #2c3038 !important;
+}
+
+/* Compare */
+html body.dark .compare-head p,
+html body.dark .compare-pair-title span,
+html body.dark .compare-state,
+html #app.dark .compare-head p,
+html #app.dark .compare-pair-title span,
+html #app.dark .compare-state { color: #9aa0a6 !important; }
+html body.dark .compare-back-btn,
+html #app.dark .compare-back-btn {
+  background: #2a2f3a !important; border-color: #3a3f4a !important; color: #c5cad3 !important;
+}
+html body.dark .compare-back-btn:hover,
+html #app.dark .compare-back-btn:hover {
+  background: #14352a !important; border-color: #166534 !important; color: #86efac !important;
+}
+html body.dark .compare-pair-card,
+html #app.dark .compare-pair-card {
+  background: #1a1c22 !important; border-color: #2c3038 !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .35) !important;
+}
+html body.dark .compare-pair-title,
+html #app.dark .compare-pair-title { border-bottom-color: #2c3038 !important; }
+html body.dark .compare-pair-title strong,
+html #app.dark .compare-pair-title strong { color: #f1f3f4 !important; }
+html body.dark .compare-photo-grid,
+html #app.dark .compare-photo-grid { background: #2c3038 !important; }
+
+html body.dark .modal-overlay,
+html body.dark .wallet-modal-overlay,
+html body.dark .profile-crop-overlay,
+html #app.dark .modal-overlay,
+html #app.dark .wallet-modal-overlay,
+html #app.dark .profile-crop-overlay {
+  background: rgba(0, 0, 0, .62) !important;
 }
 </style>
