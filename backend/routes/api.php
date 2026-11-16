@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\AppointmentNoteController;
 use App\Http\Controllers\Api\AttendanceMonthController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\PersonalReportController;
+use App\Http\Controllers\Api\EmployeePortalController;
 use App\Http\Controllers\Api\PayrollReportController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AutomaticSmsScenarioController;
@@ -54,6 +55,7 @@ use App\Http\Controllers\Api\SatisfactionController;
 use App\Http\Controllers\Api\SatisfactionDocumentationController;
 use App\Http\Controllers\Api\AiAssistantController;
 use App\Http\Controllers\Api\AiUsageController;
+use App\Http\Controllers\Api\GroupChatController;
 
 
 
@@ -86,6 +88,16 @@ Route::middleware(['permission:assistant.use', \App\Http\Middleware\EnsureTenant
     Route::delete('/conversations/{conversation}', [AiAssistantController::class, 'destroy']);
     Route::post('/messages', [AiAssistantController::class, 'message'])->middleware('throttle:20,1,assistant-messages');
     Route::post('/transcriptions', [AiAssistantController::class, 'transcribe'])->middleware('throttle:12,1,assistant-voice');
+});
+// چت آنلاین گروهی کلینیک: فقط برای کلینیک‌هایی که ماژول group_chat را دارند.
+Route::middleware(['tenant.module:group_chat', 'permission:group_chat.view'])->prefix('group-chat')->group(function () {
+    Route::get('/messages', [GroupChatController::class, 'index']);
+    Route::get('/unread', [GroupChatController::class, 'unread']);
+    Route::post('/read', [GroupChatController::class, 'markRead']);
+    Route::post('/messages', [GroupChatController::class, 'store'])->middleware(['permission:group_chat.send', 'throttle:60,1,group-chat-send']);
+    Route::patch('/messages/{message}', [GroupChatController::class, 'update'])->middleware('permission:group_chat.edit');
+    Route::delete('/messages/{message}', [GroupChatController::class, 'destroy'])->middleware('permission:group_chat.delete|group_chat.moderate');
+    Route::get('/messages/{message}/attachment', [GroupChatController::class, 'attachment']);
 });
 Route::get('/storage/status', [StorageQuotaController::class, 'status']);
 Route::get('/storage', [StorageQuotaController::class, 'show'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
@@ -218,6 +230,25 @@ Route::patch('/attendance/months/{attendanceMonth}', [AttendanceMonthController:
 Route::delete('/attendance/months/{attendanceMonth}', [AttendanceMonthController::class, 'destroy'])->middleware('permission:attendance.manage');
 Route::apiResource('tickets', TicketController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::get('/personal-report', [PersonalReportController::class, 'show'])->middleware('permission:personal_report.view');
+Route::get('/employee-portal/leaves', [EmployeePortalController::class, 'leaves']);
+Route::post('/employee-portal/leaves', [EmployeePortalController::class, 'storeLeave']);
+Route::patch('/employee-portal/leaves/{leave}/cancel', [EmployeePortalController::class, 'cancelLeave']);
+Route::patch('/employee-portal/leaves/{leave}/review', [EmployeePortalController::class, 'reviewLeave']);
+Route::get('/employee-portal/advances', [EmployeePortalController::class, 'advances']);
+Route::post('/employee-portal/advances', [EmployeePortalController::class, 'storeAdvance']);
+Route::patch('/employee-portal/advances/{advance}/cancel', [EmployeePortalController::class, 'cancelAdvance']);
+Route::patch('/employee-portal/advances/{advance}/review', [EmployeePortalController::class, 'reviewAdvance']);
+Route::get('/employee-portal/adjustments', [EmployeePortalController::class, 'adjustments']);
+Route::post('/employee-portal/adjustments', [EmployeePortalController::class, 'storeAdjustment']);
+Route::patch('/employee-portal/adjustments/{adjustment}', [EmployeePortalController::class, 'updateAdjustment']);
+Route::delete('/employee-portal/adjustments/{adjustment}', [EmployeePortalController::class, 'destroyAdjustment']);
+Route::get('/employee-portal/messages', [EmployeePortalController::class, 'messages']);
+Route::post('/employee-portal/messages', [EmployeePortalController::class, 'storeMessage']);
+Route::get('/employee-portal/notifications', [EmployeePortalController::class, 'notifications']);
+Route::patch('/employee-portal/notifications/read-all', [EmployeePortalController::class, 'readAllNotifications']);
+Route::patch('/employee-portal/notifications/{notification}/read', [EmployeePortalController::class, 'readNotification']);
+Route::get('/employee-portal/report-columns', [EmployeePortalController::class, 'columnOptions']);
+Route::put('/employee-portal/report-columns', [EmployeePortalController::class, 'saveColumns']);
 Route::get('/clinic-report/cancellation-rate', [ClinicReportController::class, 'cancellationRate'])->middleware('permission:reports.view');
 Route::get('/clinic-report/expenses', [ClinicReportController::class, 'expenses'])->middleware('permission:reports.view');
 Route::get('/reports/dashboard', [ClinicReportController::class, 'dashboard'])->middleware('permission:reports.view');

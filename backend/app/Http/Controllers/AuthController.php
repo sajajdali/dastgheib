@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenant;
+use App\Models\Doctor;
+use App\Models\Staff;
 use App\Support\ActivityLogger;
 use App\Services\TenantSubscriptionService;
 use Illuminate\Http\JsonResponse;
@@ -176,6 +178,10 @@ class AuthController extends Controller
     private function userData(Request $request): array
     {
         $user = $request->user()->load('roles.permissions');
+        $hasPersonalReportResource = Schema::hasTable('doctors') && Doctor::query()->where('user_id', $user->id)->exists();
+        if (! $hasPersonalReportResource && Schema::hasTable('staff')) {
+            $hasPersonalReportResource = Staff::query()->where('user_id', $user->id)->exists();
+        }
         $tenant = tenant();
         $tenantData = null;
 
@@ -229,6 +235,7 @@ class AuthController extends Controller
             'avatar_url' => $user->avatar_url,
             'roles' => $user->roles->pluck('name')->values(),
             'permissions' => $user->getAllPermissions()->pluck('name')->values(),
+            'has_personal_report_resource' => $hasPersonalReportResource,
             'tenant' => $tenantData,
         ];
     }

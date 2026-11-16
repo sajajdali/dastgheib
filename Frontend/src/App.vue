@@ -418,6 +418,7 @@
     </div>
 
     <AiAssistant :dark="isDark" :user="user" @navigate="openAssistantPage" />
+    <GroupChat v-if="user" :dark="isDark" :user="user" />
     <IncomingCallStack
       v-if="user?.permissions?.includes('patients.view') && featureEnabledForTenant('patients')"
       :can-create="user?.permissions?.includes('patients.create') && user?.permissions?.includes('patients.view_phone') && !user?.permissions?.includes('patients.hide_phone')"
@@ -479,6 +480,7 @@ import PersonalReport from "./components/PersonalReport.vue";
 import EmployeePortalNotifications from "./components/EmployeePortalNotifications.vue";
 import StaffTasks from "./components/staff-tasks/StaffTasks.vue";
 import AiAssistant from "./components/AiAssistant.vue";
+import GroupChat from "./components/GroupChat.vue";
 import AiUsageReport from "./components/AiUsageReport.vue";
 import IncomingCallStack from "./components/incoming-call/IncomingCallStack.vue";
 import { startPresence, stopPresence } from "./services/presence";
@@ -540,6 +542,7 @@ export default {
     EmployeePortalNotifications,
     StaffTasks,
     AiAssistant,
+    GroupChat,
     AiUsageReport,
     IncomingCallStack
 
@@ -553,7 +556,8 @@ export default {
 
       appointmentPageOpened: false,
 
-      isDark: false,
+      // حالت شب از همان رندر اول؛ اگر بعد از mounted خوانده شود، منو و صفحه یک لحظه روشن دیده می‌شوند.
+      isDark: (() => { try { return localStorage.getItem("darkMode") === "true"; } catch (e) { return false; } })(),
 
       authLoading: true,
 
@@ -668,6 +672,7 @@ export default {
       else {
 
         document.body.classList.remove("dark");
+        document.documentElement.classList.remove("dark-boot");
 
       }
 
@@ -1846,6 +1851,18 @@ body.central-host #app {
 
 }
 
+/* حالت شب: کل صفحه یک رنگ زمینه دارد تا دور صفحه (فاصلهٔ #app تا محتوا) قاب یا خط روشن‌تر دیده نشود */
+html.dark-boot,
+html body.dark,
+html body.dark > #app,
+html body.dark #app.dark,
+html body.dark .page-container {
+  background: #121316 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
 /* استایل‌های دارک مود */
 
 .dark .content-card,
@@ -2176,6 +2193,18 @@ body.central-host #app {
   color: #475569;
   background: #f4f7fb;
   font-family: "Vazir", sans-serif;
+}
+
+body.dark .auth-boot,
+html.dark-boot .auth-boot {
+  color: #9aa0a6;
+  background: #121417;
+}
+
+body.dark .auth-boot-spinner,
+html.dark-boot .auth-boot-spinner {
+  border-color: #2c3038;
+  border-top-color: #4f8cff;
 }
 
 .auth-boot-spinner {
@@ -2724,6 +2753,45 @@ body.central-host #app {
   color: #e8eaed;
 }
 .dark .utility-menu-panel > button { background: #1e293b; color: #e2e8f0; }
+
+/* منوی اصلی، زنگوله و دکمهٔ همبرگری روی یک خط: صفحهٔ داخلی دیگر فاصلهٔ بالای دوبرابر نمی‌گیرد،
+   منو همیشه در همان ارتفاع می‌ماند و دو دکمه وسطِ ارتفاع منو (۵۸ پیکسل) قرار می‌گیرند. */
+@media (min-width: 601px) {
+  #app #app { padding-top: 0; }
+  #app .menu:not(.menu-unpinned) { top: 20px; }
+  .utility-menu-toggle { top: 26px; }
+  #app .epn { top: 26px; }
+}
+@media (min-width: 601px) and (max-width: 768px) {
+  #app .menu:not(.menu-unpinned) { top: 14px; }
+  .utility-menu-toggle { top: 20px; }
+  #app .epn { top: 20px; }
+}
+
+/* حالت شب: دکمهٔ همبرگری و زنگوله هم‌رنگ منوی اصلی */
+body.dark .utility-menu-toggle {
+  background: #1a1c22;
+  border-color: #2c3038;
+  color: #e8eaed;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
+}
+body.dark .utility-menu-toggle:hover,
+body.dark .utility-menu-toggle.active {
+  background: #22252d;
+  border-color: #3a3f4a;
+  color: #7fb0ff;
+}
+body.dark .epn-bell {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35) !important;
+}
+body.dark .epn-bell:hover {
+  border-color: #3a3f4a !important;
+  color: #7fb0ff !important;
+}
+body.dark .epn-bell b { border-color: #1a1c22 !important; }
 .central-clinic-shortcut {
   position: fixed;
   z-index: 10000;
@@ -3167,7 +3235,6 @@ body.dark .timeline-actions .icon-sms-btn,
   color: #e8eaed !important;
   box-shadow: none !important;
 }
-
 html body.dark .service-status-page,
 html #app.dark .service-status-page { color: #e8eaed !important; }
 html body.dark .service-page-hero,

@@ -26,6 +26,21 @@ class ModuleSubscriptionService
             ->all();
     }
 
+    /** Whether a module is on for this tenant (central admin toggle or an active purchase). */
+    public function tenantHasModule(?Tenant $tenant, string $moduleKey): bool
+    {
+        if (! $tenant) {
+            return false;
+        }
+
+        $stored = is_array($tenant->module_ids ?? null) ? $tenant->module_ids : [];
+        if (in_array($moduleKey, Tenant::withBaseModules($stored), true)) {
+            return true;
+        }
+
+        return in_array($moduleKey, $this->activeModuleIds((string) $tenant->getTenantKey()), true);
+    }
+
     public function syncTenantModuleIds(string $tenantId): array
     {
         return $this->enabledModuleIds($tenantId);

@@ -6570,6 +6570,83 @@ html body.dark .flwup-root .page-shell,
 html #app.dark .flwup-root .page-shell {
   color: #e8eaed !important;
 }
+/* کادر بالای صفحه «تماس‌ها و تبلیغات»: یک سطح تیره، بدون قاب روشن و نوار سفید */
+html body.dark .flwup-root .header {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .32) !important;
+}
+html body.dark .flwup-root .header .title-wrap,
+html body.dark .flwup-root .header .title,
+html body.dark .flwup-root .header .top-actions {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* سطح‌های روشنی که هنوز حالت شب نداشتند (جدول کمپین، تقسیم خودکار، تاریخچه، فیلترها، فرم‌ها) */
+html body.dark :is(.flwup-root, .modal-overlay) :is(
+  .campaign-description-view, .money-input-wrap, .banner-gallery-empty, .secondary-btn, .close-btn,
+  .analytics-item, .mini-follow-item, .toolbar-input, .timeline-date-field input, .report-cost-range input,
+  .filtered-campaign-results article, .filtered-campaign-results article > div span, .filter-search-input,
+  .auto-assign-toggle, .auto-assign-people, .auto-assign-list, .auto-assign-list label:hover,
+  .auto-assign-panel footer .ghost, .contact-date-time > span, .contact-time-input, .description-preview,
+  .followup-patient-results, .followup-patient-result, .followup-patient-result em, .history-light-btn,
+  .history-description, .history-table th, .description-cancel
+) {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) :is(.auto-assign-toggle:hover, .filter-search-input:focus, .history-table tbody tr:nth-child(even) td) {
+  background: #1d2026 !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) :is(
+  .resource-select-with-avatar > span, .campaign-patient-avatar, .row-appointment-btn, .timeline-date-field > span,
+  .auto-assign-people:hover, .contact-time-input:focus, .description-preview:hover, .followup-patient-result:hover,
+  .followup-patient-result:focus, .followup-patient-result > img, .followup-patient-result-avatar,
+  .followup-patient-result em.level-blue, .history-table tbody tr.current td
+) {
+  background: #1e2a3f !important;
+  border-color: #2f4a73 !important;
+  color: #93c5fd !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) .row-appointment-btn:hover { background: #23324b !important; }
+html body.dark :is(.flwup-root, .modal-overlay) :is(
+  .row-appointment-btn.registered, .row-appointment-btn.done, .row-appointment-btn.done:hover, .auto-assign-next, .history-card-head span
+) {
+  background: #14352a !important;
+  border-color: #1f6b45 !important;
+  color: #86efac !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) :is(
+  .date-input-invalid, .subsection-option.clear:hover, .filter-clear-btn, .landing-clear-btn, .followup-patient-result em.level-problematic
+) {
+  background: #3a1d1d !important;
+  border-color: #6b2c2c !important;
+  color: #fca5a5 !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) .followup-patient-result em.level-gold {
+  background: #3a2e14 !important;
+  color: #fde68a !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) .date-filter-actions button {
+  background: #2e1065 !important;
+  border-color: #4c1d95 !important;
+  color: #c4b5fd !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) :is(.auto-assign-switch, .history-light-btn span, .history-light-btn b) {
+  background: #3a3f4a !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) .followup-profile-avatar { background: #2a2f3a !important; }
+/* حالت روشنِ «تقسیم خودکار» همچنان سبز دیده شود */
+html body.dark :is(.flwup-root, .modal-overlay) .auto-assign-toggle.active.active {
+  background: #14352a !important;
+  border-color: #1f6b45 !important;
+  color: #86efac !important;
+}
+html body.dark :is(.flwup-root, .modal-overlay) .auto-assign-toggle.active .auto-assign-switch { background: #16a34a !important; }
+html body.dark :is(.flwup-root, .modal-overlay) .auto-assign-toggle.active .auto-assign-copy small { color: #86efac !important; }
 html body.dark .flwup-root .title,
 html body.dark .flwup-root .modal-title,
 html body.dark .flwup-root .campaign-title,

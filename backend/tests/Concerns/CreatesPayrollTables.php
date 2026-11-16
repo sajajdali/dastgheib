@@ -46,6 +46,31 @@ trait CreatesPayrollTables
             $table->unsignedSmallInteger('year'); $table->unsignedTinyInteger('month');
             $table->decimal('daily_hours', 5, 2)->default(0); $table->json('days')->nullable(); $table->timestamps();
         });
+        Schema::create('resource_adjustments', function (Blueprint $table) {
+            $table->id(); $table->string('month', 7); $table->string('resource_type'); $table->unsignedBigInteger('resource_id');
+            $table->decimal('amount', 15, 2); $table->string('reason')->nullable(); $table->unsignedBigInteger('created_by')->nullable();
+            $table->string('kind')->default('adjustment'); $table->string('occurred_on', 10)->nullable(); $table->string('title')->nullable();
+            $table->text('description')->nullable(); $table->string('status')->default('active'); $table->string('created_by_name')->nullable(); $table->timestamps();
+        });
+        Schema::create('salary_advances', function (Blueprint $table) {
+            $table->id(); $table->string('resource_type'); $table->unsignedBigInteger('resource_id'); $table->unsignedBigInteger('user_id')->nullable();
+            $table->decimal('requested_amount', 15, 2); $table->decimal('approved_amount', 15, 2)->nullable(); $table->text('reason')->nullable();
+            $table->text('manager_note')->nullable(); $table->string('status')->default('pending'); $table->boolean('deduct_from_salary')->default(true);
+            $table->unsignedSmallInteger('installment_count')->default(1); $table->string('deduction_start_month', 7)->nullable();
+            $table->unsignedBigInteger('reviewed_by')->nullable(); $table->dateTime('reviewed_at')->nullable(); $table->dateTime('paid_at')->nullable();
+            $table->dateTime('cancelled_at')->nullable(); $table->timestamps();
+        });
+        Schema::create('salary_advance_installments', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('salary_advance_id'); $table->string('month', 7); $table->decimal('amount', 15, 2);
+            $table->string('status')->default('scheduled'); $table->dateTime('deducted_at')->nullable(); $table->timestamps();
+        });
+        Schema::create('employee_leave_requests', function (Blueprint $table) {
+            $table->id(); $table->string('resource_type'); $table->unsignedBigInteger('resource_id'); $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('leave_type'); $table->string('start_date', 10); $table->string('end_date', 10); $table->time('start_time')->nullable();
+            $table->time('end_time')->nullable(); $table->text('reason')->nullable(); $table->string('status')->default('pending');
+            $table->text('manager_note')->nullable(); $table->unsignedBigInteger('reviewed_by')->nullable(); $table->dateTime('reviewed_at')->nullable();
+            $table->dateTime('cancelled_at')->nullable(); $table->timestamps();
+        });
     }
 
     private function payrollResourceTable(Blueprint $table): void

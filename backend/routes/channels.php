@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Models\DynamicReport;
 use App\Models\ReportWidgetSnapshot;
+use App\Services\ModuleSubscriptionService;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
@@ -33,4 +34,11 @@ Broadcast::channel('clinic.{tenantId}.report-widgets.{snapshotId}', function (Us
     if ((string) tenant('id') !== $tenantId || ! $user->can('reports.view')) return false;
 
     return ReportWidgetSnapshot::query()->whereKey($snapshotId)->exists();
+});
+
+Broadcast::channel('clinic.{tenantId}.group-chat', function (User $user, string $tenantId): bool {
+    if ((string) tenant('id') !== $tenantId) return false;
+    if (! app(ModuleSubscriptionService::class)->tenantHasModule(tenant(), 'group_chat')) return false;
+
+    return $user->can('group_chat.view');
 });

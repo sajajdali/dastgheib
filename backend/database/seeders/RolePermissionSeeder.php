@@ -37,7 +37,8 @@ class RolePermissionSeeder extends Seeder
 
         $generalStaffPermissions = $permissionNames
             ->filter(fn (string $name) => str_ends_with($name, '.view'))
-            ->merge(['patients.view_phone', 'attendance.clock'])
+            ->merge(['patients.view_phone', 'attendance.clock', 'personal_report.details',
+                'employee_portal.leave_request', 'employee_portal.advance_request', 'employee_portal.message'])
             ->reject(fn (string $name) => $name === $phoneHidePermission)
             ->filter(fn (string $name) => $permissionNames->contains($name));
 
@@ -51,13 +52,23 @@ class RolePermissionSeeder extends Seeder
             'پزشک' => collect([
                 'patients.view', 'patients.update', 'appointments.view',
                 'appointments.update', 'appointments.past_view', 'appointments.past_update', 'services.view',
+                'personal_report.view', 'personal_report.details', 'employee_portal.leave_request',
+                'employee_portal.advance_request', 'employee_portal.message',
             ]),
             'مشاور' => $permissionsByPrefix(['followups'])
-                ->merge(['patients.view', 'patients.view_phone', 'appointments.view', 'appointments.update', 'appointments.past_view', 'appointments.past_update', 'services.view']),
+                ->merge(['patients.view', 'patients.view_phone', 'appointments.view', 'appointments.update', 'appointments.past_view', 'appointments.past_update', 'services.view',
+                    'personal_report.view', 'personal_report.details', 'employee_portal.leave_request', 'employee_portal.advance_request', 'employee_portal.message']),
             'حسابدار' => $permissionsByPrefix(['reports', 'bills'])
                 ->merge(['appointments.income', 'inventory.view', 'inventory.cost']),
             'انباردار' => $permissionsByPrefix(['inventory']),
         ];
+
+        // چت گروهی: همهٔ نقش‌ها گفت‌وگو می‌کنند؛ حذف پیام دیگران فقط برای مدیران است.
+        $groupChatMemberPermissions = ['group_chat.view', 'group_chat.send', 'group_chat.edit', 'group_chat.delete'];
+        foreach ($rolePermissions as $roleName => $permissions) {
+            $rolePermissions[$roleName] = $permissions->merge($groupChatMemberPermissions)
+                ->filter(fn (string $name) => $permissionNames->contains($name));
+        }
 
         // Reception needs the real phone number while finding a patient and
         // creating an appointment. Prefix-based collection above also includes

@@ -11,6 +11,7 @@ const GROUP_FEATURES = {
   services: "finder",
   bills: "bills",
   attendance: "attendance",
+  group_chat: "group_chat",
 };
 
 const PERMISSION_FEATURES = {

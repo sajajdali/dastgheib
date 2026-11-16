@@ -2568,7 +2568,7 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .top-services-more:hover{color:#1d4ed8;text-decoration:underline;text-underline-offset:3px}
 .top-services-more:focus-visible{outline:1px solid #60a5fa;outline-offset:3px;border-radius:3px}
 .top-services-more-arrow{font-size:11px;line-height:1;transition:transform .15s ease}
-.report-card-scroll{max-height:310px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding-left:5px}.report-card-scroll-wide{overflow-x:auto}.report-list-stack,.top-services-scroll,.campaign-performance-scroll,.cac-campaign-scroll{display:flex;flex-direction:column;gap:10px}.city-statistics-scroll{padding-bottom:3px}.report-card-scroll::-webkit-scrollbar{width:6px;height:6px}.report-card-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+.report-card-scroll{max-height:310px;overflow-y:auto;overscroll-behavior:auto;scrollbar-gutter:stable;padding-left:5px}.report-card-scroll-wide{overflow-x:auto}.report-list-stack,.top-services-scroll,.campaign-performance-scroll,.cac-campaign-scroll{display:flex;flex-direction:column;gap:10px}.city-statistics-scroll{padding-bottom:3px}.report-card-scroll::-webkit-scrollbar{width:6px;height:6px}.report-card-scroll::-webkit-scrollbar-track{background:#f1f5f9;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}.report-card-scroll::-webkit-scrollbar-thumb:hover{background:#94a3b8}
 .top-services-loading-track>div{width:42%;animation:top-services-loading-slide 1.15s ease-in-out infinite}
 @keyframes top-services-loading-slide{0%{transform:translateX(145%)}50%{transform:translateX(0)}100%{transform:translateX(-145%)}}
 ::-webkit-scrollbar{width:6px;height:6px}
@@ -2627,33 +2627,57 @@ html #app.dark .nsr .report-date-input {
   color: #f1f3f4 !important;
   -webkit-text-fill-color: #f1f3f4 !important;
 }
+html body.dark .nsr [style*="background: rgb(255, 255, 255)"],
 html body.dark .nsr [style*="background:#ffffff"],
 html body.dark .nsr [style*="background:#FFFFFF"],
 html body.dark .nsr [style*="background:#fff;"],
 html body.dark .nsr [style*="background:#fff,"],
 html body.dark .nsr [style*="background:#fff "],
+html body.dark .nsr [style*="background: rgb(248, 250, 252)"],
 html body.dark .nsr [style*="background:#f8fafc"],
+html body.dark .nsr [style*="background: rgb(241, 244, 249)"],
 html body.dark .nsr [style*="background:#f1f4f9"],
+html body.dark .nsr [style*="background: rgb(241, 245, 249)"],
 html body.dark .nsr [style*="background:#f1f5f9"],
+html body.dark .nsr [style*="background: rgb(230, 235, 243)"],
 html body.dark .nsr [style*="background:#e6ebf3"],
+html body.dark .nsr [style*="background: rgb(239, 246, 255)"],
 html body.dark .nsr [style*="background:#eff6ff"],
+html body.dark .nsr [style*="background: rgb(248, 251, 255)"],
 html body.dark .nsr [style*="background:#f8fbff"],
+html body.dark .nsr [style*="background: rgb(236, 254, 255)"],
 html body.dark .nsr [style*="background:#ecfeff"],
+html body.dark .nsr [style*="background: rgb(240, 253, 244)"],
 html body.dark .nsr [style*="background:#f0fdf4"],
+html body.dark .nsr [style*="background: rgb(254, 252, 232)"],
 html body.dark .nsr [style*="background:#fefce8"],
+html body.dark .nsr [style*="background: rgb(255, 247, 237)"],
 html body.dark .nsr [style*="background:#fff7ed"],
+html body.dark .nsr [style*="background: rgb(240, 249, 255)"],
 html body.dark .nsr [style*="background:#f0f9ff"],
+html body.dark .nsr [style*="background: rgb(250, 245, 255)"],
 html body.dark .nsr [style*="background:#faf5ff"],
+html body.dark .nsr [style*="background: rgb(255, 251, 235)"],
 html body.dark .nsr [style*="background:#fffbeb"],
+html body.dark .nsr [style*="background: rgb(255, 241, 242)"],
 html body.dark .nsr [style*="background:#fff1f2"],
+html body.dark .nsr [style*="background: rgb(253, 242, 248)"],
 html body.dark .nsr [style*="background:#fdf2f8"],
+html body.dark .nsr [style*="background: rgb(240, 253, 250)"],
 html body.dark .nsr [style*="background:#f0fdfa"],
+html body.dark .nsr [style*="background: rgb(236, 253, 245)"],
 html body.dark .nsr [style*="background:#ecfdf5"],
+html body.dark .nsr [style*="background: rgb(254, 242, 242)"],
 html body.dark .nsr [style*="background:#fef2f2"],
+html body.dark .nsr [style*="background: rgb(255, 247, 247)"],
 html body.dark .nsr [style*="background:#fff7f7"],
+html body.dark .nsr [style*="background: rgb(220, 252, 231)"],
 html body.dark .nsr [style*="background:#dcfce7"],
+html body.dark .nsr [style*="background: rgb(254, 226, 226)"],
 html body.dark .nsr [style*="background:#fee2e2"],
+html body.dark .nsr [style*="background: rgb(226, 232, 240)"],
 html body.dark .nsr [style*="background:#e2e8f0"],
+html body.dark .nsr [style*="background: rgb(245, 243, 255)"],
 html body.dark .nsr [style*="background:#f5f3ff"],
 html #app.dark .nsr [style*="background:#ffffff"],
 html #app.dark .nsr [style*="background:#FFFFFF"],
@@ -2688,10 +2712,15 @@ html #app.dark .nsr [style*="background:#f5f3ff"] {
   color: #e8eaed !important;
   box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
 }
+html body.dark .nsr [style*="color: rgb(15, 23, 42)"],
 html body.dark .nsr [style*="color:#0f172a"],
+html body.dark .nsr [style*="color: rgb(30, 41, 59)"],
 html body.dark .nsr [style*="color:#1e293b"],
+html body.dark .nsr [style*="color: rgb(51, 65, 85)"],
 html body.dark .nsr [style*="color:#334155"],
+html body.dark .nsr [style*="color: rgb(23, 37, 84)"],
 html body.dark .nsr [style*="color:#172554"],
+html body.dark .nsr [style*="color: rgb(71, 85, 105)"],
 html body.dark .nsr [style*="color:#475569"],
 html #app.dark .nsr [style*="color:#0f172a"],
 html #app.dark .nsr [style*="color:#1e293b"],
@@ -2700,14 +2729,19 @@ html #app.dark .nsr [style*="color:#172554"],
 html #app.dark .nsr [style*="color:#475569"] {
   color: #e8eaed !important;
 }
+html body.dark .nsr [style*="color: rgb(100, 116, 139)"],
 html body.dark .nsr [style*="color:#64748b"],
+html body.dark .nsr [style*="color: rgb(148, 163, 184)"],
 html body.dark .nsr [style*="color:#94a3b8"],
 html #app.dark .nsr [style*="color:#64748b"],
 html #app.dark .nsr [style*="color:#94a3b8"] {
   color: #9aa0a6 !important;
 }
+html body.dark .nsr [style*="border: 1px solid rgb(226, 232, 240)"],
 html body.dark .nsr [style*="border:1px solid #e2e8f0"],
+html body.dark .nsr [style*="border: 1px solid rgb(203, 213, 225)"],
 html body.dark .nsr [style*="border:1px solid #cbd5e1"],
+html body.dark .nsr [style*="border: 1.5px solid rgb(226, 232, 240)"],
 html body.dark .nsr [style*="border:1.5px solid #e2e8f0"],
 html #app.dark .nsr [style*="border:1px solid #e2e8f0"],
 html #app.dark .nsr [style*="border:1px solid #cbd5e1"],
@@ -2858,6 +2892,43 @@ html body.dark .nsr .report-card-scroll::-webkit-scrollbar-thumb,
 html #app.dark .nsr .report-card-scroll::-webkit-scrollbar-thumb {
   background: #3a3f4a !important;
 }
+
+/* سطح‌های گرادیانی و نیمه‌شفاف سفید (هزینه جذب هر مشتری، باتری گنجایش، راهنمای نقشه) و خانه‌های ورودی */
+html body.dark .nsr [style*="linear-gradient(135deg,#f8fafc,#eff6ff)"],
+html body.dark .nsr [style*="linear-gradient(135deg, rgb(248, 250, 252), rgb(239, 246, 255))"] {
+  background: linear-gradient(135deg, #1c2230, #1e2a3f) !important;
+}
+html body.dark .nsr [style*="linear-gradient(180deg,#faf5ff,#f5f3ff)"],
+html body.dark .nsr [style*="linear-gradient(rgb(250, 245, 255), rgb(245, 243, 255))"] {
+  background: linear-gradient(180deg, #221a36, #1c1630) !important;
+  border-color: #6d28d9 !important;
+}
+html body.dark .nsr [style*="background:#c4b5fd"],
+html body.dark .nsr [style*="background: rgb(196, 181, 253)"] { background: #6d28d9 !important; }
+html body.dark .nsr [style*="background:rgba(255,255,255,0.9"],
+html body.dark .nsr [style*="background:rgba(255,255,255,0.8"],
+html body.dark .nsr [style*="background: rgba(255, 255, 255, 0.9"],
+html body.dark .nsr [style*="background: rgba(255, 255, 255, 0.8"] {
+  background: rgba(26, 28, 34, .92) !important;
+  color: #e8eaed !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45) !important;
+}
+html body.dark .nsr input:not([type="checkbox"]):not([type="radio"]),
+html body.dark .nsr select,
+html body.dark .nsr textarea {
+  background: #22252d !important;
+  color: #e8eaed !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .nsr .customer-segment-loading-track,
+html body.dark .nsr .kpi-summary-loading-track,
+html body.dark .nsr .staff-income-loading-track,
+html body.dark .nsr .roi-loading-track,
+html body.dark .nsr .loyalty-loading-track,
+html body.dark .nsr .age-statistics-loading-track,
+html body.dark .nsr .city-statistics-loading-track { background: #2a2f3a !important; }
+html body.dark .nsr input::placeholder,
+html body.dark .nsr textarea::placeholder { color: #7b818b !important; }
 </style>
 <style>
 .nsr-title { margin:0; font-size:22px; font-weight:800; color:#0f172a; }
@@ -2889,11 +2960,17 @@ html #app.dark .nsr [data-screen-label="نوار تاریخ و ابزارها"] 
 
 <style>
 /* Reports text+tint remap */
+html body.dark .nsr [style*="color: #0"],
 html body.dark .nsr [style*="color:#0"],
+html body.dark .nsr [style*="color: #1"],
 html body.dark .nsr [style*="color:#1"],
+html body.dark .nsr [style*="color: #2"],
 html body.dark .nsr [style*="color:#2"],
+html body.dark .nsr [style*="color: #3"],
 html body.dark .nsr [style*="color:#3"],
+html body.dark .nsr [style*="color: #4"],
 html body.dark .nsr [style*="color:#4"],
+html body.dark .nsr [style*="color: #5"],
 html body.dark .nsr [style*="color:#5"],
 html #app.dark .nsr [style*="color:#0"],
 html #app.dark .nsr [style*="color:#1"],
@@ -2903,9 +2980,13 @@ html #app.dark .nsr [style*="color:#4"],
 html #app.dark .nsr [style*="color:#5"] {
   color: #e8eaed !important;
 }
+html body.dark .nsr [style*="color: #6"],
 html body.dark .nsr [style*="color:#6"],
+html body.dark .nsr [style*="color: #7"],
 html body.dark .nsr [style*="color:#7"],
+html body.dark .nsr [style*="color: #8"],
 html body.dark .nsr [style*="color:#8"],
+html body.dark .nsr [style*="color: #9"],
 html body.dark .nsr [style*="color:#9"],
 html #app.dark .nsr [style*="color:#6"],
 html #app.dark .nsr [style*="color:#7"],
@@ -2913,12 +2994,19 @@ html #app.dark .nsr [style*="color:#8"],
 html #app.dark .nsr [style*="color:#9"] {
   color: #9aa0a6 !important;
 }
+html body.dark .nsr [style*="color: rgb(21, 128, 61)"],
 html body.dark .nsr [style*="color:#15803d"],
+html body.dark .nsr [style*="color: rgb(22, 101, 52)"],
 html body.dark .nsr [style*="color:#166534"],
+html body.dark .nsr [style*="color: rgb(22, 163, 74)"],
 html body.dark .nsr [style*="color:#16a34a"],
+html body.dark .nsr [style*="color: rgb(4, 120, 87)"],
 html body.dark .nsr [style*="color:#047857"],
+html body.dark .nsr [style*="color: rgb(13, 148, 136)"],
 html body.dark .nsr [style*="color:#0d9488"],
+html body.dark .nsr [style*="color: rgb(15, 118, 110)"],
 html body.dark .nsr [style*="color:#0f766e"],
+html body.dark .nsr .rpt-money[style*="color: rgb(21, 128, 61)"],
 html body.dark .nsr .rpt-money[style*="color:#15803d"],
 html #app.dark .nsr [style*="color:#15803d"],
 html #app.dark .nsr [style*="color:#166534"],
@@ -2927,30 +3015,45 @@ html #app.dark .nsr [style*="color:#0d9488"],
 html #app.dark .nsr [style*="color:#0f766e"] {
   color: #86efac !important;
 }
+html body.dark .nsr [style*="color: rgb(185, 28, 28)"],
 html body.dark .nsr [style*="color:#b91c1c"],
+html body.dark .nsr [style*="color: rgb(220, 38, 38)"],
 html body.dark .nsr [style*="color:#dc2626"],
+html body.dark .nsr [style*="color: rgb(153, 27, 27)"],
 html body.dark .nsr [style*="color:#991b1b"],
+html body.dark .nsr [style*="color: rgb(190, 18, 60)"],
 html body.dark .nsr [style*="color:#be123c"],
+html body.dark .nsr [style*="color: rgb(224, 36, 36)"],
 html body.dark .nsr [style*="color:#e02424"],
+html body.dark .nsr .rpt-money[style*="color: rgb(185, 28, 28)"],
 html body.dark .nsr .rpt-money[style*="color:#b91c1c"],
+html body.dark .nsr .rpt-money[style*="color: rgb(220, 38, 38)"],
 html body.dark .nsr .rpt-money[style*="color:#dc2626"],
 html #app.dark .nsr [style*="color:#b91c1c"],
 html #app.dark .nsr [style*="color:#dc2626"],
 html #app.dark .nsr [style*="color:#991b1b"] {
   color: #fca5a5 !important;
 }
+html body.dark .nsr [style*="color: rgb(180, 83, 9)"],
 html body.dark .nsr [style*="color:#b45309"],
+html body.dark .nsr [style*="color: rgb(194, 65, 12)"],
 html body.dark .nsr [style*="color:#c2410c"],
+html body.dark .nsr [style*="color: rgb(161, 98, 7)"],
 html body.dark .nsr [style*="color:#a16207"],
+html body.dark .nsr [style*="color: rgb(146, 64, 14)"],
 html body.dark .nsr [style*="color:#92400e"],
 html #app.dark .nsr [style*="color:#b45309"],
 html #app.dark .nsr [style*="color:#c2410c"],
 html #app.dark .nsr [style*="color:#a16207"] {
   color: #fdba74 !important;
 }
+html body.dark .nsr [style*="color: rgb(29, 78, 216)"],
 html body.dark .nsr [style*="color:#1d4ed8"],
+html body.dark .nsr [style*="color: rgb(37, 99, 235)"],
 html body.dark .nsr [style*="color:#2563eb"],
+html body.dark .nsr [style*="color: rgb(30, 64, 175)"],
 html body.dark .nsr [style*="color:#1e40af"],
+html body.dark .nsr [style*="color: rgb(30, 58, 138)"],
 html body.dark .nsr [style*="color:#1e3a8a"],
 html #app.dark .nsr [style*="color:#1d4ed8"],
 html #app.dark .nsr [style*="color:#2563eb"],
@@ -2958,17 +3061,24 @@ html #app.dark .nsr [style*="color:#1e40af"],
 html #app.dark .nsr [style*="color:#1e3a8a"] {
   color: #93c5fd !important;
 }
+html body.dark .nsr [style*="color: rgb(124, 58, 237)"],
 html body.dark .nsr [style*="color:#7c3aed"],
+html body.dark .nsr [style*="color: rgb(109, 40, 217)"],
 html body.dark .nsr [style*="color:#6d28d9"],
+html body.dark .nsr [style*="color: rgb(91, 33, 182)"],
 html body.dark .nsr [style*="color:#5b21b6"],
+html body.dark .nsr [style*="color: rgb(126, 34, 206)"],
 html body.dark .nsr [style*="color:#7e22ce"],
 html #app.dark .nsr [style*="color:#7c3aed"],
 html #app.dark .nsr [style*="color:#5b21b6"],
 html #app.dark .nsr [style*="color:#7e22ce"] {
   color: #c4b5fd !important;
 }
+html body.dark .nsr [style*="background: #f"],
 html body.dark .nsr [style*="background:#f"],
+html body.dark .nsr [style*="background: #e"],
 html body.dark .nsr [style*="background:#e"],
+html body.dark .nsr [style*="background: #d"],
 html body.dark .nsr [style*="background:#d"],
 html #app.dark .nsr [style*="background:#f"],
 html #app.dark .nsr [style*="background:#e"],
@@ -2977,6 +3087,7 @@ html #app.dark .nsr [style*="background:#d"] {
   border-color: #2c3038 !important;
 }
 html body.dark .nsr [style*="background:#eff6ff"],
+html body.dark .nsr [style*="background: rgb(219, 234, 254)"],
 html body.dark .nsr [style*="background:#dbeafe"],
 html body.dark .nsr [style*="background:#f0f9ff"],
 html #app.dark .nsr [style*="background:#eff6ff"],
@@ -3000,6 +3111,7 @@ html body.dark .nsr [style*="background:#fef2f2"],
 html body.dark .nsr [style*="background:#fee2e2"],
 html body.dark .nsr [style*="background:#fff1f2"],
 html body.dark .nsr [style*="background:#fff7f7"],
+html body.dark .nsr [style*="background: rgb(254, 202, 202)"],
 html body.dark .nsr [style*="background:#fecaca"],
 html #app.dark .nsr [style*="background:#fef2f2"],
 html #app.dark .nsr [style*="background:#fee2e2"],
@@ -3019,6 +3131,7 @@ html #app.dark .nsr [style*="background:#fff7ed"] {
 }
 html body.dark .nsr [style*="background:#faf5ff"],
 html body.dark .nsr [style*="background:#f5f3ff"],
+html body.dark .nsr [style*="background: rgb(241, 229, 245)"],
 html body.dark .nsr [style*="background:#f1e5f5"],
 html #app.dark .nsr [style*="background:#faf5ff"],
 html #app.dark .nsr [style*="background:#f5f3ff"] {

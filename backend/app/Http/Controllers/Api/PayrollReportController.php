@@ -7,9 +7,12 @@ use App\Http\Controllers\Controller;
 use App\Models\AttendanceMonth;
 use App\Models\Doctor;
 use App\Models\ResourceEarningLine;
+use App\Models\ResourceAdjustment;
+use App\Models\SalaryAdvanceInstallment;
 use App\Models\Staff;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class PayrollReportController extends Controller
@@ -70,6 +73,26 @@ class PayrollReportController extends Controller
         $shortage = $sum(['attendance_shortage']);
         $absence = $sum(['attendance_absence']);
         $attendanceAdjustment = $overtime + $shortage + $absence;
+        $adjustments = Schema::hasTable('resource_adjustments')
+            ? ResourceAdjustment::query()
+                ->where('month', $data['month'])
+                ->where('resource_type', $data['resource_type'])
+                ->where('resource_id', $resource->id)
+                ->when(Schema::hasColumn('resource_adjustments', 'status'), fn ($query) => $query->where('status', 'active'))
+                ->orderBy(Schema::hasColumn('resource_adjustments', 'occurred_on') ? 'occurred_on' : 'id')->orderBy('id')->get()
+            : collect();
+        $manualBonus = (float) $adjustments->where('amount', '>', 0)->sum('amount');
+        $manualDeduction = (float) $adjustments->where('amount', '<', 0)->sum('amount');
+        $advanceInstallments = Schema::hasTable('salary_advance_installments') && Schema::hasTable('salary_advances')
+            ? SalaryAdvanceInstallment::query()->with('advance')
+                ->where('month', $data['month'])
+                ->whereHas('advance', fn ($query) => $query
+                    ->where('resource_type', $data['resource_type'])
+                    ->where('resource_id', $resource->id)
+                    ->whereIn('status', ['paid', 'deducted']))
+                ->get()
+            : collect();
+        $advanceDeduction = -(float) $advanceInstallments->sum('amount');
         $salary = (float) ($resource->salary ?? 0);
         // فروش تارگت: همهٔ خدمات انجام‌شدهٔ این نفر در ماه، بعد از تخفیف و کسر مواد.
         $appointments = app(AppointmentController::class);
@@ -89,8 +112,11 @@ class PayrollReportController extends Controller
                 'shortage' => round($shortage),
                 'absence' => round($absence),
                 'attendance_adjustment' => round($attendanceAdjustment),
+                'manual_bonus' => round($manualBonus),
+                'manual_deduction' => round($manualDeduction),
+                'advance_deduction' => round($advanceDeduction),
                 'total_commission' => round($serviceCommission + $inventoryCommission),
-                'total_earned' => round($salary + $serviceCommission + $inventoryCommission + $referralCommission + $salesBonus + $attendanceAdjustment),
+                'total_earned' => round($salary + $serviceCommission + $inventoryCommission + $referralCommission + $salesBonus + $attendanceAdjustment + $manualBonus + $manualDeduction + $advanceDeduction),
                 'target_sales' => round($targetSales),
                 'reached_tier' => $reachedTier,
             ],
@@ -99,6 +125,8 @@ class PayrollReportController extends Controller
                 'days' => $attendance?->days ?? [],
             ],
             'lines' => $lines->values(),
+            'adjustments' => $adjustments,
+            'advance_installments' => $advanceInstallments,
         ]);
     }
 

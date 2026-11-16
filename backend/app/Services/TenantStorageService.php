@@ -92,7 +92,7 @@ class TenantStorageService
                     str_contains($path, '/media/') && str_starts_with($path, 'patients/') => 'patient_photos',
                     str_starts_with($path, 'patients/') => 'patient_profiles',
                     str_starts_with($path, 'users/'), str_starts_with($path, 'doctors/'), str_starts_with($path, 'staff/') => 'staff_and_users',
-                    str_starts_with($path, 'appointment-notes/'), str_starts_with($path, 'beauty-annotations/') => 'audio_and_notes',
+                    str_starts_with($path, 'appointment-notes/'), str_starts_with($path, 'beauty-annotations/'), str_starts_with($path, 'employee-portal/'), str_starts_with($path, 'group-chat/') => 'audio_and_notes',
                     default => 'other',
                 };
                 $breakdown[$category] += $size;
@@ -128,6 +128,8 @@ class TenantStorageService
             'channels' => ['icon_image_path'],
             'appointment_note_messages' => ['audio_path', 'image_path'],
             'beauty_annotations' => ['voice_path'],
+            'employee_messages' => ['voice_path', 'image_path'],
+            'group_chat_messages' => ['attachment_path'],
         ];
         foreach ($columns as $table => $fields) {
             if (! Schema::connection('tenant')->hasTable($table)) {

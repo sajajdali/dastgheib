@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceMonth;
 use App\Models\Doctor;
+use App\Models\EmployeeLeaveRequest;
 use App\Models\ResourceEarningLine;
 use App\Models\Staff;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class AttendanceMonthController extends Controller
@@ -254,13 +256,29 @@ class AttendanceMonthController extends Controller
             return null;
         }
 
+        $date = sprintf('%04d-%02d-%02d', $attendanceMonth->year, $attendanceMonth->month, $dayNumber);
+        $approvedRequests = Schema::hasTable('employee_leave_requests')
+            ? EmployeeLeaveRequest::query()
+                ->where('resource_type', $attendanceMonth->resource_type)
+                ->where('resource_id', $attendanceMonth->resource_id)
+                ->where('status', 'approved')
+                ->where('start_date', '<=', $date)
+                ->where('end_date', '>=', $date)
+                ->get()
+            : collect();
+        $dailyLeave = $approvedRequests->contains(fn ($leave) => $leave->leave_type === 'daily');
+        $hourlyLeaveHours = $approvedRequests->where('leave_type', 'hourly')->sum(function ($leave) {
+            if (! $leave->start_time || ! $leave->end_time) return 0;
+            return max(0, (strtotime($leave->end_time) - strtotime($leave->start_time)) / 3600);
+        });
+
         $absent = (bool) ($day['absent'] ?? false);
-        $leaveApproved = (bool) ($day['leaveApproved'] ?? false);
+        $leaveApproved = (bool) ($day['leaveApproved'] ?? false) || $dailyLeave;
         $employerApproved = (bool) ($day['employerApproved'] ?? false);
         $workedHours = max(0, (float) ($day['workedHours'] ?? 0));
         $diff = (float) ($day['diff'] ?? 0);
         $amount = (float) ($day['amount'] ?? 0);
-        $hours = abs($diff);
+        $hours = $diff < 0 ? ($dailyLeave ? 0 : max(0, abs($diff) - $hourlyLeaveHours)) : abs($diff);
         $allowedShortageUsed = 0;
         $earningType = null;
         $rate = 0;
@@ -276,10 +294,12 @@ class AttendanceMonthController extends Controller
             $rate = (float) ($resource->overtime_hourly_rate ?? 0);
             $amount = $amount > 0 ? $amount : round($diff * $rate);
             $description = 'اضافه‌کاری تاییدشده روز '.$dayNumber;
-        } elseif ($diff < 0) {
+        } elseif ($diff < 0 && $hours > 0) {
             $earningType = 'attendance_shortage';
             $rate = (float) ($resource->shortage_hourly_deduction ?? 0);
-            $amount = $amount < 0 ? $amount : -round($hours * $rate);
+            // مرخصی ساعتی تأییدشده از کسری همان روز کم می‌شود؛ مبلغ ذخیره‌شدهٔ
+            // قدیمی نباید باعث کسر دوبارهٔ ساعت مرخصی شود.
+            $amount = -round($hours * $rate);
             $allowedShortageUsed = min($allowedShortageLeft, $hours);
             $allowedShortageLeft -= $allowedShortageUsed;
             $amount = round($amount * ($hours - $allowedShortageUsed) / $hours);
@@ -317,6 +337,7 @@ class AttendanceMonthController extends Controller
                 'employer_approved' => $employerApproved,
                 'leave_request_title' => $day['leaveRequestTitle'] ?? null,
                 'leave_approved' => $leaveApproved,
+                'approved_hourly_leave_hours' => $hourlyLeaveHours,
                 'absent' => $absent,
                 'overtime_hourly_rate' => (float) ($resource->overtime_hourly_rate ?? 0),
                 'shortage_hourly_deduction' => (float) ($resource->shortage_hourly_deduction ?? 0),

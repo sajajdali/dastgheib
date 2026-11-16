@@ -11,10 +11,13 @@ use App\Models\Doctor;
 use App\Models\Inventory;
 use App\Models\InventoryCommission;
 use App\Models\ResourceEarningLine;
+use App\Models\SalaryAdvance;
 use App\Models\Staff;
+use App\Services\EmployeePortalService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\CreatesPayrollTables;
 use Tests\TestCase;
 
@@ -310,5 +313,68 @@ class PayrollCalculationTest extends TestCase
         $this->doctor->update(['allowed_shortage_hours' => 10]);
         app(AttendanceMonthController::class)->resyncAttendanceEarnings('doctor', $this->doctor->id);
         $this->assertSame(0.0, (float) $this->payroll()['summary']['shortage']);
+    }
+
+    public function test_manual_adjustments_and_paid_advance_installment_change_payroll_total(): void
+    {
+        DB::table('resource_adjustments')->insert([
+            ['month' => '1405-08', 'resource_type' => 'doctor', 'resource_id' => $this->doctor->id, 'amount' => 300000, 'kind' => 'bonus', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+            ['month' => '1405-08', 'resource_type' => 'doctor', 'resource_id' => $this->doctor->id, 'amount' => -100000, 'kind' => 'deduction', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        $advanceId = DB::table('salary_advances')->insertGetId([
+            'resource_type' => 'doctor', 'resource_id' => $this->doctor->id, 'requested_amount' => 600000,
+            'approved_amount' => 600000, 'status' => 'paid', 'deduct_from_salary' => true,
+            'installment_count' => 2, 'deduction_start_month' => '1405-08', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('salary_advance_installments')->insert([
+            'salary_advance_id' => $advanceId, 'month' => '1405-08', 'amount' => 300000, 'status' => 'scheduled', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $summary = $this->payroll()['summary'];
+        $this->assertSame(300000.0, (float) $summary['manual_bonus']);
+        $this->assertSame(-100000.0, (float) $summary['manual_deduction']);
+        $this->assertSame(-300000.0, (float) $summary['advance_deduction']);
+        $this->assertSame(4900000.0, (float) $summary['total_earned']);
+    }
+
+    public function test_approved_daily_and_hourly_leave_prevent_only_the_covered_deductions(): void
+    {
+        $this->doctor->update(['shortage_hourly_deduction' => 100000, 'absence_deduction' => 700000]);
+        AttendanceMonth::query()->create([
+            'resource_type' => 'doctor', 'resource_id' => $this->doctor->id, 'year' => 1405, 'month' => 8, 'daily_hours' => 8,
+            'days' => [
+                ['day' => 2, 'absent' => true, 'amount' => -700000],
+                ['day' => 3, 'diff' => -3, 'amount' => -300000],
+                ['day' => 4, 'absent' => true, 'amount' => -700000],
+            ],
+        ]);
+        DB::table('employee_leave_requests')->insert([
+            ['resource_type' => 'doctor', 'resource_id' => $this->doctor->id, 'leave_type' => 'daily', 'start_date' => '1405-08-02', 'end_date' => '1405-08-02', 'start_time' => null, 'end_time' => null, 'status' => 'approved', 'created_at' => now(), 'updated_at' => now()],
+            ['resource_type' => 'doctor', 'resource_id' => $this->doctor->id, 'leave_type' => 'hourly', 'start_date' => '1405-08-03', 'end_date' => '1405-08-03', 'start_time' => '09:00', 'end_time' => '11:00', 'status' => 'approved', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        app(AttendanceMonthController::class)->resyncAttendanceEarnings('doctor', $this->doctor->id);
+        $summary = $this->payroll()['summary'];
+        $this->assertSame(-100000.0, (float) $summary['shortage']);
+        $this->assertSame(-700000.0, (float) $summary['absence']);
+        $this->assertSame([3, 4], ResourceEarningLine::query()->whereIn('earning_type', ['attendance_shortage', 'attendance_absence'])->orderBy('day_num')->pluck('day_num')->map(fn ($day) => (int) $day)->all());
+    }
+
+    public function test_salary_range_is_prorated_and_advance_remainder_is_distributed_exactly(): void
+    {
+        $portal = app(EmployeePortalService::class);
+        $this->doctor->update(['salary' => 3100000]);
+        $this->assertSame(1100000.0, $portal->salaryForRange($this->doctor->fresh(), '1405-01-10', '1405-01-20'));
+
+        $advance = SalaryAdvance::query()->create([
+            'resource_type' => 'doctor', 'resource_id' => $this->doctor->id,
+            'requested_amount' => 1000000, 'approved_amount' => 1000000,
+            'status' => 'approved', 'deduct_from_salary' => true,
+            'installment_count' => 3, 'deduction_start_month' => '1405-12',
+        ]);
+        $portal->syncAdvanceInstallments($advance);
+
+        $this->assertSame(['1405-12', '1406-01', '1406-02'], $advance->installments()->orderBy('month')->pluck('month')->all());
+        $this->assertSame(1000000.0, (float) $advance->installments()->sum('amount'));
     }
 }

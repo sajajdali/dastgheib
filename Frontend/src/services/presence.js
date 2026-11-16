@@ -21,6 +21,43 @@ const appointmentListeners = new Set();
 const appointmentNoteListeners = new Set();
 const reportChannels = new Map();
 const reportWidgetChannels = new Map();
+let groupChatChannel = null;
+const groupChatListeners = new Set();
+const groupChatChannelName = () => `clinic.${activeTenantId}.group-chat`;
+
+const joinGroupChatChannel = () => {
+  if (!echo || !activeTenantId || groupChatChannel || groupChatListeners.size === 0) return;
+  groupChatChannel = echo.private(groupChatChannelName());
+  groupChatChannel.listen(".group-chat.message", (event) => {
+    groupChatListeners.forEach((listener) => listener(event));
+  });
+};
+
+/** رویدادهای چت گروهی کلینیک (created / updated / deleted). */
+export function subscribeGroupChat(listener) {
+  groupChatListeners.add(listener);
+  joinGroupChatChannel();
+  return () => {
+    groupChatListeners.delete(listener);
+    if (groupChatListeners.size === 0 && echo && groupChatChannel) {
+      echo.leave(groupChatChannelName());
+      groupChatChannel = null;
+    }
+  };
+}
+
+/** وضعیت اتصال سوکت برای همگام‌سازی دوباره پس از قطعی. */
+export function onRealtimeReconnect(listener) {
+  const connection = echo?.connector?.pusher?.connection;
+  if (!connection) return () => {};
+  let wasConnected = connection.state === "connected";
+  const handler = ({ current }) => {
+    if (current === "connected" && !wasConnected) listener();
+    wasConnected = current === "connected";
+  };
+  connection.bind("state_change", handler);
+  return () => connection.unbind("state_change", handler);
+}
 
 const joinAppointmentChannel = () => {
   if (!echo || !activeTenantId || appointmentChannel) return;
@@ -188,6 +225,7 @@ export function startPresence(user) {
         || `HTTP ${error?.response?.status || "unknown"}`;
     });
   joinAppointmentChannel();
+  joinGroupChatChannel();
 }
 
 export function stopPresence() {
@@ -198,6 +236,7 @@ export function stopPresence() {
     reportWidgetChannels.forEach(({ name }) => echo.leave(name));
     reportWidgetChannels.clear();
     if (activeTenantId) echo.leave(`clinic.${activeTenantId}.appointments`);
+    if (activeTenantId && groupChatChannel) echo.leave(groupChatChannelName());
     if (activeTenantId) echo.leave(presenceChannelName());
     echo.disconnect();
   }
@@ -205,6 +244,7 @@ export function stopPresence() {
   activeUserId = null;
   activeTenantId = null;
   appointmentChannel = null;
+  groupChatChannel = null;
   presenceState.connected = false;
   presenceState.connecting = false;
   presenceState.error = "";

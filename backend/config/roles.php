@@ -152,6 +152,24 @@ return [
             'permissions' => [
                 ['name' => 'payroll.view', 'label' => 'مشاهده حقوق و تسویه'],
                 ['name' => 'personal_report.view', 'label' => 'مشاهده کارکرد شخصی'],
+                ['name' => 'personal_report.details', 'label' => 'مشاهده جزئیات مالی شخصی'],
+                ['name' => 'employee_portal.leave_request', 'label' => 'ثبت درخواست مرخصی'],
+                ['name' => 'employee_portal.advance_request', 'label' => 'ثبت درخواست مساعده'],
+                ['name' => 'employee_portal.message', 'label' => 'ارسال پیام به مدیریت'],
+                ['name' => 'employee_portal.manage', 'label' => 'مدیریت درخواست‌ها و ارتباط کارکنان'],
+                ['name' => 'employee_portal.templates_manage', 'label' => 'مدیریت قالب گزارش شخصی'],
+                ['name' => 'employee_portal.adjustments_manage', 'label' => 'مدیریت پاداش و کسورات'],
+            ],
+        ],
+        [
+            'key' => 'group_chat',
+            'label' => 'چت آنلاین گروهی',
+            'permissions' => [
+                ['name' => 'group_chat.view', 'label' => 'مشاهده چت گروهی'],
+                ['name' => 'group_chat.send', 'label' => 'ارسال پیام متنی، صوتی و تصویری'],
+                ['name' => 'group_chat.edit', 'label' => 'ویرایش پیام‌های خود'],
+                ['name' => 'group_chat.delete', 'label' => 'حذف پیام‌های خود'],
+                ['name' => 'group_chat.moderate', 'label' => 'حذف پیام‌های دیگران (مدیریت چت)'],
             ],
         ],
         [

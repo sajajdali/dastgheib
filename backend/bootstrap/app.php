@@ -40,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.active' => \App\Http\Middleware\EnsureTenantIsActive::class,
             'tenant.subscription' => \App\Http\Middleware\EnsureTenantSubscriptionActive::class,
             'central.admin' => \App\Http\Middleware\EnsureCentralAdmin::class,
+            'tenant.module' => \App\Http\Middleware\EnsureTenantModuleEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

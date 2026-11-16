@@ -34,6 +34,7 @@ class Staff extends Model
         'allowed_shortage_hours',
         'profile_photo_path',
         'profile_thumbnail_path',
+        'personal_report_columns',
     ];
 
     protected $casts = [
@@ -44,6 +45,7 @@ class Staff extends Model
         'existing_customer_bonus' => 'float',
         'allowed_shortage_hours' => 'decimal:2',
         'referral_commission_value' => 'float',
+        'personal_report_columns' => 'array',
     ];
 
     protected $appends = ['profile_photo_url', 'profile_thumbnail_url', 'avatar_url', 'save_version'];
