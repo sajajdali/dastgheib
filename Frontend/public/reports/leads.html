@@ -3,6 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+(function () {
+  function darkOn() {
+    try { if (localStorage.getItem("darkMode") === "true") return true; } catch (e) {}
+    try { if (parent !== window && parent.document.body.classList.contains("dark")) return true; } catch (e) {}
+    return false;
+  }
+  function sync() { document.documentElement.classList.toggle("dark", darkOn()); }
+  sync();
+  window.addEventListener("storage", sync);
+})();
+</script>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -23,10 +35,32 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
   main{padding:8px 14px 0 !important}
   header{padding:12px 14px !important}
 }
+html.dark,html.dark body{background:#121316;color:#e8eaed}
+html.dark .leads-app{background:#121316 !important;color:#e8eaed !important}
+html.dark .leads-title,html.dark .leads-group-title,html.dark .leads-card-title,html.dark .leads-empty-title{color:#f1f3f4 !important}
+html.dark .leads-sub,html.dark .leads-meta,html.dark .leads-empty-sub{color:#9aa0a6 !important}
+html.dark .leads-card,html.dark .leads-state{background:#1a1c22 !important;border-color:#3a3f4a !important;box-shadow:none !important;color:#c5cad3 !important}
+html.dark .leads-group.r .leads-card{border-right-color:#f87171 !important}
+html.dark .leads-group.a .leads-card{border-right-color:#fbbf24 !important}
+html.dark .leads-group.g .leads-card{border-right-color:#4ade80 !important}
+html.dark .leads-tag{background:#22252d !important;color:#c5cad3 !important}
+html.dark .leads-done{background:#22252d !important;border-color:#3a3f4a !important;color:#c5cad3 !important}
+html.dark .leads-rule{background:#3a3f4a !important}
+html.dark .leads-chip{background:#22252d !important;border-color:#3a3f4a !important;color:#e8eaed !important;box-shadow:none !important}
+html.dark .leads-chip.is-on{background:#4f8cff !important;border-color:#4f8cff !important;color:#fff !important}
+html.dark .leads-chip.is-on b{color:#fff !important;background:transparent !important}
+html.dark .leads-group.r .leads-icon{background:#3a2426 !important;color:#fca5a5 !important}
+html.dark .leads-group.a .leads-icon{background:#3a3420 !important;color:#fcd34d !important}
+html.dark .leads-group.g .leads-icon{background:#14352a !important;color:#86efac !important}
+html.dark .leads-group.r .leads-badge{background:#3a2426 !important;color:#fca5a5 !important}
+html.dark .leads-group.a .leads-badge{background:#3a3420 !important;color:#fcd34d !important}
+html.dark .leads-group.g .leads-badge{background:#14352a !important;color:#86efac !important}
+html.dark .leads-empty-icon{background:#14352a !important;color:#86efac !important}
+html.dark ::-webkit-scrollbar-thumb{background:#3a3f4a}
 </style>
 </helmet>
 
-<div dir="rtl" style="min-height:100vh;background:#f1f4f9;color:#0f172a;padding-bottom:60px">
+<div class="leads-app" dir="rtl" style="min-height:100vh;background:#f1f4f9;color:#0f172a;padding-bottom:60px">
 
   
 
@@ -34,41 +68,41 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 
     <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px" data-screen-label="خوش‌آمد">
       <div style="display:flex;flex-direction:column;gap:4px">
-        <h1 style="margin:0;font-size:24px;font-weight:900;color:#0f172a">سرنخ‌ها</h1>
-        <span style="font-size:13px;color:#64748b">امروز {{ todayStr }} — {{ totalTxt }} مورد در انتظار توجه شماست</span>
+        <h1 class="leads-title" style="margin:0;font-size:24px;font-weight:900;color:#0f172a">سرنخ‌ها</h1>
+        <span class="leads-sub" style="font-size:13px;color:#64748b">امروز {{ todayStr }} — {{ totalTxt }} مورد در انتظار توجه شماست</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap" data-screen-label="خلاصه وضعیت">
-        <button onClick="{{ onFAll }}" style="{{ chAll }}">همه <b style="font-size:13px">{{ cAll }}</b></button>
-        <button onClick="{{ onFRed }}" style="{{ chRed }}"><i style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></i> فوری <b style="font-size:13px">{{ cRed }}</b></button>
-        <button onClick="{{ onFAmber }}" style="{{ chAmber }}"><i style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></i> نیاز به اقدام <b style="font-size:13px">{{ cAmber }}</b></button>
-        <button onClick="{{ onFGreen }}" style="{{ chGreen }}"><i style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></i> اطلاع‌رسانی <b style="font-size:13px">{{ cGreen }}</b></button>
+        <button class="leads-chip {{ chAllCls }}" onClick="{{ onFAll }}" style="{{ chAll }}">همه <b style="font-size:13px">{{ cAll }}</b></button>
+        <button class="leads-chip {{ chRedCls }}" onClick="{{ onFRed }}" style="{{ chRed }}"><i style="width:8px;height:8px;border-radius:50%;background:#dc2626;display:inline-block"></i> فوری <b style="font-size:13px">{{ cRed }}</b></button>
+        <button class="leads-chip {{ chAmberCls }}" onClick="{{ onFAmber }}" style="{{ chAmber }}"><i style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></i> نیاز به اقدام <b style="font-size:13px">{{ cAmber }}</b></button>
+        <button class="leads-chip {{ chGreenCls }}" onClick="{{ onFGreen }}" style="{{ chGreen }}"><i style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></i> اطلاع‌رسانی <b style="font-size:13px">{{ cGreen }}</b></button>
       </div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:22px" data-screen-label="لیست سرنخ‌ها">
       <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
-        <section style="display:{{ g.dsp }};flex-direction:column;gap:10px">
+        <section class="leads-group {{ g.tone }}" style="display:{{ g.dsp }};flex-direction:column;gap:10px">
           <div style="display:flex;align-items:center;gap:10px;padding:0 4px">
             <span style="width:10px;height:10px;border-radius:3px;background:{{ g.c }}"></span>
-            <span style="font-size:14px;font-weight:800;color:#0f172a">{{ g.title }}</span>
-            <span style="background:{{ g.badgeBg }};color:{{ g.badgeC }};border-radius:999px;padding:2px 10px;font-size:11px;font-weight:800">{{ g.cnt }} مورد</span>
-            <span style="flex:1;height:1px;background:#e2e8f0"></span>
+            <span class="leads-group-title" style="font-size:14px;font-weight:800;color:#0f172a">{{ g.title }}</span>
+            <span class="leads-badge" style="background:{{ g.badgeBg }};color:{{ g.badgeC }};border-radius:999px;padding:2px 10px;font-size:11px;font-weight:800">{{ g.cnt }} مورد</span>
+            <span class="leads-rule" style="flex:1;height:1px;background:#e2e8f0"></span>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px">
             <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
-              <div style="background:#ffffff;border:1px solid {{ it.bd }};border-right:4px solid {{ it.c }};border-radius:14px;padding:13px 14px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 1px 3px rgba(15,23,42,0.05);transition:box-shadow .15s" style-hover="box-shadow:0 4px 14px rgba(15,23,42,0.10)">
-                <span style="width:38px;height:38px;border-radius:12px;background:{{ it.iconBg }};color:{{ it.c }};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <div class="leads-card" style="background:#ffffff;border:1px solid {{ it.bd }};border-right:4px solid {{ it.c }};border-radius:14px;padding:13px 14px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 1px 3px rgba(15,23,42,0.05);transition:box-shadow .15s" style-hover="box-shadow:0 4px 14px rgba(15,23,42,0.10)">
+                <span class="leads-icon" style="width:38px;height:38px;border-radius:12px;background:{{ it.iconBg }};color:{{ it.c }};display:flex;align-items:center;justify-content:center;flex-shrink:0">
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ it.icon }}"></path></svg>
                 </span>
                 <div style="flex:1;display:flex;flex-direction:column;gap:5px;min-width:0">
-                  <span style="font-size:13px;font-weight:600;color:#1e293b;line-height:1.8">{{ it.t }}</span>
+                  <span class="leads-card-title" style="font-size:13px;font-weight:600;color:#1e293b;line-height:1.8">{{ it.t }}</span>
                   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                    <span style="background:#f8fafc;color:#64748b;border-radius:999px;padding:2px 10px;font-size:10.5px;font-weight:700">{{ it.tag }}</span>
-                    <span style="font-size:10.5px;color:#94a3b8;display:{{ it.dDsp }}">{{ it.d }}</span>
+                    <span class="leads-tag" style="background:#f8fafc;color:#64748b;border-radius:999px;padding:2px 10px;font-size:10.5px;font-weight:700">{{ it.tag }}</span>
+                    <span class="leads-meta" style="font-size:10.5px;color:#94a3b8;display:{{ it.dDsp }}">{{ it.d }}</span>
                   </div>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-                  <button onClick="{{ it.onDone }}" title="انجام شد (تا پایان امروز پنهان می‌شود)" style="width:26px;height:26px;border-radius:50%;border:1.5px solid #e2e8f0;background:#ffffff;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s" style-hover="border-color:#16a34a;color:#16a34a;background:#f0fdf4">
+                  <button class="leads-done" onClick="{{ it.onDone }}" title="انجام شد (تا پایان امروز پنهان می‌شود)" style="width:26px;height:26px;border-radius:50%;border:1.5px solid #e2e8f0;background:#ffffff;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s" style-hover="border-color:#16a34a;color:#16a34a;background:#f0fdf4">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg>
                   </button>
                 </div>
@@ -78,14 +112,14 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
         </section>
       </sc-for>
 
-      <div style="display:{{ loadingDsp }};align-items:center;justify-content:center;padding:60px 20px;background:#ffffff;border-radius:16px;color:#64748b;font-size:13px;font-weight:700">در حال دریافت سرنخ‌ها…</div>
+      <div class="leads-state" style="display:{{ loadingDsp }};align-items:center;justify-content:center;padding:60px 20px;background:#ffffff;border-radius:16px;color:#64748b;font-size:13px;font-weight:700">در حال دریافت سرنخ‌ها…</div>
 
-      <div style="display:{{ emptyDsp }};flex-direction:column;align-items:center;gap:10px;padding:60px 20px;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06)">
-        <span style="width:56px;height:56px;border-radius:50%;background:#f0fdf4;color:#16a34a;display:flex;align-items:center;justify-content:center">
+      <div class="leads-state" style="display:{{ emptyDsp }};flex-direction:column;align-items:center;gap:10px;padding:60px 20px;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06)">
+        <span class="leads-empty-icon" style="width:56px;height:56px;border-radius:50%;background:#f0fdf4;color:#16a34a;display:flex;align-items:center;justify-content:center">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg>
         </span>
-        <span style="font-size:15px;font-weight:800;color:#0f172a">همه سرنخ‌ها انجام شد!</span>
-        <span style="font-size:12.5px;color:#94a3b8">موردی برای نمایش در این دسته وجود ندارد</span>
+        <span class="leads-empty-title" style="font-size:15px;font-weight:800;color:#0f172a">همه سرنخ‌ها انجام شد!</span>
+        <span class="leads-empty-sub" style="font-size:12.5px;color:#94a3b8">موردی برای نمایش در این دسته وجود ندارد</span>
       </div>
     </div>
 
@@ -311,7 +345,7 @@ class Component extends DCLogic {
         onDone: () => this.markDone(it.key)
       }));
       const show = (S.filter === 'all' || S.filter === p) && items.length > 0;
-      return {title: cfg.title, c: cfg.c, badgeBg: cfg.badgeBg, badgeC: cfg.badgeC,
+      return {title: cfg.title, tone: p, c: cfg.c, badgeBg: cfg.badgeBg, badgeC: cfg.badgeC,
         cnt: fa(items.length), items, dsp: show ? 'flex' : 'none'};
     });
 
@@ -329,6 +363,10 @@ class Component extends DCLogic {
       cAll: fa(alive.length), cRed: fa(counts.r), cAmber: fa(counts.a), cGreen: fa(counts.g),
       chAll: chip(S.filter === 'all'), chRed: chip(S.filter === 'r'),
       chAmber: chip(S.filter === 'a'), chGreen: chip(S.filter === 'g'),
+      chAllCls: S.filter === 'all' ? 'is-on' : '',
+      chRedCls: S.filter === 'r' ? 'is-on' : '',
+      chAmberCls: S.filter === 'a' ? 'is-on' : '',
+      chGreenCls: S.filter === 'g' ? 'is-on' : '',
       onFAll: () => this.setState({filter: 'all'}),
       onFRed: () => this.setState({filter: 'r'}),
       onFAmber: () => this.setState({filter: 'a'}),

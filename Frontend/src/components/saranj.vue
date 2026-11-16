@@ -104,7 +104,7 @@ export default {
     activeReportSrc() {
       const src = this.reports.find((report) => report.key === this.activeReport)?.src || "/reports/leads.html";
       const separator = src.includes("?") ? "&" : "?";
-      return `${src}${separator}v=20261105-server-leads`;
+      return `${src}${separator}v=20261116-dark-leads`;
     },
     visibleUsers() {
       return this.presence.users.slice(0, 10);
@@ -254,5 +254,52 @@ export default {
   .online-strip { margin-right: 6px; padding: 5px 8px; }
   .online-person { width: 28px; height: 28px; }
   .online-avatars .online-person:nth-child(n+7) { display: none; }
+}
+</style>
+
+<style>
+html body.dark .leads-page,
+html body.dark .leads-frame,
+html body.dark .leads-loading,
+html #app.dark .leads-page,
+html #app.dark .leads-frame,
+html #app.dark .leads-loading {
+  background: #121316 !important;
+  color: #e8eaed !important;
+}
+html body.dark .leads-spinner,
+html #app.dark .leads-spinner {
+  border-color: #3a3f4a !important;
+  border-top-color: #4f8cff !important;
+}
+html body.dark .online-strip,
+html body.dark .leads-toolbar,
+html #app.dark .online-strip,
+html #app.dark .leads-toolbar {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  box-shadow: none !important;
+}
+html body.dark .online-title strong,
+html #app.dark .online-title strong { color: #f1f3f4 !important; }
+html body.dark .online-title small,
+html body.dark .online-empty,
+html #app.dark .online-title small,
+html #app.dark .online-empty { color: #9aa0a6 !important; }
+html body.dark .online-person,
+html body.dark .online-person i,
+html #app.dark .online-person,
+html #app.dark .online-person i { border-color: #1a1c22 !important; }
+html body.dark .online-more,
+html #app.dark .online-more {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
+html body.dark .leads-tab,
+html #app.dark .leads-tab { color: #c5cad3 !important; }
+html body.dark .leads-tab.active,
+html #app.dark .leads-tab.active {
+  background: #4f8cff !important;
+  color: #fff !important;
 }
 </style>
