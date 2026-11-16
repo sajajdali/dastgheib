@@ -3393,3 +3393,62 @@ html #app.dark .settings-page .payment-settings-actions span.error {
   color: #f5a8a0 !important;
 }
 </style>
+
+<style>
+/* Setting dark mode extras */
+html body.dark .settings-page .required-fields-settings,
+html body.dark .settings-page .education-options-settings,
+html body.dark .settings-page .provider-choice-card,
+html body.dark .settings-page .wallet-settings-card,
+html body.dark .settings-page .required-fields-settings label,
+html body.dark .settings-page .voip-incoming-row,
+html body.dark .settings-page .voip-incoming-list,
+html body.dark .settings-page .lead-recipient-field,
+html body.dark .settings-page .template-card-head,
+html body.dark .settings-page .sms-section-head,
+html body.dark .settings-page .sms-provider-head,
+html #app.dark .settings-page .required-fields-settings,
+html #app.dark .settings-page .education-options-settings,
+html #app.dark .settings-page .provider-choice-card,
+html #app.dark .settings-page .wallet-settings-card,
+html #app.dark .settings-page .required-fields-settings label,
+html #app.dark .settings-page .voip-incoming-row,
+html #app.dark .settings-page .voip-incoming-list,
+html #app.dark .settings-page .lead-recipient-field,
+html #app.dark .settings-page .template-card-head,
+html #app.dark .settings-page .sms-section-head,
+html #app.dark .settings-page .sms-provider-head {
+  background: #22252d !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .required-fields-head small,
+html body.dark .settings-page .education-options-settings header small,
+html body.dark .settings-page .sms-section-head p,
+html body.dark .settings-page .template-card-head > strong,
+html #app.dark .settings-page .required-fields-head small,
+html #app.dark .settings-page .education-options-settings header small,
+html #app.dark .settings-page .sms-section-head p,
+html #app.dark .settings-page .template-card-head > strong {
+  color: #9aa0a6 !important;
+}
+html body.dark .settings-page .education-options-settings header button,
+html body.dark .settings-page .lead-alert-template-card.active,
+html #app.dark .settings-page .education-options-settings header button,
+html #app.dark .settings-page .lead-alert-template-card.active {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+html body.dark .settings-page .education-options-list label button,
+html #app.dark .settings-page .education-options-list label button {
+  background: #3a2426 !important;
+  color: #f5a8a0 !important;
+}
+html body.dark .settings-page .level-period-save,
+html #app.dark .settings-page .level-period-save {
+  background: #2a3a52 !important;
+  color: #93c5fd !important;
+  border-color: #4f8cff !important;
+}
+</style>
