@@ -228,4 +228,14 @@ html body.dark .storage-dashboard .photo-settings-actions p,
 html #app.dark .storage-dashboard .photo-settings-actions p {
   color: #86efac !important;
 }
+html body.dark .storage-dashboard .storage-loading,
+html body.dark .storage-dashboard .storage-empty,
+html body.dark .storage-dashboard .storage-message,
+html #app.dark .storage-dashboard .storage-loading,
+html #app.dark .storage-dashboard .storage-empty,
+html #app.dark .storage-dashboard .storage-message {
+  background: #1a1c22 !important;
+  border: 1px solid #2c3038 !important;
+  color: #e8eaed !important;
+}
 </style>

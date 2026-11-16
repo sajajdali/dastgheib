@@ -88,3 +88,92 @@ const removeTier = index => model.value.sales_bonus_tiers.splice(index,1)
 @media(max-width:560px){.referral-commission-row{flex-direction:column;align-items:stretch}.referral-value{width:100%}}
 @media(max-width:560px){.commission-card{min-width:0}.customer-type-card{flex-wrap:wrap}.customer-type-percent{width:100%}}
 </style>
+
+<style>
+html body.dark .commission-card,
+html #app.dark .commission-card {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .commission-card header,
+html body.dark .commission-card header strong,
+html body.dark .customer-commission-head,
+html body.dark .customer-type-check b,
+html body.dark .check-card b,
+html body.dark .sales-switch b,
+html #app.dark .commission-card header,
+html #app.dark .commission-card header strong,
+html #app.dark .customer-commission-head,
+html #app.dark .customer-type-check b,
+html #app.dark .check-card b,
+html #app.dark .sales-switch b { color: #f1f3f4 !important; }
+html body.dark .commission-card header small,
+html #app.dark .commission-card header small { color: #86efac !important; }
+html body.dark .pay-rates-grid label,
+html body.dark .customer-commission-head small,
+html body.dark .customer-type-check small,
+html body.dark .check-card small,
+html body.dark .sales-switch small,
+html body.dark .pay-rates-grid b,
+html body.dark .customer-type-percent b,
+html body.dark .tier-row,
+html #app.dark .pay-rates-grid label,
+html #app.dark .customer-commission-head small,
+html #app.dark .customer-type-check small,
+html #app.dark .check-card small,
+html #app.dark .sales-switch small,
+html #app.dark .pay-rates-grid b,
+html #app.dark .customer-type-percent b,
+html #app.dark .tier-row { color: #9aa0a6 !important; }
+html body.dark .pay-rates-grid,
+html #app.dark .pay-rates-grid { border-color: #2c3038 !important; }
+html body.dark .pay-rates-grid label > div,
+html body.dark .customer-type-card,
+html body.dark .customer-type-percent,
+html body.dark .check-card,
+html body.dark .sales-switch,
+html body.dark .tier-row,
+html body.dark .referral-commission,
+html body.dark .referral-commission-row select,
+html #app.dark .pay-rates-grid label > div,
+html #app.dark .customer-type-card,
+html #app.dark .customer-type-percent,
+html #app.dark .check-card,
+html #app.dark .sales-switch,
+html #app.dark .tier-row,
+html #app.dark .referral-commission,
+html #app.dark .referral-commission-row select {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .customer-type-card.active,
+html #app.dark .customer-type-card.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+}
+html body.dark .pay-rates-grid input,
+html body.dark .customer-type-percent input,
+html body.dark .tier-row input,
+html body.dark .referral-commission input,
+html #app.dark .pay-rates-grid input,
+html #app.dark .customer-type-percent input,
+html #app.dark .tier-row input,
+html #app.dark .referral-commission input {
+  background: transparent !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .customer-type-percent input:disabled,
+html #app.dark .customer-type-percent input:disabled {
+  background: #121417 !important;
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+}
+html body.dark .referral-commission .customer-commission-head,
+html #app.dark .referral-commission .customer-commission-head { color: #fcd34d !important; }
+html body.dark .add-tier,
+html #app.dark .add-tier { background: #4f8cff !important; color: #fff !important; }
+</style>

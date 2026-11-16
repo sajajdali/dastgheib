@@ -3925,4 +3925,30 @@ html #app.dark .settings-page .lead-recipient-list > span {
   background: #2a2f3a !important;
   color: #e8eaed !important;
 }
+html body.dark .settings-page .lead-alert-template-card > input,
+html body.dark .settings-page .lead-alert-template-card > input:focus,
+html #app.dark .settings-page .lead-alert-template-card > input,
+html #app.dark .settings-page .lead-alert-template-card > input:focus {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .settings-page .lead-alert-template-card > input::placeholder,
+html #app.dark .settings-page .lead-alert-template-card > input::placeholder {
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+  opacity: 1 !important;
+}
+html body.dark .settings-page .lead-alert-template-card li,
+html body.dark .settings-page .lead-alert-template-card li span,
+html #app.dark .settings-page .lead-alert-template-card li,
+html #app.dark .settings-page .lead-alert-template-card li span {
+  color: #c5cad3 !important;
+}
+html body.dark .settings-page .lead-alert-template-card li b,
+html #app.dark .settings-page .lead-alert-template-card li b {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
 </style>

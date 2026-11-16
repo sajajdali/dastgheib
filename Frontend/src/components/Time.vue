@@ -14066,6 +14066,20 @@ td.st-transferred {
 .monthly-financial-item strong{color:#0f172a;font-size:12px;font-weight:1000;line-height:1.35}
 .monthly-financial-item em{color:#94a3b8;font-size:8px;font-style:normal;font-weight:700}
 
+/* خلاصهٔ مالی ماه در حالت شب */
+body.dark .monthly-financial-summary{border-color:#2c3038;background:rgba(26,28,34,.94);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+body.dark .monthly-financial-summary.is-open{border-color:#3a3f4a;background:#1a1c22;box-shadow:0 9px 24px rgba(0,0,0,.4)}
+body.dark .monthly-financial-toggle{background:linear-gradient(145deg,#1e2a3f,#1c2638);color:#7fb0ff;box-shadow:inset 0 0 0 1px rgba(79,140,255,.22)}
+body.dark .monthly-financial-toggle:hover{background:linear-gradient(145deg,#23324b,#21304a);color:#a5c8ff}
+body.dark .monthly-financial-toggle::after{border-color:#1a1c22}
+body.dark .monthly-financial-summary.is-open .monthly-financial-toggle{background:#2563eb;color:#fff;box-shadow:0 5px 14px rgba(37,99,235,.35)}
+body.dark .monthly-financial-period{background:#22252d;color:#9aa0a6}
+body.dark .monthly-financial-item{color:#e8eaed}
+body.dark .monthly-financial-item + .monthly-financial-item{border-right-color:#2c3038}
+body.dark .monthly-financial-item small{color:#9aa0a6}
+body.dark .monthly-financial-item strong{color:#f1f3f4}
+body.dark .monthly-financial-item em{color:#7b818b}
+
 @media(max-width:700px){.monthly-financial-summary.is-open{max-width:100%;box-sizing:border-box}.monthly-financial-summary.is-open .monthly-financial-content{max-width:calc(100vw - 86px);overflow-x:auto}.monthly-financial-period{min-height:36px}.monthly-financial-item{flex:1;min-width:122px}}
 
 .balance-audit-btn {
@@ -16895,4 +16909,162 @@ html #app.dark .monthly-financial-summary.is-open .monthly-financial-toggle {
   color: #fff !important;
   box-shadow: none !important;
 }
+</style>
+
+<style>
+html body.dark .appointment-patient-name-value,
+html #app.dark .appointment-patient-name-value {
+  color: #f1f3f4 !important;
+}
+html body.dark .appointment-patient-name-value.problematic-customer-name,
+html body.dark .appointment-patient-name input.problematic-customer-name,
+html #app.dark .appointment-patient-name-value.problematic-customer-name,
+html #app.dark .appointment-patient-name input.problematic-customer-name {
+  color: #fca5a5 !important;
+  -webkit-text-fill-color: #fca5a5 !important;
+}
+html body.dark .financial-panel > header,
+html body.dark .financial-panel > footer,
+html body.dark .financial-invoice-card,
+html body.dark .financial-accordion-section,
+html body.dark .financial-accordion-head,
+html body.dark .financial-accordion-body,
+html body.dark .financial-invoice-table-wrap,
+html body.dark .financial-invoice-table-wrap th,
+html #app.dark .financial-panel > header,
+html #app.dark .financial-panel > footer,
+html #app.dark .financial-invoice-card,
+html #app.dark .financial-accordion-section,
+html #app.dark .financial-accordion-head,
+html #app.dark .financial-accordion-body,
+html #app.dark .financial-invoice-table-wrap,
+html #app.dark .financial-invoice-table-wrap th {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .financial-accordion-head,
+html body.dark .financial-payable-total,
+html body.dark .financial-payable-total strong,
+html body.dark .financial-invoice-table-wrap td,
+html #app.dark .financial-accordion-head,
+html #app.dark .financial-payable-total,
+html #app.dark .financial-payable-total strong,
+html #app.dark .financial-invoice-table-wrap td { color: #f1f3f4 !important; }
+html body.dark .financial-accordion-head b,
+html body.dark .financial-panel > header small,
+html body.dark .financial-invoice-table-wrap th,
+html body.dark .financial-invoice-table-wrap td small,
+html #app.dark .financial-accordion-head b,
+html #app.dark .financial-panel > header small,
+html #app.dark .financial-invoice-table-wrap th,
+html #app.dark .financial-invoice-table-wrap td small { color: #9aa0a6 !important; background: transparent !important; }
+html body.dark .financial-method-choices button,
+html body.dark .financial-cancel,
+html #app.dark .financial-method-choices button,
+html #app.dark .financial-cancel {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .financial-method-choices button.active,
+html #app.dark .financial-method-choices button.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #dbeafe !important;
+}
+html body.dark .financial-save,
+html #app.dark .financial-save { background: #4f8cff !important; border-color: #4f8cff !important; color: #fff !important; }
+html body.dark .financial-patient-warning,
+html #app.dark .financial-patient-warning { background: #3a3420 !important; border-color: #6b5a2e !important; color: #fcd34d !important; }
+html body.dark .financial-debt-line,
+html body.dark .financial-deposit-line,
+html body.dark .financial-previous-debts article,
+html #app.dark .financial-debt-line,
+html #app.dark .financial-deposit-line,
+html #app.dark .financial-previous-debts article {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .completion-sms-card,
+html body.dark .completion-sms-empty,
+html body.dark .completion-sms-modal > footer,
+html body.dark .completion-referral-info,
+html body.dark .completion-automatic-sms-button,
+html body.dark .sms-queue-confirm,
+html body.dark .sms-queue-item,
+html body.dark .sms-queue-modal > footer,
+html body.dark .tracking-edit-panel,
+html body.dark .row-actions-menu,
+html body.dark .row-actions-menu > header,
+html body.dark .doctor-note-chat,
+html body.dark .doctor-note-bubble,
+html body.dark .doctor-note-composer,
+html body.dark .doctor-note-toolbar,
+html body.dark .automatic-sms-modal > footer,
+html body.dark .automatic-sms-modal-list > article,
+html body.dark .service-filter-modal > footer,
+html body.dark .amount-filter-modal > footer,
+html #app.dark .completion-sms-card,
+html #app.dark .completion-sms-empty,
+html #app.dark .completion-sms-modal > footer,
+html #app.dark .completion-referral-info,
+html #app.dark .completion-automatic-sms-button,
+html #app.dark .sms-queue-confirm,
+html #app.dark .sms-queue-item,
+html #app.dark .sms-queue-modal > footer,
+html #app.dark .tracking-edit-panel,
+html #app.dark .row-actions-menu,
+html #app.dark .row-actions-menu > header,
+html #app.dark .doctor-note-chat,
+html #app.dark .doctor-note-bubble,
+html #app.dark .doctor-note-composer,
+html #app.dark .doctor-note-toolbar,
+html #app.dark .automatic-sms-modal > footer,
+html #app.dark .automatic-sms-modal-list > article,
+html #app.dark .service-filter-modal > footer,
+html #app.dark .amount-filter-modal > footer {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .completion-sms-card strong,
+html body.dark .completion-sms-empty strong,
+html body.dark .sms-queue-item strong,
+html body.dark .row-actions-menu strong,
+html #app.dark .completion-sms-card strong,
+html #app.dark .completion-sms-empty strong,
+html #app.dark .sms-queue-item strong,
+html #app.dark .row-actions-menu strong { color: #f1f3f4 !important; }
+html body.dark .completion-sms-card small,
+html body.dark .completion-sms-empty p,
+html body.dark .completion-sms-modal header span,
+html body.dark .sms-queue-item small,
+html body.dark .row-actions-menu small,
+html #app.dark .completion-sms-card small,
+html #app.dark .completion-sms-empty p,
+html #app.dark .completion-sms-modal header span,
+html #app.dark .sms-queue-item small,
+html #app.dark .row-actions-menu small { color: #9aa0a6 !important; }
+html body.dark .completion-sms-cancel,
+html body.dark .row-actions-menu > button,
+html body.dark .row-actions-trigger,
+html #app.dark .completion-sms-cancel,
+html #app.dark .row-actions-menu > button,
+html #app.dark .row-actions-trigger {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .completion-sms-send,
+html body.dark .completion-sms-empty button,
+html #app.dark .completion-sms-send,
+html #app.dark .completion-sms-empty button { background: #4f8cff !important; color: #fff !important; }
+html body.dark .completion-sms-card.sent,
+html #app.dark .completion-sms-card.sent { background: #14352a !important; border-color: #166534 !important; }
+html body.dark .completion-sms-card.failed,
+html #app.dark .completion-sms-card.failed { background: #3a2426 !important; border-color: #7f1d1d !important; }
+html body.dark .row-actions-menu > button:hover,
+html #app.dark .row-actions-menu > button:hover { background: #323846 !important; color: #f1f3f4 !important; }
 </style>

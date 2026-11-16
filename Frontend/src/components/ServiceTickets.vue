@@ -210,3 +210,110 @@ export default {
 <style scoped>
 .service-ticket-page{display:grid;gap:18px;color:#0f172a}.service-ticket-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:20px;border:1px solid #dbeafe;border-radius:18px;background:#fff;box-shadow:0 14px 36px rgba(15,23,42,.07)}.service-ticket-head small{color:#2563eb;font-size:11px;font-weight:900}.service-ticket-head h1{margin:4px 0 0;font-size:24px}.service-ticket-head button,.service-ticket-form button{height:40px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}.service-ticket-head button{padding:0 14px;background:#0f172a}.service-ticket-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.service-ticket-stats article{display:grid;gap:5px;padding:15px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.service-ticket-stats span{color:#64748b;font-size:11px;font-weight:900}.service-ticket-stats strong{font-size:22px}.service-ticket-layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:16px;align-items:start}.service-ticket-form,.service-ticket-list,.service-chat-page{display:grid;gap:12px;padding:16px;border:1px solid #e2e8f0;border-radius:18px;background:#fff}.service-ticket-form h2{margin:0;font-size:18px}.service-ticket-form input,.service-ticket-form textarea,.service-ticket-toolbar select{width:100%;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;font-family:inherit;font-weight:800}.service-ticket-form input,.service-ticket-toolbar select{height:42px;padding:0 12px}.service-ticket-form textarea{padding:12px;line-height:2;resize:vertical}.service-file-field{height:42px;display:grid;place-items:center;border:1px dashed #93c5fd;border-radius:12px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:900;cursor:pointer}.service-file-field input{display:none}.service-ticket-message{margin:0;color:#15803d;font-size:12px;font-weight:900}.service-ticket-error{margin:0;color:#dc2626;font-size:12px;font-weight:900}.service-ticket-form button:disabled{background:#cbd5e1;cursor:not-allowed}.service-ticket-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px}.service-ticket-toolbar strong{font-size:17px}.service-ticket-toolbar select{max-width:180px}.service-ticket-card{display:grid;gap:10px;padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc;cursor:pointer;transition:.16s}.service-ticket-card:hover{border-color:#93c5fd;background:#fff}.service-ticket-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.service-ticket-card header div{display:grid;gap:4px}.service-ticket-card small{color:#64748b;font-size:11px;font-weight:800}.service-ticket-card p{margin:0;color:#334155;font-size:13px;line-height:2}.service-open-question{width:max-content;height:34px;padding:0 12px;border:0;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer}.status-pill{width:max-content;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:900}.status-open{background:#fff7ed;color:#c2410c}.status-answered{background:#dcfce7;color:#15803d}.status-closed{background:#e2e8f0;color:#475569}.service-ticket-empty{padding:26px;border:1px dashed #cbd5e1;border-radius:14px;color:#64748b;text-align:center;font-weight:900}.service-chat-page>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #e2e8f0;padding-bottom:12px}.service-chat-page h2{margin:4px 0 8px;font-size:20px}.service-chat-page small,.chat-message small{color:#64748b;font-size:11px;font-weight:900}.service-chat-page>header button{height:38px;padding:0 12px;border:0;border-radius:11px;background:#0f172a;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}.service-chat-thread{display:grid;gap:12px;padding:12px;border-radius:16px;background:#f8fafc}.chat-message{max-width:min(680px,92%);display:grid;gap:8px;padding:13px;border:1px solid #e2e8f0;border-radius:16px;background:#fff}.chat-message p{margin:0;color:#1f2937;line-height:2}.from-user{justify-self:end;border-bottom-right-radius:5px}.from-admin{justify-self:start;border-color:#bbf7d0;background:#ecfdf5;border-bottom-left-radius:5px}.chat-image-thumb{width:150px;height:110px;padding:0;border:1px solid #dbeafe;border-radius:12px;overflow:hidden;background:#fff;cursor:pointer}.chat-image-thumb img{width:100%;height:100%;object-fit:cover;display:block}.chat-message a{width:max-content;color:#2563eb;font-size:12px;font-weight:900}.chat-waiting{padding:14px;border:1px dashed #cbd5e1;border-radius:14px;color:#64748b;text-align:center;font-weight:900}.image-lightbox{position:fixed;inset:0;z-index:1000003;display:grid;place-items:center;padding:22px;border:0;background:rgba(15,23,42,.78);cursor:zoom-out}.image-lightbox img{max-width:min(980px,96vw);max-height:90vh;border-radius:14px;background:#fff;box-shadow:0 26px 90px rgba(0,0,0,.35)}@media(max-width:900px){.service-ticket-layout,.service-ticket-stats{grid-template-columns:1fr}.service-ticket-head,.service-ticket-toolbar,.service-chat-page>header{align-items:stretch;flex-direction:column}.service-ticket-toolbar select{max-width:none}.chat-message{max-width:100%}}
 </style>
+
+<style>
+html body.dark .service-ticket-page,
+html #app.dark .service-ticket-page { color: #e8eaed !important; }
+html body.dark .service-ticket-head,
+html body.dark .service-ticket-stats article,
+html body.dark .service-ticket-form,
+html body.dark .service-ticket-list,
+html body.dark .service-ticket-card,
+html body.dark .service-chat-page,
+html body.dark .service-chat-thread,
+html body.dark .chat-message,
+html #app.dark .service-ticket-head,
+html #app.dark .service-ticket-stats article,
+html #app.dark .service-ticket-form,
+html #app.dark .service-ticket-list,
+html #app.dark .service-ticket-card,
+html #app.dark .service-chat-page,
+html #app.dark .service-chat-thread,
+html #app.dark .chat-message {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .service-ticket-head h1,
+html body.dark .service-ticket-form h2,
+html body.dark .service-ticket-toolbar strong,
+html body.dark .service-ticket-card strong,
+html body.dark .service-chat-page h2,
+html body.dark .service-ticket-stats strong,
+html #app.dark .service-ticket-head h1,
+html #app.dark .service-ticket-form h2,
+html #app.dark .service-ticket-toolbar strong,
+html #app.dark .service-ticket-card strong,
+html #app.dark .service-chat-page h2,
+html #app.dark .service-ticket-stats strong { color: #f1f3f4 !important; }
+html body.dark .service-ticket-head small,
+html body.dark .service-ticket-stats span,
+html body.dark .service-ticket-card small,
+html body.dark .service-ticket-card p,
+html body.dark .service-chat-page small,
+html body.dark .chat-message small,
+html body.dark .chat-message p,
+html body.dark .service-ticket-empty,
+html body.dark .chat-waiting,
+html #app.dark .service-ticket-head small,
+html #app.dark .service-ticket-stats span,
+html #app.dark .service-ticket-card small,
+html #app.dark .service-ticket-card p,
+html #app.dark .service-chat-page small,
+html #app.dark .chat-message small,
+html #app.dark .chat-message p,
+html #app.dark .service-ticket-empty,
+html #app.dark .chat-waiting { color: #9aa0a6 !important; }
+html body.dark .service-ticket-form input,
+html body.dark .service-ticket-form textarea,
+html body.dark .service-ticket-toolbar select,
+html #app.dark .service-ticket-form input,
+html #app.dark .service-ticket-form textarea,
+html #app.dark .service-ticket-toolbar select {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .service-ticket-form input::placeholder,
+html body.dark .service-ticket-form textarea::placeholder,
+html #app.dark .service-ticket-form input::placeholder,
+html #app.dark .service-ticket-form textarea::placeholder {
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+  opacity: 1 !important;
+}
+html body.dark .service-file-field,
+html body.dark .service-open-question,
+html body.dark .service-ticket-head button,
+html body.dark .service-chat-page > header button,
+html #app.dark .service-file-field,
+html #app.dark .service-open-question,
+html #app.dark .service-ticket-head button,
+html #app.dark .service-chat-page > header button {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .service-ticket-form button,
+html #app.dark .service-ticket-form button {
+  background: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .service-ticket-form button:disabled,
+html #app.dark .service-ticket-form button:disabled {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .status-open,
+html #app.dark .status-open { background: #3a3420 !important; color: #fcd34d !important; }
+html body.dark .status-answered,
+html body.dark .chat-message.from-admin,
+html #app.dark .status-answered,
+html #app.dark .chat-message.from-admin { background: #14352a !important; border-color: #166534 !important; color: #86efac !important; }
+html body.dark .status-closed,
+html #app.dark .status-closed { background: #2a2f3a !important; color: #c5cad3 !important; }
+html body.dark .service-chat-page > header,
+html #app.dark .service-chat-page > header { border-color: #2c3038 !important; }
+</style>
