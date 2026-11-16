@@ -1,12 +1,12 @@
 <template>
-  <div dir="rtl" style="min-height:100vh;background:#f1f4f9;color:#0f172a;padding-bottom:60px">
+  <div class="nsr" dir="rtl" :style="nsrShellStyle">
   
     <div style="height:8px"></div>
     <main style="max-width:1440px;margin:0 auto;padding:8px 24px 0">
   
       <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px">
-        <h1 style="margin:0;font-size:22px;font-weight:800;color:#0f172a">گزارشات</h1>
-        <div style="display:flex;gap:8px;background:#e6ebf3;border-radius:999px;padding:4px">
+        <h1 class="nsr-title">گزارشات</h1>
+        <div class="nsr-tabs">
           <button :style="v.tR" @click="v.onTR">داشبورد</button>
           <button :style="v.tA" @click="$emit('open-builder')">گزارش‌ساز</button>
         </div>
@@ -987,6 +987,7 @@ export default {
     const currentMonthText = String(currentMonth).padStart(2, '0');
     const currentDayText = String(currentDay).padStart(2, '0');
     return {
+      isDarkUi: false,
       KEYS: ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'],
       NAMES: {ctype:'دسته‌بندی مشتریان',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'هزینه‌ها',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
       s: {
@@ -1016,8 +1017,14 @@ export default {
     };
   },
   computed: {
+    nsrShellStyle() {
+      return this.isDarkUi
+        ? 'min-height:100vh;background:#121316;color:#e8eaed;padding-bottom:60px'
+        : 'min-height:100vh;background:#f1f4f9;color:#0f172a;padding-bottom:60px';
+    },
     v() {
     const S = this.s;
+    const dark = this.isDarkUi;
     const fa = n => Math.round(n).toLocaleString('fa-IR');
     // همهٔ مبلغ‌های گزارش کامل و با «تومان» نوشته می‌شوند (نه «۲۴۸٫۴ میلیون»).
     const toman = value => (value === null || value === undefined || value === '' || Number.isNaN(Number(value)))
@@ -1027,7 +1034,7 @@ export default {
     const C = 2 * Math.PI * 54;
 
     // chip style helper
-    const chip = a => 'padding:5px 13px;border-radius:999px;border:1px solid ' + (a?'#2563eb':'#e2e8f0') + ';background:' + (a?'#eff6ff':'#ffffff') + ';color:' + (a?'#1d4ed8':'#475569') + ';font-size:12px;cursor:pointer;font-weight:' + (a?'700':'500');
+    const chip = a => 'padding:5px 13px;border-radius:999px;border:1px solid ' + (a?(dark?'#4f8cff':'#2563eb'):(dark?'#3a3f4a':'#e2e8f0')) + ';background:' + (a?(dark?'#1e3a5f':'#eff6ff'):(dark?'#22252d':'#ffffff')) + ';color:' + (a?(dark?'#93c5fd':'#1d4ed8'):(dark?'#c5cad3':'#475569')) + ';font-size:12px;cursor:pointer;font-weight:' + (a?'700':'500');
 
     // filters
     const fCount = Object.values(S.filters).filter(Boolean).length + (S.bdFrom?1:0) + (S.bdTo?1:0);
@@ -1102,7 +1109,12 @@ export default {
     const dashList = this.KEYS.map(key => ({t: this.NAMES[key], ck: !S.hidden[key], on: hide[key]}));
 
     // KPIs
-    const gUp = {gb:'#dcfce7', gc:'#15803d'}, gDn = {gb:'#fee2e2', gc:'#b91c1c'};
+    const gUp = dark
+      ? {gb:'#14532d', gc:'#86efac'}
+      : {gb:'#dcfce7', gc:'#15803d'};
+    const gDn = dark
+      ? {gb:'#7f1d1d', gc:'#fecaca'}
+      : {gb:'#fee2e2', gc:'#b91c1c'};
     // مبلغ کامل طولانی‌تر است؛ اندازهٔ عدد کارت‌ها متناسب کوچک شده تا در یک خط بماند.
     const sm = {sp:'auto', vs:'clamp(13px,1.15vw,16px)', ts:'12px'}, lg = {sp:'span 2', vs:'clamp(16px,1.6vw,22px)', ts:'13.5px'};
     const dashboardSnapshot = this.dashboardSnapshot;
@@ -1117,17 +1129,17 @@ export default {
     const dashboardKpis = S.reportSummary?.kpis || {};
     const kpiMoney = value => dashboardReady ? reportMoney(Number(value || 0) / 1000000) : '--';
     const kpis = [
-      {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده، پس از تخفیف' : '--', ...gUp, bg:'#eff6ff', bd:'#bfdbfe', tc:'#1d4ed8', ...lg},
-      {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'درآمد − هزینه‌ها − پزشک و پرسنل − مواد مصرفی' : '--', ...gUp, bg:'#f0fdf4', bd:'#bbf7d0', tc:'#15803d', ...lg},
-      {t:'دریافتی', v:kpiMoney(dashboardKpis.cash_collected), g:dashboardReady ? 'نقد، کارت، چک و کیف پول' : '--', ...gUp, bg:'#ecfeff', bd:'#a5f3fc', tc:'#0e7490', ...sm},
-      {t:'بدهی بیماران', v:kpiMoney(dashboardKpis.receivables), g:dashboardReady ? 'ماندهٔ نوبت‌های انجام‌شده' : '--', ...gDn, bg:'#fefce8', bd:'#fde047', tc:'#a16207', ...sm},
-      {t:'تبلیغات', v:kpiMoney(advertisingCost), g:dashboardReady ? 'هزینه تبلیغات ثبت‌شده' : '--', ...gDn, bg:'#fff7ed', bd:'#fed7aa', tc:'#c2410c', ...sm},
-      {t:'هزینه پزشک', v:kpiMoney(dashboardKpis.doctor_cost), g:dashboardReady ? 'حقوق و پورسانت پزشکان' : '--', ...gDn, bg:'#f0f9ff', bd:'#bae6fd', tc:'#0369a1', ...sm},
-      {t:'حقوق پرسنل', v:kpiMoney(dashboardKpis.staff_cost), g:dashboardReady ? 'حقوق و پورسانت پرسنل' : '--', gb:'#f1f5f9', gc:'#64748b', bg:'#faf5ff', bd:'#e9d5ff', tc:'#7c3aed', ...sm},
-      {t:'مواد مصرفی', v:kpiMoney(dashboardKpis.materials_cost), g:dashboardReady ? 'مواد خدمات انجام‌شده (از انبار)' : '--', ...gUp, bg:'#fffbeb', bd:'#fde68a', tc:'#b45309', ...sm},
-      {t:'هزینه‌ها', v:kpiMoney(dashboardKpis.expenses), g:dashboardReady ? (Number(dashboardKpis.material_purchases || 0) > 0 ? `شامل ${kpiMoney(dashboardKpis.material_purchases)} خرید مواد که از سود کم نمی‌شود` : 'جمع هزینه‌های ثبت‌شده در بازه') : '--', ...gDn, bg:'#fff1f2', bd:'#fecdd3', tc:'#be123c', ...sm},
-      {t:'میزان تخفیف‌ها', v:kpiMoney(dashboardKpis.discount_total), g:dashboardReady ? 'تخفیف نوبت‌های انجام‌شده' : '--', ...gDn, bg:'#fdf2f8', bd:'#fbcfe8', tc:'#be185d', ...sm},
-      {t:'تعداد مراجعین', v:dashboardReady ? fa(dashboardKpis.visitors_count || 0)+' نفر' : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده' : '--', ...gUp, bg:'#f0fdfa', bd:'#99f6e4', tc:'#0d9488', ...sm}
+      {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده، پس از تخفیف' : '--', ...gUp, bg:dark?'#1e3a5f':'#eff6ff', bd:dark?'#3b82f6':'#bfdbfe', tc:dark?'#93c5fd':'#1d4ed8', ...lg},
+      {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'درآمد − هزینه‌ها − پزشک و پرسنل − مواد مصرفی' : '--', ...gUp, bg:dark?'#14352a':'#f0fdf4', bd:dark?'#22c55e':'#bbf7d0', tc:dark?'#86efac':'#15803d', ...lg},
+      {t:'دریافتی', v:kpiMoney(dashboardKpis.cash_collected), g:dashboardReady ? 'نقد، کارت، چک و کیف پول' : '--', ...gUp, bg:dark?'#164e63':'#ecfeff', bd:dark?'#22d3ee':'#a5f3fc', tc:dark?'#67e8f9':'#0e7490', ...sm},
+      {t:'بدهی بیماران', v:kpiMoney(dashboardKpis.receivables), g:dashboardReady ? 'ماندهٔ نوبت‌های انجام‌شده' : '--', ...gDn, bg:dark?'#3a2e14':'#fefce8', bd:dark?'#eab308':'#fde047', tc:dark?'#fde68a':'#a16207', ...sm},
+      {t:'تبلیغات', v:kpiMoney(advertisingCost), g:dashboardReady ? 'هزینه تبلیغات ثبت‌شده' : '--', ...gDn, bg:dark?'#3a2414':'#fff7ed', bd:dark?'#fb923c':'#fed7aa', tc:dark?'#fdba74':'#c2410c', ...sm},
+      {t:'هزینه پزشک', v:kpiMoney(dashboardKpis.doctor_cost), g:dashboardReady ? 'حقوق و پورسانت پزشکان' : '--', ...gDn, bg:dark?'#0c4a6e':'#f0f9ff', bd:dark?'#38bdf8':'#bae6fd', tc:dark?'#7dd3fc':'#0369a1', ...sm},
+      {t:'حقوق پرسنل', v:kpiMoney(dashboardKpis.staff_cost), g:dashboardReady ? 'حقوق و پورسانت پرسنل' : '--', gb:dark?'#2a2f3a':'#f1f5f9', gc:dark?'#9aa0a6':'#64748b', bg:dark?'#2e1065':'#faf5ff', bd:dark?'#a78bfa':'#e9d5ff', tc:dark?'#c4b5fd':'#7c3aed', ...sm},
+      {t:'مواد مصرفی', v:kpiMoney(dashboardKpis.materials_cost), g:dashboardReady ? 'مواد خدمات انجام‌شده (از انبار)' : '--', ...gUp, bg:dark?'#3a2e14':'#fffbeb', bd:dark?'#fbbf24':'#fde68a', tc:dark?'#fcd34d':'#b45309', ...sm},
+      {t:'هزینه‌ها', v:kpiMoney(dashboardKpis.expenses), g:dashboardReady ? (Number(dashboardKpis.material_purchases || 0) > 0 ? `شامل ${kpiMoney(dashboardKpis.material_purchases)} خرید مواد که از سود کم نمی‌شود` : 'جمع هزینه‌های ثبت‌شده در بازه') : '--', ...gDn, bg:dark?'#3a1d1d':'#fff1f2', bd:dark?'#fb7185':'#fecdd3', tc:dark?'#fda4af':'#be123c', ...sm},
+      {t:'میزان تخفیف‌ها', v:kpiMoney(dashboardKpis.discount_total), g:dashboardReady ? 'تخفیف نوبت‌های انجام‌شده' : '--', ...gDn, bg:dark?'#4a044e':'#fdf2f8', bd:dark?'#f472b6':'#fbcfe8', tc:dark?'#f9a8d4':'#be185d', ...sm},
+      {t:'تعداد مراجعین', v:dashboardReady ? fa(dashboardKpis.visitors_count || 0)+' نفر' : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده' : '--', ...gUp, bg:dark?'#134e4a':'#f0fdfa', bd:dark?'#2dd4bf':'#99f6e4', tc:dark?'#5eead4':'#0d9488', ...sm}
     ];
 
     // Expenses are already grouped and date-filtered by the report API.
@@ -1165,7 +1177,7 @@ export default {
       ? S.reportSummary.monthly_trends
       : latestMonthKeys.map(month => ({month,revenue:null,growth_percent:null}));
     const MONTH_NAMES = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-    const box = a => 'flex:1;min-width:160px;background:' + (a?'#eff6ff':'#ffffff') + ';border:1.5px solid ' + (a?'#2563eb':'#e2e8f0') + ';border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 3px rgba(15,23,42,0.05)';
+    const box = a => 'flex:1;min-width:160px;background:' + (a?(dark?'#1e3a5f':'#eff6ff'):(dark?'#1a1c22':'#ffffff')) + ';border:1.5px solid ' + (a?(dark?'#4f8cff':'#2563eb'):(dark?'#2c3038':'#e2e8f0')) + ';border-radius:14px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 3px ' + (dark?'rgba(0,0,0,0.32)':'rgba(15,23,42,0.05)');
     const monthsV = monthlyTrendRows.map(row => {
       const [year, month] = String(row.month).split('-').map(Number);
       const growth = row.growth_percent == null ? null : Number(row.growth_percent);
@@ -1530,7 +1542,7 @@ export default {
     const stSegs = segs(ST.map(s => stT ? s.v/stT : 0));
     const stLegend = ST.filter(s=>s.v>0).map(s => ({n:s.n,c:s.c,cnt:dashboardReady?fa(s.v):'—',p:dashboardReady?pc(Math.round(s.v/stT*100)):'—'}));
 
-    const tabSt = a => 'border:none;border-radius:999px;padding:8px 22px;font-size:13px;cursor:pointer;font-weight:' + (a?'800':'600') + ';background:' + (a?'#ffffff':'transparent') + ';color:' + (a?'#1d4ed8':'#64748b') + ';box-shadow:' + (a?'0 1px 4px rgba(15,23,42,0.1)':'none');
+    const tabSt = a => 'border:none;border-radius:999px;padding:8px 22px;font-size:13px;cursor:pointer;font-weight:' + (a?'800':'600') + ';background:' + (a?(dark?'#1a1c22':'#ffffff'):'transparent') + ';color:' + (a?(dark?'#4f8cff':'#1d4ed8'):(dark?'#9aa0a6':'#64748b')) + ';box-shadow:' + (a?(dark?'0 1px 4px rgba(0,0,0,0.35)':'0 1px 4px rgba(15,23,42,0.1)'):'none');
 
     return {
       // tabs
@@ -1672,6 +1684,11 @@ export default {
     }
   },
   mounted() {
+    this.syncDarkUi();
+    this._darkMo = new MutationObserver(() => this.syncDarkUi());
+    this._darkMo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    const appEl = document.getElementById('app');
+    if (appEl) this._darkMo.observe(appEl, { attributes: true, attributeFilter: ['class'] });
     this.loadDashboardSnapshot();
     this.loadCustomerSegmentSnapshot();
     this.loadStaffRoster();
@@ -1733,6 +1750,7 @@ export default {
     document.addEventListener('pointerdown', this._onPointerDown, true);
   },
   unmounted() {
+    if (this._darkMo) this._darkMo.disconnect();
     clearTimeout(this.customerSegmentPollingTimer);
     clearTimeout(this.dashboardPollingTimer);
     clearTimeout(this.staffIncomePollingTimer);
@@ -1759,6 +1777,12 @@ export default {
     document.removeEventListener('pointerdown', this._onPointerDown, true);
   },
   methods: {
+    syncDarkUi() {
+      const appDark = !!document.getElementById('app')?.classList.contains('dark');
+      const bodyDark = document.body.classList.contains('dark');
+      this.isDarkUi = appDark || bodyDark || localStorage.getItem('darkMode') === 'true';
+    },
+
     async selectReportMonthKey(monthKey) {
       const [year, month] = String(monthKey).split('-').map(Number);
       const lastDay = month <= 6 ? 31 : (month <= 11 ? 30 : 29);
@@ -2588,237 +2612,277 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 </style>
 
 <style>
-/* NativeStaticReports dark mode — shell + classed widgets + inline light surfaces */
-html body.dark .reports-page > div[dir="rtl"],
-html #app.dark .reports-page > div[dir="rtl"] {
+/* NativeStaticReports dark mode — nsr root + inline white surfaces */
+html body.dark .nsr,
+html #app.dark .nsr {
   background: #121316 !important;
   color: #e8eaed !important;
 }
-html body.dark .reports-page h1,
-html #app.dark .reports-page h1 {
+html body.dark .nsr h1,
+html #app.dark .nsr h1 { color: #f1f3f4 !important; }
+html body.dark .nsr .report-date-input,
+html #app.dark .nsr .report-date-input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
   color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
 }
-/* inline white / pale surfaces used throughout the dashboard */
-html body.dark .reports-page [style*="background:#ffffff"],
-html body.dark .reports-page [style*="background:#fff"],
-html body.dark .reports-page [style*="background: #fff"],
-html body.dark .reports-page [style*="background:#FFFFFF"],
-html body.dark .reports-page [style*="background:#f8fafc"],
-html body.dark .reports-page [style*="background:#f1f4f9"],
-html body.dark .reports-page [style*="background:#f1f5f9"],
-html body.dark .reports-page [style*="background:#e6ebf3"],
-html body.dark .reports-page [style*="background:#eff6ff"],
-html body.dark .reports-page [style*="background:#f8fbff"],
-html #app.dark .reports-page [style*="background:#ffffff"],
-html #app.dark .reports-page [style*="background:#fff"],
-html #app.dark .reports-page [style*="background: #fff"],
-html #app.dark .reports-page [style*="background:#FFFFFF"],
-html #app.dark .reports-page [style*="background:#f8fafc"],
-html #app.dark .reports-page [style*="background:#f1f4f9"],
-html #app.dark .reports-page [style*="background:#f1f5f9"],
-html #app.dark .reports-page [style*="background:#e6ebf3"],
-html #app.dark .reports-page [style*="background:#eff6ff"],
-html #app.dark .reports-page [style*="background:#f8fbff"] {
+html body.dark .nsr [style*="background:#ffffff"],
+html body.dark .nsr [style*="background:#FFFFFF"],
+html body.dark .nsr [style*="background:#fff;"],
+html body.dark .nsr [style*="background:#fff,"],
+html body.dark .nsr [style*="background:#fff "],
+html body.dark .nsr [style*="background:#f8fafc"],
+html body.dark .nsr [style*="background:#f1f4f9"],
+html body.dark .nsr [style*="background:#f1f5f9"],
+html body.dark .nsr [style*="background:#e6ebf3"],
+html body.dark .nsr [style*="background:#eff6ff"],
+html body.dark .nsr [style*="background:#f8fbff"],
+html body.dark .nsr [style*="background:#ecfeff"],
+html body.dark .nsr [style*="background:#f0fdf4"],
+html body.dark .nsr [style*="background:#fefce8"],
+html body.dark .nsr [style*="background:#fff7ed"],
+html body.dark .nsr [style*="background:#f0f9ff"],
+html body.dark .nsr [style*="background:#faf5ff"],
+html body.dark .nsr [style*="background:#fffbeb"],
+html body.dark .nsr [style*="background:#fff1f2"],
+html body.dark .nsr [style*="background:#fdf2f8"],
+html body.dark .nsr [style*="background:#f0fdfa"],
+html body.dark .nsr [style*="background:#ecfdf5"],
+html body.dark .nsr [style*="background:#fef2f2"],
+html body.dark .nsr [style*="background:#fff7f7"],
+html body.dark .nsr [style*="background:#dcfce7"],
+html body.dark .nsr [style*="background:#fee2e2"],
+html body.dark .nsr [style*="background:#e2e8f0"],
+html body.dark .nsr [style*="background:#f5f3ff"],
+html #app.dark .nsr [style*="background:#ffffff"],
+html #app.dark .nsr [style*="background:#FFFFFF"],
+html #app.dark .nsr [style*="background:#fff;"],
+html #app.dark .nsr [style*="background:#fff,"],
+html #app.dark .nsr [style*="background:#fff "],
+html #app.dark .nsr [style*="background:#f8fafc"],
+html #app.dark .nsr [style*="background:#f1f4f9"],
+html #app.dark .nsr [style*="background:#f1f5f9"],
+html #app.dark .nsr [style*="background:#e6ebf3"],
+html #app.dark .nsr [style*="background:#eff6ff"],
+html #app.dark .nsr [style*="background:#f8fbff"],
+html #app.dark .nsr [style*="background:#ecfeff"],
+html #app.dark .nsr [style*="background:#f0fdf4"],
+html #app.dark .nsr [style*="background:#fefce8"],
+html #app.dark .nsr [style*="background:#fff7ed"],
+html #app.dark .nsr [style*="background:#f0f9ff"],
+html #app.dark .nsr [style*="background:#faf5ff"],
+html #app.dark .nsr [style*="background:#fffbeb"],
+html #app.dark .nsr [style*="background:#fff1f2"],
+html #app.dark .nsr [style*="background:#fdf2f8"],
+html #app.dark .nsr [style*="background:#f0fdfa"],
+html #app.dark .nsr [style*="background:#ecfdf5"],
+html #app.dark .nsr [style*="background:#fef2f2"],
+html #app.dark .nsr [style*="background:#fff7f7"],
+html #app.dark .nsr [style*="background:#dcfce7"],
+html #app.dark .nsr [style*="background:#fee2e2"],
+html #app.dark .nsr [style*="background:#e2e8f0"],
+html #app.dark .nsr [style*="background:#f5f3ff"] {
   background: #1a1c22 !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
   box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
 }
-html body.dark .reports-page [style*="color:#0f172a"],
-html body.dark .reports-page [style*="color:#1e293b"],
-html body.dark .reports-page [style*="color:#334155"],
-html body.dark .reports-page [style*="color:#172554"],
-html #app.dark .reports-page [style*="color:#0f172a"],
-html #app.dark .reports-page [style*="color:#1e293b"],
-html #app.dark .reports-page [style*="color:#334155"],
-html #app.dark .reports-page [style*="color:#172554"] {
+html body.dark .nsr [style*="color:#0f172a"],
+html body.dark .nsr [style*="color:#1e293b"],
+html body.dark .nsr [style*="color:#334155"],
+html body.dark .nsr [style*="color:#172554"],
+html body.dark .nsr [style*="color:#475569"],
+html #app.dark .nsr [style*="color:#0f172a"],
+html #app.dark .nsr [style*="color:#1e293b"],
+html #app.dark .nsr [style*="color:#334155"],
+html #app.dark .nsr [style*="color:#172554"],
+html #app.dark .nsr [style*="color:#475569"] {
   color: #e8eaed !important;
 }
-html body.dark .reports-page [style*="color:#64748b"],
-html body.dark .reports-page [style*="color:#94a3b8"],
-html #app.dark .reports-page [style*="color:#64748b"],
-html #app.dark .reports-page [style*="color:#94a3b8"] {
+html body.dark .nsr [style*="color:#64748b"],
+html body.dark .nsr [style*="color:#94a3b8"],
+html #app.dark .nsr [style*="color:#64748b"],
+html #app.dark .nsr [style*="color:#94a3b8"] {
   color: #9aa0a6 !important;
 }
-html body.dark .reports-page [style*="border:1px solid #e2e8f0"],
-html body.dark .reports-page [style*="border:1px solid #e2e8f0"],
-html body.dark .reports-page [style*="border:1px solid #cbd5e1"],
-html #app.dark .reports-page [style*="border:1px solid #e2e8f0"],
-html #app.dark .reports-page [style*="border:1px solid #cbd5e1"] {
+html body.dark .nsr [style*="border:1px solid #e2e8f0"],
+html body.dark .nsr [style*="border:1px solid #cbd5e1"],
+html body.dark .nsr [style*="border:1.5px solid #e2e8f0"],
+html #app.dark .nsr [style*="border:1px solid #e2e8f0"],
+html #app.dark .nsr [style*="border:1px solid #cbd5e1"],
+html #app.dark .nsr [style*="border:1.5px solid #e2e8f0"] {
   border-color: #2c3038 !important;
 }
-html body.dark .reports-page .report-date-input,
-html #app.dark .reports-page .report-date-input {
-  background: #121417 !important;
-  border-color: #3a3f4a !important;
+html body.dark .nsr .kpi-summary-toolbar strong,
+html body.dark .nsr .rpt-money,
+html body.dark .nsr .expense-money,
+html body.dark .nsr .expense-summary-value,
+html body.dark .nsr .expense-row__name,
+html body.dark .nsr .cac-campaign-row > span,
+html body.dark .nsr .cac-campaign-row > b,
+html body.dark .nsr .satisfaction-report-question header strong,
+html body.dark .nsr .satisfaction-report-row b,
+html #app.dark .nsr .kpi-summary-toolbar strong,
+html #app.dark .nsr .rpt-money,
+html #app.dark .nsr .expense-money,
+html #app.dark .nsr .expense-summary-value,
+html #app.dark .nsr .expense-row__name,
+html #app.dark .nsr .cac-campaign-row > span,
+html #app.dark .nsr .cac-campaign-row > b,
+html #app.dark .nsr .satisfaction-report-question header strong,
+html #app.dark .nsr .satisfaction-report-row b {
   color: #f1f3f4 !important;
 }
-html body.dark .reports-page .kpi-summary-toolbar strong,
-html body.dark .reports-page .satisfaction-report-question header strong,
-html body.dark .reports-page .rpt-money,
-html body.dark .reports-page .expense-money,
-html body.dark .reports-page .expense-summary-value,
-html body.dark .reports-page .expense-row__name,
-html body.dark .reports-page .cac-campaign-row > span,
-html body.dark .reports-page .cac-campaign-row > b,
-html #app.dark .reports-page .kpi-summary-toolbar strong,
-html #app.dark .reports-page .satisfaction-report-question header strong,
-html #app.dark .reports-page .rpt-money,
-html #app.dark .reports-page .expense-money,
-html #app.dark .reports-page .expense-summary-value,
-html #app.dark .reports-page .expense-row__name,
-html #app.dark .reports-page .cac-campaign-row > span,
-html #app.dark .reports-page .cac-campaign-row > b {
-  color: #f1f3f4 !important;
-}
-html body.dark .reports-page .kpi-summary-toolbar small,
-html body.dark .reports-page .report-calculated-at,
-html body.dark .reports-page .report-widget-empty,
-html body.dark .reports-page .satisfaction-report-empty,
-html body.dark .reports-page .cac-campaign-row > small,
-html #app.dark .reports-page .kpi-summary-toolbar small,
-html #app.dark .reports-page .report-calculated-at,
-html #app.dark .reports-page .report-widget-empty,
-html #app.dark .reports-page .satisfaction-report-empty,
-html #app.dark .reports-page .cac-campaign-row > small {
+html body.dark .nsr .kpi-summary-toolbar small,
+html body.dark .nsr .report-calculated-at,
+html body.dark .nsr .report-widget-empty,
+html body.dark .nsr .satisfaction-report-empty,
+html body.dark .nsr .cac-campaign-row > small,
+html #app.dark .nsr .kpi-summary-toolbar small,
+html #app.dark .nsr .report-calculated-at,
+html #app.dark .nsr .report-widget-empty,
+html #app.dark .nsr .satisfaction-report-empty,
+html #app.dark .nsr .cac-campaign-row > small {
   color: #9aa0a6 !important;
 }
-html body.dark .reports-page .satisfaction-report-summary div,
-html body.dark .reports-page .satisfaction-report-question,
-html body.dark .reports-page .expense-row,
-html body.dark .reports-page .cac-campaign-row,
-html body.dark .reports-page .report-widget-empty,
-html #app.dark .reports-page .satisfaction-report-summary div,
-html #app.dark .reports-page .satisfaction-report-question,
-html #app.dark .reports-page .expense-row,
-html #app.dark .reports-page .cac-campaign-row,
-html #app.dark .reports-page .report-widget-empty {
+html body.dark .nsr .expense-row,
+html body.dark .nsr .cac-campaign-row,
+html body.dark .nsr .satisfaction-report-summary div,
+html body.dark .nsr .satisfaction-report-question,
+html body.dark .nsr .report-widget-empty,
+html #app.dark .nsr .expense-row,
+html #app.dark .nsr .cac-campaign-row,
+html #app.dark .nsr .satisfaction-report-summary div,
+html #app.dark .nsr .satisfaction-report-question,
+html #app.dark .nsr .report-widget-empty {
   background: #22252d !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
 }
-html body.dark .reports-page .satisfaction-report-row > div,
-html body.dark .reports-page .expense-row__bar,
-html body.dark .reports-page .report-card-scroll::-webkit-scrollbar-track,
-html #app.dark .reports-page .satisfaction-report-row > div,
-html #app.dark .reports-page .expense-row__bar,
-html #app.dark .reports-page .report-card-scroll::-webkit-scrollbar-track {
-  background: #121417 !important;
-}
-html body.dark .reports-page .report-card-scroll::-webkit-scrollbar-thumb,
-html #app.dark .reports-page .report-card-scroll::-webkit-scrollbar-thumb {
-  background: #3a3f4a !important;
-}
-html body.dark .reports-page [data-hover="1"]:hover,
-html body.dark .reports-page [data-drag-handle]:hover,
-html #app.dark .reports-page [data-hover="1"]:hover,
-html #app.dark .reports-page [data-drag-handle]:hover {
-  background: #2a2f3a !important;
-  color: #e8eaed !important;
-}
-html body.dark .reports-page .report-refresh-button,
-html body.dark .reports-page .kpi-calculate-button,
-html body.dark .reports-page .staff-income-calculate-button,
-html body.dark .reports-page .roi-calculate-button,
-html #app.dark .reports-page .report-refresh-button,
-html #app.dark .reports-page .kpi-calculate-button,
-html #app.dark .reports-page .staff-income-calculate-button,
-html #app.dark .reports-page .roi-calculate-button {
+html body.dark .nsr .report-refresh-button,
+html body.dark .nsr .kpi-calculate-button,
+html body.dark .nsr .staff-income-calculate-button,
+html body.dark .nsr .roi-calculate-button,
+html #app.dark .nsr .report-refresh-button,
+html #app.dark .nsr .kpi-calculate-button,
+html #app.dark .nsr .staff-income-calculate-button,
+html #app.dark .nsr .roi-calculate-button {
   background: #22252d !important;
   border-color: #3a3f4a !important;
   color: #4f8cff !important;
   box-shadow: none !important;
 }
-html body.dark .reports-page .report-refresh-button:hover:not(:disabled),
-html #app.dark .reports-page .report-refresh-button:hover:not(:disabled) {
-  background: #2a2f3a !important;
-  border-color: #5b6472 !important;
-}
-html body.dark .reports-page .cancellation-calculate-button,
-html #app.dark .reports-page .cancellation-calculate-button {
+html body.dark .nsr .cancellation-calculate-button,
+html #app.dark .nsr .cancellation-calculate-button {
   background: #3a2426 !important;
   border-color: #6b3a3a !important;
   color: #f5a8a0 !important;
-  box-shadow: none !important;
 }
-html body.dark .reports-page .loyalty-calculate-button,
-html #app.dark .reports-page .loyalty-calculate-button {
+html body.dark .nsr .loyalty-calculate-button,
+html #app.dark .nsr .loyalty-calculate-button {
   background: #1e2a28 !important;
   border-color: #3d6b5f !important;
   color: #86efac !important;
 }
-/* loading overlays stay dark, not washed white */
-html body.dark .reports-page .cancel-rate-loading,
-html body.dark .reports-page .customer-segment-loading,
-html body.dark .reports-page .kpi-summary-loading,
-html body.dark .reports-page .staff-income-loading,
-html body.dark .reports-page .roi-loading,
-html body.dark .reports-page .loyalty-loading,
-html body.dark .reports-page .age-statistics-loading,
-html body.dark .reports-page .city-statistics-loading,
-html #app.dark .reports-page .cancel-rate-loading,
-html #app.dark .reports-page .customer-segment-loading,
-html #app.dark .reports-page .kpi-summary-loading,
-html #app.dark .reports-page .staff-income-loading,
-html #app.dark .reports-page .roi-loading,
-html #app.dark .reports-page .loyalty-loading,
-html #app.dark .reports-page .age-statistics-loading,
-html #app.dark .reports-page .city-statistics-loading {
-  background: rgba(18,19,22,.86) !important;
+html body.dark .nsr .kpi-summary-loading,
+html body.dark .nsr .staff-income-loading,
+html body.dark .nsr .customer-segment-loading,
+html body.dark .nsr .cancel-rate-loading,
+html body.dark .nsr .roi-loading,
+html body.dark .nsr .loyalty-loading,
+html body.dark .nsr .age-statistics-loading,
+html body.dark .nsr .city-statistics-loading,
+html #app.dark .nsr .kpi-summary-loading,
+html #app.dark .nsr .staff-income-loading,
+html #app.dark .nsr .customer-segment-loading,
+html #app.dark .nsr .cancel-rate-loading,
+html #app.dark .nsr .roi-loading,
+html #app.dark .nsr .loyalty-loading,
+html #app.dark .nsr .age-statistics-loading,
+html #app.dark .nsr .city-statistics-loading {
+  background: rgba(18,19,22,.88) !important;
 }
-html body.dark .reports-page .customer-segment-loading-card,
-html body.dark .reports-page .kpi-summary-loading-card,
-html body.dark .reports-page .staff-income-loading-card,
-html body.dark .reports-page .roi-loading-card,
-html body.dark .reports-page .loyalty-loading-card,
-html body.dark .reports-page .age-statistics-loading-card,
-html body.dark .reports-page .city-statistics-loading-card,
-html #app.dark .reports-page .customer-segment-loading-card,
-html #app.dark .reports-page .kpi-summary-loading-card,
-html #app.dark .reports-page .staff-income-loading-card,
-html #app.dark .reports-page .roi-loading-card,
-html #app.dark .reports-page .loyalty-loading-card,
-html #app.dark .reports-page .age-statistics-loading-card,
-html #app.dark .reports-page .city-statistics-loading-card {
+html body.dark .nsr .staff-income-loading-card,
+html body.dark .nsr .customer-segment-loading-card,
+html body.dark .nsr .kpi-summary-loading-card,
+html body.dark .nsr .roi-loading-card,
+html body.dark .nsr .loyalty-loading-card,
+html body.dark .nsr .age-statistics-loading-card,
+html body.dark .nsr .city-statistics-loading-card,
+html #app.dark .nsr .staff-income-loading-card,
+html #app.dark .nsr .customer-segment-loading-card,
+html #app.dark .nsr .kpi-summary-loading-card,
+html #app.dark .nsr .roi-loading-card,
+html #app.dark .nsr .loyalty-loading-card,
+html #app.dark .nsr .age-statistics-loading-card,
+html #app.dark .nsr .city-statistics-loading-card {
   background: #1a1c22 !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
-  box-shadow: 0 16px 38px rgba(0,0,0,.4) !important;
 }
-html body.dark .reports-page .customer-segment-loading-card strong,
-html body.dark .reports-page .kpi-summary-loading-card strong,
-html body.dark .reports-page .staff-income-loading-card strong,
-html body.dark .reports-page .roi-loading-card strong,
-html body.dark .reports-page .loyalty-loading-card strong,
-html body.dark .reports-page .age-statistics-loading-card strong,
-html body.dark .reports-page .city-statistics-loading-card strong,
-html #app.dark .reports-page .customer-segment-loading-card strong,
-html #app.dark .reports-page .kpi-summary-loading-card strong,
-html #app.dark .reports-page .staff-income-loading-card strong,
-html #app.dark .reports-page .roi-loading-card strong,
-html #app.dark .reports-page .loyalty-loading-card strong,
-html #app.dark .reports-page .age-statistics-loading-card strong,
-html #app.dark .reports-page .city-statistics-loading-card strong {
+html body.dark .nsr .staff-income-loading-card strong,
+html body.dark .nsr .customer-segment-loading-card strong,
+html body.dark .nsr .kpi-summary-loading-card strong,
+html body.dark .nsr .roi-loading-card strong,
+html body.dark .nsr .loyalty-loading-card strong,
+html body.dark .nsr .age-statistics-loading-card strong,
+html body.dark .nsr .city-statistics-loading-card strong,
+html #app.dark .nsr .staff-income-loading-card strong,
+html #app.dark .nsr .customer-segment-loading-card strong,
+html #app.dark .nsr .kpi-summary-loading-card strong,
+html #app.dark .nsr .roi-loading-card strong,
+html #app.dark .nsr .loyalty-loading-card strong,
+html #app.dark .nsr .age-statistics-loading-card strong,
+html #app.dark .nsr .city-statistics-loading-card strong {
   color: #f1f3f4 !important;
 }
-html body.dark .reports-page .top-services-more,
-html #app.dark .reports-page .top-services-more {
-  color: #4f8cff !important;
+html body.dark .nsr [data-hover="1"]:hover,
+html body.dark .nsr [data-drag-handle]:hover,
+html #app.dark .nsr [data-hover="1"]:hover,
+html #app.dark .nsr [data-drag-handle]:hover {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
 }
-/* muted semantic KPI pastels */
-html body.dark .reports-page [style*="background:#ecfdf5"],
-html body.dark .reports-page [style*="background:#f0fdf4"],
-html body.dark .reports-page [style*="background:#fef2f2"],
-html body.dark .reports-page [style*="background:#fff7ed"],
-html body.dark .reports-page [style*="background:#fffbeb"],
-html body.dark .reports-page [style*="background:#f5f3ff"],
-html #app.dark .reports-page [style*="background:#ecfdf5"],
-html #app.dark .reports-page [style*="background:#f0fdf4"],
-html #app.dark .reports-page [style*="background:#fef2f2"],
-html #app.dark .reports-page [style*="background:#fff7ed"],
-html #app.dark .reports-page [style*="background:#fffbeb"],
-html #app.dark .reports-page [style*="background:#f5f3ff"] {
-  background: #22252d !important;
-  border-color: #3a3f4a !important;
+html body.dark .nsr .top-services-more,
+html #app.dark .nsr .top-services-more { color: #4f8cff !important; }
+html body.dark .nsr .expense-row__bar,
+html body.dark .nsr .satisfaction-report-row > div,
+html body.dark .nsr .report-card-scroll::-webkit-scrollbar-track,
+html #app.dark .nsr .expense-row__bar,
+html #app.dark .nsr .satisfaction-report-row > div,
+html #app.dark .nsr .report-card-scroll::-webkit-scrollbar-track {
+  background: #121417 !important;
+}
+html body.dark .nsr .report-card-scroll::-webkit-scrollbar-thumb,
+html #app.dark .nsr .report-card-scroll::-webkit-scrollbar-thumb {
+  background: #3a3f4a !important;
+}
+</style>
+<style>
+.nsr-title { margin:0; font-size:22px; font-weight:800; color:#0f172a; }
+.nsr-tabs { display:flex; gap:8px; background:#e6ebf3; border-radius:999px; padding:4px; }
+html body.dark .nsr .nsr-title,
+html #app.dark .nsr .nsr-title { color:#f1f3f4 !important; }
+html body.dark .nsr .nsr-tabs,
+html #app.dark .nsr .nsr-tabs { background:#22252d !important; }
+html body.dark .nsr [data-screen-label="نوار تاریخ و ابزارها"],
+html #app.dark .nsr [data-screen-label="نوار تاریخ و ابزارها"],
+html body.dark .nsr [data-screen-label^=""],
+html #app.dark .nsr [data-screen-label] {
+  /* dashboard cards tagged with data-screen-label */
+}
+html body.dark .nsr [data-screen-label]:not([data-screen-label="تب گزارش"]):not([data-screen-label="شاخص‌های کلیدی گزارش"]):not([data-screen-label="باکس‌های کلی"]):not([data-screen-label="ماه‌ها"]):not([data-screen-label="داشبوردها"]),
+html #app.dark .nsr [data-screen-label]:not([data-screen-label="تب گزارش"]):not([data-screen-label="شاخص‌های کلیدی گزارش"]):not([data-screen-label="باکس‌های کلی"]):not([data-screen-label="ماه‌ها"]):not([data-screen-label="داشبوردها"]) {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.32) !important;
+}
+html body.dark .nsr [data-screen-label="نوار تاریخ و ابزارها"],
+html #app.dark .nsr [data-screen-label="نوار تاریخ و ابزارها"] {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
 }
 </style>
