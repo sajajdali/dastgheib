@@ -71,3 +71,78 @@ export default {
 :global(body.dark) .epa-messages article,:global(#app.dark) .epa-messages article{background:#0f172a}
 :global(body.dark) .epa-messages article.mine,:global(#app.dark) .epa-messages article.mine{background:#1e3a5f}
 </style>
+
+<style>
+html body.dark .epa,
+html #app.dark .epa {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+}
+html body.dark .epa h3,
+html #app.dark .epa h3 { color: #f1f3f4 !important; }
+html body.dark .epa > header small,
+html body.dark .epa > nav button,
+html body.dark .epa-form label,
+html body.dark .epa-modal label,
+html #app.dark .epa > header small,
+html #app.dark .epa > nav button,
+html #app.dark .epa-form label,
+html #app.dark .epa-modal label { color: #c5cad3 !important; }
+html body.dark .epa > nav,
+html #app.dark .epa > nav { background: transparent !important; border-color: #2c3038 !important; }
+html body.dark .epa > nav button.active,
+html #app.dark .epa > nav button.active { color: #93c5fd !important; border-color: #4f8cff !important; }
+html body.dark .epa-form,
+html body.dark .epa-list article,
+html body.dark .epa-messages,
+html body.dark .epa-modal form,
+html #app.dark .epa-form,
+html #app.dark .epa-list article,
+html #app.dark .epa-messages,
+html #app.dark .epa-modal form {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .epa-form input:not(.epa-date-input),
+html body.dark .epa-form select,
+html body.dark .epa-form textarea,
+html body.dark .epa-modal input,
+html body.dark .epa-modal select,
+html body.dark .epa-modal textarea,
+html body.dark .epa-send textarea,
+html #app.dark .epa-form input:not(.epa-date-input),
+html #app.dark .epa-form select,
+html #app.dark .epa-form textarea,
+html #app.dark .epa-modal input,
+html #app.dark .epa-modal select,
+html #app.dark .epa-modal textarea,
+html #app.dark .epa-send textarea {
+  background: #121417 !important;
+  border: 1px solid #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+html body.dark .epa-date-field .vpd-input-group,
+html #app.dark .epa-date-field .vpd-input-group {
+  background: #121417 !important;
+  border: 1px solid #3a3f4a !important;
+  box-shadow: none !important;
+}
+html body.dark .epa-date-field .vpd-input-group input,
+html #app.dark .epa-date-field .vpd-input-group input {
+  background: transparent !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .epa-form input::placeholder,
+html body.dark .epa-form textarea::placeholder,
+html #app.dark .epa-form input::placeholder,
+html #app.dark .epa-form textarea::placeholder {
+  color: #9aa0a6 !important;
+  -webkit-text-fill-color: #9aa0a6 !important;
+  opacity: 1 !important;
+}
+</style>

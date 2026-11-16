@@ -671,3 +671,103 @@ body.dark .line-status.edited,#app.dark .line-status.edited{background:#422006;c
 body.dark .line-status:not(.edited),#app.dark .line-status:not(.edited){background:#450a0a;color:#fca5a5}
 body.dark .payroll-state i,#app.dark .payroll-state i{border-color:#334155;border-top-color:#3b82f6}
 </style>
+
+<style>
+html body.dark .payroll-page,
+html #app.dark .payroll-page { background: transparent !important; color: #e8eaed !important; }
+html body.dark .payroll-header h1,
+html body.dark .payroll-person h2,
+html #app.dark .payroll-header h1,
+html #app.dark .payroll-person h2 { color: #f1f3f4 !important; }
+html body.dark .payroll-header small,
+html body.dark .payroll-person small,
+html body.dark .payroll-search span,
+html #app.dark .payroll-header small,
+html #app.dark .payroll-person small,
+html #app.dark .payroll-search span { color: #9aa0a6 !important; }
+html body.dark .payroll-sidebar,
+html body.dark .payroll-content,
+html #app.dark .payroll-sidebar,
+html #app.dark .payroll-content {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .payroll-month button,
+html body.dark .payroll-month input,
+html body.dark .payroll-search input,
+html #app.dark .payroll-month button,
+html #app.dark .payroll-month input,
+html #app.dark .payroll-search input {
+  background: #121417 !important;
+  border: 1px solid #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .payroll-segments button:not(.active),
+html body.dark .payroll-tabs button:not(.active),
+html body.dark .payroll-user-list button,
+html body.dark .payroll-person > strong,
+html body.dark .payroll-summary article,
+html body.dark .payroll-settings article,
+html body.dark .payroll-table-wrap,
+html body.dark .payroll-table th,
+html #app.dark .payroll-segments button:not(.active),
+html #app.dark .payroll-tabs button:not(.active),
+html #app.dark .payroll-user-list button,
+html #app.dark .payroll-person > strong,
+html #app.dark .payroll-summary article,
+html #app.dark .payroll-settings article,
+html #app.dark .payroll-table-wrap,
+html #app.dark .payroll-table th {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .payroll-segments button.active,
+html body.dark .payroll-tabs button.active,
+html #app.dark .payroll-segments button.active,
+html #app.dark .payroll-tabs button.active {
+  background: #4f8cff !important;
+  border-color: #4f8cff !important;
+  color: #fff !important;
+}
+html body.dark .payroll-user-list button.active,
+html #app.dark .payroll-user-list button.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .payroll-user-list strong,
+html body.dark .payroll-summary strong,
+html body.dark .payroll-settings strong,
+html body.dark .payroll-table td,
+html #app.dark .payroll-user-list strong,
+html #app.dark .payroll-summary strong,
+html #app.dark .payroll-settings strong,
+html #app.dark .payroll-table td { color: #f1f3f4 !important; }
+html body.dark .payroll-user-list small,
+html body.dark .payroll-summary span,
+html body.dark .payroll-settings span,
+html body.dark .payroll-table th,
+html body.dark .payroll-empty,
+html #app.dark .payroll-user-list small,
+html #app.dark .payroll-summary span,
+html #app.dark .payroll-settings span,
+html #app.dark .payroll-table th,
+html #app.dark .payroll-empty { color: #9aa0a6 !important; }
+html body.dark .payroll-user-list b,
+html #app.dark .payroll-user-list b { background: #2a2f3a !important; color: #93c5fd !important; }
+html body.dark .payroll-summary .total,
+html #app.dark .payroll-summary .total { background: #14352a !important; border-color: #166534 !important; }
+html body.dark .payroll-summary .total strong,
+html body.dark .payroll-table td.positive,
+html #app.dark .payroll-summary .total strong,
+html #app.dark .payroll-table td.positive { color: #86efac !important; }
+html body.dark .payroll-table td.negative,
+html #app.dark .payroll-table td.negative { color: #fca5a5 !important; }
+html body.dark .payroll-table td,
+html body.dark .payroll-table th,
+html #app.dark .payroll-table td,
+html #app.dark .payroll-table th { border-color: #2c3038 !important; }
+</style>
