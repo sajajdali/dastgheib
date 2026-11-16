@@ -418,7 +418,7 @@
     </div>
 
     <AiAssistant :dark="isDark" :user="user" @navigate="openAssistantPage" />
-    <GroupChat v-if="user" :dark="isDark" :user="user" />
+    <GroupChat v-if="user && groupChatModuleEnabled" :dark="isDark" :user="user" />
     <IncomingCallStack
       v-if="user?.permissions?.includes('patients.view') && featureEnabledForTenant('patients')"
       :can-create="user?.permissions?.includes('patients.create') && user?.permissions?.includes('patients.view_phone') && !user?.permissions?.includes('patients.hide_phone')"
@@ -761,6 +761,12 @@ export default {
 
     attendanceModuleEnabled() {
       return !Array.isArray(this.tenantEnabledFeatures) || this.tenantEnabledFeatures.includes('attendance');
+    },
+
+    // چت گروهی فقط با ماژول group_chat فعال روی همان سایت؛ بدون استثنای دمؤ محلی.
+    groupChatModuleEnabled() {
+      const modules = this.user?.tenant?.module_ids;
+      return Array.isArray(modules) && modules.includes('group_chat');
     },
 
     isClinicManager() {
