@@ -5168,5 +5168,47 @@ html #app.dark .sm-btn.primary {
   background: var(--sm-accent) !important;
   color: #fff !important;
 }
+html body.dark .inventory-page .bar-row,
+html #app.dark .inventory-page .bar-row {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .inventory-page .bar-label,
+html #app.dark .inventory-page .bar-label {
+  color: #e8eaed !important;
+}
+html body.dark .inventory-page .bar-wrapper,
+html #app.dark .inventory-page .bar-wrapper {
+  background: #121417 !important;
+}
+html body.dark .inventory-page .save-status,
+html #app.dark .inventory-page .save-status {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .inventory-page .save-status.saved,
+html #app.dark .inventory-page .save-status.saved {
+  background: #14352a !important;
+  color: #86efac !important;
+}
+html body.dark .inventory-page .save-status.dirty,
+html body.dark .inventory-page .save-status.error,
+html #app.dark .inventory-page .save-status.dirty,
+html #app.dark .inventory-page .save-status.error {
+  background: #3a2a14 !important;
+  color: #fdba74 !important;
+}
+html body.dark .inventory-page .save-status.saving,
+html #app.dark .inventory-page .save-status.saving {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .inventory-page .low-stock-toggle:hover,
+html body.dark .inventory-page .low-stock-toggle.active,
+html #app.dark .inventory-page .low-stock-toggle:hover,
+html #app.dark .inventory-page .low-stock-toggle.active {
+  background: #3a3420 !important;
+  color: #facc15 !important;
+}
 </style>
 
