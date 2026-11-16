@@ -2542,8 +2542,19 @@ html.dark-boot .auth-boot-spinner {
 }
 .service-page-grid {
   display: grid;
-  grid-template-columns: 1.35fr repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .service-page-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .service-status-card-main {
+    grid-column: 1 / -1;
+  }
 }
 .service-status-card {
   display: flex;
@@ -2634,8 +2645,9 @@ html.dark-boot .auth-boot-spinner {
 }
 .service-purchase-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 10px;
+  min-width: 0;
 }
 .service-purchase-list article {
   display: flex;
