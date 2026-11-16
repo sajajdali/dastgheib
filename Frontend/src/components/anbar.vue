@@ -5028,5 +5028,145 @@ html #app.dark .booking-off-state {
   border-color: #2c3038 !important;
   color: #e8eaed !important;
 }
+html body.dark .sm-modal,
+html #app.dark .sm-modal {
+  --sm-accent: #4f8cff;
+  --sm-accent-soft: #1e3a5f;
+  --sm-accent-ink: #dbeafe;
+}
+html body.dark .sm-modal.decrease,
+html #app.dark .sm-modal.decrease {
+  --sm-accent: #f87171;
+  --sm-accent-soft: #3a2426;
+  --sm-accent-ink: #fecaca;
+}
+html body.dark .sm-head,
+html body.dark .sm-actions,
+html #app.dark .sm-head,
+html #app.dark .sm-actions {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .sm-head-text h3,
+html #app.dark .sm-head-text h3 { color: #f1f3f4 !important; }
+html body.dark .sm-head-text p,
+html body.dark .sm-stock-arrow,
+html #app.dark .sm-head-text p,
+html #app.dark .sm-stock-arrow { color: #9aa0a6 !important; }
+html body.dark .sm-head-icon,
+html #app.dark .sm-head-icon {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
+}
+html body.dark .sm-close,
+html body.dark .sm-btn.ghost,
+html #app.dark .sm-close,
+html #app.dark .sm-btn.ghost {
+  background: #2a2f3a !important;
+  color: #e8eaed !important;
+}
+html body.dark .sm-stock-card,
+html body.dark .sm-stock-card.next,
+html body.dark .sm-stock-card.next.empty,
+html #app.dark .sm-stock-card,
+html #app.dark .sm-stock-card.next,
+html #app.dark .sm-stock-card.next.empty {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .sm-stock-card span,
+html body.dark .sm-stock-card small,
+html #app.dark .sm-stock-card span,
+html #app.dark .sm-stock-card small { color: #9aa0a6 !important; }
+html body.dark .sm-stock-card strong,
+html #app.dark .sm-stock-card strong { color: #f1f3f4 !important; }
+html body.dark .sm-stock-card.next strong,
+html body.dark .sm-stock-card.next small,
+html #app.dark .sm-stock-card.next strong,
+html #app.dark .sm-stock-card.next small { color: #dbeafe !important; }
+html body.dark .sm-direction button,
+html #app.dark .sm-direction button {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+html body.dark .sm-direction i,
+html #app.dark .sm-direction i {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .sm-direction b,
+html #app.dark .sm-direction b { color: #e8eaed !important; }
+html body.dark .sm-direction small,
+html #app.dark .sm-direction small { color: #9aa0a6 !important; }
+html body.dark .sm-direction button.in.active,
+html #app.dark .sm-direction button.in.active {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, .18) !important;
+}
+html body.dark .sm-direction button.in.active i,
+html #app.dark .sm-direction button.in.active i { background: #4f8cff !important; color: #fff !important; }
+html body.dark .sm-direction button.in.active b,
+html #app.dark .sm-direction button.in.active b { color: #dbeafe !important; }
+html body.dark .sm-direction button.out.active,
+html #app.dark .sm-direction button.out.active {
+  background: #3a2426 !important;
+  border-color: #f87171 !important;
+}
+html body.dark .sm-direction button.out.active i,
+html #app.dark .sm-direction button.out.active i { background: #dc2626 !important; color: #fff !important; }
+html body.dark .sm-direction button.out.active b,
+html #app.dark .sm-direction button.out.active b { color: #fecaca !important; }
+html body.dark .sm-field > label,
+html #app.dark .sm-field > label { color: #e8eaed !important; }
+html body.dark .sm-field > label small,
+html #app.dark .sm-field > label small { color: #9aa0a6 !important; }
+html body.dark .sm-qty,
+html body.dark .sm-field textarea,
+html #app.dark .sm-qty,
+html #app.dark .sm-field textarea {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+}
+html body.dark .sm-qty button,
+html #app.dark .sm-qty button {
+  background: #22252d !important;
+  color: #e8eaed !important;
+}
+html body.dark .sm-qty button:disabled,
+html #app.dark .sm-qty button:disabled { color: #5b6472 !important; }
+html body.dark .sm-qty input,
+html #app.dark .sm-qty input {
+  background: transparent !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+}
+html body.dark .sm-history,
+html #app.dark .sm-history { background: #22252d !important; }
+html body.dark .sm-history-head strong,
+html body.dark .sm-history li span,
+html #app.dark .sm-history-head strong,
+html #app.dark .sm-history li span { color: #e8eaed !important; }
+html body.dark .sm-history li,
+html #app.dark .sm-history li {
+  background: #1a1c22 !important;
+  box-shadow: none !important;
+}
+html body.dark .sm-history li time,
+html body.dark .sm-history-empty,
+html #app.dark .sm-history li time,
+html #app.dark .sm-history-empty { color: #9aa0a6 !important; }
+html body.dark .sm-history li.in b,
+html #app.dark .sm-history li.in b { background: #14352a !important; color: #86efac !important; }
+html body.dark .sm-history li.out b,
+html #app.dark .sm-history li.out b { background: #3a2426 !important; color: #fca5a5 !important; }
+html body.dark .sm-btn.primary,
+html #app.dark .sm-btn.primary {
+  background: var(--sm-accent) !important;
+  color: #fff !important;
+}
 </style>
 
