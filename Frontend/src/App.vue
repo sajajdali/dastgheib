@@ -2752,4 +2752,244 @@ body.central-host #app {
 
 @keyframes auth-spin { to { transform: rotate(360deg); } }
 
+
+
+/* NUCLEAR settings/roles/storage dark */
+body.dark .settings-page,
+#app.dark .settings-page {
+  color: #e8eaed !important;
+}
+body.dark .settings-page .content-wrapper,
+body.dark .settings-page .accordion,
+body.dark .settings-page .accordion-body,
+body.dark .settings-page .payment-settings-wrapper,
+body.dark .settings-page .payment-option-card,
+body.dark .settings-page .sms-settings-wrapper,
+body.dark .settings-page .sms-provider-card,
+body.dark .settings-page .sms-templates-section,
+body.dark .settings-page .voip-settings-wrapper,
+body.dark .settings-page .voip-card,
+body.dark .settings-page .voip-incoming-card,
+body.dark .settings-page .voip-user-row,
+body.dark .settings-page .voip-incoming-row,
+body.dark .settings-page .birthday-sms-card,
+body.dark .settings-page .birthday-automation-card,
+body.dark .settings-page .birthday-automation-head,
+body.dark .settings-page .birthday-timing-options label,
+body.dark .settings-page .birthday-days-before,
+body.dark .settings-page .lead-alert-sms-card,
+body.dark .settings-page .lead-alert-template-card,
+body.dark .settings-page .select-all-leads,
+body.dark .settings-page .roles-settings-wrapper,
+body.dark .settings-page .satisfaction-settings-wrapper,
+body.dark .settings-page .satisfaction-question-editor,
+body.dark .settings-page .satisfaction-copy-editor,
+body.dark .settings-page .satisfaction-preview,
+body.dark .settings-page .satisfaction-preview-question,
+body.dark .settings-page .satisfaction-option-editor,
+body.dark .settings-page .satisfaction-option-editor-row,
+body.dark .settings-page .satisfaction-integration-card,
+body.dark .settings-page .satisfaction-integration-docs,
+body.dark .settings-page .user-definition-card,
+body.dark .settings-page .permission-box,
+body.dark .settings-page .upload-box,
+body.dark .settings-page .template-card,
+body.dark .settings-page .level-settings-card,
+body.dark .settings-page .level-period-modal,
+body.dark .settings-page .wallet-service-rules,
+body.dark .settings-page .wallet-enable-row,
+body.dark .settings-page .wallet-settings-card,
+body.dark .settings-page .clinic-location-picker,
+body.dark .settings-page .required-fields-settings,
+body.dark .settings-page .education-options-settings,
+body.dark .settings-page .provider-choice-card,
+body.dark .settings-page .compact-checks label,
+body.dark .settings-page .compact-checks .profile-optional-fields,
+body.dark .settings-page .compact-checks .profile-optional-fields-grid label,
+body.dark .settings-page .schedule-day-row,
+body.dark .settings-page .user-role-picker label,
+body.dark .settings-page .gender-icon-picker,
+body.dark .settings-page .gender-icon-picker button,
+body.dark .settings-page .sms-clinic-info-note,
+body.dark .settings-page .sms-template-parameter-list,
+body.dark .settings-page .tab-btn,
+#app.dark .settings-page .content-wrapper,
+#app.dark .settings-page .accordion,
+#app.dark .settings-page .payment-option-card,
+#app.dark .settings-page .sms-provider-card,
+#app.dark .settings-page .sms-templates-section,
+#app.dark .settings-page .voip-card,
+#app.dark .settings-page .voip-incoming-card,
+#app.dark .settings-page .voip-user-row,
+#app.dark .settings-page .voip-incoming-row,
+#app.dark .settings-page .birthday-sms-card,
+#app.dark .settings-page .birthday-automation-card,
+#app.dark .settings-page .lead-alert-sms-card,
+#app.dark .settings-page .lead-alert-template-card,
+#app.dark .settings-page .satisfaction-settings-wrapper,
+#app.dark .settings-page .satisfaction-question-editor,
+#app.dark .settings-page .satisfaction-copy-editor,
+#app.dark .settings-page .satisfaction-preview,
+#app.dark .settings-page .satisfaction-preview-question,
+#app.dark .settings-page .satisfaction-option-editor,
+#app.dark .settings-page .satisfaction-option-editor-row,
+#app.dark .settings-page .satisfaction-integration-card,
+#app.dark .settings-page .satisfaction-integration-docs,
+#app.dark .settings-page .user-definition-card,
+#app.dark .settings-page .permission-box,
+#app.dark .settings-page .upload-box,
+#app.dark .settings-page .template-card,
+#app.dark .settings-page .level-settings-card,
+#app.dark .settings-page .wallet-service-rules,
+#app.dark .settings-page .clinic-location-picker,
+#app.dark .settings-page .tab-btn {
+  background: #1a1c22 !important;
+  border-color: #2c3038 !important;
+  color: #e8eaed !important;
+  box-shadow: none !important;
+}
+body.dark .settings-page .content-wrapper,
+#app.dark .settings-page .content-wrapper {
+  background: #121316 !important;
+}
+body.dark .settings-page h2,
+body.dark .settings-page h3,
+body.dark .settings-page h4,
+body.dark .settings-page .accordion-header,
+body.dark .settings-page .question-editor-head strong,
+body.dark .settings-page .satisfaction-preview-question strong,
+body.dark .roles-page h1,
+body.dark .roles-page .panel-title,
+body.dark .roles-page .group-title,
+body.dark .storage-dashboard h1,
+body.dark .storage-dashboard h2,
+body.dark .storage-dashboard h3,
+#app.dark .settings-page h2,
+#app.dark .settings-page h3,
+#app.dark .settings-page h4,
+#app.dark .settings-page .accordion-header,
+#app.dark .roles-page h1,
+#app.dark .storage-dashboard h1 {
+  color: #f1f3f4 !important;
+}
+body.dark .settings-page p,
+body.dark .settings-page small,
+body.dark .settings-page .section-eyebrow,
+body.dark .roles-page p,
+body.dark .roles-page .section-help,
+body.dark .storage-dashboard p,
+body.dark .storage-dashboard small,
+#app.dark .settings-page p,
+#app.dark .settings-page small,
+#app.dark .roles-page p,
+#app.dark .storage-dashboard p {
+  color: #9aa0a6 !important;
+}
+body.dark .settings-page input,
+body.dark .settings-page textarea,
+body.dark .settings-page select,
+body.dark .roles-page .text-input,
+body.dark .storage-dashboard input,
+body.dark .storage-dashboard select,
+#app.dark .settings-page input,
+#app.dark .settings-page textarea,
+#app.dark .settings-page select,
+#app.dark .roles-page .text-input,
+#app.dark .storage-dashboard input {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #f1f3f4 !important;
+  -webkit-text-fill-color: #f1f3f4 !important;
+  box-shadow: none !important;
+}
+body.dark .settings-page .tab-btn.active,
+#app.dark .settings-page .tab-btn.active {
+  background: #2a3a52 !important;
+  border-color: #4f8cff !important;
+  color: #93c5fd !important;
+}
+body.dark .settings-page .satisfaction-option.excellent,
+#app.dark .settings-page .satisfaction-option.excellent { background:#14352a !important; color:#86efac !important; }
+body.dark .settings-page .satisfaction-option.good,
+#app.dark .settings-page .satisfaction-option.good { background:#1a2e24 !important; color:#86efac !important; }
+body.dark .settings-page .satisfaction-option.average,
+#app.dark .settings-page .satisfaction-option.average { background:#22252d !important; color:#c5cad3 !important; }
+body.dark .settings-page .satisfaction-option.bad,
+#app.dark .settings-page .satisfaction-option.bad { background:#3a2426 !important; color:#f5a8a0 !important; }
+body.dark .settings-page .satisfaction-option.weak,
+#app.dark .settings-page .satisfaction-option.weak { background:#7f1d1d !important; color:#fff !important; }
+body.dark .settings-page .lead-alert-sms-card,
+#app.dark .settings-page .lead-alert-sms-card { background:linear-gradient(135deg,#1a2230,#1a1c22) !important; border-color:#2f4668 !important; }
+body.dark .settings-page .birthday-sms-card,
+#app.dark .settings-page .birthday-sms-card { background:linear-gradient(135deg,#2a2618,#1a1c22) !important; border-color:#6b5a2e !important; }
+body.dark .settings-page .voip-off,
+#app.dark .settings-page .voip-off { background:#3a3220 !important; color:#fbbf24 !important; }
+body.dark .settings-page .question-actions button,
+#app.dark .settings-page .question-actions button { background:#22252d !important; color:#c5cad3 !important; }
+body.dark .settings-page .question-actions button:last-child,
+body.dark .settings-page .question-editor-head button,
+#app.dark .settings-page .question-actions button:last-child,
+#app.dark .settings-page .question-editor-head button { background:#3a2426 !important; color:#f5a8a0 !important; }
+
+/* Roles */
+body.dark .roles-page,
+#app.dark .roles-page { background:#121316 !important; color:#e8eaed !important; }
+body.dark .roles-page.embedded,
+#app.dark .roles-page.embedded { background:transparent !important; }
+body.dark .roles-page .panel,
+body.dark .roles-page .permission-group,
+body.dark .roles-page .permission-choice,
+body.dark .roles-page .role-list-item,
+#app.dark .roles-page .panel,
+#app.dark .roles-page .permission-group,
+#app.dark .roles-page .permission-choice,
+#app.dark .roles-page .role-list-item {
+  background:#1a1c22 !important;
+  border-color:#2c3038 !important;
+  color:#e8eaed !important;
+  box-shadow:none !important;
+}
+body.dark .roles-page .role-list-item.active,
+#app.dark .roles-page .role-list-item.active {
+  background:#2a3a52 !important;
+  color:#93c5fd !important;
+}
+body.dark .roles-page .secondary-btn,
+body.dark .roles-page .text-btn,
+#app.dark .roles-page .secondary-btn,
+#app.dark .roles-page .text-btn {
+  background:#22252d !important;
+  color:#93c5fd !important;
+}
+body.dark .roles-page .protected-badge,
+#app.dark .roles-page .protected-badge {
+  background:#3a3220 !important;
+  color:#fbbf24 !important;
+}
+
+/* Storage */
+body.dark .storage-dashboard .storage-card,
+body.dark .storage-dashboard .storage-metrics article,
+body.dark .storage-dashboard .package-grid > article,
+body.dark .storage-dashboard .storage-overview:not(.full),
+#app.dark .storage-dashboard .storage-card,
+#app.dark .storage-dashboard .storage-metrics article,
+#app.dark .storage-dashboard .package-grid > article,
+#app.dark .storage-dashboard .storage-overview:not(.full) {
+  background:#1a1c22 !important;
+  border-color:#2c3038 !important;
+  color:#e8eaed !important;
+  box-shadow:none !important;
+}
+body.dark .storage-dashboard .storage-overview.warning,
+#app.dark .storage-dashboard .storage-overview.warning {
+  background:linear-gradient(120deg,#3a3220,#1a1c22) !important;
+  border-color:#6b5a2e !important;
+}
+body.dark .storage-dashboard .storage-overview.critical,
+#app.dark .storage-dashboard .storage-overview.critical {
+  background:linear-gradient(120deg,#3a1d1d,#1a1c22) !important;
+  border-color:#7f1d1d !important;
+}
+
 </style>

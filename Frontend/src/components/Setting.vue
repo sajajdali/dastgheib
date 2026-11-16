@@ -3021,7 +3021,7 @@ textarea{ min-height:120px; resize:none; }
 </style>
 
 <style>
-/* Setting dark mode — charcoal for all sections/accordions/modals */
+/* Setting dark mode — charcoal for all sections/accordions/modals (forced reload) */
 html body.dark .settings-page,
 html #app.dark .settings-page {
   background: transparent !important;
