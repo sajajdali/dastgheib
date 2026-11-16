@@ -16148,3 +16148,189 @@ html #app.dark .dark-toggle {
   color: #e8eaed !important;
 }
 </style>
+
+<style>
+/* Dark fix: timeline font contrast — beat .appointment-timeline !important light text */
+html body.dark .appointment-timeline,
+html #app.dark .appointment-timeline {
+  color: #e8eaed !important;
+}
+html body.dark .appointment-timeline .timeline-day-label,
+html body.dark .appointment-timeline .timeline-day-label strong,
+html #app.dark .appointment-timeline .timeline-day-label,
+html #app.dark .appointment-timeline .timeline-day-label strong {
+  color: #f1f3f4 !important;
+}
+html body.dark .appointment-timeline .timeline-day-label span,
+html #app.dark .appointment-timeline .timeline-day-label span {
+  color: #c5cad3 !important;
+}
+html body.dark .appointment-timeline .timeline-card,
+html body.dark .appointment-timeline .timeline-card .timeline-card-body,
+html body.dark .appointment-timeline .timeline-card .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card,
+html #app.dark .appointment-timeline .timeline-card .timeline-card-body,
+html #app.dark .appointment-timeline .timeline-card .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card .timeline-status-label {
+  color: #f1f3f4 !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-booked,
+html #app.dark .appointment-timeline .timeline-card.is-booked {
+  background: #1e3a5f !important;
+  border-color: #3b82f6 !important;
+  box-shadow: inset -4px 0 0 #4f8cff, 0 5px 14px rgba(0,0,0,.35) !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-booked .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-status-label {
+  color: #dbeafe !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-booked .timeline-time-chip,
+html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-time-chip {
+  background: #1e40af !important;
+  border-color: #3b82f6 !important;
+  color: #fff !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-booked .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-status-label {
+  background: rgba(59, 130, 246, .28) !important;
+  border-color: #3b82f6 !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-arrived,
+html #app.dark .appointment-timeline .timeline-card.is-arrived {
+  background: #14532d !important;
+  border-color: #22c55e !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label {
+  color: #bbf7d0 !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label {
+  background: rgba(34, 197, 94, .22) !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-time-chip,
+html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-time-chip {
+  background: #166534 !important;
+  color: #bbf7d0 !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-follow,
+html body.dark .appointment-timeline .timeline-card.is-no-answer,
+html body.dark .appointment-timeline .timeline-card.is-debtor,
+html body.dark .appointment-timeline .timeline-card.is-creditor,
+html #app.dark .appointment-timeline .timeline-card.is-follow,
+html #app.dark .appointment-timeline .timeline-card.is-no-answer,
+html #app.dark .appointment-timeline .timeline-card.is-debtor,
+html #app.dark .appointment-timeline .timeline-card.is-creditor {
+  color: #f1f3f4 !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-follow .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-follow .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-follow .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-follow .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-follow .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-follow .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-follow .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-follow .timeline-status-label {
+  color: #bfdbfe !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-no-answer .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-no-answer .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-no-answer .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-no-answer .timeline-status-label,
+html body.dark .appointment-timeline .timeline-card.is-creditor .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-creditor .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-creditor .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-creditor .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-no-answer .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-no-answer .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-no-answer .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-no-answer .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-creditor .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-creditor .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-creditor .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-creditor .timeline-status-label {
+  color: #fecaca !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-debtor .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-debtor .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-debtor .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-debtor .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-debtor .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-debtor .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-debtor .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-debtor .timeline-status-label {
+  color: #fde68a !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-transferred,
+html #app.dark .appointment-timeline .timeline-card.is-transferred {
+  background: #2e1065 !important;
+  border-color: #a78bfa !important;
+  box-shadow: inset -4px 0 0 #8b5cf6, 0 5px 14px rgba(0,0,0,.35) !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-transferred .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-transferred .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-transferred .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-transferred .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-transferred .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-transferred .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-transferred .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-transferred .timeline-status-label {
+  color: #e9d5ff !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-transferred .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-transferred .timeline-status-label {
+  background: rgba(139, 92, 246, .28) !important;
+  border-color: #a78bfa !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-canceled .timeline-card-body strong,
+html body.dark .appointment-timeline .timeline-card.is-canceled .timeline-card-body span,
+html body.dark .appointment-timeline .timeline-card.is-canceled .timeline-card-body small,
+html body.dark .appointment-timeline .timeline-card.is-canceled .timeline-status-label,
+html #app.dark .appointment-timeline .timeline-card.is-canceled .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card.is-canceled .timeline-card-body span,
+html #app.dark .appointment-timeline .timeline-card.is-canceled .timeline-card-body small,
+html #app.dark .appointment-timeline .timeline-card.is-canceled .timeline-status-label {
+  color: #fff !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-empty .timeline-card-empty,
+html body.dark .appointment-timeline .timeline-card.is-empty .timeline-card-empty strong,
+html body.dark .appointment-timeline .timeline-card.is-empty .timeline-card-empty span,
+html body.dark .appointment-timeline .timeline-add-card .timeline-card-empty strong,
+html body.dark .appointment-timeline .timeline-add-card .timeline-card-empty span,
+html #app.dark .appointment-timeline .timeline-card.is-empty .timeline-card-empty,
+html #app.dark .appointment-timeline .timeline-card.is-empty .timeline-card-empty strong,
+html #app.dark .appointment-timeline .timeline-card.is-empty .timeline-card-empty span,
+html #app.dark .appointment-timeline .timeline-add-card .timeline-card-empty strong,
+html #app.dark .appointment-timeline .timeline-add-card .timeline-card-empty span {
+  color: #c5cad3 !important;
+}
+html body.dark .appointment-timeline .timeline-delete-appointment-btn,
+html #app.dark .appointment-timeline .timeline-delete-appointment-btn {
+  color: #c5cad3 !important;
+}
+html body.dark .appointment-timeline .timeline-card.is-canceled .timeline-delete-appointment-btn,
+html #app.dark .appointment-timeline .timeline-card.is-canceled .timeline-delete-appointment-btn {
+  color: rgba(255,255,255,.9) !important;
+}
+html body.dark .appointment-timeline .timeline-card:has(.patient-avatar.level-problematic) .timeline-card-body strong,
+html #app.dark .appointment-timeline .timeline-card:has(.patient-avatar.level-problematic) .timeline-card-body strong {
+  color: #fca5a5 !important;
+}
+</style>
