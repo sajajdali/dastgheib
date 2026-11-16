@@ -2712,7 +2712,17 @@ body.central-host #app {
 .dark .utility-menu-toggle {
   border-color: #475569;
 }
-.dark .utility-menu-panel header { border-color: #334155; }
+.dark .utility-menu-panel header {
+  background: #1a1c22;
+  border-color: #2c3038;
+  color: #e8eaed;
+}
+.dark .utility-menu-panel header .auth-user-info strong { color: #f1f3f4; }
+.dark .utility-menu-panel header .auth-user-info small { color: #9aa0a6; }
+.dark .utility-menu-panel header .auth-user-info em {
+  background: #2a2f3a;
+  color: #e8eaed;
+}
 .dark .utility-menu-panel > button { background: #1e293b; color: #e2e8f0; }
 .central-clinic-shortcut {
   position: fixed;
