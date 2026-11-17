@@ -422,7 +422,7 @@ final class AssistantToolExecutor
         $value = (int) ($kpis[$metric] ?? 0);
         // ریز درآمد از نوبت‌ها در گزارش‌ساز قابل دیدن است؛ هزینه و سود خالص منبعی در گزارش‌ساز ندارند و به داشبورد گزارش می‌روند.
         $link = $metric === 'recognized_revenue' ? $this->builderLink(['scope'=>'appointments','from'=>$range['from'],'to'=>$range['to'],
-            'columns'=>['appointmentDate','name','family','doctor','work','amount','income','finstatus']], 'ریز نوبت‌ها و مبالغ این بازه در گزارش‌ساز') : [];
+            'columns'=>['appointmentDate','name','family','doctor','work','amount','income','expense','finstatus']], 'ریز نوبت‌ها و مبالغ این بازه در گزارش‌ساز') : [];
         return $this->result(['metric'=>$metric,'value'=>$value,'unit'=>'تومان','from'=>$range['from'],'to'=>$range['to'],'definition'=>$definitions[$metric]],
             ['type'=>'metric','title'=>$labels[$metric],'value'=>$value,'unit'=>'تومان','subtitle'=>$range['from'].' تا '.$range['to'].' · '.$definitions[$metric],'page'=>'reports', ...$link]);
     }
@@ -455,7 +455,7 @@ final class AssistantToolExecutor
             'columns'=>['doctor'=>'پزشک','revenue'=>'آورده (تومان)'],'rows'=>$rows,
             'page'=>'reports','definition'=>$definition,
             ...$this->builderLink(['scope'=>'appointments','from'=>$range['from'],'to'=>$range['to'],
-                'columns'=>['appointmentDate','name','family','doctor','work','amount','income'],
+                'columns'=>['appointmentDate','name','family','doctor','work','amount','income','expense'],
                 'multi_filters'=>$needle !== '' && count($rows) === 1 ? [['field'=>'doctor','values'=>[$rows[0]['doctor']]]] : []],
                 'ریز نوبت‌ها و مبالغ هر پزشک در گزارش‌ساز'),
         ]);

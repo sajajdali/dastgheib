@@ -158,16 +158,14 @@ class DynamicReportController extends Controller
         if ($keys === []) return [];
 
         $totals = array_fill_keys($keys, 0.0);
-        if (in_array('income', $keys, true)) $totals['income'] = ['income' => 0.0, 'expense' => 0.0];
 
         foreach ($report->rows()->select(['id', 'payload'])->cursor() as $row) {
             foreach ($keys as $key) {
                 $value = data_get($row->payload, $key);
-                if ($key === 'income') {
-                    // «درآمد: X · هزینه: Y»
-                    $parts = preg_split('/·/u', (string) $value);
-                    $totals['income']['income'] += $this->moneyNumber($parts[0] ?? '');
-                    $totals['income']['expense'] += $this->moneyNumber($parts[1] ?? '');
+                // قالب قدیمی «درآمد: X · هزینه: Y» اگر هنوز در ردیف ذخیره‌شده باشد، فقط بخش درآمد را جمع می‌زند.
+                if ($key === 'income' && is_string($value) && str_contains($value, '·')) {
+                    $parts = preg_split('/·/u', $value);
+                    $totals['income'] += $this->moneyNumber($parts[0] ?? '');
                     continue;
                 }
                 $totals[$key] += $this->moneyNumber($value);

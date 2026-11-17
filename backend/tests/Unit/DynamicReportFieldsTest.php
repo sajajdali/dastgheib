@@ -7,8 +7,10 @@ use App\Models\Patient;
 use App\Reporting\DynamicReports\DynamicReportFieldRegistry;
 use App\Reporting\DynamicReports\ReportPatientContext;
 use App\Reporting\DynamicReports\Resolvers\ReportFieldResolver;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DynamicReportFieldsTest extends TestCase
@@ -53,7 +55,9 @@ class DynamicReportFieldsTest extends TestCase
     public function test_every_builder_field_is_whitelisted(): void
     {
         $fields = app(DynamicReportFieldRegistry::class);
-        $this->assertCount(38, $fields->keys());
+        $this->assertCount(39, $fields->keys());
+        $this->assertSame('درآمد', $fields->labels()['income']);
+        $this->assertSame('هزینه مواد', $fields->labels()['expense']);
         $this->assertSame($fields->keys(), array_keys($fields->labels()));
 
         foreach (config('dynamic_reports.field_resolvers') as $resolverClass) {
@@ -108,5 +112,33 @@ class DynamicReportFieldsTest extends TestCase
 
         $row = app(\App\Reporting\DynamicReports\DynamicReportRowBuilder::class)->build(['doctorCommission', 'consultantCommission', 'walletDeposit'], $context);
         $this->assertSame(['doctorCommission' => '350,000', 'consultantCommission' => '80,000', 'walletDeposit' => '—'], $row);
+    }
+
+    public function test_income_and_material_expense_are_separate_money_columns(): void
+    {
+        Schema::create('inventories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->decimal('price', 14, 2)->default(0);
+        });
+        Schema::create('inventory_addon_definitions', function (Blueprint $table) {
+            $table->id();
+            $table->decimal('price', 14, 2)->default(0);
+        });
+        DB::table('inventories')->insert(['name' => 'بوتاکس', 'price' => 1800000]);
+
+        $appointment = new Appointment([
+            'amount' => 4050000,
+            'wallet_applied' => 500000,
+            'services' => [['name' => 'بوتاکس', 'quantity' => 1, 'cc' => 1]],
+        ]);
+        $context = new ReportPatientContext(new Patient(), $appointment, collect([$appointment]), collect(), 'silver');
+        $fields = app(DynamicReportFieldRegistry::class);
+
+        $this->assertSame('4٬550٬000', $fields->resolve('income', $context));
+        $this->assertSame('1٬800٬000', $fields->resolve('expense', $context));
+
+        $row = app(\App\Reporting\DynamicReports\DynamicReportRowBuilder::class)->build(['income', 'expense'], $context);
+        $this->assertSame(['income' => '4,550,000', 'expense' => '1,800,000'], $row);
     }
 }
