@@ -57,6 +57,28 @@ class ClinicReportPaidAppointmentTest extends TestCase
         $this->assertSame(4550000.0, $this->invokeReport('appointmentValue', $appointment));
     }
 
+    public function test_outstanding_receivable_uses_debt_or_unpaid_remainder(): void
+    {
+        $withDebt = (object) [
+            'id' => 1,
+            'amount' => 100,
+            'debt' => 20,
+            'wallet_applied' => 0,
+            'payment_details' => ['ledger_total' => 80],
+        ];
+        $unpaidWithoutDebtField = (object) [
+            'id' => 2,
+            'amount' => 50000000,
+            'debt' => 0,
+            'wallet_applied' => 0,
+            'payment_details' => ['ledger_total' => 0, 'cash' => 0, 'card' => 0],
+        ];
+        $ledger = collect([1 => 80.0, 2 => 0.0]);
+
+        $this->assertSame(20.0, $this->invokeReport('outstandingReceivable', $withDebt, $ledger));
+        $this->assertSame(50000000.0, $this->invokeReport('outstandingReceivable', $unpaidWithoutDebtField, $ledger));
+    }
+
     public function test_material_cost_comes_from_inventory_including_addons(): void
     {
         $prices = [
