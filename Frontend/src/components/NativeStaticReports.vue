@@ -983,9 +983,11 @@ export default {
     );
     const currentYear = Number(currentParts.year) || 1405;
     const currentMonth = Number(currentParts.month) || 1;
-    const currentDay = Number(currentParts.day) || 1;
     const currentMonthText = String(currentMonth).padStart(2, '0');
-    const currentDayText = String(currentDay).padStart(2, '0');
+    // مثل نوبت‌دهی: بازهٔ پیش‌فرض = کل ماه جاری، نه «از اول ماه تا امروز».
+    const jalaliLeap = [1, 5, 9, 13, 17, 22, 26, 30].includes((currentYear + 12) % 33);
+    const currentMonthLastDay = currentMonth <= 6 ? 31 : (currentMonth <= 11 ? 30 : (jalaliLeap ? 30 : 29));
+    const currentMonthLastDayText = String(currentMonthLastDay).padStart(2, '0');
     return {
       isDarkUi: false,
       KEYS: ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'],
@@ -994,7 +996,7 @@ export default {
       tab:'r', open:(this.defaultOpen===false?false:true), filterOpen:false, mngOpen:false,
       filters:{}, bdFrom:'', bdTo:'', hidden:{}, order:KEYS.slice(), ddOpen:null, ddQ:'',
       monthSel:3, loyalRange:6, staff:'همه', cap:String(this.capacityDefault ?? 2500),
-      reportSummary:null, reportLoading:false, reportError:'', topServicesExpanded:false, campSort:'quality', from:`${currentYear}/${currentMonthText}/01`, to:`${currentYear}/${currentMonthText}/${currentDayText}`}
+      reportSummary:null, reportLoading:false, reportError:'', topServicesExpanded:false, campSort:'quality', from:`${currentYear}/${currentMonthText}/01`, to:`${currentYear}/${currentMonthText}/${currentMonthLastDayText}`}
       ,cancellationReport: null, cancellationLoading: false, expenseReport: null, expenseLoading: false, expenseError: '', reportSummary: null, reportLoading: false, staffTarget: 120
       ,customerSegmentSnapshot: null, customerSegmentLoading: false
       ,dashboardSnapshot: null, dashboardLoading: false
@@ -1129,7 +1131,7 @@ export default {
     const dashboardKpis = S.reportSummary?.kpis || {};
     const kpiMoney = value => dashboardReady ? reportMoney(Number(value || 0) / 1000000) : '--';
     const kpis = [
-      {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده (پس از تخفیف؛ کیف پول جزء درآمد)' : '--', ...gUp, bg:dark?'#1e3a5f':'#eff6ff', bd:dark?'#3b82f6':'#bfdbfe', tc:dark?'#93c5fd':'#1d4ed8', ...lg},
+      {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? `نوبت‌های انجام‌شده · ${String(S.from || '').replaceAll('-', '/')} تا ${String(S.to || '').replaceAll('-', '/')}` : '--', ...gUp, bg:dark?'#1e3a5f':'#eff6ff', bd:dark?'#3b82f6':'#bfdbfe', tc:dark?'#93c5fd':'#1d4ed8', ...lg},
       {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'درآمد − هزینه‌ها − پزشک و پرسنل − مواد مصرفی' : '--', ...gUp, bg:dark?'#14352a':'#f0fdf4', bd:dark?'#22c55e':'#bbf7d0', tc:dark?'#86efac':'#15803d', ...lg},
       {t:'دریافتی', v:kpiMoney(dashboardKpis.cash_collected), g:dashboardReady ? 'نقد، کارت، چک و کیف پول' : '--', ...gUp, bg:dark?'#164e63':'#ecfeff', bd:dark?'#22d3ee':'#a5f3fc', tc:dark?'#67e8f9':'#0e7490', ...sm},
       {t:'بدهی بیماران', v:kpiMoney(dashboardKpis.receivables), g:dashboardReady ? 'ماندهٔ نوبت‌های انجام‌شده' : '--', ...gDn, bg:dark?'#3a2e14':'#fefce8', bd:dark?'#eab308':'#fde047', tc:dark?'#fde68a':'#a16207', ...sm},
@@ -1580,7 +1582,7 @@ export default {
       kpiSubtitle: dashboardSnapshot?.status === 'failed'
         ? (dashboardSnapshot.error || 'محاسبه ناموفق بود؛ دوباره تلاش کنید')
         : (dashboardReady
-          ? `محاسبه‌شده برای بازه انتخابی${dashboardSnapshot?.completed_at ? ` · ${this.formatSnapshotDate(dashboardSnapshot.completed_at)}` : ''}`
+          ? `بازه ${String(S.from || '').replaceAll('-', '/')} تا ${String(S.to || '').replaceAll('-', '/')}${dashboardSnapshot?.completed_at ? ` · ${this.formatSnapshotDate(dashboardSnapshot.completed_at)}` : ''}`
           : 'برای محاسبه داده‌های واقعی، روی آیکن بزنید'),
       billRows, billRevV, billSumV, billNetV, billReady: !!expenses, billCompletedAt: this.formatSnapshotDate(this.expenseSnapshot?.completed_at),
       // dash maps
@@ -1785,7 +1787,8 @@ export default {
 
     async selectReportMonthKey(monthKey) {
       const [year, month] = String(monthKey).split('-').map(Number);
-      const lastDay = month <= 6 ? 31 : (month <= 11 ? 30 : 29);
+      const jalaliLeap = [1, 5, 9, 13, 17, 22, 26, 30].includes((year + 12) % 33);
+      const lastDay = month <= 6 ? 31 : (month <= 11 ? 30 : (jalaliLeap ? 30 : 29));
       this._customerSegmentRequestId = (this._customerSegmentRequestId || 0) + 1;
       this._dashboardRequestId = (this._dashboardRequestId || 0) + 1;
       this._advertisingRoiRequestId = (this._advertisingRoiRequestId || 0) + 1;
