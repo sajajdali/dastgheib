@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Database\QueryException;
 use App\Services\CustomerLevelService;
+use App\Services\CustomerTypeResolver;
 use App\Models\AppSetting;
 use App\Services\WalletAllocationService;
 use App\Support\PatientPhoneVisibility;
@@ -137,7 +138,7 @@ class PatientController extends Controller
         ], 201);
     }
 
-    public function findByPhone(Request $request, $phone, CustomerLevelService $levels)
+    public function findByPhone(Request $request, $phone, CustomerLevelService $levels, CustomerTypeResolver $customerTypes)
     {
         $phone = $this->normalizeDigits($phone);
         $patient = Patient::whereRaw($this->normalizedDigitColumn('phone').' = ?', [$phone])->first();
@@ -147,6 +148,7 @@ class PatientController extends Controller
         }
 
         $levels->decorate(collect([$patient]));
+        $this->decorateCustomerType(collect([$patient]), $customerTypes);
         return response()->json([
             'id' => $patient->id,
             'first_name' => $patient->first_name,
@@ -160,10 +162,11 @@ class PatientController extends Controller
             'wallet_balance' => $patient->wallet_balance,
             'outstanding_debt' => $patient->outstanding_debt,
             'customer_level' => $patient->customer_level,
+            'is_new_customer' => (bool) $patient->getAttribute('is_new_customer'),
         ]);
     }
 
-    public function search(Request $request, CustomerLevelService $levels)
+    public function search(Request $request, CustomerLevelService $levels, CustomerTypeResolver $customerTypes)
     {
         $query = Patient::query();
 
@@ -196,6 +199,7 @@ class PatientController extends Controller
         }
 
         $patients = $levels->decorate($query->limit(25)->get());
+        $this->decorateCustomerType($patients, $customerTypes);
 
         return response()->json($this->hidePatientPhones($patients, $request));
     }
@@ -501,6 +505,18 @@ class PatientController extends Controller
         }
 
         return $patients->each($hideOne);
+    }
+
+    /** is_new_customer = هنوز نوبت قبلی با خدمت و پرداخت ثبت‌شده ندارد. */
+    private function decorateCustomerType($patients, CustomerTypeResolver $customerTypes): void
+    {
+        $items = $patients instanceof Patient ? collect([$patients]) : collect($patients);
+        $items->each(function (Patient $patient) use ($customerTypes) {
+            $patient->setAttribute(
+                'is_new_customer',
+                $customerTypes->isNewCustomer($patient->file_number, $patient->phone)
+            );
+        });
     }
 
     public function updateCustomerLevel(Request $request, Patient $patient, CustomerLevelService $levels)

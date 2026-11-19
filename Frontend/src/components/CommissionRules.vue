@@ -55,8 +55,8 @@ const setMoney = (tier,key,event) => { tier[key] = Number(String(event.target.va
 const setModelMoney = (key,event) => { model.value[key] = Number(String(event.target.value).replace(/\D/g,'')) || 0 }
 // null یعنی برای آن نوع مشتری پورسانتی تعریف نشده است.
 const customerTypes = [
-  { field: 'new_customer_bonus', label: 'مشتری جدید', hint: 'اولین مراجعهٔ بیمار' },
-  { field: 'existing_customer_bonus', label: 'مشتری قدیمی', hint: 'بیمارانی که قبلاً مراجعه کرده‌اند' },
+  { field: 'new_customer_bonus', label: 'مشتری جدید', hint: 'هنوز نوبت قبلی با خدمت و پرداخت ثبت‌شده ندارد' },
+  { field: 'existing_customer_bonus', label: 'مشتری قدیمی', hint: 'حداقل یک نوبت قبلی با خدمت و پرداخت ثبت‌شده' },
 ]
 const customerEnabled = field => model.value[field] !== null && model.value[field] !== undefined
 const toggleCustomer = (field, checked) => { model.value[field] = checked ? 0 : null }
