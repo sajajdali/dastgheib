@@ -10,7 +10,30 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const productionApiOrigin = (env.VITE_API_ORIGIN || 'https://api.s8n.ir').replace(/\/$/, '')
   const devApiTarget = (env.VITE_API_TARGET || 'http://127.0.0.1:8000').replace(/\/$/, '')
-  const devTenantHost = (env.VITE_TENANT_HOST || 'clinic1.localhost').trim()
+  // Fallback only for bare localhost / 127.0.0.1. Subdomain hosts like
+  // demo.localhost and clinic1.localhost must be forwarded as-is so tenancy
+  // resolves to the matching tenant DB instead of always hitting clinic1.
+  const devTenantHostFallback = (env.VITE_TENANT_HOST || 'clinic1.localhost').trim()
+
+  const resolveDevTenantHost = (req) => {
+    const raw = String(req.headers.host || '').split(',')[0].trim()
+    const hostname = raw.split(':')[0].toLowerCase()
+    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1') {
+      return devTenantHostFallback
+    }
+    return hostname
+  }
+
+  const withTenantHostProxy = (extra = {}) => ({
+    target: devApiTarget,
+    changeOrigin: false,
+    configure: (proxy) => {
+      proxy.on('proxyReq', (proxyReq, req) => {
+        proxyReq.setHeader('host', resolveDevTenantHost(req))
+      })
+    },
+    ...extra,
+  })
 
   return {
   plugins: [
@@ -30,16 +53,8 @@ export default defineConfig(({ mode }) => {
   server: {
     host: true,
     proxy: {
-      '/api': {
-        target: devApiTarget,
-        changeOrigin: false,
-        headers: { host: devTenantHost },
-      },
-      '/external-api': {
-        target: devApiTarget,
-        changeOrigin: false,
-        headers: { host: devTenantHost },
-      },
+      '/api': withTenantHostProxy(),
+      '/external-api': withTenantHostProxy(),
       '/central-api': {
         target: devApiTarget,
         // Central routes are registered only on the central domain. Preserve
@@ -51,31 +66,12 @@ export default defineConfig(({ mode }) => {
         target: devApiTarget,
         changeOrigin: true,
       },
-      '/tenant-files': {
-        target: devApiTarget,
-        changeOrigin: false,
-        headers: { host: devTenantHost },
-      },
-      '/csrf-cookie': {
-        target: devApiTarget,
-        changeOrigin: false,
-        headers: { host: devTenantHost },
-      },
-      '/login': {
-        target: devApiTarget,
-        changeOrigin: false,
-        headers: { host: devTenantHost },
-      },
-      '/logout': {
-        target: devApiTarget,
-        changeOrigin: false,
-        headers: { host: devTenantHost },
-      },
-      '/broadcasting/auth': {
-        target: devApiTarget,
-        changeOrigin: false,
-        headers: { host: devTenantHost },
-      },
+      '/tenant-files': withTenantHostProxy(),
+      '/csrf-cookie': withTenantHostProxy(),
+      '/login': withTenantHostProxy(),
+      '/quick-login': withTenantHostProxy(),
+      '/logout': withTenantHostProxy(),
+      '/broadcasting/auth': withTenantHostProxy(),
     },
   },
   resolve: {
