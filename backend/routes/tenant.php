@@ -60,7 +60,10 @@ Route::middleware([
         })->where('token', '[A-Za-z0-9]+');
     });
 
-    Route::middleware(['web', 'api'])
+    // فقط گروه api: statefulApi() برای Origin فرانت‌اند نشست را می‌سازد.
+    // اگر web هم اضافه شود StartSession دوبار اجرا می‌شود و بعد از اولین
+    // درخواست API کوکی نشست خالی جایگزین می‌شود و کاربر را بیرون می‌اندازد.
+    Route::middleware(['api'])
         ->prefix('api')
         ->group(base_path('routes/api.php'));
 

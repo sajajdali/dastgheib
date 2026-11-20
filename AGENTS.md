@@ -19,13 +19,13 @@ Run commands from these directories:
 Backend command:
 
 ```sh
-APP_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:5175 FRONTEND_URLS=http://127.0.0.1:5175,http://localhost:5175 SANCTUM_STATEFUL_DOMAINS=127.0.0.1:5175,localhost:5175 REVERB_HOST=127.0.0.1 REVERB_PORT=8081 REVERB_SERVER_HOST=0.0.0.0 REVERB_SERVER_PORT=8081 VITE_REVERB_HOST=127.0.0.1 VITE_REVERB_PORT=8081 /opt/homebrew/bin/php artisan serve --host=0.0.0.0 --port=8001
+APP_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:5175 FRONTEND_URLS=http://127.0.0.1:5175,http://localhost:5175,http://demo.localhost:5175,http://clinic1.localhost:5175 SANCTUM_STATEFUL_DOMAINS=127.0.0.1:5175,localhost:5175,demo.localhost:5175,clinic1.localhost:5175,*.localhost:5175 REVERB_HOST=127.0.0.1 REVERB_PORT=8081 REVERB_SERVER_HOST=0.0.0.0 REVERB_SERVER_PORT=8081 VITE_REVERB_HOST=127.0.0.1 VITE_REVERB_PORT=8081 /opt/homebrew/bin/php artisan serve --host=0.0.0.0 --port=8001
 ```
 
 Reverb command:
 
 ```sh
-APP_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:5175 FRONTEND_URLS=http://127.0.0.1:5175,http://localhost:5175 SANCTUM_STATEFUL_DOMAINS=127.0.0.1:5175,localhost:5175 REVERB_HOST=127.0.0.1 REVERB_PORT=8081 REVERB_SERVER_HOST=0.0.0.0 REVERB_SERVER_PORT=8081 /opt/homebrew/bin/php artisan reverb:start --host=0.0.0.0 --port=8081
+APP_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:5175 FRONTEND_URLS=http://127.0.0.1:5175,http://localhost:5175,http://demo.localhost:5175,http://clinic1.localhost:5175 SANCTUM_STATEFUL_DOMAINS=127.0.0.1:5175,localhost:5175,demo.localhost:5175,clinic1.localhost:5175,*.localhost:5175 REVERB_HOST=127.0.0.1 REVERB_PORT=8081 REVERB_SERVER_HOST=0.0.0.0 REVERB_SERVER_PORT=8081 /opt/homebrew/bin/php artisan reverb:start --host=0.0.0.0 --port=8081
 ```
 
 Frontend command:
@@ -37,8 +37,10 @@ VITE_API_TARGET=http://127.0.0.1:8001 VITE_REVERB_APP_KEY=i4gbd4eco2euscrabetm V
 Open the project at:
 
 ```text
-http://localhost:5175/
+http://demo.localhost:5175/
 ```
+
+(`clinic1.localhost:5175` for the clinic1 tenant; bare `localhost:5175` falls back to clinic1 via the Vite proxy.)
 
 Before running, check whether the chosen ports are already in use:
 
