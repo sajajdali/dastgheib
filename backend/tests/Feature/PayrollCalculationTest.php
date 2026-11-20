@@ -41,7 +41,8 @@ class PayrollCalculationTest extends TestCase
             $table->boolean('doctor_commission_enabled')->default(true); $table->boolean('staff_commission_enabled')->default(true);
             $table->string('done')->nullable(); $table->boolean('new_customer')->default(false);
             $table->decimal('amount', 15, 2)->default(0); $table->decimal('original_amount', 15, 2)->default(0);
-            $table->decimal('discount', 15, 2)->default(0); $table->json('services')->nullable(); $table->timestamps();
+            $table->decimal('discount', 15, 2)->default(0); $table->decimal('wallet_applied', 15, 2)->default(0);
+            $table->json('payment_details')->nullable(); $table->json('services')->nullable(); $table->timestamps();
         });
         $this->createPayrollTables();
 
@@ -49,11 +50,12 @@ class PayrollCalculationTest extends TestCase
         $this->staff = Staff::query()->create(['name' => 'مشاور تست', 'new_customer_bonus' => 5, 'existing_customer_bonus' => 5]);
     }
 
-    private function visit(array $service, ?string $done = 'انجام شد', string $month = '1405-08'): Appointment
+    private function visit(array $service, ?string $done = 'انجام شد', string $month = '1405-08', bool $paid = true): Appointment
     {
         return Appointment::query()->create([
             'month' => $month, 'day_num' => 3, 'done' => $done,
             'doctor' => $this->doctor->name, 'consultant' => $this->staff->name,
+            'payment_details' => $paid ? ['ledger_total' => 1000000, 'cash' => 1000000] : ['ledger_total' => 0, 'cash' => 0, 'card' => 0],
             'services' => [['cc' => 1, 'doctor' => $this->doctor->name, 'consultant' => $this->staff->name, ...$service]],
         ]);
     }
@@ -123,6 +125,20 @@ class PayrollCalculationTest extends TestCase
         $pending->update(['done' => null]);
         $this->resync();
         $this->assertSame(0, ResourceEarningLine::query()->where('appointment_id', $pending->id)->count());
+    }
+
+    public function test_unpaid_done_appointments_do_not_earn_commission_until_payment_is_registered(): void
+    {
+        Inventory::query()->create(['name' => 'ویزیت', 'amount' => 500000]);
+        $unpaid = $this->visit(['name' => 'ویزیت'], 'انجام شد', '1405-08', false);
+
+        $this->resync();
+        $this->assertSame(0.0, $this->commission($unpaid));
+        $this->assertSame(0.0, app(AppointmentController::class)->estimatedResourceCommission($unpaid));
+
+        $unpaid->update(['payment_details' => ['ledger_total' => 500000, 'cash' => 500000]]);
+        $this->resync();
+        $this->assertSame(100000.0, $this->commission($unpaid));
     }
 
     public function test_manual_payroll_edits_survive_recalculation_and_follow_the_appointment_date(): void
@@ -218,8 +234,10 @@ class PayrollCalculationTest extends TestCase
         $inventory = Inventory::query()->create(['name' => 'استایلج', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
         InventoryCommission::query()->create(['inventory_id' => $inventory->id, 'recipient_type' => 'doctor', 'recipient_id' => $this->doctor->id, 'recipient_name' => $this->doctor->name, 'commission_type' => 'fixed', 'commission_value' => 50000]);
         $visit = $this->visit(['name' => 'استایلج'], null);
+        $unpaid = $this->visit(['name' => 'استایلج'], null, '1405-08', false);
 
         $this->assertSame(150000.0, app(AppointmentController::class)->estimatedResourceCommission($visit));
+        $this->assertSame(0.0, app(AppointmentController::class)->estimatedResourceCommission($unpaid));
         $this->resync();
         $this->assertSame(0, ResourceEarningLine::query()->where('appointment_id', $visit->id)->count());
     }

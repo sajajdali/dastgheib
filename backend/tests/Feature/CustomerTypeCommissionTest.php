@@ -34,6 +34,7 @@ class CustomerTypeCommissionTest extends TestCase
             $table->boolean('doctor_commission_enabled')->default(true); $table->boolean('staff_commission_enabled')->default(true);
             $table->boolean('referral_reward_enabled')->default(true); $table->string('done')->nullable();
             $table->boolean('new_customer')->default(false); $table->decimal('amount', 15, 2)->default(0);
+            $table->decimal('wallet_applied', 15, 2)->default(0); $table->json('payment_details')->nullable();
             $table->json('services')->nullable(); $table->timestamps();
         });
         $this->createPayrollTables();
@@ -48,6 +49,7 @@ class CustomerTypeCommissionTest extends TestCase
         $appointment = fn (bool $newCustomer, int $day) => Appointment::query()->create([
             'month' => '1405-08', 'day_num' => $day, 'source' => 'اینستاگرام', 'new_customer' => $newCustomer, 'done' => 'انجام شد',
             'doctor' => $doctor->name, 'consultant' => $staff->name, 'amount' => 1000,
+            'payment_details' => ['ledger_total' => 1000, 'cash' => 1000],
             'services' => [['name' => 'خدمت تست', 'cc' => 1, 'doctor' => $doctor->name, 'consultant' => $staff->name]],
         ]);
         $newVisit = $appointment(true, 1);

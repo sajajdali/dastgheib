@@ -118,14 +118,23 @@ class CustomerTypeResolver
             return false;
         }
 
-        $id = (int) ($appointment->id ?? 0);
-        if ($id > 0) {
-            if ($this->appointmentsWithRegisteredPayment(collect([$id]))->has($id)) {
-                return true;
-            }
+        return $this->appointmentHasRegisteredPayment($appointment);
+    }
+
+    /**
+     * آیا برای این نوبت حداقل یک پرداخت/تسویهٔ بدهی یا مبلغ legacy ثبت شده است؟
+     * مبنای نمایش و پرداخت پورسانت پزشک/پرسنل تا قبل از این false می‌ماند.
+     */
+    public function appointmentHasRegisteredPayment(Appointment|array $appointment): bool
+    {
+        $id = (int) (is_array($appointment) ? ($appointment['id'] ?? 0) : ($appointment->id ?? 0));
+        if ($id > 0 && $this->appointmentsWithRegisteredPayment(collect([$id]))->has($id)) {
+            return true;
         }
 
-        return $this->legacyPaymentAmount($appointment) > 0;
+        return $this->legacyPaymentAmount(
+            is_array($appointment) ? (object) $appointment : $appointment
+        ) > 0;
     }
 
     public function appointmentHasNamedService(Appointment|array|null $appointment): bool

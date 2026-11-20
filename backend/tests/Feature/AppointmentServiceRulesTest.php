@@ -42,7 +42,8 @@ class AppointmentServiceRulesTest extends TestCase
             $table->json('referral_commission_snapshot')->nullable();
             $table->string('done')->nullable(); $table->boolean('new_customer')->default(false);
             $table->decimal('amount', 15, 2)->default(0); $table->decimal('original_amount', 15, 2)->default(0);
-            $table->decimal('discount', 15, 2)->default(0); $table->json('services')->nullable(); $table->timestamps();
+            $table->decimal('discount', 15, 2)->default(0); $table->decimal('wallet_applied', 15, 2)->default(0);
+            $table->json('payment_details')->nullable(); $table->json('services')->nullable(); $table->timestamps();
         });
         $this->createPayrollTables();
 
@@ -58,6 +59,7 @@ class AppointmentServiceRulesTest extends TestCase
         return Appointment::query()->create([
             'month' => '1405-08', 'day_num' => 3, 'done' => 'انجام شد', 'lastname' => 'بیمار',
             'doctor' => $this->doctor->name, 'consultant' => $this->staff->name,
+            'payment_details' => ['ledger_total' => 1000000, 'cash' => 1000000],
             'services' => [['name' => 'لیزر', 'cc' => 1, 'doctor' => $this->doctor->name, 'consultant' => $this->staff->name, ...$service]],
             ...$attributes,
         ]);

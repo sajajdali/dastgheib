@@ -34,6 +34,7 @@ class ChannelDoctorCommissionRuleTest extends TestCase
             $table->boolean('doctor_commission_enabled')->default(true); $table->boolean('staff_commission_enabled')->default(true);
             $table->boolean('referral_reward_enabled')->default(true); $table->string('done')->nullable();
             $table->boolean('new_customer')->default(false); $table->decimal('amount', 15, 2)->default(0);
+            $table->decimal('wallet_applied', 15, 2)->default(0); $table->json('payment_details')->nullable();
             $table->json('services')->nullable(); $table->timestamps();
         });
         Schema::create('doctors', fn (Blueprint $table) => $this->resourceTable($table));
@@ -93,6 +94,7 @@ class ChannelDoctorCommissionRuleTest extends TestCase
             'month' => '1405-08', 'day_num' => 1, 'source' => ' تبلیغات ویژه ',
             'doctor' => $doctor->name, 'consultant' => $staff->name,
             'amount' => 950, 'done' => 'انجام شد',
+            'payment_details' => ['ledger_total' => 950, 'cash' => 950],
             'services' => [[
                 'name' => 'خدمت تست', 'cc' => 1, 'doctor' => $doctor->name, 'consultant' => $staff->name,
             ]],
