@@ -5823,7 +5823,7 @@ export default {
       };
     },
 
-    // تا وقتی پرداخت ثبت نشده، دستمزد/پورسانت/سود را خط تیره نشان بده.
+    // دستمزد/پورسانت/سود فقط وقتی نوبت «انجام شد» است و پرداخت ثبت شده — هم‌راستا با حقوق و دستمزد.
     formatTrackingCommissionMoney(amount, commissionsReady) {
       if (!commissionsReady) return "—";
       return `${this.formatDisplayMoney(amount)} تومان`;
@@ -5831,6 +5831,11 @@ export default {
 
     appointmentHasRegisteredPayment(row) {
       return this.appointmentPaidAmount(row) > 0;
+    },
+
+    appointmentCommissionsReady(row) {
+      return this.isCompletedAppointmentDone(row?.done)
+        && this.appointmentHasRegisteredPayment(row);
     },
 
     openTrackingModal(day, row) {
@@ -6000,7 +6005,7 @@ export default {
 
       if (!row?.services?.length) return financial;
 
-      const commissionsReady = this.appointmentHasRegisteredPayment(row);
+      const commissionsReady = this.appointmentCommissionsReady(row);
       financial.commissionsReady = commissionsReady;
 
       this.expandedServices(row).forEach(service => {
@@ -6017,7 +6022,7 @@ export default {
         financial.totalAmount += serviceAmount;
         financial.materialCost += materialCost;
 
-        // درصد پزشک/پورسانت پرسنل و سود وابسته فقط بعد از ثبت پرداخت.
+        // درصد پزشک/پورسانت پرسنل و سود وابسته فقط بعد از «انجام شد» + ثبت پرداخت.
         if (!commissionsReady) return;
 
         financial.doctorWage += this.serviceCommission(this.serviceDoctor(service, row), 'doctor', row, service, item, cc);
@@ -6707,8 +6712,8 @@ export default {
       if (!row.services || !row.services.length)
         return 0;
 
-      // بدون پرداخت ثبت‌شده، سود کلینیک (و کسر دستمزد/پورسانت) محاسبه نمی‌شود.
-      if (!this.appointmentHasRegisteredPayment(row)) return 0;
+      // بدون «انجام شد» یا پرداخت ثبت‌شده، سود کلینیک (و کسر دستمزد/پورسانت) محاسبه نمی‌شود.
+      if (!this.appointmentCommissionsReady(row)) return 0;
 
       let totalAmount = 0;
       let totalCost = 0;
