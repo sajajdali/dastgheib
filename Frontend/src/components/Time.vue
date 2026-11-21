@@ -129,9 +129,18 @@
 
             <th
               class="sticky-header resizable-th soft-column-divider"
+              :class="{ 'filtered-header': selectedCustomerLevels.length > 0 }"
               :style="{ width: columnWidths.lastname + 'px' }"
             >
-               نام و نام خانوادگی
+              <div class="header-with-filter">
+                <span>نام و نام خانوادگی</span>
+                <button type="button" class="filter-btn" title="فیلتر سطح مشتری" @click.stop="toggleCustomerLevelFilter">⚙</button>
+              </div>
+              <div v-if="showCustomerLevelFilter" class="filter-dropdown" @click.stop>
+                <label v-for="level in customerLevelFilterOptions" :key="level.value">
+                  <input v-model="selectedCustomerLevels" type="checkbox" :value="level.value">{{ level.label }}
+                </label>
+              </div>
               <div
                 class="resize-handle"
                 @mousedown="startResize($event, 'lastname')"
@@ -3056,6 +3065,13 @@ export default {
       selectedSources: [],
       selectedDone: [],
       selectedGenders: [],
+      selectedCustomerLevels: [],
+      customerLevelFilterOptions: [
+        { value: 'silver', label: 'نقره‌ای' },
+        { value: 'blue', label: 'آبی' },
+        { value: 'gold', label: 'طلایی' },
+        { value: 'problematic', label: 'دردسرساز' },
+      ],
       selectedAppointmentSms: [],
       selectedInfoSms: [],
       selectedBeforePhotoStates: [],
@@ -3094,6 +3110,7 @@ export default {
       showSourceFilter: false,
       showDoneFilter: false,
       showGenderFilter: false,
+      showCustomerLevelFilter: false,
       showAppointmentSmsFilter: false,
       showInfoSmsFilter: false,
       showBeforePhotoFilter: false,
@@ -3113,7 +3130,7 @@ export default {
       generatingNewMonth: false,
 
       columnWidths: {
-        lastname: 145,
+        lastname: 188,
         gender: 58,
         phone: 112,
         fileNumber: 78,
@@ -3159,7 +3176,7 @@ export default {
     dayRowsFilterSignature() {
       return JSON.stringify([
         this.appliedSearchQuery, this.searchAppointmentId, this.selectedStatuses, this.selectedSources, this.selectedDone,
-        this.selectedGenders, this.selectedAppointmentSms, this.selectedInfoSms,
+        this.selectedGenders, this.selectedCustomerLevels, this.selectedAppointmentSms, this.selectedInfoSms,
         this.selectedBeforePhotoStates, this.selectedAfterPhotoStates, this.selectedServiceSections,
         this.selectedServiceDoctors, this.selectedServiceConsultants, this.selectedServiceSubsections,
         this.amountFilterMin, this.amountFilterMax, this.amountFilterCardOnly, this.amountFilterDebtorsOnly,
@@ -3195,7 +3212,7 @@ export default {
     tableFilterSignature() {
       return JSON.stringify([
         this.selectedStatuses, this.selectedSources, this.selectedDone,
-        this.selectedGenders, this.selectedAppointmentSms, this.selectedInfoSms,
+        this.selectedGenders, this.selectedCustomerLevels, this.selectedAppointmentSms, this.selectedInfoSms,
         this.selectedBeforePhotoStates, this.selectedAfterPhotoStates,
         this.selectedServiceSections, this.selectedServiceDoctors,
         this.selectedServiceConsultants, this.selectedServiceSubsections,
@@ -3209,7 +3226,7 @@ export default {
     hasActiveTableFilters() {
       return Boolean(
         this.appliedSearchQuery.trim() || this.selectedStatuses.length || this.selectedSources.length ||
-        this.selectedDone.length || this.selectedGenders.length ||
+        this.selectedDone.length || this.selectedGenders.length || this.selectedCustomerLevels.length ||
         this.selectedAppointmentSms.length || this.selectedInfoSms.length ||
         this.selectedBeforePhotoStates.length || this.selectedAfterPhotoStates.length ||
         this.serviceFilterCount || this.amountFilterActive || this.emptyTimeFilterActive ||
@@ -9183,6 +9200,7 @@ this.calculateFinalAmount(row)
       this.showSourceFilter = false;
       this.showDoneFilter = false;
       this.showGenderFilter = false;
+      this.showCustomerLevelFilter = false;
       this.showAppointmentSmsFilter = false;
       this.showInfoSmsFilter = false;
       this.showBeforePhotoFilter = false;
@@ -9589,6 +9607,12 @@ this.calculateFinalAmount(row)
       const shouldOpen = !this.showGenderFilter;
       this.closeAllPopupsAndFilters();
       this.showGenderFilter = shouldOpen;
+    },
+
+    toggleCustomerLevelFilter() {
+      const shouldOpen = !this.showCustomerLevelFilter;
+      this.closeAllPopupsAndFilters();
+      this.showCustomerLevelFilter = shouldOpen;
     },
 
     toggleAppointmentSmsFilter() {
@@ -10712,6 +10736,12 @@ this.calculateFinalAmount(row)
           this.selectedDone.includes(row.done);
 
         const genderOk = !this.selectedGenders.length || this.selectedGenders.includes(row.gender);
+        // customerLevel روی ردیف همان خروجی decorate در CustomerLevelService است که حلقهٔ آواتار نشان می‌دهد.
+        // اسلات خالی و نوبت بدون پرونده سطح ذخیره‌شده یا پیش‌فرض نقره‌ای دارند و در این فیلتر نمی‌آیند.
+        const customerLevelOk = !this.selectedCustomerLevels.length || (
+          Boolean(row.hasPatientFile) &&
+          this.selectedCustomerLevels.includes(this.normalizeCustomerLevel(row.customerLevel))
+        );
         const appointmentSmsOk = !this.selectedAppointmentSms.length || this.selectedAppointmentSms.includes(row.appointmentSms || '');
         const infoSmsOk = !this.selectedInfoSms.length || this.selectedInfoSms.includes(row.infoSms || '');
         const beforePhotoOk = !this.selectedBeforePhotoStates.length || this.selectedBeforePhotoStates.includes(this.photoStatusState(row, 'before'));
@@ -10768,7 +10798,7 @@ this.calculateFinalAmount(row)
           (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
         );
 
-        return statusOk && sourceOk && doneOk && genderOk && appointmentSmsOk && infoSmsOk && beforePhotoOk && afterPhotoOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingRootSectionOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
+        return statusOk && sourceOk && doneOk && genderOk && customerLevelOk && appointmentSmsOk && infoSmsOk && beforePhotoOk && afterPhotoOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingRootSectionOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
       });
 
       rows = rows
