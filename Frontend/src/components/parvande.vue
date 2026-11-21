@@ -450,7 +450,7 @@
             </div>
             <div class="profile-info-row">
               <span class="profile-info-icon">💼</span>
-              <b>بیعانه / اعتبار</b>
+              <b>موجودی کیف پول</b>
               <strong>{{ formatMoneyValue(activePatientProfile.wallet_balance) }}</strong>
             </div>
             <div class="profile-info-row" :class="{ 'profile-debt-warning': Number(activePatientProfile.outstanding_debt || 0) > 0 }">
@@ -459,6 +459,23 @@
               <strong>{{ formatMoneyValue(activePatientProfile.outstanding_debt) }}</strong>
             </div>
           </div>
+          </div>
+        </section>
+
+        <section v-if="profileReferralPeople.length" class="profile-referral-card">
+          <div class="profile-card-title">
+            <h3>افراد معرفی‌شده</h3>
+            <span>{{ profileReferralPeople.length }} نفر</span>
+          </div>
+          <ul class="profile-referral-list">
+            <li v-for="person in profileReferralPeople" :key="person.key">
+              <b>{{ person.name }}</b>
+              <strong>{{ formatMoneyValue(person.amount) }}</strong>
+            </li>
+          </ul>
+          <div class="profile-referral-total">
+            <span>جمع درآمد از معرفی</span>
+            <strong>{{ formatMoneyValue(profileReferralTotal) }}</strong>
           </div>
         </section>
 
@@ -2012,6 +2029,7 @@ export default {
       walletRewardExpiresAt: null,
       walletRewardTotal: 0,
       walletReferralRewards: [],
+      profileReferredPeople: [],
 
       showMediaModal: false,
       mediaViewerItem: null,
@@ -2450,6 +2468,14 @@ export default {
       }
     },
 
+    profileReferralPeople() {
+      return this.profileReferredPeople || []
+    },
+
+    profileReferralTotal() {
+      return this.profileReferralPeople.reduce((sum, person) => sum + Number(person.amount || 0), 0)
+    },
+
     profileStatCards() {
       const stats = this.profileStats
 
@@ -2699,6 +2725,10 @@ export default {
         this.walletRewardExpiresAt = data.reward_expires_at || null
         this.walletRewardTotal = Number(data.reward_total || 0)
         this.walletReferralRewards = data.referral_rewards || []
+        if (this.activePatientProfile?.id === this.activeWalletPatient?.id) {
+          this.profileReferredPeople = data.referred_people || []
+          this.activePatientProfile = { ...this.activePatientProfile, wallet_balance: this.walletBalance }
+        }
       } catch (error) {
         console.error(error)
       } finally {
@@ -2853,6 +2883,11 @@ export default {
       })
       this.fetchPatientAppointmentsFor(patient)
       this.fetchPatientSatisfaction(patient)
+      this.walletReferralRewards = []
+      this.walletTransactions = []
+      this.profileReferredPeople = []
+      this.activeWalletPatient = patient
+      this.loadWalletTransactions()
     },
 
     async openRequestedPatientProfile(request) {
@@ -6021,6 +6056,54 @@ select:focus {
 
 .profile-info-row:last-child:nth-child(odd) {
   grid-column: 1 / -1;
+}
+
+.profile-referral-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.profile-referral-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-referral-list li,
+.profile-referral-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.profile-referral-list b,
+.profile-referral-total span {
+  color: #334155;
+  font-size: 14px;
+}
+
+.profile-referral-list strong,
+.profile-referral-total strong {
+  color: #166534;
+  font-size: 15px;
+}
+
+.profile-referral-total {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .profile-info-icon {
@@ -10167,6 +10250,7 @@ html #app.dark .patient-page .profile-back-btn:hover {
 html body.dark .patient-page .profile-main-card,
 html body.dark .patient-page .profile-extra-card,
 html body.dark .patient-page .profile-report-card,
+html body.dark .patient-page .profile-referral-card,
 html body.dark .patient-page .profile-history-card,
 html body.dark .patient-page .profile-rating-card,
 html body.dark .patient-page .profile-satisfaction-card,
@@ -10174,6 +10258,7 @@ html body.dark .patient-page .profile-automatic-sms-card,
 html #app.dark .patient-page .profile-main-card,
 html #app.dark .patient-page .profile-extra-card,
 html #app.dark .patient-page .profile-report-card,
+html #app.dark .patient-page .profile-referral-card,
 html #app.dark .patient-page .profile-history-card,
 html #app.dark .patient-page .profile-rating-card,
 html #app.dark .patient-page .profile-satisfaction-card,
@@ -10183,6 +10268,21 @@ html #app.dark .patient-page .profile-automatic-sms-card {
   color: #e8eaed !important;
   box-shadow: 0 14px 36px rgba(0, 0, 0, .35) !important;
 }
+html body.dark .patient-page .profile-referral-list li,
+html body.dark .patient-page .profile-referral-total,
+html #app.dark .patient-page .profile-referral-list li,
+html #app.dark .patient-page .profile-referral-total {
+  background: #121417 !important;
+  border-color: #2c3038 !important;
+}
+html body.dark .patient-page .profile-referral-list b,
+html body.dark .patient-page .profile-referral-total span,
+html #app.dark .patient-page .profile-referral-list b,
+html #app.dark .patient-page .profile-referral-total span { color: #e8eaed !important; }
+html body.dark .patient-page .profile-referral-list strong,
+html body.dark .patient-page .profile-referral-total strong,
+html #app.dark .patient-page .profile-referral-list strong,
+html #app.dark .patient-page .profile-referral-total strong { color: #86efac !important; }
 html body.dark .patient-page .profile-main-card,
 html #app.dark .patient-page .profile-main-card {
   background:
