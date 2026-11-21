@@ -26,6 +26,7 @@ use App\Models\ReferralRewardLine;
 use App\Models\AppSetting;
 use Illuminate\Support\Facades\DB;
 use App\Services\CustomerLevelService;
+use App\Services\CustomerTypeResolver;
 use App\Services\ShsmsService;
 use App\Services\AppointmentAutomaticSmsService;
 use App\Services\FinancialCheckoutBalanceService;
@@ -401,13 +402,13 @@ class AppointmentController extends Controller
                     }
 
                     $appt = [...$appt, ...$this->commissionFlagsForDraft($previousAppointment, $appt['source'] ?? null)];
+                    // اطمینان از اینکه فیلد ماه در دیتابیس پر می‌شود
+                    $appt['month'] = $month;
+                    $appt['new_customer'] = $this->resolveAppointmentIsNewCustomer($appt, $previousAppointment);
                     $reward = $this->calculateReferralReward($appt);
                     $appt['referral_score'] = $reward['amount'];
                     $appt['referral_commission_type'] = $reward['type'];
                     $appt['referral_commission_value'] = $reward['value'];
-                    
-                    // اطمینان از اینکه فیلد ماه در دیتابیس پر می‌شود
-                    $appt['month'] = $month;
 
                     // حذف ID قدیمی اگر وجود دارد تا رکورد جدید ساخته شود
                     unset($appt['appointment_id']);
@@ -583,7 +584,7 @@ class AppointmentController extends Controller
                 // increase its version merely by opening/using another row.
                 if ($previous && $this->incomingAppointmentMatches($incoming, $previous)) {
                     if ($followupConfirmed) $this->syncServiceFollowups($previous);
-                    $saved[] = $previous->fresh();
+                    $saved[] = $this->syncStoredCustomerType($previous, $incoming);
                     continue;
                 }
                 $currentLockVersion = $previous ? max(1, (int) $previous->lock_version) : null;
@@ -595,7 +596,7 @@ class AppointmentController extends Controller
                     // is a genuine concurrent-edit conflict.
                     if ($this->incomingAppointmentMatches($incoming, $previous)) {
                         if ($followupConfirmed) $this->syncServiceFollowups($previous);
-                        $saved[] = $previous->fresh();
+                        $saved[] = $this->syncStoredCustomerType($previous, $incoming);
                         continue;
                     }
                     abort(409, 'این نوبت در دستگاه یا مرورگر دیگری تغییر کرده است. صفحه را تازه‌سازی کنید.');
@@ -648,6 +649,8 @@ class AppointmentController extends Controller
                     $incoming['amount'] = max(0, $financial['original_amount'] + $financial['surcharge'] + $manualOverage - $financial['discount'] - $incoming['wallet_applied']);
                 }
                 $incoming = [...$incoming, ...$this->commissionFlagsForDraft($previous, $incoming['source'] ?? null)];
+                // نوع مشتری را سرور از سابقهٔ پرداختِ خدمت تعیین می‌کند؛ مقدار کلاینت نادیده گرفته می‌شود.
+                $incoming['new_customer'] = $this->resolveAppointmentIsNewCustomer($incoming, $previous);
                 $incoming = $this->normalizeAppointmentTracking($incoming, $previous);
                 $reward = $this->calculateReferralReward($incoming);
                 $incoming['referral_score'] = $reward['amount'];
@@ -1239,7 +1242,8 @@ class AppointmentController extends Controller
             'payment_account', 'payment_details', 'payment_link',
             'payment_link_sent_count', 'payment_link_last_sent_at', 'referrer_phone',
             'referrer_type', 'referrer_id', 'referral_score', 'wallet_applied', 'referral_commission_type',
-            'referral_commission_value', 'discount', 'new_customer',
+            'referral_commission_value', 'discount',
+            // new_customer سرور محاسبه می‌کند و در مقایسهٔ «بدون تغییر» لحاظ نمی‌شود.
             'appointment_sms', 'info_sms', 'completion_sms_statuses',
             'service_types', 'services',
         ];
@@ -1257,6 +1261,23 @@ class AppointmentController extends Controller
         }
 
         return true;
+    }
+
+    /** اگر فقط پرچم جدید/قدیم غلط باشد، همان را درست می‌کند و در صورت نیاز پورسانت را نو می‌سازد. */
+    private function syncStoredCustomerType(Appointment $appointment, array $incoming = []): Appointment
+    {
+        $isNew = $this->resolveAppointmentIsNewCustomer($incoming ?: $appointment->toArray(), $appointment);
+        if ((bool) $appointment->new_customer === $isNew) {
+            return $appointment;
+        }
+
+        $appointment->update(['new_customer' => $isNew]);
+        $appointment = $appointment->fresh() ?: $appointment;
+        if ($this->appointmentIsDone($appointment)) {
+            $this->syncResourceEarningLines($appointment);
+        }
+
+        return $appointment;
     }
 
     /**
@@ -1639,7 +1660,13 @@ class AppointmentController extends Controller
                     'original_amount' => 0,
                     'discount' => 0,
                     'debt' => 0,
-                    'new_customer' => false,
+                    'new_customer' => app(CustomerTypeResolver::class)->isNewCustomer(
+                        $data['file_number'] ?? null,
+                        $data['phone'] ?? null,
+                        null,
+                        $data['month'],
+                        (int) $data['day_num'],
+                    ),
                 ]);
             });
         });
@@ -2008,6 +2035,9 @@ class AppointmentController extends Controller
                 'referral_commission_value' => $reward['value'],
             ]);
             $this->syncAppointmentWalletEffects($request, $appointment, $reward, null, false);
+            $appointment = $appointment->fresh();
+            // ثبت پرداخت خدمت می‌تواند نوبت‌های بعدی همان بیمار را از «جدید» به «قدیم» تبدیل کند.
+            $this->reclassifyPatientCustomerTypeAndEarnings($appointment);
             return ['appointment' => $appointment->fresh(), 'wallet_balance' => (int) ($patient?->fresh()->wallet_balance ?? 0), 'outstanding_debt' => (int) ($patient?->fresh()->outstanding_debt ?? 0)];
         });
         $this->broadcastAppointmentChange($result['appointment']);
@@ -2096,6 +2126,8 @@ class AppointmentController extends Controller
             ]);
             $this->recordBalanceAudit($request, $appointment, $before);
             $this->syncReferralAfterSettlement($request, $appointment);
+            $appointment = $appointment->fresh();
+            $this->reclassifyPatientCustomerTypeAndEarnings($appointment);
 
             return [
                 'appointment' => $appointment->fresh(), 'deleted_amount' => $deletedAmount,
@@ -3553,6 +3585,39 @@ class AppointmentController extends Controller
             'breakdown' => $breakdown,
             'signature' => sha1(json_encode([$phone, $breakdown], JSON_UNESCAPED_UNICODE)),
         ];
+    }
+
+    /**
+     * مشتری قدیم فقط وقتی است که نوبت قبلی با خدمت و پرداخت ثبت‌شده داشته باشد؛ وگرنه جدید می‌ماند.
+     */
+    private function resolveAppointmentIsNewCustomer(array $incoming, ?Appointment $previous = null): bool
+    {
+        return app(CustomerTypeResolver::class)->isNewCustomer(
+            $incoming['file_number'] ?? $previous?->file_number,
+            $incoming['phone'] ?? $previous?->phone,
+            $previous?->id ? (int) $previous->id : null,
+            $incoming['month'] ?? $previous?->month,
+            isset($incoming['day_num']) ? (int) $incoming['day_num'] : ($previous?->day_num !== null ? (int) $previous->day_num : null),
+        );
+    }
+
+    /** بعد از تغییر پرداخت، پرچم جدید/قدیم و پورسانت وابسته را برای همان بیمار هم‌تراز می‌کند. */
+    private function reclassifyPatientCustomerTypeAndEarnings(Appointment $appointment): void
+    {
+        $changed = app(CustomerTypeResolver::class)
+            ->reclassifyPatientAppointments($appointment->file_number, $appointment->phone);
+
+        $changed
+            ->filter(fn (Appointment $row) => $this->appointmentIsDone($row))
+            ->each(fn (Appointment $row) => $this->syncResourceEarningLines($row));
+
+        // خود نوبت فعلی ممکن است پرچمش عوض نشده باشد ولی پورسانتش باید با پرچم به‌روز محاسبه شود.
+        if ($this->appointmentIsDone($appointment) && ! $changed->contains(fn (Appointment $row) => (int) $row->id === (int) $appointment->id)) {
+            $fresh = $appointment->fresh();
+            if ($fresh) {
+                $this->syncResourceEarningLines($fresh);
+            }
+        }
     }
 
     /** Persian/Arabic digits → ASCII and drop separators, so «۰۹۱۲ ۳۴۵ ۶۷۸۹» matches 09123456789. */

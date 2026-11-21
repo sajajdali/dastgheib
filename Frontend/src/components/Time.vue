@@ -4938,6 +4938,7 @@ export default {
         .filter((item, index, items) => items.indexOf(item) === index)
         .join(" | ");
       draft.status = draft.status || "وقت داده شد";
+      // تا وقتی نوبت قبلی با خدمت و پرداخت ثبت‌شده نباشد مشتری جدید می‌ماند.
       draft.newCustomer = true;
     },
 
@@ -5076,6 +5077,10 @@ export default {
       row.walletBalance = Number(patient.wallet_balance || 0);
       row.patientId = patient.id || null;
       row.patientOutstandingDebt = Number(patient.outstanding_debt || 0);
+      // قدیم فقط اگر سابقهٔ پرداخت خدمت داشته باشد؛ وگرنه برای پیش‌نمایش پورسانت جدید می‌ماند.
+      if (Object.prototype.hasOwnProperty.call(patient, 'is_new_customer')) {
+        row.newCustomer = Boolean(patient.is_new_customer);
+      }
       this.autoSetAppointmentStatus(row);
       this.clearTimelineValidationError("lastname");
       this.clearTimelineValidationError("phone");
@@ -7651,7 +7656,8 @@ this.calculateFinalAmount(row)
         paymentLinkSentCount: 0,
         paymentLinkLastSentAt: "",
 
-        newCustomer: false,
+        // پیش‌فرض جدید؛ سرور با سابقهٔ پرداخت خدمت نهایی می‌کند.
+        newCustomer: true,
 
         appointmentSms: "",
         infoSms: "",
@@ -9709,8 +9715,8 @@ this.calculateFinalAmount(row)
         return hasServiceName || hasServiceCc || hasAddon;
       });
 
-      const hasStructuredValue = Boolean(row.newCustomer)
-        || (Array.isArray(row.serviceTypes) && row.serviceTypes.length > 0)
+      // newCustomer دیگر نشانهٔ «ردیف پر» نیست؛ پیش‌فرض جدید است و سرور نهایی می‌کند.
+      const hasStructuredValue = (Array.isArray(row.serviceTypes) && row.serviceTypes.length > 0)
         || Object.values(row.paymentDetails || {}).some(value => {
           if (value && typeof value === "object") return Object.values(value).some(Boolean);
           return Boolean(value);

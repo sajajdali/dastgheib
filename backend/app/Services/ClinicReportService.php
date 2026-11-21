@@ -1240,12 +1240,29 @@ class ClinicReportService
             'churned' => max(0, $allCompletedCustomers - $currentKeys->count()),
         ];
     }
-    private function customers(array $filters): array { $rows=$this->appointments($filters)->lazyById(500); return ['new'=>$rows->where('new_customer',true)->unique(fn($r)=>$r->file_number ?: $r->phone)->count(),'old'=>$rows->where('new_customer',false)->unique(fn($r)=>$r->file_number ?: $r->phone)->count()]; }
+    private function customers(array $filters): array
+    {
+        // جدید/قدیم بر اساس سابقهٔ پرداخت خدمت قبل از نوبت است، نه فقط پرچم ذخیره‌شده.
+        $resolver = app(CustomerTypeResolver::class);
+        $seen = [];
+        $new = 0;
+        $old = 0;
+        foreach ($this->appointments($filters)->lazyById(500) as $appointment) {
+            $key = trim((string) ($appointment->file_number ?: $appointment->phone));
+            if ($key === '' || isset($seen[$key])) continue;
+            $seen[$key] = true;
+            if ($resolver->isNewForAppointment($appointment)) $new++;
+            else $old++;
+        }
+
+        return ['new' => $new, 'old' => $old];
+    }
 
     private function customerOverview(array $filters): array
     {
-        // جنسیت و جدید/قدیم برای مشتریانی است که در همین بازه مراجعه کرده‌اند (آمد، مشاوره یا انجام کار)،
-        // نه کل پرونده‌ها یا تعداد نوبت‌ها. جدید بودن از علامت «مشتری جدید» خود نوبت خوانده می‌شود.
+        // جنسیت و جدید/قدیم برای مشتریانی است که در همین بازه مراجعه کرده‌اند (آمد، مشاوره یا انجام کار).
+        // مشتری قدیم = حداقل یک نوبت قبلی با خدمت و پرداخت ثبت‌شده؛ در غیر این صورت جدید.
+        $resolver = app(CustomerTypeResolver::class);
         $genderOf = fn ($value) => match (trim((string) $value)) {
             'خانم', 'زن', 'female', 'Female' => 'female',
             'آقا', 'مرد', 'male', 'Male' => 'male',
@@ -1264,11 +1281,39 @@ class ClinicReportService
             $patientKey = $this->reportPatientKey($appointment);
             $visited = $this->isCompleted($appointment) || trim((string) $appointment->done) === 'مشاوره' || $status === 'آمد';
             if ($patientKey === '' || ! $visited) continue;
-            $visitors[$patientKey] ??= ['new' => false, 'gender' => 'unknown'];
-            $visitors[$patientKey]['new'] = $visitors[$patientKey]['new'] || (bool) $appointment->new_customer;
+            $date = $this->dateOf($appointment);
+            $visitors[$patientKey] ??= [
+                'new' => true,
+                'gender' => 'unknown',
+                'earliest' => $date,
+                'file_number' => $appointment->file_number,
+                'phone' => $appointment->phone,
+                'appointment_id' => $appointment->id,
+                'month' => $appointment->month,
+                'day_num' => $appointment->day_num,
+            ];
+            if ($date < $visitors[$patientKey]['earliest']) {
+                $visitors[$patientKey]['earliest'] = $date;
+                $visitors[$patientKey]['appointment_id'] = $appointment->id;
+                $visitors[$patientKey]['month'] = $appointment->month;
+                $visitors[$patientKey]['day_num'] = $appointment->day_num;
+                $visitors[$patientKey]['file_number'] = $appointment->file_number;
+                $visitors[$patientKey]['phone'] = $appointment->phone;
+            }
             $gender = $genderOf($appointment->gender ?: ($patientGender[$patientKey] ?? null));
             if ($gender !== 'unknown') $visitors[$patientKey]['gender'] = $gender;
         }
+        foreach ($visitors as &$visitor) {
+            $visitor['new'] = $resolver->isNewCustomer(
+                $visitor['file_number'] ?? null,
+                $visitor['phone'] ?? null,
+                isset($visitor['appointment_id']) ? (int) $visitor['appointment_id'] : null,
+                $visitor['month'] ?? null,
+                isset($visitor['day_num']) ? (int) $visitor['day_num'] : null,
+            );
+            unset($visitor['earliest'], $visitor['file_number'], $visitor['phone'], $visitor['appointment_id'], $visitor['month'], $visitor['day_num']);
+        }
+        unset($visitor);
         arsort($statuses);
 
         $new = count(array_filter($visitors, fn (array $visitor) => $visitor['new']));

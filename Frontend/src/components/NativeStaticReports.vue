@@ -821,7 +821,7 @@
                   </div>
                 </div>
               </div>
-              <div v-if="v.newOldCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه مشتریان جدید و قدیمی</strong><small>تعداد نوبت‌های هر مشتری بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
+              <div v-if="v.newOldCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه مشتریان جدید و قدیمی</strong><small>سابقهٔ پرداخت خدمت هر مشتری بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.status" @dragover="v.dv.status" @drop="v.dp.status" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.status) + ';order:' + (v.o.status)" data-screen-label="وضعیت مشتری‌ها">
