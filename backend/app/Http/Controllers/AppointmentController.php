@@ -2908,6 +2908,16 @@ class AppointmentController extends Controller
             && app(CustomerTypeResolver::class)->appointmentHasRegisteredPayment($appointment);
 
         if ($type === 'customer') {
+            $settled = $this->scheduleCustomerRewardSettled($appointment);
+            $amount = null;
+            if ($ready) {
+                $amount = (int) round((float) ($appointment->referral_score ?? 0));
+                // امتیاز صفر به‌معنی «هنوز تسویه نشده» نیست؛ بعد از تسویه مبلغ را از درصد ذخیره‌شده حساب می‌کنیم.
+                if ($settled && $amount <= 0) {
+                    $amount = $this->customerReferrerRewardFromRate($appointment);
+                }
+            }
+
             return [
                 'referrer_id' => $id > 0 ? $id : null,
                 'name' => $name !== '' ? $name : 'مشتری معرف',
@@ -2915,7 +2925,8 @@ class AppointmentController extends Controller
                 'type' => 'customer',
                 'commission_type' => $appointment->referral_commission_type ?: null,
                 'commission_value' => (float) ($appointment->referral_commission_value ?? 0),
-                'amount' => $ready ? (int) round((float) ($appointment->referral_score ?? 0)) : null,
+                'settled' => $settled,
+                'amount' => $amount,
             ];
         }
 
@@ -2974,6 +2985,48 @@ class AppointmentController extends Controller
             'commission_value' => $commissionValue,
             'amount' => $amount,
         ];
+    }
+
+    /** تسویهٔ کامل از نگاه گزارش: بدهی نوبت صفر است و پرداخت ثبت‌شده به مبلغ خدمات رسیده. */
+    private function scheduleCustomerRewardSettled(Appointment $appointment): bool
+    {
+        if ($this->signedMoneyToInteger($appointment->debt ?? 0) > 0) {
+            return false;
+        }
+
+        $details = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+        $paid = (int) ($details['ledger_total'] ?? 0);
+        if ($paid <= 0) {
+            $breakdown = is_array($details['payment_breakdown'] ?? null) ? $details['payment_breakdown'] : [];
+            $paid = (int) array_sum(array_map(fn ($amount) => max(0, (int) $amount), $breakdown));
+        }
+        if ($paid <= 0) {
+            $paid = (int) (($details['cash'] ?? 0) + ($details['card'] ?? 0) + data_get($details, 'check.amount', 0));
+        }
+        $paid += (int) collect($details['debt_payments'] ?? [])->sum(fn ($payment) => max(0, (int) ($payment['amount'] ?? 0)));
+        $paid += max(0, $this->signedMoneyToInteger($appointment->wallet_applied ?? 0));
+        if ($paid <= 0) {
+            return false;
+        }
+
+        $payable = max(0, $this->signedMoneyToInteger($appointment->amount ?? 0));
+
+        return $payable <= 0 || $paid >= $payable;
+    }
+
+    /** وقتی referral_score صفر مانده، مبلغ پاداش را از درصد یا مبلغ ثابتِ ذخیره‌شده روی نوبت می‌سازد. */
+    private function customerReferrerRewardFromRate(Appointment $appointment): int
+    {
+        $type = ($appointment->referral_commission_type ?? '') === 'fixed' ? 'fixed' : 'percent';
+        $value = (float) ($appointment->referral_commission_value ?? 0);
+        if ($value <= 0) {
+            return 0;
+        }
+        if ($type === 'fixed') {
+            return (int) round($value);
+        }
+
+        return (int) round(max(0, $this->signedMoneyToInteger($appointment->amount ?? 0)) * $value / 100);
     }
 
     /** پورسانت معرف را روی پاسخ نوبت می‌گذارد؛ نوبت بدون معرف مقدار null می‌گیرد تا بلوک گزارش پنهان بماند. */

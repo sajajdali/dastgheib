@@ -175,7 +175,42 @@ class AppointmentServiceRulesTest extends TestCase
         $this->assertSame('سارا محمدی', $customerSummary['name']);
         $this->assertSame('مشتری', $customerSummary['role']);
         $this->assertSame(50000, $customerSummary['amount']);
+        $this->assertTrue($customerSummary['settled']);
         $this->assertSame(8.0, (float) $customerSummary['commission_value']);
+
+        $open = $this->visit([], [
+            'payment_details' => ['ledger_total' => 600000],
+        ]);
+        $open->forceFill([
+            'amount' => 1000000,
+            'debt' => 400000,
+            'referrer_type' => 'customer',
+            'referrer_id' => 5,
+            'referrer_name' => 'علی موسوی',
+            'referral_score' => 0,
+            'referral_commission_type' => 'percent',
+            'referral_commission_value' => 5,
+        ]);
+        $openSummary = $controller->scheduleReferrerCommission($open);
+        $this->assertFalse($openSummary['settled']);
+        $this->assertSame(0, $openSummary['amount']);
+
+        $settled = $this->visit([], [
+            'payment_details' => ['ledger_total' => 1000000],
+        ]);
+        $settled->forceFill([
+            'amount' => 1000000,
+            'debt' => 0,
+            'referrer_type' => 'customer',
+            'referrer_id' => 5,
+            'referrer_name' => 'علی موسوی',
+            'referral_score' => 0,
+            'referral_commission_type' => 'percent',
+            'referral_commission_value' => 5,
+        ]);
+        $settledSummary = $controller->scheduleReferrerCommission($settled);
+        $this->assertTrue($settledSummary['settled']);
+        $this->assertSame(50000, $settledSummary['amount']);
     }
 
     public function test_staff_referrer_with_fixed_amount_and_channel_exclusion(): void

@@ -5954,13 +5954,18 @@ export default {
         && server.type === local.type
         && Number(server.referrerId || 0) === Number(row?.referrerId || 0);
       if (!samePerson) return local;
+      const settled = server.settled === true || local.settled === true;
+      const serverAmount = server.amount == null ? null : Number(server.amount);
+      let amount = serverAmount == null ? local.amount : serverAmount;
+      if (settled && !(Number(amount) > 0) && Number(local.amount) > 0) amount = local.amount;
       return {
         ...local,
         name: server.name || local.name,
         role: server.role || local.role,
         commissionType: server.commissionType || local.commissionType,
         commissionValue: Number(server.commissionValue || local.commissionValue || 0),
-        amount: server.amount == null ? local.amount : server.amount
+        settled,
+        amount
       };
     },
 
@@ -5984,6 +5989,11 @@ export default {
           amount = 0;
         } else if (type === 'customer') {
           amount = this.moneyToNumber(row?.referralScore);
+          if (this.appointmentPaymentIsSettled(row) && amount <= 0 && rate.commissionValue > 0) {
+            amount = rate.commissionType === 'fixed'
+              ? rate.commissionValue
+              : Math.round(this.trackingReferralNet(row) * rate.commissionValue / 100);
+          }
         } else if (rate.commissionType === 'fixed') {
           amount = rate.commissionValue;
         } else {
@@ -5998,6 +6008,7 @@ export default {
         referrerId: row?.referrerId || null,
         commissionType: rate.commissionValue > 0 ? rate.commissionType : null,
         commissionValue: rate.commissionValue,
+        settled: this.appointmentPaymentIsSettled(row),
         amount
       };
     },
@@ -6042,6 +6053,10 @@ export default {
         return 'پورسانت معرفی برای این شخص تعریف نشده است.';
       }
       const money = `${this.formatDisplayMoney(amount)} تومان`;
+      if (referrer.type === 'customer' && referrer.settled) {
+        if (amount > 0) return rate ? `${rate} — ${money} واریز شد` : `${money} واریز شد`;
+        return rate ? `${rate} — به کیف پول معرف واریز شد` : 'به کیف پول معرف واریز شد';
+      }
       if (referrer.type === 'customer' && amount <= 0 && rate) {
         return `${rate} — پاداش پس از تسویهٔ کامل به کیف پول معرف واریز می‌شود.`;
       }
@@ -7907,6 +7922,7 @@ this.calculateFinalAmount(row)
         referrerId: value.referrer_id || null,
         commissionType: value.commission_type || null,
         commissionValue: Number(value.commission_value || 0),
+        settled: value.settled === true,
         amount: value.amount == null || value.amount === '' ? null : Number(value.amount)
       };
     },
