@@ -468,7 +468,8 @@
 
           <label>
             مقدار
-            <input v-model.number="defaultCommissionDraft.value" type="number" min="0" placeholder="مثلا 10">
+            <input v-if="defaultCommissionDraft.type === 'fixed'" :value="formatMoneyInput(defaultCommissionDraft.value)" type="text" inputmode="numeric" placeholder="مثلاً ۲۰۰,۰۰۰" @input="onFixedCommissionInput($event, defaultCommissionDraft)">
+            <input v-else v-model.number="defaultCommissionDraft.value" type="number" min="0" placeholder="مثلا 10">
           </label>
         </div>
 
@@ -499,7 +500,8 @@
               <option value="percent">درصد</option>
               <option value="fixed">مبلغ</option>
             </select>
-            <input v-model.number="commissionDraft.value" type="number" min="0" placeholder="مقدار">
+            <input v-if="commissionDraft.type === 'fixed'" :value="formatMoneyInput(commissionDraft.value)" type="text" inputmode="numeric" placeholder="مثلاً ۲۰۰,۰۰۰" @input="onFixedCommissionInput($event, commissionDraft)">
+            <input v-else v-model.number="commissionDraft.value" type="number" min="0" placeholder="مقدار">
             <button class="text-btn primary" type="button" @click="addCommission">ثبت شخصی</button>
           </div>
           <div class="commission-list compact">
@@ -692,6 +694,7 @@ import axios from "axios"
 import DatePicker from "vue3-persian-datetime-picker"
 import Swal from "sweetalert2"
 import ServiceTagsManager from "./ServiceTagsManager.vue"
+import { applyMoneyInput, formatMoneyInput } from "../utils/moneyInput.js"
 
 const API = "/api"
 const INVENTORY_ZERO_NOTIFICATIONS_KEY = "inventory_zero_stock_notifs_v1"
@@ -2403,6 +2406,11 @@ export default {
       const maxStock = Math.max(...this.chartData.map(item => Number(item.chartStock) || 0), 1)
       if (value <= 0) return "34px"
       return `${Math.max((value / maxStock) * 100, 8)}%`
+    },
+
+    formatMoneyInput,
+    onFixedCommissionInput(event, draft) {
+      draft.value = applyMoneyInput(event.target)
     },
 
     formatNumberWithCommas(value) {
