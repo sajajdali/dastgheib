@@ -2119,19 +2119,32 @@
             <small>هزینه مواد مصرفی</small>
             <strong>{{ formatDisplayMoney(trackingReport.financial.materialCost) }} تومان</strong>
           </article>
-          <article>
+          <article :class="{ 'is-awaiting': !trackingReport.financial.commissionsReady }">
             <small>دستمزد پزشک</small>
             <strong>{{ formatTrackingCommissionMoney(trackingReport.financial.doctorWage, trackingReport.financial.commissionsReady) }}</strong>
           </article>
-          <article>
+          <article :class="{ 'is-awaiting': !trackingReport.financial.commissionsReady }">
             <small>پورسانت پرسنل</small>
             <strong>{{ formatTrackingCommissionMoney(trackingReport.financial.staffCommission, trackingReport.financial.commissionsReady) }}</strong>
           </article>
-          <article>
+          <article :class="{ 'is-awaiting': !trackingReport.financial.commissionsReady }">
             <small>سود کلینیک</small>
             <strong>{{ formatTrackingCommissionMoney(trackingReport.financial.clinicProfit, trackingReport.financial.commissionsReady) }}</strong>
           </article>
         </div>
+
+        <section v-if="trackingReport.financial.referrer" class="tracking-referrer">
+          <div class="tracking-referrer-identity">
+            <small>معرف</small>
+            <strong>{{ trackingReport.financial.referrer.name }}</strong>
+            <em v-if="trackingReport.financial.referrer.role">{{ trackingReport.financial.referrer.role }}</em>
+          </div>
+          <p v-if="trackingReport.financial.commissionsReady">{{ trackingReferrerDetail(trackingReport.financial.referrer) }}</p>
+        </section>
+
+        <p v-if="!trackingReport.financial.commissionsReady" class="tracking-commission-note" role="note">
+          برای محاسبه درصدها و سود کلینیک، باید پرداخت ثبت شده باشد و وضعیت نوبت «انجام شد» باشد.
+        </p>
 
         <form v-if="trackingTimeEditorOpen" class="tracking-edit-panel" @submit.prevent="saveTrackingTimeEdit">
           <label>
@@ -4040,6 +4053,7 @@ export default {
         paymentLink: item.payment_link || '', paymentLinkSentCount: Number(item.payment_link_sent_count || 0),
         paymentLinkLastSentAt: item.payment_link_last_sent_at || '', referrerPhone: item.referrer_phone || '',
         ...this.referrerFieldsFromServer(item),
+        ...this.scheduleReferrerFieldsFromServer(item),
         referralScore: item.referral_score ? this.formatDisplayMoney(item.referral_score) : '',
         referralCommissionType: item.referral_commission_type || '',
         referralCommissionValue: Number(item.referral_commission_value || 0),
@@ -4218,6 +4232,7 @@ export default {
         'profilePhotoUrl', 'hasPatientFile', 'walletBalance', 'originalDebt',
         'patientOutstandingDebt', 'customerLevel', 'noteMessageCount',
         'doctorCommissionEnabled', 'staffCommissionEnabled', 'referralRewardEnabled',
+        'referrerCommission', 'referralCommissionSnapshot',
         'doctorNoteUnread', 'timelineDoctors', 'timelineConsultant',
         'registeredBy', 'registeredAt', 'lastEditedBy', 'lastEditedAt'
       ]);
@@ -5910,7 +5925,8 @@ export default {
           doctorWage: 0,
           staffCommission: 0,
           clinicProfit: 0,
-          commissionsReady: false
+          commissionsReady: false,
+          referrer: null
         }
       };
     },
@@ -5928,6 +5944,131 @@ export default {
     appointmentCommissionsReady(row) {
       return this.isCompletedAppointmentDone(row?.done)
         && this.appointmentHasRegisteredPayment(row);
+    },
+
+    trackingReferrer(row) {
+      const local = this.localTrackingReferrer(row);
+      if (!local) return null;
+      const server = row?.referrerCommission;
+      const samePerson = server
+        && server.type === local.type
+        && Number(server.referrerId || 0) === Number(row?.referrerId || 0);
+      if (!samePerson) return local;
+      const settled = server.settled === true || local.settled === true;
+      const serverAmount = server.amount == null ? null : Number(server.amount);
+      let amount = serverAmount == null ? local.amount : serverAmount;
+      if (settled && !(Number(amount) > 0) && Number(local.amount) > 0) amount = local.amount;
+      return {
+        ...local,
+        name: server.name || local.name,
+        role: server.role || local.role,
+        commissionType: server.commissionType || local.commissionType,
+        commissionValue: Number(server.commissionValue || local.commissionValue || 0),
+        settled,
+        amount
+      };
+    },
+
+    localTrackingReferrer(row) {
+      const type = row?.referrerType || (String(row?.referrerPhone || '').trim() ? 'customer' : '');
+      const named = String(row?.referrerName || '').trim();
+      if (type === 'customer' && !named && !row?.referrerId && !String(row?.referrerPhone || '').trim()) return null;
+      if ((type === 'doctor' || type === 'staff') && !row?.referrerId && !named) return null;
+      if (!type) return null;
+
+      const roles = { customer: 'مشتری', doctor: 'پزشک', staff: 'پرسنل' };
+      const name = named
+        || (type === 'customer' ? (this.referrerInfo(row).name || 'مشتری معرف') : '')
+        || (type === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف');
+      const ready = this.appointmentCommissionsReady(row);
+      const rate = this.trackingReferrerRate(row, type);
+      let amount = null;
+      if (ready) {
+        const blocked = row?.referralRewardEnabled === false || this.sourceBlocksCommission(row, 'referral');
+        if (blocked || !rate.commissionValue) {
+          amount = 0;
+        } else if (type === 'customer') {
+          amount = this.moneyToNumber(row?.referralScore);
+          if (this.appointmentPaymentIsSettled(row) && amount <= 0 && rate.commissionValue > 0) {
+            amount = rate.commissionType === 'fixed'
+              ? rate.commissionValue
+              : Math.round(this.trackingReferralNet(row) * rate.commissionValue / 100);
+          }
+        } else if (rate.commissionType === 'fixed') {
+          amount = rate.commissionValue;
+        } else {
+          amount = Math.round(this.trackingReferralNet(row) * rate.commissionValue / 100);
+        }
+      }
+
+      return {
+        name,
+        role: roles[type] || '',
+        type,
+        referrerId: row?.referrerId || null,
+        commissionType: rate.commissionValue > 0 ? rate.commissionType : null,
+        commissionValue: rate.commissionValue,
+        settled: this.appointmentPaymentIsSettled(row),
+        amount
+      };
+    },
+
+    trackingReferrerRate(row, type) {
+      if (type === 'customer') {
+        return {
+          commissionType: row?.referralCommissionType || null,
+          commissionValue: Number(row?.referralCommissionValue || 0)
+        };
+      }
+      const snapshot = row?.referralCommissionSnapshot;
+      const matchesSnapshot = snapshot
+        && snapshot.referrer_type === type
+        && Number(snapshot.referrer_id) === Number(row?.referrerId);
+      if (matchesSnapshot) {
+        return {
+          commissionType: snapshot.type === 'fixed' ? 'fixed' : 'percent',
+          commissionValue: Number(snapshot.value || 0)
+        };
+      }
+      const person = this.referrerResourceOptions(type).find(item => Number(item.id) === Number(row?.referrerId));
+      return {
+        commissionType: person?.referral_commission_type === 'fixed' ? 'fixed' : 'percent',
+        commissionValue: Number(person?.referral_commission_value || 0)
+      };
+    },
+
+    trackingReferralNet(row) {
+      return this.expandedServices(row).reduce((total, service) => {
+        const quantity = Number(service?.cc || 0);
+        if (quantity <= 0) return total;
+        return total + this.serviceNetAmount(service, this.serviceLinePrice(service));
+      }, 0);
+    },
+
+    trackingReferrerDetail(referrer) {
+      if (!referrer) return '';
+      const rate = this.trackingReferrerRateLabel(referrer);
+      const amount = Number(referrer.amount || 0);
+      if ((!rate || Number(referrer.commissionValue) <= 0) && amount <= 0) {
+        return 'پورسانت معرفی برای این شخص تعریف نشده است.';
+      }
+      const money = `${this.formatDisplayMoney(amount)} تومان`;
+      if (referrer.type === 'customer' && referrer.settled) {
+        if (amount > 0) return rate ? `${rate} — ${money} واریز شد` : `${money} واریز شد`;
+        return rate ? `${rate} — به کیف پول معرف واریز شد` : 'به کیف پول معرف واریز شد';
+      }
+      if (referrer.type === 'customer' && amount <= 0 && rate) {
+        return `${rate} — پاداش پس از تسویهٔ کامل به کیف پول معرف واریز می‌شود.`;
+      }
+      return rate ? `${rate} — ${money}` : money;
+    },
+
+    trackingReferrerRateLabel(referrer) {
+      const value = Number(referrer?.commissionValue || 0);
+      if (!referrer?.commissionType || value <= 0) return '';
+      if (referrer.commissionType === 'fixed') return `${this.formatDisplayMoney(value)} تومان ثابت`;
+      if (referrer.commissionType === 'mixed') return 'ترکیبی از مبلغ ثابت و درصدی';
+      return `${value.toLocaleString('fa-IR')}٪ از مبلغ خدمات`;
     },
 
     openTrackingModal(day, row) {
@@ -6092,7 +6233,8 @@ export default {
         doctorWage: 0,
         staffCommission: 0,
         clinicProfit: 0,
-        commissionsReady: false
+        commissionsReady: false,
+        referrer: this.trackingReferrer(row)
       };
 
       if (!row?.services?.length) return financial;
@@ -6660,6 +6802,7 @@ export default {
             paymentLinkLastSentAt: item.payment_link_last_sent_at || "",
             referrerPhone: item.referrer_phone || "",
             ...this.referrerFieldsFromServer(item),
+            ...this.scheduleReferrerFieldsFromServer(item),
             referralScore: item.referral_score ? this.formatDisplayMoney(item.referral_score) : "",
             referralCommissionType: item.referral_commission_type || "",
             referralCommissionValue: Number(item.referral_commission_value || 0),
@@ -7752,6 +7895,36 @@ this.calculateFinalAmount(row)
         Object.assign(row, this.referrerFieldsFromServer(appointment));
         row.referrerPhone = appointment.referrer_phone || '';
       }
+      Object.assign(row, this.scheduleReferrerFieldsFromServer(appointment));
+    },
+
+    scheduleReferrerFieldsFromServer(item) {
+      if (!item || typeof item !== 'object') return {};
+      const fields = {};
+      if ('referrer_commission' in item) {
+        fields.referrerCommission = this.normalizeScheduleReferrer(item.referrer_commission);
+      }
+      if ('referral_commission_snapshot' in item) {
+        const snapshot = item.referral_commission_snapshot;
+        fields.referralCommissionSnapshot = snapshot && typeof snapshot === 'object' ? snapshot : null;
+      }
+      return fields;
+    },
+
+    normalizeScheduleReferrer(value) {
+      if (!value || typeof value !== 'object') return null;
+      const name = String(value.name || '').trim();
+      if (!name) return null;
+      return {
+        name,
+        role: value.role || '',
+        type: value.type || '',
+        referrerId: value.referrer_id || null,
+        commissionType: value.commission_type || null,
+        commissionValue: Number(value.commission_value || 0),
+        settled: value.settled === true,
+        amount: value.amount == null || value.amount === '' ? null : Number(value.amount)
+      };
     },
 
     createEmptyAppointmentRow() {
@@ -7808,6 +7981,8 @@ this.calculateFinalAmount(row)
         referrerType: "",
         referrerId: null,
         referrerName: "",
+        referrerCommission: null,
+        referralCommissionSnapshot: null,
         referralScore: "",
         referralCommissionType: "",
         referralCommissionValue: 0,
@@ -12561,7 +12736,7 @@ smsColor(val) {
 .completion-sms-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.6);backdrop-filter:blur(5px)}.completion-sms-modal{width:min(680px,96vw);overflow:hidden;border-radius:24px;background:#f8fafc;box-shadow:0 28px 80px rgba(15,23,42,.4);direction:rtl}.completion-sms-modal>header{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px;background:linear-gradient(135deg,#eff6ff,#ecfdf5);border-bottom:1px solid #dbeafe}.completion-sms-modal header span{font-size:11px;font-weight:900;color:#2563eb}.completion-sms-modal header h3{margin:4px 0;font-size:22px;color:#0f172a}.completion-sms-modal header p{margin:0;color:#64748b;font-size:13px}.completion-sms-modal header button{width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#64748b;font-size:25px;cursor:pointer}.completion-sms-list{display:grid;gap:10px;padding:18px}.completion-sms-empty{display:flex;align-items:center;gap:13px;margin:18px;padding:18px;border:1px dashed #93c5fd;border-radius:16px;background:linear-gradient(135deg,#eff6ff,#f0fdfa)}.completion-sms-empty-icon{display:grid;flex:0 0 42px;width:42px;height:42px;place-items:center;border-radius:13px;background:#dbeafe;color:#2563eb;font-size:21px}.completion-sms-empty div{display:grid;gap:3px;flex:1}.completion-sms-empty strong{color:#1e3a8a;font-size:14px}.completion-sms-empty p{margin:0;color:#64748b;font-size:11px;line-height:1.8}.completion-sms-empty button{display:flex;align-items:center;gap:7px;padding:10px 13px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:900 11px inherit;cursor:pointer;box-shadow:0 5px 12px rgba(37,99,235,.2);transition:.18s}.completion-sms-empty button:hover{background:#1d4ed8;transform:translateY(-1px)}.completion-sms-card{position:relative;display:flex;align-items:center;gap:12px;padding:14px;border:2px solid #e2e8f0;border-radius:15px;background:#fff;cursor:pointer;transition:.18s}.completion-sms-card:hover{border-color:#93c5fd;transform:translateY(-1px)}.completion-sms-card.sent{border-color:#4ade80;background:#f0fdf4;cursor:default}.completion-sms-card.failed{border-color:#fca5a5;background:#fff7f7}.completion-sms-card input{width:18px;height:18px;accent-color:#2563eb}.completion-sms-card-icon{font-size:25px}.completion-sms-card-content{display:flex;flex-direction:column;gap:3px;flex:1}.completion-sms-card-content strong{color:#1e293b;font-size:14px}.completion-sms-card-content small{color:#64748b}.completion-sms-card-content em{color:#15803d;font-style:normal;font-size:11px;font-weight:900}.completion-sms-card-content em.error{color:#dc2626}.completion-sms-success{width:21px;height:21px;display:grid;place-items:center;border-radius:50%;background:#22c55e;color:#fff;font-weight:900}.completion-referral-info{margin:0 18px 15px;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:800}.completion-sms-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 18px;border-top:1px solid #e2e8f0;background:#fff}.completion-sms-modal footer button{padding:10px 17px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.completion-sms-cancel{background:#e2e8f0;color:#475569}.completion-sms-send{background:#2563eb;color:#fff}.completion-sms-send:disabled{opacity:.55;cursor:not-allowed}
 .tracking-modal-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.tracking-modal{width:min(720px,96vw);overflow:hidden;border-radius:22px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.38);direction:rtl}.tracking-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px;background:#f8fafc;border-bottom:1px solid #e2e8f0}.tracking-modal header span{color:#2563eb;font-size:11px;font-weight:900}.tracking-modal header h3{margin:4px 0;color:#0f172a;font-size:21px}.tracking-modal header p{margin:0;color:#64748b;font-size:13px}.tracking-modal header button{width:34px;height:34px;border:0;border-radius:50%;background:#e2e8f0;color:#475569;font-size:24px;cursor:pointer}.tracking-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:18px}.tracking-grid article{min-height:92px;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.tracking-grid article small{color:#64748b;font-size:12px;font-weight:800}.tracking-grid article strong{color:#0f172a;font-size:18px}.tracking-grid article.late{border-color:#fecaca;background:#fff7f7}.tracking-grid article.late strong{color:#b91c1c}.tracking-grid article.good{border-color:#bbf7d0;background:#f0fdf4}.tracking-grid article.good strong{color:#15803d}@media(max-width:700px){.tracking-grid{grid-template-columns:1fr}.tracking-modal>header{padding:18px}}
 .tracking-time-value{width:fit-content;padding:0;border:0;background:transparent;color:#0f172a;font-family:inherit;font-size:18px;font-weight:1000;line-height:1.4;cursor:pointer}.tracking-time-value:hover{color:#2563eb;text-decoration:underline;text-underline-offset:4px}.tracking-edit-panel{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 18px 18px;padding:14px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff}.tracking-edit-panel label{display:flex;flex-direction:column;gap:7px;color:#1e40af;font-size:12px;font-weight:900}.tracking-edit-panel input{width:150px;height:40px;border:1px solid #93c5fd;border-radius:10px;background:#fff;color:#0f172a;font-family:Tahoma,sans-serif;font-size:16px;font-weight:900;text-align:center;direction:ltr}.tracking-edit-panel div{display:flex;gap:8px}.tracking-edit-panel button{height:38px;padding:0 14px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.tracking-edit-cancel{background:#dbeafe;color:#1e40af}.tracking-edit-save{background:#2563eb;color:#fff}.tracking-edit-save:disabled{opacity:.55;cursor:not-allowed}
-.tracking-financial-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0 18px 18px}.tracking-financial-grid article{min-height:82px;display:flex;flex-direction:column;justify-content:center;gap:7px;padding:13px;border:1px solid #d1fae5;border-radius:13px;background:#f0fdf4}.tracking-financial-grid small{color:#047857;font-size:11px;font-weight:900}.tracking-financial-grid strong{color:#064e3b;font-size:15px;font-weight:1000}@media(max-width:900px){.tracking-financial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.tracking-financial-grid{grid-template-columns:1fr}}
+.tracking-financial-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0 18px 12px}.tracking-financial-grid article{min-height:82px;display:flex;flex-direction:column;justify-content:center;gap:7px;padding:13px;border:1px solid #d1fae5;border-radius:13px;background:#f0fdf4}.tracking-financial-grid small{color:#047857;font-size:11px;font-weight:900}.tracking-financial-grid strong{color:#064e3b;font-size:15px;font-weight:1000}.tracking-financial-grid article.is-awaiting{border-style:dashed;border-color:#e2e8f0;background:#f8fafc}.tracking-financial-grid article.is-awaiting small{color:#64748b}.tracking-financial-grid article.is-awaiting strong{color:#94a3b8;font-weight:900}.tracking-referrer{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 18px 12px;padding:13px 14px;border:1px solid #fde68a;border-radius:13px;background:#fffbeb}.tracking-referrer-identity{display:flex;align-items:center;gap:8px;min-width:0}.tracking-referrer small{color:#92400e;font-size:11px;font-weight:900}.tracking-referrer strong{color:#78350f;font-size:14px;font-weight:1000}.tracking-referrer em{padding:2px 8px;border-radius:99px;background:#fef3c7;color:#92400e;font-size:10px;font-style:normal;font-weight:900}.tracking-referrer p{margin:0;color:#92400e;font-size:12px;font-weight:800;line-height:1.8;text-align:right}.tracking-commission-note{margin:0 18px 18px;padding:12px 14px;border:1px dashed #fcd34d;border-radius:13px;background:#fffbeb;color:#92400e;font-size:12px;font-weight:800;line-height:1.9}@media(max-width:900px){.tracking-financial-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.tracking-financial-grid{grid-template-columns:1fr}.tracking-referrer{align-items:flex-start;flex-direction:column}.tracking-referrer p{text-align:right}}
 .payment-link-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.58);backdrop-filter:blur(5px)}.payment-link-modal{width:min(680px,96vw);overflow:hidden;border-radius:22px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.38);direction:rtl}.payment-link-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px;background:#f8fafc;border-bottom:1px solid #e2e8f0}.payment-link-modal header span{color:#2563eb;font-size:11px;font-weight:900}.payment-link-modal header h3{margin:4px 0;color:#0f172a;font-size:21px}.payment-link-modal header p{margin:0;color:#64748b;font-size:13px}.payment-link-modal header button{width:34px;height:34px;border:0;border-radius:50%;background:#e2e8f0;color:#475569;font-size:24px;cursor:pointer}.payment-link-body{display:grid;gap:13px;padding:18px}.payment-link-body label{display:flex;flex-direction:column;gap:7px;color:#334155;font-size:12px;font-weight:900}.payment-link-body input{direction:ltr;text-align:left;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#0f172a;font-family:Tahoma,sans-serif;font-size:13px}.payment-link-meta{display:flex;gap:10px;flex-wrap:wrap;color:#475569;font-size:12px}.payment-link-meta span{padding:8px 10px;border-radius:10px;background:#f1f5f9}.payment-link-modal footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 18px;border-top:1px solid #e2e8f0;background:#fff}.payment-link-modal footer button{padding:10px 16px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.payment-copy-btn{background:#e2e8f0;color:#334155}.payment-send-btn{background:#2563eb;color:#fff}.payment-send-btn:disabled{opacity:.55;cursor:not-allowed}
 
 * {
@@ -15687,17 +15862,42 @@ body.dark .sms-sent,
 body.dark .financial-panel,
 body.dark .booking-setup-card,
 body.dark .tracking-modal,
+body.dark .tracking-referrer,
+body.dark .tracking-commission-note,
 body.dark .sms-queue-modal,
 body.dark .completion-sms-modal,
 #app.dark .financial-panel,
 #app.dark .booking-setup-card,
 #app.dark .tracking-modal,
+#app.dark .tracking-referrer,
+#app.dark .tracking-commission-note,
 #app.dark .sms-queue-modal,
 #app.dark .completion-sms-modal {
   background: #172033 !important;
   border-color: #334155 !important;
   color: #e2e8f0 !important;
 }
+body.dark .tracking-referrer,
+body.dark .tracking-commission-note,
+#app.dark .tracking-referrer,
+#app.dark .tracking-commission-note {
+  background: #2a2114 !important;
+  border-color: #92400e !important;
+  color: #fde68a !important;
+}
+body.dark .tracking-referrer small,
+body.dark .tracking-referrer strong,
+body.dark .tracking-referrer p,
+body.dark .tracking-referrer em,
+#app.dark .tracking-referrer small,
+#app.dark .tracking-referrer strong,
+#app.dark .tracking-referrer p,
+#app.dark .tracking-referrer em {
+  color: #fde68a !important;
+  background: transparent;
+}
+body.dark .tracking-referrer em,
+#app.dark .tracking-referrer em { background: #3f2e12 !important; }
 body.dark .financial-panel h3,
 body.dark .booking-setup-card h1,
 body.dark .tracking-modal header h3,

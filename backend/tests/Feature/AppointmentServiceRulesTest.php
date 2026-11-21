@@ -131,6 +131,88 @@ class AppointmentServiceRulesTest extends TestCase
         $this->assertSame(80000.0, (float) $summary['total_earned']);
     }
 
+    public function test_schedule_report_names_the_referrer_and_withholds_the_amount_until_payment_and_done(): void
+    {
+        $controller = app(AppointmentController::class);
+        $referrer = [
+            'referrer_type' => 'doctor',
+            'referrer_id' => $this->referrerDoctor->id,
+            'referrer_name' => $this->referrerDoctor->name,
+        ];
+
+        $this->assertNull($controller->scheduleReferrerCommission($this->visit()));
+
+        $pending = $this->visit([], [...$referrer, 'done' => null]);
+        $pendingSummary = $controller->scheduleReferrerCommission($pending);
+        $this->assertSame('دکتر معرف', $pendingSummary['name']);
+        $this->assertSame('پزشک', $pendingSummary['role']);
+        $this->assertSame('percent', $pendingSummary['commission_type']);
+        $this->assertSame(10.0, (float) $pendingSummary['commission_value']);
+        $this->assertNull($pendingSummary['amount']);
+
+        $unpaid = $this->visit([], [...$referrer, 'payment_details' => null]);
+        $unpaidSummary = $controller->scheduleReferrerCommission($unpaid);
+        $this->assertSame('دکتر معرف', $unpaidSummary['name']);
+        $this->assertNull($unpaidSummary['amount']);
+
+        $paid = $this->visit([], $referrer);
+        $this->resync();
+        $paidSummary = $controller->scheduleReferrerCommission($paid->fresh());
+        $this->assertSame(100000, $paidSummary['amount']);
+        $this->assertSame(10.0, (float) $paidSummary['commission_value']);
+        $this->assertSame('percent', $paidSummary['commission_type']);
+
+        $customer = $this->visit();
+        $customer->forceFill([
+            'referrer_type' => 'customer',
+            'referrer_id' => 5,
+            'referrer_name' => 'سارا محمدی',
+            'referral_score' => 50000,
+            'referral_commission_type' => 'percent',
+            'referral_commission_value' => 8,
+        ]);
+        $customerSummary = $controller->scheduleReferrerCommission($customer);
+        $this->assertSame('سارا محمدی', $customerSummary['name']);
+        $this->assertSame('مشتری', $customerSummary['role']);
+        $this->assertSame(50000, $customerSummary['amount']);
+        $this->assertTrue($customerSummary['settled']);
+        $this->assertSame(8.0, (float) $customerSummary['commission_value']);
+
+        $open = $this->visit([], [
+            'payment_details' => ['ledger_total' => 600000],
+        ]);
+        $open->forceFill([
+            'amount' => 1000000,
+            'debt' => 400000,
+            'referrer_type' => 'customer',
+            'referrer_id' => 5,
+            'referrer_name' => 'علی موسوی',
+            'referral_score' => 0,
+            'referral_commission_type' => 'percent',
+            'referral_commission_value' => 5,
+        ]);
+        $openSummary = $controller->scheduleReferrerCommission($open);
+        $this->assertFalse($openSummary['settled']);
+        $this->assertSame(0, $openSummary['amount']);
+
+        $settled = $this->visit([], [
+            'payment_details' => ['ledger_total' => 1000000],
+        ]);
+        $settled->forceFill([
+            'amount' => 1000000,
+            'debt' => 0,
+            'referrer_type' => 'customer',
+            'referrer_id' => 5,
+            'referrer_name' => 'علی موسوی',
+            'referral_score' => 0,
+            'referral_commission_type' => 'percent',
+            'referral_commission_value' => 5,
+        ]);
+        $settledSummary = $controller->scheduleReferrerCommission($settled);
+        $this->assertTrue($settledSummary['settled']);
+        $this->assertSame(50000, $settledSummary['amount']);
+    }
+
     public function test_staff_referrer_with_fixed_amount_and_channel_exclusion(): void
     {
         $this->staff->update(['referral_commission_type' => 'fixed', 'referral_commission_value' => 150000]);

@@ -98,7 +98,7 @@ class AppointmentController extends Controller
                     ->setAttribute('has_patient_file', false)
             );
 
-            return response()->json($appointments);
+            return response()->json($this->withScheduleReferrerCommission($appointments));
         }
 
         $patients = $levels->decorate(Patient::query()
@@ -128,7 +128,7 @@ class AppointmentController extends Controller
             $appointment->setAttribute('patient_outstanding_debt', $patient?->outstanding_debt ?? 0);
         });
 
-        return response()->json($this->hideAppointmentPhones($appointments, $request));
+        return response()->json($this->hideAppointmentPhones($this->withScheduleReferrerCommission($appointments), $request));
     }
 
     public function hiddenDays(Request $request)
@@ -694,6 +694,7 @@ class AppointmentController extends Controller
 
         $saved = $this->withPatientHistoryRegistrationMeta($saved);
         app(AppointmentAutomaticSmsService::class)->decorateAppointments(collect($saved));
+        $this->withScheduleReferrerCommission($saved);
 
         return response()->json(['message' => 'نوبت‌های تغییرکرده ثبت شدند.', 'appointments' => $saved]);
     }
@@ -1408,7 +1409,10 @@ class AppointmentController extends Controller
             try {
                 $raw = AppSetting::getByKey('referral_wallet_settings', '{}');
                 $settings = is_string($raw) ? json_decode($raw, true) : $raw;
-                $template = trim((string) ($settings['sms_template'] ?? ''));
+                $settings = is_array($settings) ? $settings : [];
+                $smsEnabled = ! array_key_exists('sms_enabled', $settings) || filter_var($settings['sms_enabled'], FILTER_VALIDATE_BOOLEAN);
+                if (! $smsEnabled) return;
+                $template = trim((string) preg_replace('/[\x{2066}-\x{2069}]/u', '', (string) ($settings['sms_template'] ?? '')));
                 if ($template === '') return;
                 $patient = Patient::find($transaction->patient_id);
                 $message = str_replace(
@@ -1615,6 +1619,7 @@ class AppointmentController extends Controller
     private function broadcastAppointmentChange(Appointment $appointment, string $action = 'updated'): void
     {
         try {
+            $this->withScheduleReferrerCommission([$appointment]);
             broadcast(AppointmentChanged::fromAppointment($appointment, $action))->toOthers();
         } catch (\Throwable $exception) {
             report($exception);
@@ -2870,6 +2875,196 @@ class AppointmentController extends Controller
             'staff' => Staff::query()->find($id),
             default => null,
         };
+    }
+
+    /**
+     * خلاصهٔ معرف برای گزارش زمان‌بندی. بدون معرف null است.
+     * مبلغ فقط بعد از «انجام شد» و پرداخت ثبت‌شده پر می‌شود؛ درصد/مبلغِ تنظیم‌شده همیشه همراه نام می‌آید.
+     *
+     * @param  \Illuminate\Support\Collection<int, ResourceEarningLine>|null  $earnedLines
+     * @param  \Illuminate\Support\Collection<int, Doctor>|null  $doctors
+     * @param  \Illuminate\Support\Collection<int, Staff>|null  $staff
+     */
+    public function scheduleReferrerCommission(Appointment $appointment, $earnedLines = null, $doctors = null, $staff = null): ?array
+    {
+        $type = trim((string) ($appointment->referrer_type ?? ''));
+        $phone = trim((string) ($appointment->referrer_phone ?? ''));
+        $name = trim((string) ($appointment->referrer_name ?? ''));
+        $id = (int) ($appointment->referrer_id ?? 0);
+        if ($type === '' && ($phone !== '' || $id > 0)) {
+            $type = 'customer';
+        }
+        if (! in_array($type, ['customer', 'doctor', 'staff'], true)) {
+            return null;
+        }
+        if ($type === 'customer' && $name === '' && $phone === '' && $id <= 0) {
+            return null;
+        }
+        if (in_array($type, ['doctor', 'staff'], true) && $id <= 0 && $name === '') {
+            return null;
+        }
+
+        $ready = $this->appointmentIsDone($appointment)
+            && app(CustomerTypeResolver::class)->appointmentHasRegisteredPayment($appointment);
+
+        if ($type === 'customer') {
+            $settled = $this->scheduleCustomerRewardSettled($appointment);
+            $amount = null;
+            if ($ready) {
+                $amount = (int) round((float) ($appointment->referral_score ?? 0));
+                // امتیاز صفر به‌معنی «هنوز تسویه نشده» نیست؛ بعد از تسویه مبلغ را از درصد ذخیره‌شده حساب می‌کنیم.
+                if ($settled && $amount <= 0) {
+                    $amount = $this->customerReferrerRewardFromRate($appointment);
+                }
+            }
+
+            return [
+                'referrer_id' => $id > 0 ? $id : null,
+                'name' => $name !== '' ? $name : 'مشتری معرف',
+                'role' => 'مشتری',
+                'type' => 'customer',
+                'commission_type' => $appointment->referral_commission_type ?: null,
+                'commission_value' => (float) ($appointment->referral_commission_value ?? 0),
+                'settled' => $settled,
+                'amount' => $amount,
+            ];
+        }
+
+        $resource = match ($type) {
+            'doctor' => $doctors ? $doctors->get($id) : Doctor::query()->find($id),
+            'staff' => $staff ? $staff->get($id) : Staff::query()->find($id),
+            default => null,
+        };
+        $snapshot = is_array($appointment->referral_commission_snapshot) ? $appointment->referral_commission_snapshot : [];
+        $matchesSnapshot = $resource
+            && ($snapshot['referrer_type'] ?? null) === $type
+            && (int) ($snapshot['referrer_id'] ?? 0) === (int) $resource->id;
+        if ($matchesSnapshot) {
+            $commissionType = ($snapshot['type'] ?? 'percent') === 'fixed' ? 'fixed' : 'percent';
+            $commissionValue = (float) ($snapshot['value'] ?? 0);
+        } elseif ($resource) {
+            $commissionType = $resource->referral_commission_type === 'fixed' ? 'fixed' : 'percent';
+            $commissionValue = (float) ($resource->referral_commission_value ?? 0);
+        } else {
+            $commissionType = null;
+            $commissionValue = 0.0;
+        }
+
+        $amount = null;
+        if ($ready) {
+            if (! (bool) ($appointment->referral_reward_enabled ?? true) || $commissionValue <= 0) {
+                $amount = 0;
+            } else {
+                if ($earnedLines === null && $appointment->id && Schema::hasTable('resource_earning_lines')) {
+                    $earnedLines = ResourceEarningLine::query()
+                        ->where('appointment_id', $appointment->id)
+                        ->where('earning_type', ResourceEarningLine::REFERRAL_TYPE)
+                        ->where('status', 'active')
+                        ->get();
+                }
+                $earnedLines = collect($earnedLines);
+                if ($earnedLines->isNotEmpty()) {
+                    $amount = (int) round((float) $earnedLines->sum('amount'));
+                } else {
+                    $serviceLines = $this->appointmentServiceLines($appointment->services ?? [], (float) ($appointment->discount ?? 0));
+                    $names = collect($serviceLines)->pluck('name')->filter()->unique()->values();
+                    $inventories = $names->isEmpty()
+                        ? collect()
+                        : Inventory::query()->whereIn('name', $names)->get()->keyBy('name');
+                    $amount = (int) round(collect($this->referralCommissionPayloads($appointment, $serviceLines, $inventories))->sum('amount'));
+                }
+            }
+        }
+
+        return [
+            'referrer_id' => $id > 0 ? $id : null,
+            'name' => $name !== '' ? $name : ($resource->name ?? ($type === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف')),
+            'role' => $type === 'doctor' ? 'پزشک' : 'پرسنل',
+            'type' => $type,
+            'commission_type' => $commissionValue > 0 ? $commissionType : null,
+            'commission_value' => $commissionValue,
+            'amount' => $amount,
+        ];
+    }
+
+    /** تسویهٔ کامل از نگاه گزارش: بدهی نوبت صفر است و پرداخت ثبت‌شده به مبلغ خدمات رسیده. */
+    private function scheduleCustomerRewardSettled(Appointment $appointment): bool
+    {
+        if ($this->signedMoneyToInteger($appointment->debt ?? 0) > 0) {
+            return false;
+        }
+
+        $details = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+        $paid = (int) ($details['ledger_total'] ?? 0);
+        if ($paid <= 0) {
+            $breakdown = is_array($details['payment_breakdown'] ?? null) ? $details['payment_breakdown'] : [];
+            $paid = (int) array_sum(array_map(fn ($amount) => max(0, (int) $amount), $breakdown));
+        }
+        if ($paid <= 0) {
+            $paid = (int) (($details['cash'] ?? 0) + ($details['card'] ?? 0) + data_get($details, 'check.amount', 0));
+        }
+        $paid += (int) collect($details['debt_payments'] ?? [])->sum(fn ($payment) => max(0, (int) ($payment['amount'] ?? 0)));
+        $paid += max(0, $this->signedMoneyToInteger($appointment->wallet_applied ?? 0));
+        if ($paid <= 0) {
+            return false;
+        }
+
+        $payable = max(0, $this->signedMoneyToInteger($appointment->amount ?? 0));
+
+        return $payable <= 0 || $paid >= $payable;
+    }
+
+    /** وقتی referral_score صفر مانده، مبلغ پاداش را از درصد یا مبلغ ثابتِ ذخیره‌شده روی نوبت می‌سازد. */
+    private function customerReferrerRewardFromRate(Appointment $appointment): int
+    {
+        $type = ($appointment->referral_commission_type ?? '') === 'fixed' ? 'fixed' : 'percent';
+        $value = (float) ($appointment->referral_commission_value ?? 0);
+        if ($value <= 0) {
+            return 0;
+        }
+        if ($type === 'fixed') {
+            return (int) round($value);
+        }
+
+        return (int) round(max(0, $this->signedMoneyToInteger($appointment->amount ?? 0)) * $value / 100);
+    }
+
+    /** پورسانت معرف را روی پاسخ نوبت می‌گذارد؛ نوبت بدون معرف مقدار null می‌گیرد تا بلوک گزارش پنهان بماند. */
+    private function withScheduleReferrerCommission($appointments)
+    {
+        $appointments = collect($appointments)->filter(fn ($appointment) => $appointment instanceof Appointment)->values();
+        if ($appointments->isEmpty()) {
+            return $appointments;
+        }
+
+        $ids = $appointments->pluck('id')->filter()->map(fn ($id) => (int) $id)->unique()->values();
+        $linesByAppointment = collect();
+        if ($ids->isNotEmpty() && Schema::hasTable('resource_earning_lines')) {
+            $linesByAppointment = ResourceEarningLine::query()
+                ->whereIn('appointment_id', $ids)
+                ->where('earning_type', ResourceEarningLine::REFERRAL_TYPE)
+                ->where('status', 'active')
+                ->get()
+                ->groupBy(fn (ResourceEarningLine $line) => (int) $line->appointment_id);
+        }
+
+        $doctorIds = $appointments->where('referrer_type', 'doctor')->pluck('referrer_id')->filter()->unique()->values();
+        $staffIds = $appointments->where('referrer_type', 'staff')->pluck('referrer_id')->filter()->unique()->values();
+        $doctors = $doctorIds->isEmpty() ? collect() : Doctor::query()->whereIn('id', $doctorIds)->get()->keyBy('id');
+        $staff = $staffIds->isEmpty() ? collect() : Staff::query()->whereIn('id', $staffIds)->get()->keyBy('id');
+
+        return $appointments->each(function (Appointment $appointment) use ($linesByAppointment, $doctors, $staff) {
+            $appointment->setAttribute(
+                'referrer_commission',
+                $this->scheduleReferrerCommission(
+                    $appointment,
+                    $linesByAppointment->get((int) $appointment->id, collect()),
+                    $doctors,
+                    $staff
+                )
+            );
+            $appointment->syncOriginalAttribute('referrer_commission');
+        });
     }
 
     /**
