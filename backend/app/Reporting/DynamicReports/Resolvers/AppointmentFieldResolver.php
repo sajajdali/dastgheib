@@ -27,8 +27,9 @@ class AppointmentFieldResolver implements ReportFieldResolver
             'subsection' => $this->join(app(ReportServiceSections::class)->namesForServices($appointment?->services)['children'])
                 ?? $this->serviceNames($appointment?->services),
             'count' => $this->serviceCc($appointment?->services),
-            'doctor' => $appointment?->doctor,
-            'consultant' => $appointment?->consultant,
+            // پزشک/مشاور کلی نوبت ممکن است خالی باشد؛ مثل فیلترها و Voip از خدمت‌ها هم خوانده می‌شود.
+            'doctor' => $this->personNames($appointment, 'doctor'),
+            'consultant' => $this->personNames($appointment, 'consultant'),
             'salary' => $this->salary($appointment),
             'overtime' => $this->overtime($appointment),
             'areas' => $this->serviceTags($appointment?->services),
@@ -49,6 +50,25 @@ class AppointmentFieldResolver implements ReportFieldResolver
         $names = collect(is_array($services) ? $services : [])->map(fn ($service) =>
             is_array($service) ? ($service['name'] ?? $service['title'] ?? null) : $service
         )->filter(fn ($value) => is_scalar($value));
+        return $names->isEmpty() ? null : $names->implode('، ');
+    }
+
+    /** نام پزشک یا مشاور روی ستون نوبت، به‌علاوهٔ نام‌های روی هر خدمت (چندتایی با «،»). */
+    private function personNames(mixed $appointment, string $column): ?string
+    {
+        if (! $appointment) {
+            return null;
+        }
+
+        $fromAppointment = collect(preg_split('/[،,]+/u', (string) ($appointment->{$column} ?? '')))
+            ->map(fn ($name) => trim((string) $name))
+            ->filter();
+        $fromServices = collect(is_array($appointment->services ?? null) ? $appointment->services : [])
+            ->map(fn ($service) => is_array($service) ? trim((string) ($service[$column] ?? '')) : '')
+            ->filter();
+
+        $names = $fromAppointment->merge($fromServices)->unique()->values();
+
         return $names->isEmpty() ? null : $names->implode('، ');
     }
 
@@ -129,7 +149,10 @@ class AppointmentFieldResolver implements ReportFieldResolver
     {
         if (!$appointment) return null;
         // اضافه‌کاری ماهانه است و به نوبت وصل نیست: ساعت اضافه‌کاری تأییدشدهٔ پزشک و مشاور این نوبت در همان ماه.
-        $names = collect(preg_split('/[،,]+/u', (string) $appointment->doctor))->push($appointment->consultant)
+        $names = collect([
+            $this->personNames($appointment, 'doctor'),
+            $this->personNames($appointment, 'consultant'),
+        ])->flatMap(fn ($value) => preg_split('/[،,]+/u', (string) $value))
             ->map(fn ($name) => trim((string) $name))->filter()->unique()->values();
         if ($names->isEmpty()) return '0';
         $value = ResourceEarningLine::query()->where('month', $appointment->month)->where('earning_type', 'attendance_overtime')

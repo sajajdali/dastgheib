@@ -84,6 +84,37 @@ class DynamicReportFieldsTest extends TestCase
         $this->assertNull($fields->resolve('doctorCommission', $withoutAppointment));
     }
 
+    public function test_doctor_and_consultant_columns_fall_back_to_service_line_names(): void
+    {
+        $fields = app(DynamicReportFieldRegistry::class);
+
+        $serviceOnly = new Appointment([
+            'doctor' => null,
+            'consultant' => null,
+            'services' => [
+                ['name' => 'الانسه', 'doctor' => 'دکتر حمیدی', 'consultant' => 'سارا'],
+                ['name' => 'بوتاکس', 'doctor' => 'دکتر حمیدی', 'consultant' => 'لیلا'],
+            ],
+        ]);
+        $serviceOnlyContext = new ReportPatientContext(new Patient(), $serviceOnly, collect([$serviceOnly]), collect(), 'silver');
+        $this->assertSame('دکتر حمیدی', $fields->resolve('doctor', $serviceOnlyContext));
+        $this->assertSame('سارا، لیلا', $fields->resolve('consultant', $serviceOnlyContext));
+
+        $appointmentLevel = new Appointment([
+            'doctor' => 'دکتر رمضانی',
+            'consultant' => 'سارا',
+            'services' => [['name' => 'ویزیت', 'doctor' => 'دکتر حمیدی', 'consultant' => 'لیلا']],
+        ]);
+        $appointmentLevelContext = new ReportPatientContext(new Patient(), $appointmentLevel, collect([$appointmentLevel]), collect(), 'silver');
+        $this->assertSame('دکتر رمضانی، دکتر حمیدی', $fields->resolve('doctor', $appointmentLevelContext));
+        $this->assertSame('سارا، لیلا', $fields->resolve('consultant', $appointmentLevelContext));
+
+        $empty = new Appointment(['doctor' => null, 'consultant' => '', 'services' => [['name' => 'ویزیت']]]);
+        $emptyContext = new ReportPatientContext(new Patient(), $empty, collect([$empty]), collect(), 'silver');
+        $this->assertNull($fields->resolve('doctor', $emptyContext));
+        $this->assertNull($fields->resolve('consultant', $emptyContext));
+    }
+
     public function test_wallet_fields_sum_deposits_and_withdrawals_inside_the_report_range(): void
     {
         $this->createPayrollAndWalletTables();
