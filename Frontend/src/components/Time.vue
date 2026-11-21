@@ -992,14 +992,6 @@
 
                   </div>
 
-                  <div class="service-entry-row">
-                    <button
-                      type="button"
-                      class="add-service-line-btn"
-                      @click.stop="addService(row)"
-                    >
-                      + افزودن خدمت
-                    </button>
                   <div class="service-popup-meta">
 
                     <div
@@ -1013,6 +1005,13 @@
                       <div class="service-main-row">
                         <div class="service-choice-row">
                           <span class="service-row-caption">مسیر خدمت</span>
+                          <button
+                            v-if="sIndex === 0"
+                            type="button"
+                            class="add-service-line-btn service-path-add"
+                            data-keep-enabled
+                            @click.stop="addService(row)"
+                          >+ افزودن خدمت</button>
 
                           <div class="service-path-selectors">
                             <Multiselect
@@ -1209,7 +1208,6 @@
 
                     </div>
 
-                  </div>
                   </div>
 
                 </div>
@@ -15370,9 +15368,10 @@ td.st-arrived select {
 
 /* معرف نوبت: مشتری / پزشک / پرسنل */
 .referral-section.patient-services-referral-actions{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important;align-items:start}
-.service-entry-row{display:flex;align-items:flex-start;gap:8px}
-.service-entry-row>.add-service-line-btn{flex:0 0 auto;width:auto;height:36px;padding:0 12px;white-space:nowrap}
-.service-entry-row>.service-popup-meta{flex:1 1 auto;min-width:0;margin-bottom:0}
+.service-choice-row:has(.service-path-add){display:flex!important;flex-wrap:wrap;align-items:center!important;gap:8px}
+.service-choice-row .service-path-add{flex:0 0 auto;width:auto!important;height:38px;margin:0;padding:0 12px;white-space:nowrap;align-self:center}
+.service-choice-row:has(.service-path-add) .service-path-selectors{flex:1 1 0;min-width:0;width:auto;grid-column:auto!important}
+.service-choice-row:has(.service-path-add) .service-tag-picker{flex:1 0 100%;grid-column:1/-1!important;grid-row:auto!important}
 .referrer-search{position:relative}
 .referrer-search-input{width:100%;box-sizing:border-box}
 .referrer-chip{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:32px;padding:3px 8px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;box-sizing:border-box}
