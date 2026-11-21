@@ -2809,6 +2809,11 @@ class AppointmentController extends Controller
         }
         if (! $patient && in_array($type, ['', 'customer'], true)) {
             $phone = $this->normalizePhoneDigits($incoming['referrer_phone'] ?? '');
+            // نوع «مشتری» قبل از انتخاب شخص ذخیره می‌شود. پاک کردن نوع، سلکت را
+            // در پاسخ ذخیره به «بدون معرف» برمی‌گرداند، مثل معرف پزشک.
+            if ($phone === '' && $type === 'customer' && $id <= 0) {
+                return [...$incoming, 'referrer_type' => 'customer', 'referrer_id' => null, 'referrer_name' => null, 'referrer_phone' => null];
+            }
             if ($phone === '') return [...$incoming, ...$clear];
             $patient = $this->findPatientByNormalizedPhone($phone);
             if (! $patient) {

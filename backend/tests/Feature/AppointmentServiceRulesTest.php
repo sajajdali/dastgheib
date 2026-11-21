@@ -268,4 +268,26 @@ class AppointmentServiceRulesTest extends TestCase
         $this->assertNull($unknown['referrer_type']);
         $this->assertNull($unknown['referrer_id']);
     }
+
+    public function test_customer_referrer_type_is_kept_until_the_person_is_chosen(): void
+    {
+        $normalize = new \ReflectionMethod(AppointmentController::class, 'normalizeReferrer');
+
+        $pending = $normalize->invoke(app(AppointmentController::class), [
+            'referrer_type' => 'customer',
+            'referrer_id' => null,
+            'referrer_phone' => '',
+        ], null);
+        $this->assertSame('customer', $pending['referrer_type']);
+        $this->assertNull($pending['referrer_id']);
+        $this->assertNull($pending['referrer_phone']);
+
+        $cleared = $normalize->invoke(app(AppointmentController::class), [
+            'referrer_type' => '',
+            'referrer_id' => null,
+            'referrer_phone' => '',
+        ], null);
+        $this->assertNull($cleared['referrer_type']);
+        $this->assertNull($cleared['referrer_id']);
+    }
 }

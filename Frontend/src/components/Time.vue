@@ -747,13 +747,24 @@
                 class="file-col"
                 :style="{ width: columnWidths.fileNumber + 'px' }"
               >
-                <input
-                  :value="row.fileNumber"
-                  title="شماره پرونده را وارد کنید یا خالی بگذارید تا سیستم تولید کند"
-                  @input="handleTableFileNumberInput(row, $event)"
-                  @blur="lookupTablePatientByFileNumber(row)"
-                  @keyup.enter.prevent="lookupTablePatientByFileNumber(row, true)"
-                />
+                <div class="file-number-cell">
+                  <input
+                    :value="row.fileNumber"
+                    title="شماره پرونده را وارد کنید یا خالی بگذارید تا سیستم تولید کند"
+                    @input="handleTableFileNumberInput(row, $event)"
+                    @blur="lookupTablePatientByFileNumber(row)"
+                    @keyup.enter.prevent="lookupTablePatientByFileNumber(row, true)"
+                  />
+                  <button
+                    v-if="rowNeedsPatientFile(row)"
+                    type="button"
+                    class="create-patient-file-btn"
+                    title="تشکیل پرونده"
+                    aria-label="تشکیل پرونده"
+                    data-keep-enabled
+                    @click.stop="openCreatePatientFile(row)"
+                  >+</button>
+                </div>
               </td>
 
               <td
@@ -979,13 +990,6 @@
                       <small class="referrer-resource-hint">{{ referrerResourceHint(row) }}</small>
                     </div>
 
-                    <button
-                      class="add-service-line-btn"
-                      @click.stop="addService(row)"
-                    >
-                      + افزودن خدمت
-                    </button>
-
                   </div>
 
                   <div class="service-popup-meta">
@@ -1001,6 +1005,13 @@
                       <div class="service-main-row">
                         <div class="service-choice-row">
                           <span class="service-row-caption">مسیر خدمت</span>
+                          <button
+                            v-if="sIndex === 0"
+                            type="button"
+                            class="add-service-line-btn service-path-add"
+                            data-keep-enabled
+                            @click.stop="addService(row)"
+                          >+ افزودن خدمت</button>
 
                           <div class="service-path-selectors">
                             <Multiselect
@@ -1281,18 +1292,14 @@
                       danger: isDebtor(row),
                       paid: appointmentPaymentIsSettled(row),
                       credit: Number(row.walletBalance || 0) > 0 && appointmentDisplayedDebtAmount(row) <= 0 && !appointmentPaymentIsSettled(row),
-                      'has-financial-balance': !appointmentPaymentIsSettled(row) && (
-                        isDebtor(row) ||
-                        Number(row.walletBalance || 0) > 0 ||
-                        hasPaymentDetails(row)
-                      )
+                      'has-financial-balance': showAppointmentPaymentCaption(row)
                     }"
                     :title="financialTriggerTitle(row)"
                     :aria-label="financialTriggerTitle(row)"
                     data-keep-enabled @click.stop="openFinancialPanel(row)"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4V5z"/><path d="M9 9h6M9 12h4"/></svg>
-                    <em v-if="!appointmentPaymentIsSettled(row) && (appointmentDisplayedDebtAmount(row) > 0 || Number(row.walletBalance || 0) > 0 || hasPaymentDetails(row))">پرداخت</em>
+                    <em v-if="showAppointmentPaymentCaption(row)">پرداخت</em>
                     <span v-if="isDebtor(row)">!</span>
                   </button>
                 </div>
@@ -2805,7 +2812,8 @@ export default {
     permissions: { type: Array, default: () => [] },
     roles: { type: Array, default: () => [] },
     currentUserName: { type: String, default: '' },
-    openViewRequest: { type: Object, default: null }
+    openViewRequest: { type: Object, default: null },
+    linkedPatientFile: { type: Object, default: null }
   },
 
   directives: { lockControls },
@@ -2826,6 +2834,7 @@ export default {
       bookingFiltersOpen: false,
       appointmentReady: false,
       handledOpenViewRequestAt: null,
+      handledLinkedPatientFileAt: null,
       searchQuery: "",
       assistantTyping: false,
       // مقدار اعمال‌شدهٔ جستجو؛ با تأخیر کوتاه به‌روز می‌شود تا هر حرف کل ماه را دوباره رندر نکند.
@@ -4394,6 +4403,72 @@ export default {
       setTimeout(() => {
         if (this.tablePatientSearchRowId === row?._rowId) this.tablePatientSearchRowId = null;
       }, 120);
+    },
+
+    rowNeedsPatientFile(row) {
+      if (!row || !this.rowHasAppointment(row)) return false;
+      if (row.hasPatientFile) return false;
+      return !String(row.fileNumber || '').trim();
+    },
+
+    splitAppointmentPatientName(value) {
+      const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+      if (parts.length < 2) return { first_name: parts[0] || '', last_name: '' };
+      return { first_name: parts[0], last_name: parts.slice(1).join(' ') };
+    },
+
+    async openCreatePatientFile(row) {
+      if (!this.rowNeedsPatientFile(row)) return;
+      if (!this.permissions.includes('patients.create') && !this.permissions.includes('patients.view')) {
+        await Swal.fire({ icon: 'info', title: 'دسترسی تشکیل پرونده ندارید', confirmButtonText: 'متوجه شدم' });
+        return;
+      }
+      if (!row.appointmentId) await this.persistDirectAppointment(row);
+      const { first_name, last_name } = this.splitAppointmentPatientName(row.lastname);
+      const phone = String(row.phone || '').trim();
+      this.$emit('open-patient-profile', {
+        create: true,
+        appointmentId: row.appointmentId || null,
+        first_name,
+        last_name,
+        gender: row.gender || '',
+        phone: /[•*]/.test(phone) ? '' : phone,
+      });
+    },
+
+    applyLinkedPatientFile(request) {
+      if (!request?.appointmentId || !request?.patient) return;
+      if (this.handledLinkedPatientFileAt === request.requestedAt) return;
+      this.handledLinkedPatientFileAt = request.requestedAt;
+      const groups = [this.days, ...Object.values(this.monthDaysCache || {})];
+      for (const days of groups) {
+        for (const day of days || []) {
+          const row = (day.rows || []).find(item => Number(item.appointmentId) === Number(request.appointmentId));
+          if (!row) continue;
+          this.linkCreatedPatientFile(row, request.patient);
+          if ((this.days || []).some(current => (current.rows || []).includes(row))) {
+            this.persistDirectAppointment(row);
+          }
+          return;
+        }
+      }
+    },
+
+    linkCreatedPatientFile(row, patient) {
+      const fileNumber = String(patient?.file_number || '').trim();
+      if (fileNumber) row.fileNumber = fileNumber;
+      row.hasPatientFile = true;
+      if (patient?.id) row.patientId = patient.id;
+      const name = `${patient?.first_name || ''} ${patient?.last_name || ''}`.trim();
+      if (name) row.lastname = name;
+      if (patient?.gender) row.gender = patient.gender;
+      const phone = String(patient?.phone || '').trim();
+      if (phone && !/[•*]/.test(phone)) row.phone = phone;
+      const thumbnail = this.patientPhotoUrl(patient);
+      const photo = this.patientOriginalPhotoUrl(patient);
+      if (thumbnail) row.profileThumbnailUrl = thumbnail;
+      if (photo) row.profilePhotoUrl = photo;
+      if (patient?.customer_level) row.customerLevel = this.normalizeCustomerLevel(patient.customer_level);
     },
 
     async selectTablePatient(row, patient) {
@@ -7853,6 +7928,12 @@ this.calculateFinalAmount(row)
 
     hasPaymentDetails(row) {
       return Boolean(this.paymentDetailsSummary(row));
+    },
+
+    // بعد از وارد کردن مبلغ و ثبت پرداخت، برچسب «پرداخت» زیر مبلغ دیگر لازم نیست.
+    showAppointmentPaymentCaption(row) {
+      if (this.appointmentPaidAmount(row) > 0 || this.appointmentPaymentIsSettled(row)) return false;
+      return this.appointmentDisplayedDebtAmount(row) > 0 || Number(row?.walletBalance || 0) > 0;
     },
 
     paymentDetailsSummary(row) {
@@ -11352,6 +11433,13 @@ smsColor(val) {
       }
     },
 
+    linkedPatientFile: {
+      deep: true,
+      handler(request) {
+        this.applyLinkedPatientFile(request);
+      }
+    },
+
     days: {
 
       handler() {
@@ -13047,6 +13135,43 @@ smsColor(val) {
   padding-inline: 3px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.file-number-cell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-number-cell input {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.create-patient-file-btn {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.create-patient-file-btn:hover {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
 }
 
 .sticky-header.filtered-header {
@@ -15243,6 +15368,10 @@ td.st-arrived select {
 
 /* معرف نوبت: مشتری / پزشک / پرسنل */
 .referral-section.patient-services-referral-actions{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important;align-items:start}
+.service-choice-row:has(.service-path-add){display:flex!important;flex-wrap:wrap;align-items:center!important;gap:8px}
+.service-choice-row .service-path-add{flex:0 0 auto;width:auto!important;height:38px;margin:0;padding:0 12px;white-space:nowrap;align-self:center}
+.service-choice-row:has(.service-path-add) .service-path-selectors{flex:1 1 0;min-width:0;width:auto;grid-column:auto!important}
+.service-choice-row:has(.service-path-add) .service-tag-picker{flex:1 0 100%;grid-column:1/-1!important;grid-row:auto!important}
 .referrer-search{position:relative}
 .referrer-search-input{width:100%;box-sizing:border-box}
 .referrer-chip{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:32px;padding:3px 8px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;box-sizing:border-box}
@@ -15446,6 +15575,12 @@ body.dark .no-patient-file,
   background: #1e293b;
   border-color: #334155;
   color: #64748b;
+}
+body.dark .create-patient-file-btn,
+#app.dark .create-patient-file-btn {
+  background: #172554;
+  border-color: #1e40af;
+  color: #93c5fd;
 }
 body.dark .payment-link-btn,
 #app.dark .payment-link-btn {
