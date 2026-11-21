@@ -232,4 +232,40 @@ class AppointmentServiceRulesTest extends TestCase
         $this->assertContains($current->id, $ids);
         $this->assertContains($future->id, $ids);
     }
+
+    public function test_doctor_referrer_type_is_kept_until_the_person_is_chosen(): void
+    {
+        $normalize = new \ReflectionMethod(AppointmentController::class, 'normalizeReferrer');
+
+        $pending = $normalize->invoke(app(AppointmentController::class), [
+            'referrer_type' => 'doctor',
+            'referrer_id' => null,
+        ], null);
+        $this->assertSame('doctor', $pending['referrer_type']);
+        $this->assertNull($pending['referrer_id']);
+
+        $fromObject = $normalize->invoke(app(AppointmentController::class), [
+            'referrer_type' => 'doctor',
+            'referrer_id' => ['id' => $this->referrerDoctor->id, 'name' => $this->referrerDoctor->name],
+        ], null);
+        $this->assertSame('doctor', $fromObject['referrer_type']);
+        $this->assertSame($this->referrerDoctor->id, $fromObject['referrer_id']);
+        $this->assertSame('دکتر معرف', $fromObject['referrer_name']);
+        $this->assertNull($fromObject['referrer_phone']);
+
+        $staff = $normalize->invoke(app(AppointmentController::class), [
+            'referrer_type' => 'staff',
+            'referrer_id' => $this->staff->id,
+        ], null);
+        $this->assertSame('staff', $staff['referrer_type']);
+        $this->assertSame($this->staff->id, $staff['referrer_id']);
+        $this->assertSame('مشاور', $staff['referrer_name']);
+
+        $unknown = $normalize->invoke(app(AppointmentController::class), [
+            'referrer_type' => 'doctor',
+            'referrer_id' => 99999,
+        ], null);
+        $this->assertNull($unknown['referrer_type']);
+        $this->assertNull($unknown['referrer_id']);
+    }
 }
