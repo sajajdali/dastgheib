@@ -498,7 +498,8 @@ const FIELDS = [
   { g: 'خدمات و درمان', id: 'extra', label: 'جانبی', type: 'multi' },
 
   { g: 'مالی', id: 'amount', label: 'مبلغ', type: 'range' },
-  { g: 'مالی', id: 'income', label: 'درآمد و هزینه', type: 'display' },
+  { g: 'مالی', id: 'income', label: 'درآمد', type: 'display' },
+  { g: 'مالی', id: 'expense', label: 'هزینه مواد', type: 'display' },
   { g: 'مالی', id: 'discount', label: 'تخفیف', type: 'compare', ph: 'تومان' },
   { g: 'مالی', id: 'finstatus', label: 'وضعیت مالی', type: 'multi' },
   { g: 'مالی', id: 'debt', label: 'بدهی', type: 'compare', ph: 'تومان' },
@@ -518,7 +519,7 @@ const FIELDS = [
 
 const PRESETS = [
   { id: 'files', label: 'لیست پرونده‌ها', scope: 'patients', fields: ['fileNo','name','family','phone','gender','birth','city','custseg'] },
-  { id: 'fin', label: 'مالی', scope: 'appointments', fields: ['amount','income','discount','finstatus','debt','deposit','payment','account','walletDeposit','walletWithdraw'] },
+  { id: 'fin', label: 'مالی', scope: 'appointments', fields: ['amount','income','expense','discount','finstatus','debt','deposit','payment','account','walletDeposit','walletWithdraw'] },
   { id: 'pay', label: 'حقوق', scope: 'appointments', fields: ['doctor','consultant','doctorCommission','consultantCommission','salary','overtime','work','amount'] },
   { id: 'cli', label: 'مراجعین', scope: 'appointments', fields: ['name','family','gender','phone','city','birth','custseg'] },
   { id: 'trt', label: 'عملکرد درمان', scope: 'appointments', fields: ['section2','subsection','areas','problem','extra','count'] },
@@ -554,7 +555,8 @@ const MOCK = {
   extra: ['مشاوره','عکس‌برداری','مشاوره','—','تست پوست','ویزیت مجدد'],
   count: ['۲','۱','۴','۳','۱','۲'],
   amount: ['۴٬۵۰۰٬۰۰۰','۱۲٬۰۰۰٬۰۰۰','۸٬۲۰۰٬۰۰۰','۳٬۱۰۰٬۰۰۰','۶٬۷۵۰٬۰۰۰','۹٬۹۰۰٬۰۰۰'],
-  income: ['+۳٬۲۰۰٬۰۰۰','+۸٬۹۰۰٬۰۰۰','+۵٬۱۰۰٬۰۰۰','−۴۰۰٬۰۰۰','+۴٬۳۰۰٬۰۰۰','+۷٬۰۰۰٬۰۰۰'],
+  income: ['۳٬۲۰۰٬۰۰۰','۸٬۹۰۰٬۰۰۰','۵٬۱۰۰٬۰۰۰','۴۰۰٬۰۰۰','۴٬۳۰۰٬۰۰۰','۷٬۰۰۰٬۰۰۰'],
+  expense: ['۸۰۰٬۰۰۰','۱٬۲۰۰٬۰۰۰','۹۰۰٬۰۰۰','۱۵۰٬۰۰۰','۷۰۰٬۰۰۰','۱٬۱۰۰٬۰۰۰'],
   discount: ['۵۰۰٬۰۰۰','۰','۱٬۲۰۰٬۰۰۰','۰','۳۰۰٬۰۰۰','۸۰۰٬۰۰۰'],
   finstatus: ['تسویه شده','بدهکار','اقساطی','تسویه شده','بدهکار','تسویه شده'],
   debt: ['۰','۲٬۰۰۰٬۰۰۰','۴٬۱۰۰٬۰۰۰','۰','۱٬۵۰۰٬۰۰۰','۰'],
@@ -1000,9 +1002,7 @@ export default {
     hasReportTotal(key) { return Object.prototype.hasOwnProperty.call(this.reportTotals || {}, key); },
     reportTotalLabel(key) {
       if (!this.hasReportTotal(key)) return '—';
-      const total = this.reportTotals[key];
-      if (total && typeof total === 'object') return `درآمد: ${this.formatReportTotal(total.income)} · هزینه: ${this.formatReportTotal(total.expense)}`;
-      return this.formatReportTotal(total);
+      return this.formatReportTotal(this.reportTotals[key]);
     },
     goToPage(page) {
       const next = Math.min(this.pageCount, Math.max(1, Number(page) || 1));

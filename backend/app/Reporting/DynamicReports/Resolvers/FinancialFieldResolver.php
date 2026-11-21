@@ -9,7 +9,7 @@ use App\Reporting\DynamicReports\ReportPatientContext;
 
 class FinancialFieldResolver implements ReportFieldResolver
 {
-    private const FIELDS = ['amount', 'income', 'discount', 'debt', 'deposit', 'payment', 'account'];
+    private const FIELDS = ['amount', 'income', 'expense', 'discount', 'debt', 'deposit', 'payment', 'account'];
 
     public function supports(string $field): bool { return in_array($field, self::FIELDS, true); }
 
@@ -18,7 +18,8 @@ class FinancialFieldResolver implements ReportFieldResolver
         $appointment = $context->latestAppointment;
         return match ($field) {
             'amount' => $appointment ? $this->money($appointment->amount) : null,
-            'income' => $this->incomeAndExpense($appointment),
+            'income' => $appointment ? $this->money($this->incomeAmount($appointment)) : null,
+            'expense' => $appointment ? $this->money($this->materialExpenseAmount($appointment)) : null,
             'discount' => $appointment ? $this->money($appointment->discount) : null,
             'debt' => $appointment ? $this->money($appointment->debt) : null,
             'deposit' => $appointment ? $this->money(AppointmentFinancialTransaction::query()
@@ -28,15 +29,21 @@ class FinancialFieldResolver implements ReportFieldResolver
         };
     }
 
-    private function incomeAndExpense(mixed $appointment): ?string
+    /** مبلغ نوبت بعد از تخفیف + کیف پول (همان تعریف درآمد گزارش کلینیک). */
+    private function incomeAmount(mixed $appointment): float
     {
-        if (! $appointment) return null;
-        // همان تعریف گزارش کلینیک: مبلغ نوبت بعد از تخفیف + کیف پول، و هزینهٔ مواد خدمات و جانبی‌ها از انبار.
-        $income = $this->number($appointment->amount ?? 0) + max(0, $this->number($appointment->wallet_applied ?? 0));
-        $expense = collect(is_array($appointment->services) ? $appointment->services : [])
+        return $this->number($appointment->amount ?? 0) + max(0, $this->number($appointment->wallet_applied ?? 0));
+    }
+
+    /**
+     * هزینه در گزارش‌ساز = هزینهٔ مواد خدمات و جانبی‌های همان نوبت از انبار
+     * (قیمت واحد انبار × تعداد/سی‌سی)، نه ردیف‌های جدول هزینه‌های کلینیک.
+     */
+    private function materialExpenseAmount(mixed $appointment): float
+    {
+        return (float) collect(is_array($appointment->services) ? $appointment->services : [])
             ->filter(fn ($service) => is_array($service))
             ->sum(fn (array $service) => $this->materialCost($service));
-        return 'درآمد: '.number_format($income, 0, '.', '٬').' · هزینه: '.number_format((float) $expense, 0, '.', '٬');
     }
 
     private function materialCost(array $service): float

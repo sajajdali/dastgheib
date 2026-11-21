@@ -99,7 +99,7 @@ return [
         'appointmentCreatedDate' => 'تاریخ ثبت نوبت', 'appointmentDate' => 'تاریخ نوبت (خدمت)', 'source' => 'منبع',
         'work' => 'انجام کار', 'section2' => 'بخش', 'subsection' => 'زیر بخش', 'areas' => 'نواحی',
         'problem' => 'مشکل', 'extra' => 'جانبی', 'count' => 'تعداد', 'amount' => 'مبلغ',
-        'income' => 'درآمد و هزینه', 'discount' => 'تخفیف', 'finstatus' => 'وضعیت مالی', 'debt' => 'بدهی',
+        'income' => 'درآمد', 'expense' => 'هزینه مواد', 'discount' => 'تخفیف', 'finstatus' => 'وضعیت مالی', 'debt' => 'بدهی',
         'deposit' => 'بیعانه', 'payment' => 'روش پرداخت', 'account' => 'حساب واریزی', 'doctor' => 'پزشک',
         'consultant' => 'مشاور', 'salary' => 'حقوق', 'overtime' => 'اضافه کار',
         'doctorCommission' => 'پورسانت پزشک', 'consultantCommission' => 'پورسانت مشاور',
@@ -107,9 +107,9 @@ return [
     ],
 
     // ستون‌های مبلغی که در ردیف «جمع کل» گزارش‌ساز روی همهٔ ردیف‌های گزارش (نه فقط صفحهٔ فعلی) جمع زده می‌شوند.
-    // «اضافه کار» ساعت است و جمع ندارد؛ «درآمد و هزینه» دو مبلغ دارد و هر کدام جدا جمع می‌شود.
+    // «اضافه کار» ساعت است و جمع ندارد؛ «درآمد» و «هزینه مواد» ستون‌های جدا هستند.
     'money_fields' => [
-        'amount', 'income', 'discount', 'debt', 'deposit', 'salary',
+        'amount', 'income', 'expense', 'discount', 'debt', 'deposit', 'salary',
         'doctorCommission', 'consultantCommission', 'walletDeposit', 'walletWithdraw',
     ],
 
