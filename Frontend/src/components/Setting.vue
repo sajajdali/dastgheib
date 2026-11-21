@@ -256,34 +256,58 @@
       <div v-if="featureEnabled('patients')" class="accordion wallet-settings-card">
         <div class="accordion-header" @click="toggleAccordion('customerWallet')">کیف پول مشتری و پاداش معرف</div>
         <div v-if="openAccordion === 'customerWallet'" class="accordion-body wallet-settings-body">
-          <label class="wallet-enable-row">
-            <input v-model="walletSettings.enabled" type="checkbox">
-            <span><strong>فعال‌سازی پاداش معرفی</strong><small>پاداش پس از انجام خدمت و تسویه کامل فرد معرفی‌شده به کیف پول معرف واریز می‌شود.</small></span>
-          </label>
+          <header class="wallet-head">
+            <div class="wallet-head-copy">
+              <strong>فعال‌سازی پاداش معرفی</strong>
+              <small>پاداش پس از انجام خدمت و تسویه کامل فرد معرفی‌شده به کیف پول معرف واریز می‌شود.</small>
+            </div>
+            <label class="wallet-switch">
+              <input v-model="walletSettings.enabled" type="checkbox">
+              <span class="wallet-switch-track" aria-hidden="true"></span>
+              <span class="wallet-switch-label">{{ walletSettings.enabled ? 'فعال' : 'غیرفعال' }}</span>
+            </label>
+          </header>
           <div class="wallet-default-rule">
-            <label>نوع پاداش پیش‌فرض
-              <select v-model="walletSettings.default_type" class="green-input"><option value="percent">درصد از مبلغ دریافتی</option><option value="fixed">مبلغ ثابت</option></select>
+            <label>
+              <span>نوع پاداش پیش‌فرض</span>
+              <select v-model="walletSettings.default_type" class="wallet-control"><option value="percent">درصد از مبلغ دریافتی</option><option value="fixed">مبلغ ثابت</option></select>
             </label>
-            <label>{{ walletSettings.default_type === 'percent' ? 'درصد پاداش' : 'مبلغ ثابت (تومان)' }}
-              <input v-model.number="walletSettings.default_value" class="green-input" type="number" min="0" :max="walletSettings.default_type === 'percent' ? 100 : undefined">
+            <label>
+              <span>{{ walletSettings.default_type === 'percent' ? 'درصد پاداش' : 'مبلغ ثابت (تومان)' }}</span>
+              <input v-model.number="walletSettings.default_value" class="wallet-control" type="number" min="0" :max="walletSettings.default_type === 'percent' ? 100 : undefined">
             </label>
-            <label>مهلت استفاده
-              <span class="wallet-days-input"><input v-model.number="walletSettings.expiry_days" class="green-input" type="number" min="1" max="3650"><em>روز</em></span>
+            <label>
+              <span>مهلت استفاده</span>
+              <span class="wallet-field">
+                <input v-model.number="walletSettings.expiry_days" type="number" min="1" max="3650" aria-label="مهلت استفاده به روز">
+                <em>روز</em>
+              </span>
             </label>
           </div>
           <section class="wallet-service-rules">
-            <header><div><strong>قانون اختصاصی خدمات</strong><small>اگر خدمتی اینجا نباشد، قانون پیش‌فرض بالا اعمال می‌شود.</small></div><button type="button" @click="addWalletServiceRule">+ افزودن خدمت</button></header>
+            <header>
+              <div><strong>قانون اختصاصی خدمات</strong><small>اگر خدمتی اینجا نباشد، قانون پیش‌فرض بالا اعمال می‌شود.</small></div>
+              <button type="button" @click="addWalletServiceRule">+ افزودن خدمت</button>
+            </header>
             <div v-for="(rule,index) in walletSettings.service_overrides" :key="`${rule.service_id}-${index}`" class="wallet-service-rule">
-              <select v-model.number="rule.service_id" class="green-input" @change="syncWalletServiceName(rule)"><option :value="0" disabled>انتخاب خدمت</option><option v-for="service in walletServices" :key="service.id" :value="service.id">{{ service.name }}</option></select>
-              <select v-model="rule.type" class="green-input"><option value="percent">درصدی</option><option value="fixed">مبلغ ثابت</option></select>
-              <input v-model.number="rule.value" class="green-input" type="number" min="0" placeholder="مقدار">
-              <button type="button" class="wallet-rule-remove" title="حذف قانون" @click="walletSettings.service_overrides.splice(index,1)">×</button>
+              <select v-model.number="rule.service_id" class="wallet-control" aria-label="خدمت" @change="syncWalletServiceName(rule)"><option :value="0" disabled>انتخاب خدمت</option><option v-for="service in walletServices" :key="service.id" :value="service.id">{{ service.name }}</option></select>
+              <select v-model="rule.type" class="wallet-control" aria-label="نوع پاداش خدمت"><option value="percent">درصدی</option><option value="fixed">مبلغ ثابت</option></select>
+              <input v-model.number="rule.value" class="wallet-control" type="number" min="0" placeholder="مقدار" aria-label="مقدار پاداش خدمت">
+              <button type="button" class="wallet-rule-remove" title="حذف قانون" aria-label="حذف قانون" @click="walletSettings.service_overrides.splice(index,1)">×</button>
             </div>
           </section>
-          <label class="wallet-sms-template">متن پیامک واریز پاداش
-            <textarea v-model="walletSettings.sms_template" class="green-input" rows="5"></textarea>
-            <small>پارامترها: %param1% مبلغ واریزی، %param2% موجودی فعلی، %param3% تاریخ انقضا، %param4% نام کلینیک</small>
-          </label>
+          <section class="wallet-sms-row" aria-label="پیامک واریز پاداش">
+            <div class="wallet-head-copy">
+              <strong>ارسال پیامک واریز پاداش</strong>
+              <small>نام الگو: واریز پاداش معرف. متن پیام در تنظیمات پیامک ویرایش می‌شود.</small>
+            </div>
+            <label class="wallet-switch">
+              <input v-model="walletSettings.sms_enabled" type="checkbox">
+              <span class="wallet-switch-track" aria-hidden="true"></span>
+              <span class="wallet-switch-label">{{ walletSettings.sms_enabled ? 'فعال' : 'غیرفعال' }}</span>
+            </label>
+            <button type="button" class="wallet-sms-edit" @click="openWalletSmsSettings">ویرایش متن</button>
+          </section>
         </div>
       </div>
 
@@ -653,6 +677,29 @@
 
         <p class="sms-clinic-info-note"><b>اطلاعات پیامک:</b> آدرس، اینستاگرام، تلفن و لوکیشن از «تنظیمات داخلی ← اطلاعات مجموعه» خوانده می‌شود. پارامتر ۱ نیز نام بیمار است.</p>
       </section>
+
+
+      <article id="referral-reward-sms" class="referral-reward-sms-card">
+        <div>
+          <span class="section-eyebrow">کیف پول مشتری</span>
+          <h3>واریز پاداش معرف</h3>
+          <p>متن پیامکی که پس از واریز پاداش معرفی ارسال می‌شود. روشن یا خاموش کردن ارسال از بخش «کیف پول مشتری و پاداش معرف» است.</p>
+        </div>
+        <label class="template-message-field">
+          متن پیام
+          <textarea v-model="walletSmsBody" class="referral-reward-sms-body" rows="5" aria-label="متن پیامک واریز پاداش معرف"></textarea>
+        </label>
+        <p class="referral-reward-sms-preview" dir="rtl" aria-label="پیش‌نمایش متن پیامک">{{ walletSmsPreviewText }}</p>
+        <section class="sms-template-parameter-list" aria-label="پارامترهای پیامک واریز پاداش">
+          <header><strong>پارامترهای متن</strong><small>هر نشانه در پیام با مقدار خودش عوض می‌شود.</small></header>
+          <ol>
+            <li><bdi dir="ltr">%param1%</bdi><span>مبلغ واریزی</span></li>
+            <li><bdi dir="ltr">%param2%</bdi><span>موجودی فعلی</span></li>
+            <li><bdi dir="ltr">%param3%</bdi><span>تاریخ انقضا</span></li>
+            <li><bdi dir="ltr">%param4%</bdi><span>نام کلینیک</span></li>
+          </ol>
+        </section>
+      </article>
 
       <section class="sms-templates-section">
         <article class="lead-alert-sms-card" :class="{ 'is-inactive': !smsSettings.lead_alerts.enabled }">
@@ -1304,7 +1351,18 @@ const customerLevels = ref({
 const customerLevelCriteria = ref(makeCustomerLevelCriteria());
 const appointmentColumns = ref({ payment_method: true, payment_account: true, payment_link: false, best_staff: false, photo_status: true });
 const walletServices = ref([]);
-const walletSettings = ref({ enabled: false, default_type: "percent", default_value: 0, expiry_days: 30, sms_template: "مبلغ %param1% تومان واریز شد.\nموجودی فعلی %param2% تومان\nتاریخ استفاده تا %param3%\nبا تشکر کلینیک %param4%", service_overrides: [] });
+const walletSettings = ref({ enabled: false, default_type: "percent", default_value: 0, expiry_days: 30, sms_enabled: true, sms_template: "مبلغ %param1% تومان واریز شد.\nموجودی فعلی %param2% تومان\nتاریخ استفاده تا %param3%\nبا تشکر کلینیک %param4%", service_overrides: [] });
+const isolateSmsTokens = value => String(value || "").replace(/%param\d+%/g, token => `\u2066${token}\u2069`);
+const walletSmsBody = computed({
+  get: () => isolateSmsTokens(walletSettings.value.sms_template),
+  set: value => { walletSettings.value.sms_template = String(value || "").replace(/[\u2066\u2069]/g, ""); }
+});
+const walletSmsPreviewText = computed(() => isolateSmsTokens(walletSettings.value.sms_template) || "متنی ثبت نشده است.");
+const openWalletSmsSettings = async () => {
+  activeSection.value = "sms";
+  await nextTick();
+  document.getElementById("referral-reward-sms")?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
 const addWalletServiceRule = () => walletSettings.value.service_overrides.push({ service_id: 0, service_name: "", type: "percent", value: 0 });
 const syncWalletServiceName = rule => { rule.service_name = walletServices.value.find(item => Number(item.id) === Number(rule.service_id))?.name || ""; };
 const clinicWeekDays = [
@@ -1969,7 +2027,15 @@ const fetchSettings = async () => {
     customerLevels.value = customerLevelPayload();
     customerLevelCriteria.value = makeCustomerLevelCriteria();
     if (data.appointment_columns) appointmentColumns.value = { ...appointmentColumns.value, ...data.appointment_columns };
-    if (data.wallet_settings) walletSettings.value = { ...walletSettings.value, ...data.wallet_settings, service_overrides: Array.isArray(data.wallet_settings.service_overrides) ? data.wallet_settings.service_overrides : [] };
+    if (data.wallet_settings) {
+      const stored = data.wallet_settings;
+      walletSettings.value = {
+        ...walletSettings.value,
+        ...stored,
+        sms_enabled: Object.prototype.hasOwnProperty.call(stored, "sms_enabled") ? Boolean(stored.sms_enabled) : true,
+        service_overrides: Array.isArray(stored.service_overrides) ? stored.service_overrides : []
+      };
+    }
     walletServices.value = Array.isArray(data.wallet_services) ? data.wallet_services : [];
     if (data.clinic_schedule) {
       clinicSchedule.value = {
@@ -2252,6 +2318,7 @@ const saveSmsSettings = async () => {
       templates: smsSettings.value.templates
       ,birthday: smsSettings.value.birthday
       ,lead_alerts: smsSettings.value.lead_alerts
+      ,referral_reward_template: walletSettings.value.sms_template
     });
 
     if (data.sms_settings) {
@@ -2962,7 +3029,43 @@ textarea{ min-height:120px; resize:none; }
   height: var(--ui-action-height);
   border-radius: var(--ui-action-radius);
 }
-.wallet-settings-body{display:grid;gap:16px}.wallet-enable-row{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid #bbf7d0;border-radius:14px;background:#f0fdf4}.wallet-enable-row span{display:grid;gap:4px}.wallet-enable-row small,.wallet-service-rules small,.wallet-sms-template small{color:#64748b;font-size:10px}.wallet-default-rule{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.wallet-default-rule label,.wallet-sms-template{display:grid;gap:7px;font-size:11px;font-weight:800}.wallet-days-input{display:flex;align-items:center;gap:7px}.wallet-days-input input{flex:1}.wallet-days-input em{font-style:normal}.wallet-service-rules{display:grid;gap:10px;padding:14px;border:1px solid #e2e8f0;border-radius:14px}.wallet-service-rules header{display:flex;align-items:center;justify-content:space-between;gap:12px}.wallet-service-rules header div{display:grid;gap:3px}.wallet-service-rules header button{border:0;border-radius:9px;padding:8px 12px;background:#e0f2fe;color:#0369a1;font-family:inherit;font-weight:900;cursor:pointer}.wallet-service-rule{display:grid;grid-template-columns:minmax(180px,2fr) 1fr 1fr 34px;gap:8px}.wallet-rule-remove{border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-size:20px;cursor:pointer}.wallet-sms-template textarea{resize:vertical;line-height:2}@media(max-width:760px){.wallet-default-rule,.wallet-service-rule{grid-template-columns:1fr}.wallet-rule-remove{height:34px}}
+.accordion-body.wallet-settings-body{gap:0;padding:0;direction:rtl}
+.wallet-head,.wallet-sms-row{display:flex;align-items:center;gap:12px;padding:16px 18px}
+.wallet-head{background:#f8fbff;border-bottom:1px solid #eef2ff}
+.wallet-head-copy{display:grid;flex:1;min-width:0;gap:3px;text-align:right}
+.wallet-head-copy strong{color:#17243b;font-size:14px;line-height:1.6}
+.wallet-head-copy small,.wallet-service-rules small{color:#61718b;font-size:11px;font-weight:600;line-height:1.7}
+.wallet-switch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;gap:8px;margin:0;cursor:pointer;color:#6b778c;font-size:12px;font-weight:800}
+.wallet-switch input{position:absolute;width:1px!important;height:1px!important;min-height:0;margin:0;padding:0;opacity:0}
+.wallet-switch-track{position:relative;flex:0 0 38px;width:38px;height:22px;border-radius:999px;background:#bdc8d8;transition:background .2s}
+.wallet-switch-track::after{content:'';position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #26334833;transition:transform .2s}
+.wallet-switch input:checked + .wallet-switch-track{background:#359a78}
+.wallet-switch input:checked + .wallet-switch-track::after{transform:translateX(-16px)}
+.wallet-switch input:checked ~ .wallet-switch-label{color:#167354}
+.wallet-switch input:focus-visible + .wallet-switch-track{outline:3px solid #a9c7ff;outline-offset:3px}
+.wallet-default-rule{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px 18px 4px}
+.wallet-default-rule>label{display:grid;gap:7px;min-width:0;color:#334155;font-size:12px;font-weight:800;text-align:right}
+.wallet-control{box-sizing:border-box;width:100%;height:46px;min-height:46px;margin:0;padding:0 12px;border:1px solid #dbe3ed;border-radius:12px;background:#fff;color:#1e293b;font:inherit;font-size:13px;font-weight:700;text-align:right}
+select.wallet-control{appearance:none;padding-left:32px;background-color:#fff;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%2364758b' stroke-width='1.6' stroke-linecap='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 12px center;background-size:12px}
+.wallet-field{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:100%;height:46px;padding:0 12px;border:1px solid #dbe3ed;border-radius:12px;background:#fff}
+.wallet-field input{flex:1;width:auto!important;min-width:0;height:auto!important;min-height:0!important;margin:0;padding:0!important;border:0!important;border-radius:0;background:transparent!important;box-shadow:none!important}
+.wallet-field em{flex:0 0 auto;color:#64748b;font-style:normal;font-size:12px;font-weight:800}
+.wallet-service-rules{display:grid;gap:10px;margin:14px 18px 0;padding:14px;border:1px solid #e8eefc;border-radius:16px;background:#f8fbff}
+.wallet-service-rules header{display:flex;align-items:center;gap:12px}
+.wallet-service-rules header div{display:grid;flex:1;gap:3px;min-width:0;text-align:right}
+.wallet-service-rules header strong{color:#17243b;font-size:13px}
+.wallet-service-rules header button{flex:0 0 auto;width:auto;height:36px;margin:0;border:0;border-radius:10px;padding:0 12px;background:#dbeafe;color:#1d4ed8;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.wallet-service-rule{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,.8fr) minmax(0,.7fr) 36px;gap:8px;align-items:center}
+.wallet-rule-remove{width:36px;height:36px;padding:0;border:0;border-radius:10px;background:#fee2e2;color:#b91c1c;font-size:18px;cursor:pointer}
+.wallet-sms-row{margin-top:14px;border-top:1px solid #eef2ff}
+.wallet-sms-edit{flex:0 0 auto;width:auto;height:36px;margin:0;padding:0 12px;border:1px solid #86efac;border-radius:10px;background:#f0fdf4;color:#166534;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+.referral-reward-sms-card{display:grid;gap:14px;margin:0 0 20px;padding:20px;border:1px solid #bbf7d0;border-radius:18px;background:linear-gradient(135deg,#f0fdf4,#fff);scroll-margin-top:88px}
+.referral-reward-sms-card h3{margin:4px 0;color:#166534}
+.referral-reward-sms-card p{margin:0;color:#64748b;font-size:12px;line-height:1.8}
+.referral-reward-sms-body{min-height:120px;line-height:2;unicode-bidi:plaintext}
+.referral-reward-sms-preview{margin:0;padding:12px 14px;border:1px dashed #86efac;border-radius:12px;background:#fff;color:#14532d;font-size:13px;line-height:2;white-space:pre-wrap;overflow-wrap:anywhere}
+.sms-template-parameter-list bdi{display:inline-block;min-width:77px;padding:5px 8px;border-radius:7px;background:#fef3c7;color:#92400e;direction:ltr;font-size:10px;font-weight:900;text-align:center;unicode-bidi:isolate}
+@media(max-width:760px){.wallet-default-rule,.wallet-service-rule{grid-template-columns:1fr}.wallet-head,.wallet-sms-row{align-items:flex-start;flex-wrap:wrap}.wallet-rule-remove{height:36px}}
 .birthday-automation-body { padding: 0; }
 .birthday-automation-card { display: grid; gap: 0; color: #17243b; }
 .birthday-automation-head { display: flex; align-items: center; gap: 14px; padding: 24px; background: #f8fbff; }
@@ -3118,9 +3221,8 @@ html body.dark .settings-page .birthday-timing-options small,
 html body.dark .settings-page .birthday-days-before small,
 html body.dark .settings-page .lead-phone-privacy-copy small,
 html body.dark .settings-page .file-number-lock-setting-copy small,
-html body.dark .settings-page .wallet-enable-row small,
+html body.dark .settings-page .wallet-head-copy small,
 html body.dark .settings-page .wallet-service-rules small,
-html body.dark .settings-page .wallet-sms-template small,
 html body.dark .settings-page .level-period-modal p,
 html body.dark .settings-page .voip-incoming-empty,
 html body.dark .settings-page .empty-templates,
@@ -3136,9 +3238,8 @@ html #app.dark .settings-page .birthday-timing-options small,
 html #app.dark .settings-page .birthday-days-before small,
 html #app.dark .settings-page .lead-phone-privacy-copy small,
 html #app.dark .settings-page .file-number-lock-setting-copy small,
-html #app.dark .settings-page .wallet-enable-row small,
+html #app.dark .settings-page .wallet-head-copy small,
 html #app.dark .settings-page .wallet-service-rules small,
-html #app.dark .settings-page .wallet-sms-template small,
 html #app.dark .settings-page .level-period-modal p,
 html #app.dark .settings-page .voip-incoming-empty,
 html #app.dark .settings-page .empty-templates {
@@ -3213,7 +3314,8 @@ html body.dark .settings-page .level-criterion-input,
 html body.dark .settings-page .birthday-automation-head,
 html body.dark .settings-page .birthday-timing-options label,
 html body.dark .settings-page .birthday-days-before,
-html body.dark .settings-page .wallet-enable-row,
+html body.dark .settings-page .wallet-head,
+html body.dark .settings-page .wallet-sms-row,
 html body.dark .settings-page .gender-icon-picker,
 html body.dark .settings-page .gender-icon-picker button,
 html body.dark .settings-page .settings-user-avatar,
@@ -3233,7 +3335,8 @@ html #app.dark .settings-page .level-criterion-input,
 html #app.dark .settings-page .birthday-automation-head,
 html #app.dark .settings-page .birthday-timing-options label,
 html #app.dark .settings-page .birthday-days-before,
-html #app.dark .settings-page .wallet-enable-row,
+html #app.dark .settings-page .wallet-head,
+html #app.dark .settings-page .wallet-sms-row,
 html #app.dark .settings-page .gender-icon-picker,
 html #app.dark .settings-page .gender-icon-picker button,
 html #app.dark .settings-page .settings-user-avatar,
@@ -3314,11 +3417,9 @@ html #app.dark .settings-page .level-settings-card.gold h4 {
   color: #fbbf24 !important;
 }
 html body.dark .settings-page .payment-settings-status,
-html body.dark .settings-page .wallet-enable-row,
 html body.dark .settings-page .birthday-template-ready,
 html body.dark .settings-page .api-token-saved-status,
 html #app.dark .settings-page .payment-settings-status,
-html #app.dark .settings-page .wallet-enable-row,
 html #app.dark .settings-page .birthday-template-ready,
 html #app.dark .settings-page .api-token-saved-status {
   background: #1e2a28 !important;
@@ -3374,9 +3475,29 @@ html #app.dark .settings-page .compact-checks .file-number-lock-setting.active .
 }
 html body.dark .settings-page .file-number-lock-switch,
 html body.dark .settings-page .birthday-switch-track,
+html body.dark .settings-page .wallet-switch-track,
 html #app.dark .settings-page .file-number-lock-switch,
-html #app.dark .settings-page .birthday-switch-track {
+html #app.dark .settings-page .birthday-switch-track,
+html #app.dark .settings-page .wallet-switch-track {
   background: #3a3f4a !important;
+}
+html body.dark .settings-page .wallet-switch input:checked + .wallet-switch-track,
+html #app.dark .settings-page .wallet-switch input:checked + .wallet-switch-track {
+  background: #359a78 !important;
+}
+html body.dark .settings-page .wallet-field,
+html body.dark .settings-page .wallet-control,
+html #app.dark .settings-page .wallet-field,
+html #app.dark .settings-page .wallet-control {
+  background-color: #121417 !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .settings-page .wallet-field input,
+html #app.dark .settings-page .wallet-field input {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 html body.dark .settings-page .wallet-service-rules header button,
 html body.dark .settings-page .sms-sample-text-btn,

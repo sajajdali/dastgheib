@@ -1409,7 +1409,10 @@ class AppointmentController extends Controller
             try {
                 $raw = AppSetting::getByKey('referral_wallet_settings', '{}');
                 $settings = is_string($raw) ? json_decode($raw, true) : $raw;
-                $template = trim((string) ($settings['sms_template'] ?? ''));
+                $settings = is_array($settings) ? $settings : [];
+                $smsEnabled = ! array_key_exists('sms_enabled', $settings) || filter_var($settings['sms_enabled'], FILTER_VALIDATE_BOOLEAN);
+                if (! $smsEnabled) return;
+                $template = trim((string) preg_replace('/[\x{2066}-\x{2069}]/u', '', (string) ($settings['sms_template'] ?? '')));
                 if ($template === '') return;
                 $patient = Patient::find($transaction->patient_id);
                 $message = str_replace(

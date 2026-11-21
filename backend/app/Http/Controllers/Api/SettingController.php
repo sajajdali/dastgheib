@@ -116,14 +116,27 @@ class SettingController extends Controller
     {
         $raw = AppSetting::getByKey('referral_wallet_settings', '{}');
         $stored = is_string($raw) ? json_decode($raw, true) : $raw;
-        return array_replace([
+        $stored = is_array($stored) ? $stored : [];
+        $settings = array_replace([
             'enabled' => false,
             'default_type' => 'percent',
             'default_value' => 0,
             'expiry_days' => 30,
+            'sms_enabled' => true,
             'sms_template' => 'مبلغ %param1% تومان واریز شد. موجودی فعلی %param2% تومان. تاریخ استفاده تا %param3%. با تشکر کلینیک %param4%',
             'service_overrides' => [],
-        ], is_array($stored) ? $stored : []);
+        ], $stored);
+        $settings['sms_enabled'] = array_key_exists('sms_enabled', $stored)
+            ? filter_var($stored['sms_enabled'], FILTER_VALIDATE_BOOLEAN)
+            : true;
+        $settings['sms_template'] = $this->plainSmsTemplate($settings['sms_template'] ?? '');
+
+        return $settings;
+    }
+
+    private function plainSmsTemplate(mixed $template): string
+    {
+        return trim((string) preg_replace('/[\x{2066}-\x{2069}]/u', '', (string) $template));
     }
 
     private function projectOwnerId(): ?int
@@ -525,6 +538,7 @@ class SettingController extends Controller
                 'wallet_settings.default_type' => ['required', 'in:percent,fixed'],
                 'wallet_settings.default_value' => ['required', 'numeric', 'min:0'],
                 'wallet_settings.expiry_days' => ['required', 'integer', 'min:1', 'max:3650'],
+                'wallet_settings.sms_enabled' => ['sometimes', 'boolean'],
                 'wallet_settings.sms_template' => ['nullable', 'string', 'max:2000'],
                 'wallet_settings.service_overrides' => ['array', 'max:500'],
                 'wallet_settings.service_overrides.*.service_id' => ['required', 'integer', 'exists:inventories,id'],
@@ -535,7 +549,11 @@ class SettingController extends Controller
             if ($wallet['default_type'] === 'percent' && (float) $wallet['default_value'] > 100) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['wallet_settings.default_value' => ['درصد پیش‌فرض نمی‌تواند بیشتر از ۱۰۰ باشد.']]);
             }
-            if ($wallet['enabled'] && trim((string) ($wallet['sms_template'] ?? '')) === '') {
+            $wallet['sms_enabled'] = array_key_exists('sms_enabled', $wallet)
+                ? (bool) $wallet['sms_enabled']
+                : true;
+            $wallet['sms_template'] = $this->plainSmsTemplate($wallet['sms_template'] ?? '');
+            if ($wallet['sms_enabled'] && $wallet['sms_template'] === '') {
                 throw \Illuminate\Validation\ValidationException::withMessages(['wallet_settings.sms_template' => ['متن پیامک واریز پاداش الزامی است.']]);
             }
             foreach ($wallet['service_overrides'] ?? [] as $index => $rule) {
@@ -851,10 +869,22 @@ class SettingController extends Controller
             'lead_alerts.active_tickets_template' => ['nullable', 'string', 'max:190'],
             'lead_alerts.daily_appointments_template' => ['nullable', 'string', 'max:190'],
             'lead_alerts.daily_financial_template' => ['nullable', 'string', 'max:190'],
+            'referral_reward_template' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ], [
             'provider.in' => 'سامانه پیامکی انتخاب‌شده معتبر نیست.',
             'templates.*.category.in' => 'سناریوی پیامک انتخاب‌شده معتبر نیست.',
         ]);
+
+        $rewardTemplate = null;
+        if ($request->exists('referral_reward_template')) {
+            $rewardTemplate = $this->plainSmsTemplate($request->input('referral_reward_template'));
+            $smsEnabled = (bool) ($this->walletSettings()['sms_enabled'] ?? true);
+            if ($smsEnabled && $rewardTemplate === '') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'referral_reward_template' => ['متن پیامک واریز پاداش الزامی است.'],
+                ]);
+            }
+        }
 
         $submittedTemplates = collect($validated['templates'])->keyBy('category');
         $templates = collect($this->fixedSmsTemplates())->map(function (array $template) use ($submittedTemplates) {
@@ -905,6 +935,14 @@ class SettingController extends Controller
         ], [
             'value' => json_encode($templates->all(), JSON_UNESCAPED_UNICODE),
         ]);
+
+        if ($rewardTemplate !== null) {
+            $wallet = $this->walletSettings();
+            $wallet['sms_template'] = $rewardTemplate;
+            AppSetting::updateOrCreate(['key' => 'referral_wallet_settings'], [
+                'value' => json_encode($wallet, JSON_UNESCAPED_UNICODE),
+            ]);
+        }
 
         foreach (['appointment', 'info', 'welcome'] as $category) {
             $content = $templates
