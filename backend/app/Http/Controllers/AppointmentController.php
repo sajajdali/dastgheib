@@ -2781,14 +2781,26 @@ class AppointmentController extends Controller
             return $incoming;
         }
         $type = trim((string) ($incoming['referrer_type'] ?? ''));
-        $id = (int) ($incoming['referrer_id'] ?? 0);
+        // سلکت گاهی به‌جای شناسه، خودِ آبجکت پزشک/پرسنل را می‌فرستد.
+        $rawId = $incoming['referrer_id'] ?? 0;
+        if (is_array($rawId)) {
+            $rawId = $rawId['id'] ?? 0;
+        }
+        $id = (int) $rawId;
         $clear = ['referrer_type' => null, 'referrer_id' => null, 'referrer_name' => null, 'referrer_phone' => null];
 
         if ($type === 'doctor' || $type === 'staff') {
-            $resource = $id ? ($type === 'doctor' ? Doctor::query()->find($id) : Staff::query()->find($id)) : null;
-            return $resource
-                ? [...$incoming, 'referrer_type' => $type, 'referrer_id' => $resource->id, 'referrer_name' => $resource->name, 'referrer_phone' => null]
-                : [...$incoming, ...$clear];
+            $resource = $id > 0 ? ($type === 'doctor' ? Doctor::query()->find($id) : Staff::query()->find($id)) : null;
+            if ($resource) {
+                return [...$incoming, 'referrer_type' => $type, 'referrer_id' => $resource->id, 'referrer_name' => $resource->name, 'referrer_phone' => null];
+            }
+            // نوع «پزشک» یا «پرسنل» قبل از انتخاب شخص ذخیره می‌شود. پاک کردن نوع، سلکت را
+            // در پاسخ ذخیره به «بدون معرف» برمی‌گرداند و معرف انتخاب‌شده ثبت نمی‌شود.
+            if ($id <= 0) {
+                return [...$incoming, 'referrer_type' => $type, 'referrer_id' => null, 'referrer_name' => null, 'referrer_phone' => null];
+            }
+
+            return [...$incoming, ...$clear];
         }
 
         $patient = null;

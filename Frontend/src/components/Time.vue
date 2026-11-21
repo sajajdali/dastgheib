@@ -963,9 +963,9 @@
 
                     <div v-if="row.referrerType === 'doctor' || row.referrerType === 'staff'" class="referral-field referrer-resource-field">
                       <span class="referral-field-caption">{{ row.referrerType === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف' }}</span>
-                      <select :value="row.referrerId || ''" class="service-select" @change="setReferrerResource(row, $event.target.value)">
+                      <select :value="referrerSelectValue(row)" class="service-select" @change="onReferrerResourceChange(row, $event)">
                         <option value="">{{ row.referrerType === 'doctor' ? 'انتخاب پزشک' : 'انتخاب پرسنل' }}</option>
-                        <option v-for="person in referrerResourceOptions(row.referrerType)" :key="person.id" :value="person.id">{{ person.name }}</option>
+                        <option v-for="person in referrerResourceOptions(row.referrerType)" :key="person.id" :value="String(person.id)">{{ person.name }}</option>
                       </select>
                       <small class="referrer-resource-hint">{{ referrerResourceHint(row) }}</small>
                     </div>
@@ -1852,9 +1852,9 @@
               </div>
               <div v-if="activeTimelineDraft.referrerType === 'doctor' || activeTimelineDraft.referrerType === 'staff'" class="referral-field referrer-resource-field">
                 <span class="referral-field-caption">{{ activeTimelineDraft.referrerType === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف' }}</span>
-                <select :value="activeTimelineDraft.referrerId || ''" class="service-select" @change="setReferrerResource(activeTimelineDraft, $event.target.value)">
+                <select :value="referrerSelectValue(activeTimelineDraft)" class="service-select" @change="onReferrerResourceChange(activeTimelineDraft, $event)">
                   <option value="">{{ activeTimelineDraft.referrerType === 'doctor' ? 'انتخاب پزشک' : 'انتخاب پرسنل' }}</option>
-                  <option v-for="person in referrerResourceOptions(activeTimelineDraft.referrerType)" :key="person.id" :value="person.id">{{ person.name }}</option>
+                  <option v-for="person in referrerResourceOptions(activeTimelineDraft.referrerType)" :key="person.id" :value="String(person.id)">{{ person.name }}</option>
                 </select>
                 <small class="referrer-resource-hint">{{ referrerResourceHint(activeTimelineDraft) }}</small>
               </div>
@@ -7285,7 +7285,7 @@ this.calculateFinalAmount(row)
                     row.referrerType || null,
 
                   referrer_id:
-                    row.referrerId || null,
+                    this.referrerIdPayload(row),
 
                   referral_score:
                     this.moneyToNumber(row.referralScore),
@@ -7558,12 +7558,32 @@ this.calculateFinalAmount(row)
       this.calculateReferralRewardForRow(row);
     },
 
+    referrerSelectValue(row) {
+      const id = this.referrerIdPayload(row);
+      return id ? String(id) : '';
+    },
+
+    // مقدار سلکت بومی رشته است؛ اگر گزینه با آبجکت مقدارگذاری شده باشد _value همان آبجکت است.
+    onReferrerResourceChange(row, event) {
+      const option = event?.target?.selectedOptions?.[0];
+      const raw = option && Object.prototype.hasOwnProperty.call(option, '_value') ? option._value : event?.target?.value;
+      this.setReferrerResource(row, raw);
+    },
+
     setReferrerResource(row, id) {
-      const person = this.referrerResourceOptions(row.referrerType).find(item => Number(item.id) === Number(id));
+      const raw = id && typeof id === 'object' ? id.id : id;
+      const person = this.referrerResourceOptions(row.referrerType).find(item => String(item.id) === String(raw));
       row.referrerId = person ? Number(person.id) : null;
       row.referrerName = person?.name || '';
       row.referrerPhone = '';
       this.calculateReferralRewardForRow(row);
+    },
+
+    referrerIdPayload(row) {
+      const value = row?.referrerId;
+      const id = value && typeof value === 'object' ? value.id : value;
+      const number = Number(id);
+      return Number.isInteger(number) && number > 0 ? number : null;
     },
 
     clearReferrer(row) {
