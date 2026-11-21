@@ -335,6 +335,7 @@ Route::get('/inventory', [InventoryController::class, 'index'])->middleware('per
 Route::get('/inventory/context', [InventoryController::class, 'context'])->middleware('permission:inventory.view|appointments.view|resources.view');
 Route::post('/inventory/addons', [InventoryController::class, 'storeAddonDefinitions'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory', [InventoryController::class, 'store'])->middleware('permission:inventory.create|inventory.update');
+Route::delete('/inventory/commissions', [InventoryController::class, 'destroyCommission'])->middleware('permission:inventory.update');
 Route::post('/inventory/{inventory}/duplicate', [InventoryController::class, 'duplicate'])->middleware('permission:inventory.create|inventory.update');
 Route::post('/inventory/adjust-stock', [InventoryController::class, 'adjustStock'])->middleware('permission:inventory.update');
 Route::get('/inventory/{inventory}/movements', [InventoryController::class, 'movements'])->middleware('permission:inventory.view');
