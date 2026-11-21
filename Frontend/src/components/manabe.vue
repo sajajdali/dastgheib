@@ -422,6 +422,7 @@ export default {
     isSyncingChannelRows: false,
     doctorRowsRevision: 0,
     staffRowsRevision: 0,
+    staffLoadToken: 0,
     savedDoctorPayloads: {},
     savedStaffPayloads: {},
     deletedDoctorIds: [],
@@ -874,14 +875,58 @@ export default {
       this.highlightTimer = setTimeout(() => { this.highlightedResourceKey = ''; }, 5000);
     },
 
+    staffRowsMatch(local, saved) {
+      if (!local || !saved) return false;
+      if (local.id && saved.id) return String(local.id) === String(saved.id);
+      if (local.user_id && saved.user_id && String(local.user_id) === String(saved.user_id)) return true;
+      const localName = String(local.name || '').trim();
+      const savedName = String(saved.name || '').trim();
+      return Boolean(!local.id && localName && localName === savedName);
+    },
+
+    localStaffFor(sent) {
+      const byKey = this.staffRows.find(row => sent?._staffKey && row._staffKey === sent._staffKey);
+      return byKey || this.staffRows.find(row => this.staffRowsMatch(row, sent));
+    },
+
+    savedStaffFor(sent, staff) {
+      return (Array.isArray(staff) ? staff : []).find(row => sent?.id
+        ? String(row.id) === String(sent.id)
+        : sent?.user_id ? String(row.user_id) === String(sent.user_id)
+          : String(row.name || '').trim() === String(sent.name || '').trim());
+    },
+
+    rememberStaffPayload(row) {
+      if (!row?.id) return;
+      const normalized = this.normalizeStaffRow(row);
+      this.savedStaffPayloads[String(normalized.id)] = JSON.stringify(this.resourcePayload('staff', normalized));
+    },
+
+    addMissingStaffRows(staffData) {
+      const missing = (Array.isArray(staffData) ? staffData : []).filter(row => !this.staffRows.some(local => this.staffRowsMatch(local, row)));
+      if (!missing.length) return;
+      this.isSyncingStaffRows = true;
+      missing.forEach(row => {
+        const normalized = this.normalizeStaffRow(row);
+        this.staffRows.push(normalized);
+        this.rememberStaffPayload(normalized);
+      });
+      this.$nextTick(() => { this.isSyncingStaffRows = false; });
+    },
+
     async fetchData() {
+      // شمارهٔ ویرایش از همین ابتدا سنجیده می‌شود. اگر کاربر پیش از رسیدن
+      // پاسخ، پرسنل را ویرایش یا ذخیره کند، فهرست قدیمی نباید فرم را پاک کند.
+      const doctorRevision = this.doctorRowsRevision;
+      const staffRevision = this.staffRowsRevision;
+      const staffLoadToken = this.staffLoadToken;
       try {
         await this.fetchResourceOptions();
 
         // بارگذاری پزشکان
         const doctorsResponse = await fetch('/api/doctors');
         const doctorsData = await doctorsResponse.json();
-        if (doctorsData.length > 0) {
+        if (Array.isArray(doctorsData) && doctorsData.length > 0 && doctorRevision === this.doctorRowsRevision && !this.savingDoctors) {
           this.isSyncingResourceRows = true;
           this.doctorRows = doctorsData.map(this.normalizeDoctorRow);
           this.savedDoctorPayloads = Object.fromEntries(this.doctorRows.map(row => [String(row.id), JSON.stringify(this.resourcePayload('doctor', row))]));
@@ -889,18 +934,40 @@ export default {
             this.isSyncingResourceRows = false;
             this.doctorsDirty = false;
           });
+        } else if (Array.isArray(doctorsData) && doctorsData.length > 0) {
+          const missing = doctorsData.filter(row => !this.doctorRows.some(local =>
+            (local.id && row.id && String(local.id) === String(row.id))
+            || (local.user_id && row.user_id && String(local.user_id) === String(row.user_id))
+          ));
+          if (missing.length) {
+            this.isSyncingResourceRows = true;
+            missing.forEach(row => {
+              const normalized = this.normalizeDoctorRow(row);
+              this.doctorRows.push(normalized);
+              if (normalized.id) this.savedDoctorPayloads[String(normalized.id)] = JSON.stringify(this.resourcePayload('doctor', normalized));
+            });
+            this.$nextTick(() => { this.isSyncingResourceRows = false; });
+          }
         }
 
         // بارگذاری پرسنل
-        const staffRevision = this.staffRowsRevision;
         const staffResponse = await fetch('/api/staff');
         const staffData = await staffResponse.json();
-        if (staffData.length > 0 && staffRevision === this.staffRowsRevision) {
+        const staffStale = staffRevision !== this.staffRowsRevision
+          || staffLoadToken !== this.staffLoadToken
+          || staffSaves.has(this);
+        if (Array.isArray(staffData) && staffData.length > 0 && !staffStale) {
+          const previous = this.staffRows;
           this.isSyncingStaffRows = true;
-          this.staffRows = staffData.map(this.normalizeStaffRow);
+          this.staffRows = staffData.map(row => {
+            const existing = previous.find(local => this.staffRowsMatch(local, row));
+            return this.normalizeStaffRow({ ...row, _staffKey: existing?._staffKey });
+          });
           this.savedStaffPayloads = Object.fromEntries(this.staffRows.map(row => [String(row.id), JSON.stringify(this.resourcePayload('staff', row))]));
           await this.$nextTick();
           this.isSyncingStaffRows = false;
+        } else if (Array.isArray(staffData) && staffData.length > 0) {
+          this.addMissingStaffRows(staffData);
         }
 
         // بارگذاری کانال‌ها
@@ -1215,32 +1282,31 @@ export default {
             throw new Error(message || 'ذخیره پرسنل انجام نشد.');
           }
           changedDuringSave = revision !== this.staffRowsRevision;
+          // فهرستِ در راه از بارگذاری اول، قدیمی‌تر از این ذخیره است.
+          this.staffLoadToken += 1;
           this.deletedStaffIds = this.deletedStaffIds.filter(id => !deletedIds.includes(id));
           submitted.forEach(sent => {
-            const saved = data.staff.find(row => sent.id
-              ? String(row.id) === String(sent.id)
-              : sent.user_id ? String(row.user_id) === String(sent.user_id)
-                : String(row.name || '').trim() === String(sent.name || '').trim());
-            if (saved) this.savedStaffPayloads[String(saved.id)] = JSON.stringify(this.resourcePayload('staff', this.normalizeStaffRow(saved)));
+            const saved = this.savedStaffFor(sent, data.staff);
+            if (saved) this.rememberStaffPayload(saved);
           });
           this.isSyncingStaffRows = true;
           try {
             submitted.forEach(sent => {
-              const local = this.staffRows.find(row => row._staffKey === sent._staffKey);
-              if (!local) return;
-              const saved = data.staff.find(row => sent.id
-                ? String(row.id) === String(sent.id)
-                : sent.user_id ? String(row.user_id) === String(sent.user_id)
-                  : String(row.name || '').trim() === String(sent.name || '').trim());
-              if (!saved) return;
-              // Keep the row object, order and DOM key stable. A delayed
-              // response may assign its ID, but cannot replace newer edits.
+              const local = this.localStaffFor(sent);
+              const saved = this.savedStaffFor(sent, data.staff);
+              if (!local || !saved) return;
+              // ردیف، ترتیب و کلید DOM ثابت می‌مانند. اگر کاربر وسط درخواست
+              // باز هم ویرایش کرده، فقط شناسه و نسخهٔ ذخیره عوض می‌شود تا
+              // درخواست بعدی با نسخهٔ تازه پذیرفته شود و مقدار جدید پاک نشود.
               if (!changedDuringSave) {
                 Object.assign(local, this.normalizeStaffRow({ ...saved, _staffKey: local._staffKey }));
               } else {
                 local.id = saved.id;
+                if (saved.save_version) local.save_version = saved.save_version;
+                if (saved.updated_at) local.updated_at = saved.updated_at;
               }
             });
+            this.addMissingStaffRows(data.staff);
             await this.$nextTick();
           } finally {
             this.isSyncingStaffRows = false;
