@@ -2572,7 +2572,10 @@ export default {
         if (request?.create) {
           this.profileViewOpen = false
           this.openingRequestedProfile = false
-          this.form.phone = String(request.phone || '').trim()
+          if ('phone' in request) this.form.phone = String(request.phone || '').trim()
+          if ('first_name' in request) this.form.first_name = String(request.first_name || '').trim()
+          if ('last_name' in request) this.form.last_name = String(request.last_name || '').trim()
+          if (request.gender) this.form.gender = String(request.gender).trim()
           this.$nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
         } else if (request) this.openRequestedPatientProfile(request)
       }
@@ -4897,6 +4900,12 @@ export default {
 
         if (res.ok) {
           const createdPatient = data.patient || { ...this.form }
+          if (this.openPatientRequest?.create && this.openPatientRequest.appointmentId) {
+            this.$emit('patient-file-created', {
+              appointmentId: this.openPatientRequest.appointmentId,
+              patient: createdPatient,
+            })
+          }
           const createdSearch = {
             q: '',
             file_number: String(createdPatient.file_number || this.form.file_number || '').trim(),

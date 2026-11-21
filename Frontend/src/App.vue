@@ -222,6 +222,7 @@
         @open-page="changePage"
         @open-beauty-record="openBeautyRecordFromPatient"
         @open-followups="openFollowupsFromPatient"
+        @patient-file-created="rememberCreatedPatientFile"
       />
 
       <Photos v-if="currentPage === 'Photos'" :permissions="user.permissions || []" />
@@ -233,6 +234,7 @@
         :roles="user.roles || []"
         :current-user-name="user.name || ''"
         :open-view-request="pendingAppointmentViewRequest"
+        :linked-patient-file="pendingLinkedPatientFile"
         @open-patient-profile="openPatientProfileFromAppointment"
         @followup-appointment-created="handleFollowupAppointmentCreated"
         @open-schedule-settings="openBookingScheduleSettings"
@@ -564,6 +566,7 @@ export default {
       user: null,
 
       pendingPatientProfileRequest: null
+      ,pendingLinkedPatientFile: null
       ,pendingBeautyRecordRequest: null
       ,pendingAppointmentViewRequest: null
       ,reportInitialView: 'reports'
@@ -1551,11 +1554,19 @@ export default {
     },
 
     openPatientProfileFromAppointment(payload) {
+      if (payload?.create && !this.user?.permissions?.includes('patients.view') && !this.user?.permissions?.includes('patients.create')) return;
       this.pendingPatientProfileRequest = {
         ...(payload || {}),
         requestedAt: Date.now()
       };
       this.currentPage = "Parvande";
+    },
+
+    rememberCreatedPatientFile(payload) {
+      this.pendingLinkedPatientFile = {
+        ...(payload || {}),
+        requestedAt: Date.now()
+      };
     },
 
     openIncomingCallPatient(call) {
