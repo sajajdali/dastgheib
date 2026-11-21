@@ -123,12 +123,14 @@ class SettingController extends Controller
             'default_value' => 0,
             'expiry_days' => 30,
             'sms_enabled' => true,
+            'sms_template_name' => '',
             'sms_template' => 'مبلغ %param1% تومان واریز شد. موجودی فعلی %param2% تومان. تاریخ استفاده تا %param3%. با تشکر کلینیک %param4%',
             'service_overrides' => [],
         ], $stored);
+        $settings['sms_template_name'] = trim((string) ($stored['sms_template_name'] ?? ''));
         $settings['sms_enabled'] = array_key_exists('sms_enabled', $stored)
             ? filter_var($stored['sms_enabled'], FILTER_VALIDATE_BOOLEAN)
-            : true;
+            : $settings['sms_template_name'] !== '';
         $settings['sms_template'] = $this->plainSmsTemplate($settings['sms_template'] ?? '');
 
         return $settings;
@@ -539,6 +541,7 @@ class SettingController extends Controller
                 'wallet_settings.default_value' => ['required', 'numeric', 'min:0'],
                 'wallet_settings.expiry_days' => ['required', 'integer', 'min:1', 'max:3650'],
                 'wallet_settings.sms_enabled' => ['sometimes', 'boolean'],
+                'wallet_settings.sms_template_name' => ['nullable', 'string', 'max:190'],
                 'wallet_settings.sms_template' => ['nullable', 'string', 'max:2000'],
                 'wallet_settings.service_overrides' => ['array', 'max:500'],
                 'wallet_settings.service_overrides.*.service_id' => ['required', 'integer', 'exists:inventories,id'],
@@ -552,10 +555,8 @@ class SettingController extends Controller
             $wallet['sms_enabled'] = array_key_exists('sms_enabled', $wallet)
                 ? (bool) $wallet['sms_enabled']
                 : true;
+            $wallet['sms_template_name'] = trim((string) ($wallet['sms_template_name'] ?? ''));
             $wallet['sms_template'] = $this->plainSmsTemplate($wallet['sms_template'] ?? '');
-            if ($wallet['sms_enabled'] && $wallet['sms_template'] === '') {
-                throw \Illuminate\Validation\ValidationException::withMessages(['wallet_settings.sms_template' => ['متن پیامک واریز پاداش الزامی است.']]);
-            }
             foreach ($wallet['service_overrides'] ?? [] as $index => $rule) {
                 if ($rule['type'] === 'percent' && (float) $rule['value'] > 100) {
                     throw \Illuminate\Validation\ValidationException::withMessages(["wallet_settings.service_overrides.{$index}.value" => ['درصد خدمت نمی‌تواند بیشتر از ۱۰۰ باشد.']]);
@@ -869,19 +870,22 @@ class SettingController extends Controller
             'lead_alerts.active_tickets_template' => ['nullable', 'string', 'max:190'],
             'lead_alerts.daily_appointments_template' => ['nullable', 'string', 'max:190'],
             'lead_alerts.daily_financial_template' => ['nullable', 'string', 'max:190'],
-            'referral_reward_template' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'referral_reward_template_name' => ['sometimes', 'nullable', 'string', 'max:190'],
+            'referral_reward_sms_enabled' => ['sometimes', 'boolean'],
         ], [
             'provider.in' => 'سامانه پیامکی انتخاب‌شده معتبر نیست.',
             'templates.*.category.in' => 'سناریوی پیامک انتخاب‌شده معتبر نیست.',
         ]);
 
-        $rewardTemplate = null;
-        if ($request->exists('referral_reward_template')) {
-            $rewardTemplate = $this->plainSmsTemplate($request->input('referral_reward_template'));
-            $smsEnabled = (bool) ($this->walletSettings()['sms_enabled'] ?? true);
-            if ($smsEnabled && $rewardTemplate === '') {
+        $rewardTemplateName = null;
+        if ($request->exists('referral_reward_template_name')) {
+            $rewardTemplateName = trim((string) $request->input('referral_reward_template_name'));
+            $smsEnabled = $request->exists('referral_reward_sms_enabled')
+                ? $request->boolean('referral_reward_sms_enabled')
+                : (bool) ($this->walletSettings()['sms_enabled'] ?? true);
+            if ($smsEnabled && $rewardTemplateName === '') {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'referral_reward_template' => ['متن پیامک واریز پاداش الزامی است.'],
+                    'referral_reward_template_name' => ['نام الگوی SHSMS برای «واریز پاداش معرف» الزامی است.'],
                 ]);
             }
         }
@@ -936,9 +940,12 @@ class SettingController extends Controller
             'value' => json_encode($templates->all(), JSON_UNESCAPED_UNICODE),
         ]);
 
-        if ($rewardTemplate !== null) {
+        if ($rewardTemplateName !== null) {
             $wallet = $this->walletSettings();
-            $wallet['sms_template'] = $rewardTemplate;
+            $wallet['sms_template_name'] = $rewardTemplateName;
+            if ($request->exists('referral_reward_sms_enabled')) {
+                $wallet['sms_enabled'] = $request->boolean('referral_reward_sms_enabled');
+            }
             AppSetting::updateOrCreate(['key' => 'referral_wallet_settings'], [
                 'value' => json_encode($wallet, JSON_UNESCAPED_UNICODE),
             ]);

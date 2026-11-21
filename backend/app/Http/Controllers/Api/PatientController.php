@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
@@ -715,15 +716,39 @@ class PatientController extends Controller
             'wallet_balance' => $patient->wallet_balance,
             'reward_expires_at' => $rewardExpiry,
             'reward_total' => (float) $rewards->whereNull('reversed_at')->sum('amount'),
+            'referred_people' => $this->referredPeople($patient),
             'referral_rewards' => $rewards->flatMap(function ($transaction) use ($patient) {
                 $usedAmount = (float) $transaction->creditAllocations->sum('amount');
                 $usedAt = $transaction->creditAllocations->max('used_at');
-                return $transaction->referralRewardLines->map(function ($line) use ($transaction, $patient, $usedAmount, $usedAt) {
+                $lines = $transaction->referralRewardLines;
+                if ($lines->isEmpty()) {
+                    return [[
+                        'id' => 'tx-'.$transaction->id,
+                        'transaction_id' => $transaction->id,
+                        'reversed' => (bool) $transaction->reversed_at,
+                        'referrer_name' => trim($patient->first_name.' '.$patient->last_name),
+                        'referred_patient_id' => data_get($transaction->metadata, 'referred_patient_id'),
+                        'referred_name' => data_get($transaction->metadata, 'referred_name', '-'),
+                        'service_date' => null,
+                        'service_name' => null,
+                        'received_amount' => (float) data_get($transaction->metadata, 'received_amount', 0),
+                        'reward_type' => null,
+                        'reward_value' => 0,
+                        'reward_amount' => (float) $transaction->amount,
+                        'used_amount' => $usedAmount,
+                        'used_at' => $usedAt,
+                        'earned_at' => $transaction->created_at,
+                    ]];
+                }
+
+                return $lines->map(function ($line) use ($transaction, $patient, $usedAmount, $usedAt) {
                     $appointment = $line->appointment;
                     return [
                         'id' => $line->id,
                         'transaction_id' => $transaction->id,
+                        'reversed' => (bool) $transaction->reversed_at,
                         'referrer_name' => trim(($line->referrer?->first_name ?? $patient->first_name).' '.($line->referrer?->last_name ?? $patient->last_name)),
+                        'referred_patient_id' => $line->referred_patient_id,
                         'referred_name' => trim(($line->referred?->first_name ?? '').' '.($line->referred?->last_name ?? '')) ?: data_get($transaction->metadata, 'referred_name', '-'),
                         'service_date' => $appointment ? sprintf('%s-%02d', $appointment->month, $appointment->day_num) : null,
                         'service_name' => $line->service_name,
@@ -759,6 +784,52 @@ class PatientController extends Controller
                     'created_at' => $transaction->created_at,
                 ]),
         ]);
+    }
+
+    private function referredPeople(Patient $patient): array
+    {
+        $appointments = Appointment::query()
+            ->where('referrer_type', 'customer')
+            ->where(function ($query) use ($patient) {
+                $query->where('referrer_id', $patient->id);
+                $phone = trim((string) $patient->phone);
+                if ($phone !== '') {
+                    $query->orWhere(fn ($inner) => $inner->whereNull('referrer_id')->where('referrer_phone', $phone));
+                }
+            })
+            ->get(['id', 'lastname', 'file_number', 'phone', 'referral_score']);
+
+        $appointmentIds = $appointments->pluck('id');
+        $lineRows = $appointmentIds->isEmpty()
+            ? collect()
+            : DB::table('referral_reward_lines as lines')
+                ->join('wallet_transactions as transactions', 'transactions.id', '=', 'lines.wallet_transaction_id')
+                ->whereIn('lines.appointment_id', $appointmentIds)
+                ->get(['lines.appointment_id', 'lines.referred_patient_id', 'lines.reward_amount', 'transactions.reversed_at']);
+        $linesByAppointment = $lineRows->groupBy('appointment_id');
+        $people = [];
+
+        foreach ($appointments as $appointment) {
+            $lines = $linesByAppointment->get($appointment->id, collect());
+            $referredId = $lines->pluck('referred_patient_id')->filter()->first();
+            $key = $referredId ? 'patient-'.$referredId : 'file-'.($appointment->file_number ?: $appointment->phone ?: $appointment->id);
+            $earned = $lines->isNotEmpty()
+                ? (float) $lines->whereNull('reversed_at')->sum('reward_amount')
+                : (float) $appointment->referral_score;
+            if (! isset($people[$key])) {
+                $people[$key] = [
+                    'key' => $key,
+                    'name' => trim((string) $appointment->lastname) ?: 'بدون نام',
+                    'amount' => 0,
+                ];
+            }
+            $people[$key]['amount'] += $earned;
+            if (trim((string) $appointment->lastname) !== '') {
+                $people[$key]['name'] = trim((string) $appointment->lastname);
+            }
+        }
+
+        return array_values($people);
     }
 
     public function deleteReferralReward(Request $request, Patient $patient, WalletTransaction $transaction)

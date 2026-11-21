@@ -1412,15 +1412,15 @@ class AppointmentController extends Controller
                 $settings = is_array($settings) ? $settings : [];
                 $smsEnabled = ! array_key_exists('sms_enabled', $settings) || filter_var($settings['sms_enabled'], FILTER_VALIDATE_BOOLEAN);
                 if (! $smsEnabled) return;
-                $template = trim((string) preg_replace('/[\x{2066}-\x{2069}]/u', '', (string) ($settings['sms_template'] ?? '')));
+                $template = trim((string) ($settings['sms_template_name'] ?? ''));
                 if ($template === '') return;
                 $patient = Patient::find($transaction->patient_id);
-                $message = str_replace(
-                    ['%param1%', '%param2%', '%param3%', '%param4%'],
-                    [number_format((float) $transaction->amount), number_format((float) ($patient?->wallet_balance ?? 0)), $this->gregorianToJalali($expiry), (AppSetting::clinicName() ?: 'کلینیک')],
-                    $template
-                );
-                app(ShsmsService::class)->send($phone, $message);
+                app(ShsmsService::class)->sendTemplate($phone, $template, [
+                    number_format((float) $transaction->amount),
+                    number_format((float) ($patient?->wallet_balance ?? 0)),
+                    $this->gregorianToJalali($expiry),
+                    AppSetting::clinicName() ?: 'کلینیک',
+                ]);
                 $meta = $transaction->metadata ?: [];
                 $meta['sms_sent_at'] = now()->toISOString();
                 unset($meta['sms_error']);

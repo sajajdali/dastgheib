@@ -339,15 +339,26 @@
                 <td data-label="حداقل موجودی"><input v-model.number="row.minStock" type="number" min="0" step="1" @input="sanitizeStockInput($event, row, 'minStock')"></td>
                 <td data-label="دوره پیگیری (روز)"><input v-model.number="row.followupDays" type="number" min="0" placeholder="۰"></td>
                 <td data-label="پورسانت کلی">
-                  <button
-                    class="commission-chip"
-                    type="button"
-                    title="تنظیم پورسانت پیش‌فرض معرف"
-                    @click.stop="openCommissionModal(row, 'item')"
-                  >
-                    <small>تنظیم پیش‌فرض</small>
-                    <strong>{{ commissionLabel(row.defaultCommissionType, row.defaultCommissionValue) }}</strong>
-                  </button>
+                  <div class="commission-cell">
+                    <button
+                      class="commission-chip"
+                      type="button"
+                      title="تنظیم پورسانت پیش‌فرض معرف"
+                      @click.stop="openCommissionModal(row, 'item')"
+                    >
+                      <small>تنظیم پیش‌فرض</small>
+                      <strong>{{ commissionDefined(row) ? commissionLabel(row.defaultCommissionType, row.defaultCommissionValue) : 'بدون پورسانت' }}</strong>
+                    </button>
+                    <button
+                      v-if="commissionDefined(row)"
+                      class="commission-delete"
+                      type="button"
+                      title="حذف پورسانت این خدمت"
+                      :aria-label="`حذف پورسانت ${row.name || 'این خدمت'}`"
+                      :disabled="commissionDeleting"
+                      @click.stop="deleteSavedCommission({ title: row.name || 'این خدمت', rows: [row] })"
+                    >حذف</button>
+                  </div>
                 </td>
                 <td data-label="فعال"><input class="check" type="checkbox" v-model="row.active"></td>
                 <td data-label="وقت‌دهی">
@@ -478,6 +489,29 @@
           <strong>{{ commissionLabel(defaultCommissionDraft.type, defaultCommissionDraft.value) }}</strong>
         </div>
 
+        <section v-if="savedCommissionRows.length" class="saved-commission-list" aria-label="پورسانت‌های ثبت‌شده">
+          <div class="person-commission-head">
+            <strong>پورسانت‌های ثبت‌شده</strong>
+            <span>حذف، درصد و مبلغ را از همان خدمت برمی‌دارد</span>
+          </div>
+          <div class="commission-list compact">
+            <div v-for="entry in savedCommissionRows" :key="entry.key" class="commission-item" :class="{ 'is-global': entry.global }">
+              <div>
+                <strong>{{ entry.title }}</strong>
+                <span>{{ entry.detail }}</span>
+              </div>
+              <b>{{ entry.mixed ? 'چند مقدار' : commissionLabel(entry.type, entry.value) }}</b>
+              <button
+                class="commission-delete"
+                type="button"
+                :disabled="commissionDeleting"
+                :aria-label="`حذف ${entry.title}`"
+                @click="deleteSavedCommission(entry)"
+              >حذف</button>
+            </div>
+          </div>
+        </section>
+
         <section v-if="selectedRow && bulkCommission.target === 'item'" class="person-commission-box">
           <div class="person-commission-head">
             <strong>پورسانت اختصاصی شخص</strong>
@@ -505,10 +539,10 @@
             <button class="text-btn primary" type="button" @click="addCommission">ثبت شخصی</button>
           </div>
           <div class="commission-list compact">
-            <div v-for="(commission, index) in selectedRow.commissions" :key="index" class="commission-item">
+            <div v-for="commission in selectedRow.commissions" :key="commission.id || `${commission.recipient_type}-${commission.recipient_id}`" class="commission-item">
               <div><strong>{{ recipientTypeLabel(commission.recipient_type) }}</strong><span>{{ commission.recipient_name }}</span></div>
               <b>{{ commissionLabel(commission.commission_type, commission.commission_value) }}</b>
-              <button type="button" @click="removeCommission(index)">×</button>
+              <button class="commission-delete" type="button" :disabled="commissionDeleting" :aria-label="`حذف پورسانت ${commission.recipient_name}`" @click="removeCommission(commission)">حذف</button>
             </div>
             <div v-if="!selectedRow.commissions.length" class="empty-state">پورسانت اختصاصی ثبت نشده است.</div>
           </div>
@@ -745,6 +779,7 @@ export default {
       addonDefinitions: [],
       addonManager: { open: false, items: [] },
       showDefaultCommissionModal: false,
+      commissionDeleting: false,
       defaultCommissionRow: null,
       defaultCommissionDraft: {
         type: "percent",
@@ -990,6 +1025,47 @@ export default {
       if (this.bulkCommission.target === "item") return this.selectedRow ? this.selectedRow.name || "آیتم بدون نام" : "یک آیتم را انتخاب کنید"
       const section = this.sections.find(item => this.sectionKey(item) === String(this.bulkCommission.sectionKey || this.activeSectionKey))
       return `بخش ${section?.name || this.activeSectionName}`
+    },
+
+    savedCommissionRows() {
+      const defined = this.commissionScopeRows.filter(row => this.commissionDefined(row))
+      if (!defined.length) return []
+      const target = this.bulkCommission.target
+      if (target === "item") {
+        return defined.map(row => ({
+          key: `item-${row.localId}`,
+          title: row.name || "این خدمت",
+          detail: "پورسانت این خدمت",
+          type: row.defaultCommissionType,
+          value: row.defaultCommissionValue,
+          rows: [row]
+        }))
+      }
+      const first = defined[0]
+      const mixed = defined.some(row => row.defaultCommissionType !== first.defaultCommissionType
+        || Number(row.defaultCommissionValue) !== Number(first.defaultCommissionValue))
+      const titles = { all: "پورسانت کلی", group: "پورسانت کلی گروه", tag: "پورسانت ناحیه" }
+      const global = {
+        key: `global-${target}`,
+        global: true,
+        title: titles[target] || "پورسانت بخش",
+        detail: mixed
+          ? `${defined.length.toLocaleString("fa-IR")} خدمت با مقدارهای متفاوت`
+          : `${defined.length.toLocaleString("fa-IR")} خدمت`,
+        type: first.defaultCommissionType,
+        value: first.defaultCommissionValue,
+        mixed,
+        rows: defined
+      }
+      const services = defined.map(row => ({
+        key: `service-${row.id || row.localId}`,
+        title: row.name || "خدمت بدون نام",
+        detail: this.sectionNameForRow(row),
+        type: row.defaultCommissionType,
+        value: row.defaultCommissionValue,
+        rows: [row]
+      }))
+      return [global, ...services]
     },
 
     selectedRowLocalId: {
@@ -1577,13 +1653,7 @@ export default {
         defaultCommissionValue: Number(item.default_commission_value) || 0,
         bookingSetting: item.booking_setting || item.bookingSetting || null,
         bookingResources: item.booking_resources || item.bookingResources || [],
-        commissions: (item.commissions || []).map(commission => ({
-          recipient_type: commission.recipient_type,
-          recipient_id: commission.recipient_id,
-          recipient_name: commission.recipient_name,
-          commission_type: commission.commission_type || "percent",
-          commission_value: Number(commission.commission_value) || 0
-        }))
+        commissions: (item.commissions || []).map(commission => this.mapCommission(commission))
       }
     },
 
@@ -2336,9 +2406,122 @@ export default {
       this.commissionDraft = { type: "percent", value: 0 }
     },
 
-    removeCommission(index) {
-      if (!this.selectedRow) return
-      this.selectedRow.commissions.splice(index, 1)
+    async removeCommission(commission) {
+      if (!this.selectedRow || !commission) return
+      const confirmed = await Swal.fire({
+        icon: "warning",
+        title: "حذف پورسانت اختصاصی",
+        text: `پورسانت ${commission.recipient_name || "این شخص"} حذف شود؟`,
+        showCancelButton: true,
+        confirmButtonText: "حذف",
+        cancelButtonText: "انصراف",
+        confirmButtonColor: "#dc2626",
+        reverseButtons: true
+      })
+      if (!confirmed.isConfirmed) return
+      if (!commission.id) {
+        this.selectedRow.commissions = this.selectedRow.commissions.filter(item => item !== commission)
+        this.queueSave()
+        return
+      }
+      await this.requestCommissionDeletion({ commission_id: commission.id })
+    },
+
+    commissionDefined(row) {
+      return Number(row?.defaultCommissionValue) > 0
+    },
+
+    mapCommission(commission) {
+      return {
+        id: commission.id || null,
+        recipient_type: commission.recipient_type,
+        recipient_id: commission.recipient_id,
+        recipient_name: commission.recipient_name,
+        commission_type: commission.commission_type || "percent",
+        commission_value: Number(commission.commission_value) || 0
+      }
+    },
+
+    async deleteSavedCommission(entry) {
+      const rows = entry?.rows || []
+      if (!rows.length || this.commissionDeleting) return
+      const count = rows.length
+      const confirmed = await Swal.fire({
+        icon: "warning",
+        title: count > 1 ? "حذف پورسانت کلی" : "حذف پورسانت خدمت",
+        text: count > 1
+          ? `پورسانت ثبت‌شده از ${count.toLocaleString("fa-IR")} خدمت حذف می‌شود و درصد یا مبلغی باقی نمی‌ماند.`
+          : `پورسانت «${entry.title || "این خدمت"}» حذف شود؟ درصد یا مبلغ این خدمت پاک می‌شود.`,
+        showCancelButton: true,
+        confirmButtonText: "حذف",
+        cancelButtonText: "انصراف",
+        confirmButtonColor: "#dc2626",
+        reverseButtons: true
+      })
+      if (!confirmed.isConfirmed) return
+      const ids = [...new Set(rows.map(row => row.id).filter(Boolean))]
+      const removed = ids.length ? await this.requestCommissionDeletion({ inventory_ids: ids }) : true
+      if (!removed) return
+      rows.filter(row => !row.id).forEach(row => { row.defaultCommissionValue = 0 })
+      if (rows.some(row => !row.id)) this.queueSave()
+      this.defaultCommissionDraft.value = 0
+    },
+
+    async requestCommissionDeletion(payload) {
+      this.commissionDeleting = true
+      try {
+        const { data } = await axios.delete(`${API}/inventory/commissions`, { data: payload })
+        this.applyDeletedCommissions(data.items || [])
+        if (!this.hasUnsavedChanges) await this.fetchData({ keepState: true })
+        return true
+      } catch (error) {
+        const errors = error?.response?.data?.errors || {}
+        const first = Object.values(errors).flat()[0]
+        const message = String(first || error?.response?.data?.message || "")
+        Swal.fire({
+          icon: "error",
+          title: "پورسانت حذف نشد",
+          text: /SQLSTATE|Connection:/i.test(message) ? "اتصال را بررسی کنید و دوباره تلاش کنید." : (message || "اتصال را بررسی کنید و دوباره تلاش کنید.")
+        })
+        return false
+      } finally {
+        this.commissionDeleting = false
+      }
+    },
+
+    applyDeletedCommissions(items) {
+      items.forEach(item => {
+        const row = this.rows.find(current => Number(current.id) === Number(item.id))
+        if (!row) return
+        const serverCommissions = (item.commissions || []).map(commission => this.mapCommission(commission))
+        const unsaved = (row.commissions || []).filter(commission => !commission.id && !serverCommissions.some(saved =>
+          saved.recipient_type === commission.recipient_type && Number(saved.recipient_id) === Number(commission.recipient_id)
+        ))
+        row.defaultCommissionType = item.default_commission_type || row.defaultCommissionType || "percent"
+        row.defaultCommissionValue = Number(item.default_commission_value) || 0
+        row.commissions = [...serverCommissions, ...unsaved]
+        row.save_version = item.save_version || row.save_version
+        row.updated_at = item.updated_at || row.updated_at
+        const saved = JSON.parse(this.savedItemPayloads[String(row.id)] || "{}")
+        saved.default_commission_type = row.defaultCommissionType
+        saved.default_commission_value = row.defaultCommissionValue
+        saved.commissions = serverCommissions
+        saved.save_version = row.save_version
+        saved.updated_at = row.updated_at
+        this.savedItemPayloads[String(row.id)] = JSON.stringify(saved)
+      })
+      this.refreshUnsavedFlag()
+    },
+
+    refreshUnsavedFlag() {
+      const sectionsChanged = this.sections.some(section => !section.id
+        || this.savedSectionPayloads[String(section.id)] !== JSON.stringify(this.sectionPayload(section)))
+        || Object.keys(this.savedSectionPayloads).some(id => !this.sections.some(section => String(section.id) === id))
+      const itemsChanged = this.rows.some(current => !current.id
+        || this.savedItemPayloads[String(current.id)] !== JSON.stringify(this.itemPayload(current)))
+        || Object.keys(this.savedItemPayloads).some(id => !this.rows.some(current => String(current.id) === id))
+      this.hasUnsavedChanges = sectionsChanged || itemsChanged
+      if (!this.hasUnsavedChanges && this.saveState !== "saving") this.saveState = "idle"
     },
 
     findRecipient(type, id) {
@@ -3287,7 +3470,7 @@ table {
 }
 
 .tags-col {
-  width: 20%;
+  width: 17%;
 }
 
 .addons-col {
@@ -3311,7 +3494,7 @@ table {
 }
 
 .commission-col {
-  width: 13%;
+  width: 16%;
 }
 
 .active-col {
@@ -3625,6 +3808,61 @@ select:focus {
 .commission-chip:hover {
   background: #dbeafe;
   border-color: #93c5fd;
+}
+
+.commission-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.commission-cell .commission-chip {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.commission-delete {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 46px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.commission-delete:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.saved-commission-list {
+  margin-top: 12px;
+}
+
+.saved-commission-list .commission-list {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.commission-item.is-global {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.commission-item button.commission-delete {
+  width: auto;
+  min-width: 46px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .commission-form {
@@ -4982,6 +5220,22 @@ html #app.dark .inventory-page .booking-settings-btn b,
 html #app.dark .inventory-page .booking-settings-btn small {
   color: #f1f3f4 !important;
 }
+html body.dark .inventory-page .commission-delete,
+html body.dark .inventory-page .commission-item button.commission-delete,
+html #app.dark .inventory-page .commission-delete,
+html #app.dark .inventory-page .commission-item button.commission-delete {
+  background: #3f1d1d !important;
+  color: #fecaca !important;
+}
+html body.dark .inventory-page .commission-item,
+html body.dark .inventory-page .commission-item.is-global,
+html #app.dark .inventory-page .commission-item,
+html #app.dark .inventory-page .commission-item.is-global {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .inventory-page .commission-item strong,
+html #app.dark .inventory-page .commission-item strong { color: #f1f3f4 !important; }
 html body.dark .inventory-page .bulk-commission-bar,
 html #app.dark .inventory-page .bulk-commission-bar {
   background: #22252d !important;

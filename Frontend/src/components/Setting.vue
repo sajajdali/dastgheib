@@ -299,14 +299,14 @@
           <section class="wallet-sms-row" aria-label="پیامک واریز پاداش">
             <div class="wallet-head-copy">
               <strong>ارسال پیامک واریز پاداش</strong>
-              <small>نام الگو: واریز پاداش معرف. متن پیام در تنظیمات پیامک ویرایش می‌شود.</small>
+              <small>{{ walletSettings.sms_template_name ? `نام الگو: ${walletSettings.sms_template_name}` : 'نام الگو در تنظیمات پیامک وارد می‌شود.' }}</small>
             </div>
             <label class="wallet-switch">
               <input v-model="walletSettings.sms_enabled" type="checkbox">
               <span class="wallet-switch-track" aria-hidden="true"></span>
               <span class="wallet-switch-label">{{ walletSettings.sms_enabled ? 'فعال' : 'غیرفعال' }}</span>
             </label>
-            <button type="button" class="wallet-sms-edit" @click="openWalletSmsSettings">ویرایش متن</button>
+            <button type="button" class="wallet-sms-edit" @click="openWalletSmsSettings">تنظیم نام الگو</button>
           </section>
         </div>
       </div>
@@ -679,26 +679,24 @@
       </section>
 
 
-      <article id="referral-reward-sms" class="referral-reward-sms-card">
+      <article id="referral-reward-sms" class="birthday-sms-card">
         <div>
           <span class="section-eyebrow">کیف پول مشتری</span>
           <h3>واریز پاداش معرف</h3>
-          <p>متن پیامکی که پس از واریز پاداش معرفی ارسال می‌شود. روشن یا خاموش کردن ارسال از بخش «کیف پول مشتری و پاداش معرف» است.</p>
+          <p>متن پیام در پنل SHSMS تعریف می‌شود. اینجا فقط نام الگو و ترتیب پارامترها ثبت می‌شود.</p>
         </div>
-        <label class="template-message-field">
-          متن پیام
-          <textarea v-model="walletSmsBody" class="referral-reward-sms-body" rows="5" aria-label="متن پیامک واریز پاداش معرف"></textarea>
-        </label>
-        <p class="referral-reward-sms-preview" dir="rtl" aria-label="پیش‌نمایش متن پیامک">{{ walletSmsPreviewText }}</p>
-        <section class="sms-template-parameter-list" aria-label="پارامترهای پیامک واریز پاداش">
-          <header><strong>پارامترهای متن</strong><small>هر نشانه در پیام با مقدار خودش عوض می‌شود.</small></header>
+        <label class="active-switch"><input v-model="walletSettings.sms_enabled" type="checkbox"><span>{{ walletSettings.sms_enabled ? 'فعال' : 'غیرفعال' }}</span></label>
+        <label class="template-message-field">نام الگوی SHSMS<input v-model.trim="walletSettings.sms_template_name" type="text" maxlength="190" placeholder="مثلاً referral_reward" aria-label="نام الگوی SHSMS برای واریز پاداش معرف"><small>متن پیام را در پنل SHSMS تعریف کنید؛ اینجا فقط نام الگو وارد می‌شود.</small></label>
+        <section class="sms-template-parameter-list" aria-label="ترتیب پارامترهای واریز پاداش معرف">
+          <header><strong>ترتیب پارامترهای ارسالی به SHSMS</strong><small>این ترتیب باید دقیقاً در الگوی پیامکی شما تعریف شده باشد.</small></header>
           <ol>
-            <li><bdi dir="ltr">%param1%</bdi><span>مبلغ واریزی</span></li>
-            <li><bdi dir="ltr">%param2%</bdi><span>موجودی فعلی</span></li>
-            <li><bdi dir="ltr">%param3%</bdi><span>تاریخ انقضا</span></li>
-            <li><bdi dir="ltr">%param4%</bdi><span>نام کلینیک</span></li>
+            <li><b>پارامتر ۱</b><span>مبلغ واریزی</span></li>
+            <li><b>پارامتر ۲</b><span>موجودی فعلی</span></li>
+            <li><b>پارامتر ۳</b><span>تاریخ انقضا</span></li>
+            <li><b>پارامتر ۴</b><span>نام کلینیک</span></li>
           </ol>
         </section>
+        <button type="button" class="sms-sample-text-btn birthday-sample-text-btn" @click="openSmsTemplateText('referral_reward', 'واریز پاداش معرف')">متن پیشنهادی SHSMS</button>
       </article>
 
       <section class="sms-templates-section">
@@ -1244,6 +1242,7 @@ const smsTemplateTextSamples = {
   referral_credit: "%param1% عزیز\nمبلغ %param2% تومان به اعتبار شما واریز شد.\nمانده اعتبار: %param3% تومان",
   treatment_care: "%param1% عزیز\nراهنمای مراقبت پس از درمان:\n%param2%",
   payment_link: "%param1% عزیز\nبرای پرداخت مبلغ %param3% تومان از لینک زیر استفاده کنید:\n%param2%",
+  referral_reward: "مبلغ %param1% تومان واریز شد.\nموجودی فعلی %param2% تومان\nتاریخ استفاده تا %param3%\nبا تشکر کلینیک %param4%",
   birthday: "%param1% عزیز، روز تولدتان مبارک.\n%param2% جان، کلینیک %param5% این روز زیبا را به شما تبریک می‌گوید.",
   inventory_empty: "موجودی %param1% تمام شده است\nتعداد کالاهای تمام‌شده: %param2%\nکلینیک %param3%",
   active_tickets: "تعداد تیکت‌های فعال: %param1%\nکلینیک %param2%",
@@ -1255,7 +1254,7 @@ const openSmsTemplateText = async (key, title) => {
   const result = await Swal.fire({
     title: `متن پیشنهادی «${title}»`,
     input: "textarea",
-    inputValue: sample,
+    inputValue: sample.replace(/%param\d+%/g, token => `\u2066${token}\u2069`),
     inputAttributes: { readonly: "readonly", "aria-label": "متن پیشنهادی برای SHSMS" },
     html: "<p class=\"swal-sms-template-note\">شما می‌توانید از هرکدام از پارامترهایی که دوست دارید استفاده کنید.</p>",
     showCancelButton: true,
@@ -1351,13 +1350,7 @@ const customerLevels = ref({
 const customerLevelCriteria = ref(makeCustomerLevelCriteria());
 const appointmentColumns = ref({ payment_method: true, payment_account: true, payment_link: false, best_staff: false, photo_status: true });
 const walletServices = ref([]);
-const walletSettings = ref({ enabled: false, default_type: "percent", default_value: 0, expiry_days: 30, sms_enabled: true, sms_template: "مبلغ %param1% تومان واریز شد.\nموجودی فعلی %param2% تومان\nتاریخ استفاده تا %param3%\nبا تشکر کلینیک %param4%", service_overrides: [] });
-const isolateSmsTokens = value => String(value || "").replace(/%param\d+%/g, token => `\u2066${token}\u2069`);
-const walletSmsBody = computed({
-  get: () => isolateSmsTokens(walletSettings.value.sms_template),
-  set: value => { walletSettings.value.sms_template = String(value || "").replace(/[\u2066\u2069]/g, ""); }
-});
-const walletSmsPreviewText = computed(() => isolateSmsTokens(walletSettings.value.sms_template) || "متنی ثبت نشده است.");
+const walletSettings = ref({ enabled: false, default_type: "percent", default_value: 0, expiry_days: 30, sms_enabled: true, sms_template_name: "", service_overrides: [] });
 const openWalletSmsSettings = async () => {
   activeSection.value = "sms";
   await nextTick();
@@ -2032,7 +2025,8 @@ const fetchSettings = async () => {
       walletSettings.value = {
         ...walletSettings.value,
         ...stored,
-        sms_enabled: Object.prototype.hasOwnProperty.call(stored, "sms_enabled") ? Boolean(stored.sms_enabled) : true,
+        sms_template_name: String(stored.sms_template_name || "").trim(),
+        sms_enabled: Object.prototype.hasOwnProperty.call(stored, "sms_enabled") ? Boolean(stored.sms_enabled) : Boolean(String(stored.sms_template_name || "").trim()),
         service_overrides: Array.isArray(stored.service_overrides) ? stored.service_overrides : []
       };
     }
@@ -2303,6 +2297,11 @@ const saveSmsSettings = async () => {
     return;
   }
 
+  if (walletSettings.value.sms_enabled && !String(walletSettings.value.sms_template_name || "").trim()) {
+    await Swal.fire({ icon: "warning", title: "الگوی ناقص", text: "نام الگوی SHSMS برای «واریز پاداش معرف» را وارد کنید." });
+    return;
+  }
+
   const invalidLeadAlert = smsSettings.value.lead_alerts.enabled && leadAlertDefinitions
     .find(alert => smsSettings.value.lead_alerts[alert.key] && !smsSettings.value.lead_alerts[alert.templateKey]?.trim());
   if (invalidLeadAlert) {
@@ -2318,7 +2317,8 @@ const saveSmsSettings = async () => {
       templates: smsSettings.value.templates
       ,birthday: smsSettings.value.birthday
       ,lead_alerts: smsSettings.value.lead_alerts
-      ,referral_reward_template: walletSettings.value.sms_template
+      ,referral_reward_template_name: walletSettings.value.sms_template_name
+      ,referral_reward_sms_enabled: walletSettings.value.sms_enabled
     });
 
     if (data.sms_settings) {
@@ -3059,11 +3059,8 @@ select.wallet-control{appearance:none;padding-left:32px;background-color:#fff;ba
 .wallet-rule-remove{width:36px;height:36px;padding:0;border:0;border-radius:10px;background:#fee2e2;color:#b91c1c;font-size:18px;cursor:pointer}
 .wallet-sms-row{margin-top:14px;border-top:1px solid #eef2ff}
 .wallet-sms-edit{flex:0 0 auto;width:auto;height:36px;margin:0;padding:0 12px;border:1px solid #86efac;border-radius:10px;background:#f0fdf4;color:#166534;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
-.referral-reward-sms-card{display:grid;gap:14px;margin:0 0 20px;padding:20px;border:1px solid #bbf7d0;border-radius:18px;background:linear-gradient(135deg,#f0fdf4,#fff);scroll-margin-top:88px}
-.referral-reward-sms-card h3{margin:4px 0;color:#166534}
-.referral-reward-sms-card p{margin:0;color:#64748b;font-size:12px;line-height:1.8}
-.referral-reward-sms-body{min-height:120px;line-height:2;unicode-bidi:plaintext}
-.referral-reward-sms-preview{margin:0;padding:12px 14px;border:1px dashed #86efac;border-radius:12px;background:#fff;color:#14532d;font-size:13px;line-height:2;white-space:pre-wrap;overflow-wrap:anywhere}
+#referral-reward-sms{scroll-margin-top:88px}
+#referral-reward-sms .template-message-field,#referral-reward-sms .sms-template-parameter-list,#referral-reward-sms>.sms-sample-text-btn{grid-column:1/-1}
 .sms-template-parameter-list bdi{display:inline-block;min-width:77px;padding:5px 8px;border-radius:7px;background:#fef3c7;color:#92400e;direction:ltr;font-size:10px;font-weight:900;text-align:center;unicode-bidi:isolate}
 @media(max-width:760px){.wallet-default-rule,.wallet-service-rule{grid-template-columns:1fr}.wallet-head,.wallet-sms-row{align-items:flex-start;flex-wrap:wrap}.wallet-rule-remove{height:36px}}
 .birthday-automation-body { padding: 0; }

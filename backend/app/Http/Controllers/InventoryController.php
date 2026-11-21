@@ -313,6 +313,62 @@ class InventoryController extends Controller
         return response()->json(['message' => 'اطلاعات انبار با موفقیت ذخیره شد.', ...$savedIds]);
     }
 
+    public function destroyCommission(Request $request)
+    {
+        $data = $request->validate([
+            'inventory_ids' => ['required_without:commission_id', 'array', 'min:1'],
+            'inventory_ids.*' => ['integer', 'distinct'],
+            'commission_id' => ['required_without:inventory_ids', 'integer'],
+        ]);
+
+        $items = DB::transaction(function () use ($data) {
+            if (! empty($data['commission_id'])) {
+                $commission = InventoryCommission::query()->lockForUpdate()->find($data['commission_id']);
+                if (! $commission) {
+                    throw ValidationException::withMessages(['commission_id' => 'این پورسانت دیگر وجود ندارد.']);
+                }
+                $inventory = Inventory::query()->lockForUpdate()->find($commission->inventory_id);
+                $commission->delete();
+
+                return $inventory ? [$this->commissionDeletionPayload($inventory)] : [];
+            }
+
+            $inventories = Inventory::query()->whereIn('id', $data['inventory_ids'])->lockForUpdate()->get();
+            if ($inventories->isEmpty()) {
+                throw ValidationException::withMessages(['inventory_ids' => 'خدمتی برای حذف پورسانت پیدا نشد.']);
+            }
+
+            return $inventories->map(function (Inventory $inventory) {
+                if ((float) $inventory->default_commission_value !== 0.0) {
+                    $inventory->default_commission_value = 0;
+                    $inventory->save();
+                }
+
+                return $this->commissionDeletionPayload($inventory);
+            })->all();
+        });
+
+        return response()->json([
+            'message' => 'پورسانت حذف شد.',
+            'items' => $items,
+        ]);
+    }
+
+    private function commissionDeletionPayload(Inventory $inventory): array
+    {
+        $inventory->unsetRelation('commissions');
+        $inventory->load('commissions');
+
+        return [
+            'id' => $inventory->id,
+            'default_commission_type' => $inventory->default_commission_type,
+            'default_commission_value' => (float) $inventory->default_commission_value,
+            'save_version' => $inventory->save_version,
+            'updated_at' => $inventory->updated_at,
+            'commissions' => $inventory->commissions,
+        ];
+    }
+
     private function syncCommissions(Inventory $inventory, array $commissions): void
     {
         $existing = $inventory->commissions()->get();
