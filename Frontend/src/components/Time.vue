@@ -107,7 +107,7 @@
         <div id="table-monthly-financial-content" class="monthly-financial-content" :aria-hidden="!monthlyFinancialSummaryOpen">
           <span class="monthly-financial-period">{{ currentScheduleMonthLabel }}</span>
           <span v-if="canViewAppointmentIncome" class="monthly-financial-item cashbox">
-            <small>جمع صندوق ماه</small>
+            <small>درآمد ماه</small>
             <strong>{{ formatDisplayMoney(monthlyCashboxTotal) }}</strong>
             <em>تومان</em>
           </span>
@@ -580,7 +580,7 @@
 
                   <div v-if="canViewMonthlyFinancialSummary" class="day-summary-left">
                     <span v-if="canViewAppointmentIncome">
-                      جمع صندوق:
+                      درآمد:
                       {{ formatDisplayMoney(getDayTotalAmount(day)) }}
                     </span>
 
@@ -1487,7 +1487,7 @@
         <div id="timeline-monthly-financial-content" class="monthly-financial-content" :aria-hidden="!monthlyFinancialSummaryOpen">
           <span class="monthly-financial-period">{{ currentScheduleMonthLabel }}</span>
           <span v-if="canViewAppointmentIncome" class="monthly-financial-item cashbox">
-            <small>جمع صندوق ماه</small>
+            <small>درآمد ماه</small>
             <strong>{{ formatDisplayMoney(monthlyCashboxTotal) }}</strong>
             <em>تومان</em>
           </span>
@@ -10479,22 +10479,19 @@ this.calculateFinalAmount(row)
       }
     },
 
+    // هم‌تراز با «درآمد کل» گزارش: نوبت‌های «انجام شد»، مبلغ پس از تخفیف + کیف پول.
     getDayTotalAmount(day) {
-
       return day.rows.reduce((sum, row) => {
-        if (!this.appointmentPaymentIsSettled(row)) return sum;
-        return sum + this.moneyToNumber(row.amount);
+        if (!this.isCompletedAppointmentDone(row?.done)) return sum;
+        return sum + this.moneyToNumber(row.amount) + this.moneyToNumber(row.walletApplied);
       }, 0);
-
     },
 
     getDayClinicProfit(day) {
-
       return day.rows.reduce((sum, row) => {
-        if (!this.appointmentPaymentIsSettled(row)) return sum;
+        if (!this.isCompletedAppointmentDone(row?.done)) return sum;
         return sum + this.calculateClinicProfitRow(row);
       }, 0);
-
     },
 
     bookingScheduleAllowsRow(day, row) {

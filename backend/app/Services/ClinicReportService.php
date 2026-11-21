@@ -43,7 +43,8 @@ class ClinicReportService
         $revenue = $paidCompleted->sum(fn ($row) => $this->appointmentValue($row));
         $ledgerReceipts = $this->ledgerReceipts($paidCompleted->pluck('id'));
         $cash = $paidCompleted->sum(fn ($row) => $this->receivedAmount($row, $ledgerReceipts));
-        $receivables = $paidCompleted->sum(fn ($row) => max(0, $this->number($row->debt ?? 0)));
+        // بدهی ذخیره‌شده یا ماندهٔ محاسبه‌شده وقتی فیلد debt خالی مانده باشد.
+        $receivables = $paidCompleted->sum(fn ($row) => $this->outstandingReceivable($row, $ledgerReceipts));
         $discountTotal = $paidCompleted->sum(fn ($row) => $this->number($row->discount));
         $visitorCount = $completed->count();
         $materialPrices = $this->materialPrices();
@@ -1475,7 +1476,7 @@ class ClinicReportService
     private function capacity(float $revenue): array { $limit=max(0,(float)AppSetting::getByKey('report_monthly_capacity',0)); return ['limit'=>round($limit),'revenue'=>round($revenue),'percent'=>$limit?round(min(100,$revenue/$limit*100),1):0]; }
     private function isCompleted($row):bool{return trim((string)$row->done)==='انجام شد';}
     private function recordedPaymentAmount($row):float{$details=is_array($row->payment_details??null)?$row->payment_details:[];if(array_key_exists('ledger_total',$details))return max(0,$this->number($details['ledger_total']));return max(0,$this->number($details['cash']??0)+$this->number($details['card']??0)+$this->number(data_get($details,'check.amount',0)));}
-    /** درآمد با انجام خدمت شناسایی می‌شود، حتی اگر بیمار هنوز بدهکار باشد. */
+
     /** جمع پرداخت‌ها و تسویه‌های بدهی ثبت‌شده در دفتر مالی هر نوبت (شامل پرداخت از کیف پول). */
     private function ledgerReceipts($appointmentIds): Collection
     {
@@ -1508,9 +1509,25 @@ class ClinicReportService
         return $this->recordedPaymentAmount($row) + $debtPayments + $wallet;
     }
 
+    /** درآمد با انجام خدمت شناسایی می‌شود، حتی اگر بیمار هنوز بدهکار باشد. */
     private function isRevenueRecognized($row): bool
     {
         return $this->isCompleted($row);
+    }
+
+    private function outstandingReceivable($row, Collection $ledgerReceipts): float
+    {
+        $explicit = max(0, $this->number($row->debt ?? 0));
+        if ($explicit > 0) {
+            return $explicit;
+        }
+
+        $value = $this->appointmentValue($row);
+        if ($value <= 0) {
+            return 0;
+        }
+
+        return max(0, $value - $this->receivedAmount($row, $ledgerReceipts));
     }
     private function isCancelled($row):bool{$s=(string)$row->status;return str_contains($s,'کنسل')||str_contains($s,'لغو');} private function dateOf($row):string{return ($row->month?:'').'-'.str_pad((string)($row->day_num?:1),2,'0',STR_PAD_LEFT);} private function appointmentValue($row):float{
         // مبلغ نوبت پس از تخفیف است؛ کیف پول روش پرداخت است و به درآمد برمی‌گردد.

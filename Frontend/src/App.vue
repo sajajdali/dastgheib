@@ -418,7 +418,7 @@
     </div>
 
     <AiAssistant :dark="isDark" :user="user" @navigate="openAssistantPage" />
-    <GroupChat v-if="user" :dark="isDark" :user="user" />
+    <GroupChat v-if="user && groupChatModuleEnabled" :dark="isDark" :user="user" />
     <IncomingCallStack
       v-if="user?.permissions?.includes('patients.view') && featureEnabledForTenant('patients')"
       :can-create="user?.permissions?.includes('patients.create') && user?.permissions?.includes('patients.view_phone') && !user?.permissions?.includes('patients.hide_phone')"
@@ -761,6 +761,12 @@ export default {
 
     attendanceModuleEnabled() {
       return !Array.isArray(this.tenantEnabledFeatures) || this.tenantEnabledFeatures.includes('attendance');
+    },
+
+    // چت گروهی فقط با ماژول group_chat فعال روی همان سایت؛ بدون استثنای دمؤ محلی.
+    groupChatModuleEnabled() {
+      const modules = this.user?.tenant?.module_ids;
+      return Array.isArray(modules) && modules.includes('group_chat');
     },
 
     isClinicManager() {
@@ -2536,8 +2542,19 @@ html.dark-boot .auth-boot-spinner {
 }
 .service-page-grid {
   display: grid;
-  grid-template-columns: 1.35fr repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .service-page-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .service-status-card-main {
+    grid-column: 1 / -1;
+  }
 }
 .service-status-card {
   display: flex;
@@ -2628,8 +2645,9 @@ html.dark-boot .auth-boot-spinner {
 }
 .service-purchase-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 10px;
+  min-width: 0;
 }
 .service-purchase-list article {
   display: flex;
