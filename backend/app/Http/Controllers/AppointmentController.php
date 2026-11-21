@@ -2701,8 +2701,8 @@ class AppointmentController extends Controller
         ]);
     }
 
-    /** پورسانت فقط برای نوبت انجام‌شده محاسبه می‌شود؛ مثل کسر موجودی انبار. */
-    /** پورسانت پزشک و پرسنل یک نوبت با همان قاعدهٔ حقوق، حتی اگر نوبت هنوز انجام نشده باشد (برای تخمین سود). */
+    /** پورسانت فقط برای نوبت انجام‌شده و دارای پرداخت ثبت‌شده محاسبه می‌شود؛ مثل کسر موجودی انبار. */
+    /** تخمین سود هم فقط وقتی پرداخت ثبت شده باشد؛ بدون پرداخت درصد/پورسانت نداریم. */
     public function estimatedResourceCommission(Appointment $appointment): float
     {
         return (float) collect($this->resourceEarningPayloads($appointment, false))->sum('amount');
@@ -2711,6 +2711,11 @@ class AppointmentController extends Controller
     private function resourceEarningPayloads(Appointment $appointment, bool $requireDone = true): array
     {
         if ($requireDone && ! $this->appointmentIsDone($appointment)) {
+            return [];
+        }
+
+        // تا قبل از ثبت پرداخت، دستمزد پزشک / پورسانت پرسنل / محاسبات وابسته ساخته نمی‌شود.
+        if (! app(CustomerTypeResolver::class)->appointmentHasRegisteredPayment($appointment)) {
             return [];
         }
 

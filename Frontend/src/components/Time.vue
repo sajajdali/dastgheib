@@ -2105,15 +2105,15 @@
           </article>
           <article>
             <small>دستمزد پزشک</small>
-            <strong>{{ formatDisplayMoney(trackingReport.financial.doctorWage) }} تومان</strong>
+            <strong>{{ formatTrackingCommissionMoney(trackingReport.financial.doctorWage, trackingReport.financial.commissionsReady) }}</strong>
           </article>
           <article>
             <small>پورسانت پرسنل</small>
-            <strong>{{ formatDisplayMoney(trackingReport.financial.staffCommission) }} تومان</strong>
+            <strong>{{ formatTrackingCommissionMoney(trackingReport.financial.staffCommission, trackingReport.financial.commissionsReady) }}</strong>
           </article>
           <article>
             <small>سود کلینیک</small>
-            <strong>{{ formatDisplayMoney(trackingReport.financial.clinicProfit) }} تومان</strong>
+            <strong>{{ formatTrackingCommissionMoney(trackingReport.financial.clinicProfit, trackingReport.financial.commissionsReady) }}</strong>
           </article>
         </div>
 
@@ -5817,9 +5817,20 @@ export default {
           materialCost: 0,
           doctorWage: 0,
           staffCommission: 0,
-          clinicProfit: 0
+          clinicProfit: 0,
+          commissionsReady: false
         }
       };
+    },
+
+    // تا وقتی پرداخت ثبت نشده، دستمزد/پورسانت/سود را خط تیره نشان بده.
+    formatTrackingCommissionMoney(amount, commissionsReady) {
+      if (!commissionsReady) return "—";
+      return `${this.formatDisplayMoney(amount)} تومان`;
+    },
+
+    appointmentHasRegisteredPayment(row) {
+      return this.appointmentPaidAmount(row) > 0;
     },
 
     openTrackingModal(day, row) {
@@ -5983,10 +5994,14 @@ export default {
         materialCost: 0,
         doctorWage: 0,
         staffCommission: 0,
-        clinicProfit: 0
+        clinicProfit: 0,
+        commissionsReady: false
       };
 
       if (!row?.services?.length) return financial;
+
+      const commissionsReady = this.appointmentHasRegisteredPayment(row);
+      financial.commissionsReady = commissionsReady;
 
       this.expandedServices(row).forEach(service => {
         const item = this.getServiceData(service);
@@ -5998,20 +6013,24 @@ export default {
         const grossServiceAmount = Number(item.amount || 0) * cc;
         const serviceAmount = this.serviceNetAmount(service, grossServiceAmount);
         const materialCost = Number(item.price || 0) * cc;
-        const doctorWage = this.serviceCommission(this.serviceDoctor(service, row), 'doctor', row, service, item, cc);
-        const staffCommission = this.serviceCommission(this.serviceConsultant(service, row), 'staff', row, service, item, cc);
 
         financial.totalAmount += serviceAmount;
         financial.materialCost += materialCost;
-        financial.doctorWage += doctorWage;
-        financial.staffCommission += staffCommission;
+
+        // درصد پزشک/پورسانت پرسنل و سود وابسته فقط بعد از ثبت پرداخت.
+        if (!commissionsReady) return;
+
+        financial.doctorWage += this.serviceCommission(this.serviceDoctor(service, row), 'doctor', row, service, item, cc);
+        financial.staffCommission += this.serviceCommission(this.serviceConsultant(service, row), 'staff', row, service, item, cc);
       });
 
-      financial.clinicProfit =
-        financial.totalAmount -
-        financial.materialCost -
-        financial.doctorWage -
-        financial.staffCommission;
+      if (commissionsReady) {
+        financial.clinicProfit =
+          financial.totalAmount -
+          financial.materialCost -
+          financial.doctorWage -
+          financial.staffCommission;
+      }
 
       return financial;
     },
@@ -6687,6 +6706,9 @@ export default {
 
       if (!row.services || !row.services.length)
         return 0;
+
+      // بدون پرداخت ثبت‌شده، سود کلینیک (و کسر دستمزد/پورسانت) محاسبه نمی‌شود.
+      if (!this.appointmentHasRegisteredPayment(row)) return 0;
 
       let totalAmount = 0;
       let totalCost = 0;
