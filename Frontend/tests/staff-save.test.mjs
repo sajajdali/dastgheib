@@ -8,7 +8,7 @@ const source = readFileSync(new URL('../src/components/manabe.vue', import.meta.
   .split('<script>')[1].split('</script>')[0]
   .replace(/^import .*$/gm, '').replace('export default', 'globalThis.component =');
 function setup(fetch) {
-  const context = vm.createContext({ CommissionRules: {}, fetch, setTimeout, clearTimeout, console });
+  const context = vm.createContext({ CommissionRules: {}, PersonalReportColumns: {}, fetch, setTimeout, clearTimeout, console });
   vm.runInContext(source, context);
   const component = context.component;
   const state = reactive(component.data());
@@ -44,10 +44,10 @@ test('edits during a pending save retain values and send a serialized followup w
   const requests = [];
   const app = setup(async (_, options) => {
     active++; maximum = Math.max(maximum, active);
-    const sent = JSON.parse(options.body); requests.push(sent);
+    const sent = JSON.parse(options.body).items; requests.push(sent);
     if (requests.length === 1) await new Promise(resolve => { release = resolve; });
     active--;
-    return response(sent.map(row => ({ ...row, id: 9 })));
+    return response(sent.map(row => ({ ...row, id: 9, save_version: `v${requests.length}` })));
   });
   try {
     const { state } = app;
@@ -64,8 +64,49 @@ test('edits during a pending save retain values and send a serialized followup w
     assert.equal(requests.length, 2);
     assert.equal(requests[1][0].id, 9);
     assert.equal(requests[1][0].salary, 200);
+    assert.equal(requests[1][0].save_version, 'v1');
     assert.equal(state.staffRows[0].salary, 200);
+    assert.equal(state.staffRows[0].save_version, 'v2');
     assert.equal(state.staffRows.length, 2);
+  } finally { app.cleanup(); }
+});
+
+test('a staff list loaded after a save does not wipe the saved values', async () => {
+  const pending = {};
+  const hold = key => new Promise(resolve => { pending[key] = resolve; });
+  const json = body => ({ ok: true, json: async () => body });
+  const app = setup(async (url, options) => {
+    if (url === '/api/settings') return json({ users: [], roles: [] });
+    if (url === '/api/inventory/context') return json({ sections: [] });
+    if (url === '/api/doctors') { await hold('doctors'); return json([]); }
+    if (url === '/api/channels') return json([]);
+    if (url === '/api/staff' && options?.method === 'POST') {
+      const items = JSON.parse(options.body).items;
+      return json({ staff: items.map(row => ({ ...row, id: row.id || 1, save_version: 'v2' })) });
+    }
+    if (url === '/api/staff') { await hold('staff'); return json([{ id: 1, user_id: 2, name: 'الف', salary: 100, save_version: 'v1' }]); }
+    return json([]);
+  });
+  try {
+    const { state } = app;
+    state.isSyncingStaffRows = true;
+    Object.assign(state.staffRows[0], { id: 1, user_id: 2, name: 'الف', salary: 100, save_version: 'v1' });
+    state.savedStaffPayloads['1'] = JSON.stringify(state.resourcePayload('staff', state.normalizeStaffRow(state.staffRows[0])));
+    await nextTick();
+    state.isSyncingStaffRows = false;
+    const loading = state.fetchData();
+    while (!pending.doctors) await Promise.resolve();
+    state.staffRows[0].salary = 200;
+    await nextTick();
+    await state.autoSaveStaff();
+    pending.doctors();
+    while (!pending.staff) await Promise.resolve();
+    pending.staff();
+    await loading;
+    await nextTick();
+    assert.equal(state.staffRows[0].salary, 200);
+    assert.equal(state.staffRows[0].save_version, 'v2');
+    assert.equal(state.staffRows.filter(row => String(row.id) === '1').length, 1);
   } finally { app.cleanup(); }
 });
 
