@@ -13935,8 +13935,10 @@ body:has(.time-page.table-view-active) {
 }
 
 .main-schedule-table {
-  width: max-content;
-  min-width: 100%;
+  /* Fill the scrollport when columns are narrower (RTL: no dead gutter
+     left of عملیات); grow past 100% when column mins need more width. */
+  width: 100%;
+  min-width: max-content;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
