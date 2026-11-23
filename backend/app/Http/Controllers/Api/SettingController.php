@@ -568,18 +568,8 @@ class SettingController extends Controller
             ]);
         }
 
-        if ($request->has('report_staff_target')) {
-            $target = $request->validate([
-                'report_staff_target' => ['required', 'numeric', 'min:0', 'max:1000000000'],
-            ])['report_staff_target'];
-            AppSetting::updateOrCreate(['key' => 'report_staff_target'], ['value' => (string) $target]);
-        }
-
-        if ($request->has('report_monthly_capacity')) {
-            $capacity = $request->validate([
-                'report_monthly_capacity' => ['required', 'numeric', 'min:0', 'max:100000000000'],
-            ])['report_monthly_capacity'];
-            AppSetting::updateOrCreate(['key' => 'report_monthly_capacity'], ['value' => (string) $capacity]);
+        if ($request->has('report_staff_target') || $request->has('report_monthly_capacity')) {
+            $this->persistReportTargets($request);
         }
 
         if ($request->has('sms')) {
@@ -742,6 +732,36 @@ class SettingController extends Controller
         });
 
         return response()->json(['success' => true, 'message' => 'تنظیمات داخلی با موفقیت ذخیره شدند.']);
+    }
+
+    /** ذخیره سقف تارگت پرسنل و گنجایش ماهانه از داشبورد گزارش. */
+    public function saveReportTargets(Request $request)
+    {
+        $this->persistReportTargets($request);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تنظیمات گزارش ذخیره شد.',
+            'report_staff_target' => max(0, (float) AppSetting::getByKey('report_staff_target', 120)),
+            'report_monthly_capacity' => max(0, (float) AppSetting::getByKey('report_monthly_capacity', 0)),
+        ]);
+    }
+
+    private function persistReportTargets(Request $request): void
+    {
+        if ($request->has('report_staff_target')) {
+            $target = $request->validate([
+                'report_staff_target' => ['required', 'numeric', 'min:0', 'max:1000000000'],
+            ])['report_staff_target'];
+            AppSetting::updateOrCreate(['key' => 'report_staff_target'], ['value' => (string) $target]);
+        }
+
+        if ($request->has('report_monthly_capacity')) {
+            $capacity = $request->validate([
+                'report_monthly_capacity' => ['required', 'numeric', 'min:0', 'max:100000000000'],
+            ])['report_monthly_capacity'];
+            AppSetting::updateOrCreate(['key' => 'report_monthly_capacity'], ['value' => (string) $capacity]);
+        }
     }
 
     public function saveAttendanceStatus(Request $request)

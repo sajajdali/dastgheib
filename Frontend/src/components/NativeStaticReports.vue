@@ -311,6 +311,10 @@
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border-radius:12px;padding:10px 16px;flex-wrap:wrap;gap:8px">
                 <span style="font-size:12.5px;color:#475569;font-weight:600">جمع کل: <b class="rpt-money" style="color:#0f172a;font-size:13.5px">{{ v.staffSum }}</b></span>
+                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b">
+                  سقف تارگت (میلیون تومان):
+                  <input type="text" inputmode="numeric" :value="v.staffTargetV" @change="v.onStaffTarget" style="width:88px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;color:#0f172a;outline:none;direction:ltr;text-align:center">
+                </label>
                 <span style="font-size:12px;color:#b45309;font-weight:700">{{ v.staffOverTxt }}</span>
               </div>
               <div v-if="v.staffIncomeCalculating" class="staff-income-loading" aria-live="polite">
@@ -735,7 +739,7 @@
                   <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px"><span style="color:#64748b">تا تکمیل گنجایش</span><b class="rpt-money" style="color:#7c3aed">{{ v.capRemain }}</b></div>
                   <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;background:#f8fafc;border-radius:12px;padding:10px 12px">
                     گنجایش (میلیون تومان):
-                    <input type="text" inputmode="numeric" :value="v.capV" @input="v.onCap" style="flex:1;width:80px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;color:#0f172a;outline:none;direction:ltr;text-align:center">
+                    <input type="text" inputmode="numeric" :value="v.capV" @input="v.onCap" @change="v.saveCap" style="flex:1;width:80px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;color:#0f172a;outline:none;direction:ltr;text-align:center">
                   </label>
                 </div>
               </div>
@@ -1643,6 +1647,8 @@ export default {
       cnCompletedAt: this.formatSnapshotDate(cancellationSnapshot?.completed_at),
       // staff
       staffChips, staffBars, targetB, targetTxt: staffIncomeReady ? 'سقف: ' + mm(target / 1000000) : 'سقف: --',
+      staffTargetV: Number(S.staffTarget || 0).toLocaleString('fa-IR'),
+      onStaffTarget: e => this.saveStaffTarget(e.target.value),
       staffSum: staffIncomeReady ? mm(shown.reduce((sum,staff) => sum + Number(staff.v || 0), 0) / 1000000) : '--', staffOverTxt,
       staffIncomeReady: !!staffIncomeReady,
       staffIncomeCalculating: ['queued','processing'].includes(staffIncomeSnapshot?.status),
@@ -1683,7 +1689,7 @@ export default {
       campaignPerformanceCompletedAt: this.formatSnapshotDate(this.campaignPerformanceSnapshot?.completed_at),
       // capacity
       capDa:arc(capF),capW:Math.round(capF*100)+'%',capPct:dashboardReady?pc(Math.round(capF*100)):'—',capFilled:dashboardReady?mm(filled):'—',
-      capRemain:dashboardReady?mm(Math.max(0,capN-filled)):'—',capV:capN.toLocaleString('fa-IR'),onCap:e=>this.set({cap:e.target.value}),
+      capRemain:dashboardReady?mm(Math.max(0,capN-filled)):'—',capV:capN.toLocaleString('fa-IR'),onCap:e=>this.set({cap:e.target.value}),saveCap:()=>this.saveMonthlyCapacity(),
       // gender / newold / status
       gF, gM, gUnknown:dashboardReady&&unknownGenderCount?fa(unknownGenderCount):'',
       ns1,ns2,noTotal:dashboardReady?fa(nT):'—',noNew:dashboardReady?fa(nNew):'—',noOld:dashboardReady?fa(nOld):'—',
@@ -2544,9 +2550,36 @@ export default {
     async loadStaffTarget() {
       try {
         const { data } = await axios.get('/api/settings');
-        this.set({staffTarget: Math.max(0, Number(data.report_staff_target) || 0)});
+        const staffTarget = Math.max(0, Number(data.report_staff_target) || 0);
+        const capacityToman = Math.max(0, Number(data.report_monthly_capacity) || 0);
+        const capMillions = capacityToman > 0 ? capacityToman / 1000000 : Number(this.capacityDefault ?? 2500);
+        this.set({staffTarget, cap: String(capMillions)});
       } catch (error) {
         console.warn('Report staff target could not be loaded.', error);
+      }
+    },
+    parseFaNumber(value) {
+      const fa = '۰۱۲۳۴۵۶۷۸۹';
+      const normalized = String(value ?? '').replace(/[۰-۹]/g, d => String(fa.indexOf(d))).replace(/[٬,\s]/g, '');
+      return Math.max(0, Number(normalized) || 0);
+    },
+    async saveStaffTarget(raw) {
+      const staffTarget = this.parseFaNumber(raw);
+      this.set({staffTarget});
+      try {
+        await axios.post('/api/settings/report-targets', {report_staff_target: staffTarget});
+        await this.calculateStaffIncome();
+      } catch (error) {
+        console.warn('Report staff target could not be saved.', error);
+      }
+    },
+    async saveMonthlyCapacity() {
+      const millions = this.parseFaNumber(this.s.cap);
+      this.set({cap: String(millions || this.capacityDefault || 2500)});
+      try {
+        await axios.post('/api/settings/report-targets', {report_monthly_capacity: millions * 1000000});
+      } catch (error) {
+        console.warn('Report monthly capacity could not be saved.', error);
       }
     },
     set(patch) {

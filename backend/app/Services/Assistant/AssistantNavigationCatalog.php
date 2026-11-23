@@ -33,7 +33,7 @@ final class AssistantNavigationCatalog
         'settings_appointment_columns' => ['تنظیمات ← تنظیمات داخلی ← ستون‌های نوبت‌دهی', 'settings.view'],
         'settings_birthday_sms' => ['تنظیمات ← تنظیمات داخلی ← پیامک تولد', 'settings.view'],
         'settings_wallet' => ['تنظیمات ← تنظیمات داخلی ← کیف پول مشتری و پاداش معرف', 'settings.view'],
-        'settings_report_target' => ['تنظیمات ← تنظیمات داخلی ← تنظیمات گزارش', 'settings.view'],
+        'settings_report_target' => ['گزارش ← داشبورد ← تارگت پرسنل و گنجایش مجموعه', 'reports.view'],
         'settings_clinic_schedule' => ['تنظیمات ← تنظیمات داخلی ← ساعت کاری کلینیک', 'settings.view'],
         'settings_password' => ['تنظیمات ← تنظیمات داخلی ← تعریف کاربر (کاربران، موبایل و رمز عبور)', 'settings.view'],
         'settings_customer_levels' => ['تنظیمات ← تنظیمات داخلی ← دسته‌بندی مشتری‌ها', 'settings.view'],

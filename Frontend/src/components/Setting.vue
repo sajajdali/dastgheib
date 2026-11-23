@@ -311,21 +311,6 @@
         </div>
       </div>
 
-      <div class="accordion">
-        <div class="accordion-header" @click="toggleAccordion('reportTarget')">تنظیمات گزارش</div>
-        <div v-if="openAccordion === 'reportTarget'" class="accordion-body">
-          <label class="schedule-interval-field">
-            سقف تارگت پرسنل <small>میلیون تومان</small>
-            <input v-model.number="reportStaffTarget" class="green-input" type="number" min="0" step="1" placeholder="مثلاً ۱۲۰" />
-          </label>
-          <label class="schedule-interval-field">
-            سقف درآمد ماهانهٔ گنجایش <small>تومان</small>
-            <input v-model.number="reportMonthlyCapacity" class="green-input" type="number" min="0" step="1000000" placeholder="مثلاً ۶۵۰٬۰۰۰٬۰۰۰" />
-          </label>
-          <small class="report-target-help">در گزارش، هر پرسنلی که درآمدش به این مقدار برسد با وضعیت «رسیده به تارگت» نمایش داده می‌شود.</small>
-        </div>
-      </div>
-
       <div v-if="featureEnabled('booking')" class="accordion">
         <div class="accordion-header" @click="toggleAccordion('clinicSchedule')">
           برنامه نوبت‌دهی
@@ -1222,8 +1207,6 @@ const serviceFinderPaymentGroups = computed(() => [
 
 // داده‌های بخش تنظیمات داخلی
 const sms = ref({ appointment: "", info: "", welcome: "" });
-const reportStaffTarget = ref(120);
-const reportMonthlyCapacity = ref(0);
 const smsSettings = ref({ provider: "shsms", api_token: "", account_configured: false, editing_api_token: false, clinic_info: { address: "", instagram_url: "", phone: "", location_url: "" }, templates: [], birthday: { enabled: false, content: "", guide_text: "پارامترها: {name}، {clinic}" }, lead_alerts: { enabled: false, recipients: [], inventory_empty: true, active_tickets: true, daily_appointments: true, daily_financial: true, inventory_empty_template: "", active_tickets_template: "", daily_appointments_template: "", daily_financial_template: "" } });
 const birthdaySmsAutomation = ref({ enabled: false, timing: "same_day", days_before: 1 });
 const birthdaySmsTemplateReady = computed(() => Boolean(smsSettings.value.birthday?.enabled && smsSettings.value.birthday?.content?.trim()));
@@ -2015,8 +1998,6 @@ const fetchSettings = async () => {
     appointmentFileNumberLocked.value = data.appointment_file_number_locked !== false;
     if (data.patient_required_fields) patientRequiredFields.value = { ...patientRequiredFields.value, ...data.patient_required_fields };
     if (data.customer_levels) customerLevels.value = { ...customerLevels.value, ...data.customer_levels };
-    if (data.report_staff_target !== undefined) reportStaffTarget.value = Number(data.report_staff_target) || 0;
-    if (data.report_monthly_capacity !== undefined) reportMonthlyCapacity.value = Number(data.report_monthly_capacity) || 0;
     customerLevels.value = customerLevelPayload();
     customerLevelCriteria.value = makeCustomerLevelCriteria();
     if (data.appointment_columns) appointmentColumns.value = { ...appointmentColumns.value, ...data.appointment_columns };
@@ -2119,8 +2100,6 @@ const saveInternalSettings = async (showMessage = true) => {
       },
       wallet_settings: { ...walletSettings.value, service_overrides: walletSettings.value.service_overrides.filter(rule => rule.service_id && rule.service_name) },
       clinic_schedule: clinicSchedule.value,
-      report_staff_target: Math.max(0, Number(reportStaffTarget.value) || 0),
-      report_monthly_capacity: Math.max(0, Number(reportMonthlyCapacity.value) || 0),
       company: {
         name: company.value.name || "",
         about: company.value.about || "",
