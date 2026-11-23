@@ -2749,6 +2749,16 @@
       </section>
     </div>
 
+    <div
+      v-show="appointmentView === 'table' && tableHScrollNeeded"
+      ref="tableHScrollBar"
+      class="table-hscroll-bar"
+      aria-label="اسکرول افقی جدول نوبت‌دهی"
+      @scroll.passive="onTableHScrollBarScroll"
+    >
+      <div class="table-hscroll-spacer" :style="{ width: tableHScrollWidth + 'px' }"></div>
+    </div>
+
     <div class="fixed-bottom-bar">
 
       <label class="schedule-year-picker" title="انتخاب سال نوبت‌دهی">
@@ -3093,6 +3103,10 @@ export default {
       financialContextLoading: false,
       dailyReportModalOpen: false,
       activeDailyReport: null,
+      tableHScrollWidth: 0,
+      tableHScrollNeeded: false,
+      _tableHScrollSyncing: false,
+      _tableHScrollFrame: null,
       completionSmsOptions: [
         { key: 'treatment_care', icon: '🩺', title: 'توصیه‌های بعد از درمان', description: 'ارسال لینک راهنمای مراقبت و توصیه‌های درمان' },
         { key: 'payment_link', icon: '🔗', title: 'لینک پرداخت', description: 'ارسال لینک و مبلغ پرداخت برای مراجعه‌کننده' },
@@ -3613,7 +3627,9 @@ export default {
 
   async mounted() {
     window.addEventListener('scroll', this.scheduleDayRowsWindowUpdate, { passive: true });
+    window.addEventListener('scroll', this.syncTableHScrollBarFromWindow, { passive: true });
     window.addEventListener('resize', this.scheduleDayRowsWindowUpdate, { passive: true });
+    window.addEventListener('resize', this.refreshTableHScrollMetrics, { passive: true });
     document.addEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges = subscribeAppointmentChanges(this.handleRealtimeAppointmentChange);
@@ -3664,15 +3680,20 @@ export default {
     if (this.dayRowsWindowingActive || Object.keys(this.dayRowsRenderedKeys).length) {
       this.scheduleDayRowsWindowUpdate();
     }
+    this.scheduleTableHScrollRefresh();
   },
 
   beforeUnmount() {
     this.stopServicePopupFit();
     window.removeEventListener('scroll', this.scheduleDayRowsWindowUpdate);
+    window.removeEventListener('scroll', this.syncTableHScrollBarFromWindow);
     window.removeEventListener('resize', this.scheduleDayRowsWindowUpdate);
+    window.removeEventListener('resize', this.refreshTableHScrollMetrics);
     if (this._dayRowsWindowFrame) cancelAnimationFrame(this._dayRowsWindowFrame);
+    if (this._tableHScrollFrame) cancelAnimationFrame(this._tableHScrollFrame);
     clearTimeout(this._dayRowsWindowTimer);
     this._dayRowsWindowFrame = null;
+    this._tableHScrollFrame = null;
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges?.();
@@ -3703,11 +3724,55 @@ export default {
       line.cc = ascii.split(/[.,٫]/, 1)[0].replace(/[^0-9]/g, '')
       this.updateRowAmounts(row)
     },
+    scheduleTableHScrollRefresh() {
+      if (this._tableHScrollFrame) cancelAnimationFrame(this._tableHScrollFrame);
+      this._tableHScrollFrame = requestAnimationFrame(() => {
+        this._tableHScrollFrame = null;
+        this.refreshTableHScrollMetrics();
+      });
+    },
+
+    refreshTableHScrollMetrics() {
+      if (this.appointmentView !== 'table') {
+        this.tableHScrollNeeded = false;
+        return;
+      }
+      const table = this.$el?.querySelector?.('.main-schedule-table');
+      const width = Math.max(
+        Number(table?.scrollWidth || 0),
+        document.documentElement.scrollWidth,
+        document.body.scrollWidth
+      );
+      const view = window.innerWidth || document.documentElement.clientWidth || 0;
+      this.tableHScrollWidth = width;
+      this.tableHScrollNeeded = width > view + 8;
+      this.$nextTick(() => this.syncTableHScrollBarFromWindow());
+    },
+
+    syncTableHScrollBarFromWindow() {
+      if (this._tableHScrollSyncing || this.appointmentView !== 'table') return;
+      const el = this.$refs.tableHScrollBar;
+      if (!el) return;
+      const left = window.scrollX || document.documentElement.scrollLeft || 0;
+      if (Math.abs(el.scrollLeft - left) < 1) return;
+      this._tableHScrollSyncing = true;
+      el.scrollLeft = left;
+      this._tableHScrollSyncing = false;
+    },
+
+    onTableHScrollBarScroll(event) {
+      if (this._tableHScrollSyncing) return;
+      this._tableHScrollSyncing = true;
+      window.scrollTo({ left: event.target.scrollLeft, top: window.scrollY || 0, behavior: 'auto' });
+      this._tableHScrollSyncing = false;
+    },
+
     async switchAppointmentView(view) {
       if (!['table', 'timeline'].includes(view) || this.appointmentView === view) return;
 
       if (view === 'timeline') {
         this.appointmentView = 'timeline';
+        this.tableHScrollNeeded = false;
         await this.refreshBookingTimelineSchedule();
         this.focusTodayInTimeline();
         return;
@@ -14391,6 +14456,72 @@ td.st-transferred {
   flex: 0 0 28px;
 }
 
+/* اسکرول افقی ضخیم‌تر زیر جدول نوبت‌دهی (بدون گرفتن فضای زیاد از جدول) */
+.table-hscroll-bar {
+  position: fixed;
+  right: 18px;
+  left: 18px;
+  bottom: 64px;
+  z-index: 2147482890;
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  background: #e2e8f0;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .16);
+  scrollbar-width: auto;
+  scrollbar-color: #475569 #e2e8f0;
+}
+
+.table-hscroll-spacer {
+  height: 1px;
+  pointer-events: none;
+}
+
+.table-hscroll-bar::-webkit-scrollbar {
+  height: 14px;
+}
+
+.table-hscroll-bar::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.table-hscroll-bar::-webkit-scrollbar-thumb {
+  background: #475569;
+  border: 2px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+.table-hscroll-bar::-webkit-scrollbar-thumb:hover {
+  background: #1e293b;
+}
+
+html:has(.time-page.table-view-active) {
+  scrollbar-width: auto;
+  scrollbar-color: #475569 #cbd5e1;
+}
+
+html:has(.time-page.table-view-active)::-webkit-scrollbar {
+  height: 14px;
+  width: 12px;
+}
+
+html:has(.time-page.table-view-active)::-webkit-scrollbar-track {
+  background: #cbd5e1;
+}
+
+html:has(.time-page.table-view-active)::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border: 2px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+html:has(.time-page.table-view-active)::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
 /* نوار پایین */
 .fixed-bottom-bar {
   position: fixed;
@@ -15633,6 +15764,7 @@ td.st-arrived select {
 @media(max-width:600px){
   .section-filter-menu{position:fixed;top:70px;right:12px;left:12px;width:auto;max-height:calc(100vh - 90px)}
   .fixed-bottom-bar{right:8px;bottom:8px;left:8px;transform:none;display:grid;grid-template-columns:auto 38px minmax(0,1fr) 38px;gap:6px;width:auto;max-width:none;padding:7px;border-radius:18px}
+  .table-hscroll-bar{right:8px;left:8px;bottom:66px;height:15px}
   .schedule-year-picker{padding:0 6px}.schedule-year-picker svg{display:none}.schedule-year-picker select{width:52px;font-size:10px}
   .month-action-btn{width:38px!important;min-width:38px!important;height:38px!important;padding:0!important}
   .months-scroll-area{gap:6px;width:100%}.month-pill{min-width:68px;min-height:40px;padding:7px 10px;font-size:12px}
