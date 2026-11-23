@@ -25,18 +25,18 @@
 
   <StorageFullScreen v-else-if="storageFull" :manager="isClinicManager" :initial-storage="storageFullData" @available="handleStorageAvailable" @logout="logout" />
 
-  <div v-else id="app" :class="{ dark: isDark, 'booking-page-active': currentPage === 'Vaghtdahi' }">
+  <div
+    v-else
+    id="app"
+    :class="{
+      dark: isDark,
+      'booking-page-active': currentPage === 'Vaghtdahi',
+      'has-subscription-warning': subscriptionWarningDays !== null,
+      'has-portal-bell': showPortalBell
+    }"
+  >
 
     <div class="status-indicators">
-      <button
-        v-if="subscriptionWarningDays !== null"
-        type="button"
-        class="subscription-status-alert"
-        :class="{ today: subscriptionWarningDays === 0 }"
-        @click="subscriptionWarningOpen = true"
-      >
-        {{ subscriptionWarningText }}
-      </button>
       <div
         class="connection-indicator"
         :class="`is-${connectionStatus}`"
@@ -79,11 +79,24 @@
     <button v-if="uiMenuOpen" class="utility-menu-backdrop" type="button" aria-label="بستن منوی کاربری" @click="uiMenuOpen = false"></button>
 
     <EmployeePortalNotifications
-      v-if="canViewPersonalReport || canManageEmployeePortal"
+      v-if="showPortalBell"
       :manager="canManageEmployeePortal"
       @open-personal-report="openMyReport"
       @open-payroll="openEmployeePortalNotification"
     />
+
+    <button
+      v-if="subscriptionWarningDays !== null"
+      type="button"
+      class="subscription-status-alert"
+      :class="{ today: subscriptionWarningDays === 0 }"
+      :title="subscriptionWarningText"
+      :aria-label="subscriptionWarningText"
+      @click="subscriptionWarningOpen = true"
+    >
+      <span class="subscription-status-alert__full">{{ subscriptionWarningText }}</span>
+      <span class="subscription-status-alert__short" aria-hidden="true">{{ subscriptionWarningShortText }}</span>
+    </button>
 
     <aside v-if="uiMenuOpen" id="utility-menu-panel" class="utility-menu-panel" dir="rtl">
       <header>
@@ -714,6 +727,16 @@ export default {
       const days = this.subscriptionWarningDays;
       if (days === 0) return "اشتراک امروز به پایان می‌رسد";
       return `${Number(days || 0).toLocaleString("fa-IR")} روز تا پایان اشتراک مانده است`;
+    },
+
+    subscriptionWarningShortText() {
+      const days = this.subscriptionWarningDays;
+      if (days === 0) return "امروز پایان";
+      return `${Number(days || 0).toLocaleString("fa-IR")} روز مانده`;
+    },
+
+    showPortalBell() {
+      return this.canViewPersonalReport || this.canManageEmployeePortal;
     },
 
     connectionStatusText() {
@@ -1741,7 +1764,80 @@ export default {
 </script>
 
 <style>
-.subscription-status-alert{min-height:34px;padding:0 13px;border:1px solid #fdba74;border-radius:999px;background:#fff7ed;color:#c2410c;font-family:inherit;font-size:11px;font-weight:1000;box-shadow:0 8px 22px rgba(194,65,12,.13);cursor:pointer}.subscription-status-alert.today{border-color:#fca5a5;background:#fef2f2;color:#b91c1c}.subscription-warning-overlay{position:fixed;inset:0;z-index:2147483644;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.6);backdrop-filter:blur(6px);direction:rtl}.subscription-warning-modal{width:min(480px,94vw);padding:26px;border-radius:22px;background:#fff;box-shadow:0 30px 90px rgba(15,23,42,.3);text-align:center}.subscription-warning-modal>span{width:58px;height:58px;display:grid;place-items:center;margin:0 auto 12px;border-radius:50%;background:#fff7ed;color:#ea580c;font-size:30px;font-weight:1000}.subscription-warning-modal h2{margin:0 0 8px;color:#0f172a;font-size:21px}.subscription-warning-modal p{margin:0 0 20px;color:#64748b}.subscription-warning-modal>div{display:flex;justify-content:center;gap:9px}.subscription-warning-modal button,.service-renew-button{height:42px;padding:0 17px;border:0;border-radius:10px;font-family:inherit;font-weight:1000;cursor:pointer}.subscription-warning-modal button:first-child{background:#e2e8f0;color:#475569}.subscription-warning-modal button:last-child,.service-renew-button{background:#2563eb;color:#fff}.service-renew-button{margin:0 0 18px;box-shadow:0 8px 22px rgba(37,99,235,.2)}
+/* هشدار انقضای اشتراک: چسبیده به زنگوله در سمت چپ، نه گوشهٔ راست */
+.subscription-status-alert {
+  position: fixed;
+  top: 23px;
+  left: 78px;
+  z-index: 2147483008;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  max-width: min(280px, calc(100vw - 160px));
+  padding: 0 13px;
+  border: 1px solid #fdba74;
+  border-radius: 15px;
+  background: rgba(255, 247, 237, .96);
+  color: #c2410c;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 1000;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .09);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+#app.has-portal-bell .subscription-status-alert {
+  left: 134px;
+}
+.subscription-status-alert:hover {
+  transform: translateY(-1px);
+  border-color: #fb923c;
+  box-shadow: 0 10px 28px rgba(194, 65, 12, .18);
+}
+.subscription-status-alert.today {
+  border-color: #fca5a5;
+  background: rgba(254, 242, 242, .96);
+  color: #b91c1c;
+}
+.subscription-status-alert__short { display: none; }
+.subscription-status-alert__full { display: inline; overflow: hidden; text-overflow: ellipsis; }
+
+/* فضای اختصاصی تا آیتم‌های منو (پرونده / وقت‌دهی و …) زیر هشدار نروند */
+#app.has-subscription-warning .menu:not(.menu-unpinned) {
+  width: calc(100% - 300px);
+  margin-left: 300px;
+}
+#app.has-subscription-warning.has-portal-bell .menu:not(.menu-unpinned) {
+  width: calc(100% - 360px);
+  margin-left: 360px;
+}
+
+body.dark .subscription-status-alert,
+#app.dark .subscription-status-alert {
+  background: rgba(73, 57, 20, .96);
+  border-color: #a16207;
+  color: #fde68a;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+}
+body.dark .subscription-status-alert:hover,
+#app.dark .subscription-status-alert:hover {
+  border-color: #ca8a04;
+  color: #fef3c7;
+}
+body.dark .subscription-status-alert.today,
+#app.dark .subscription-status-alert.today {
+  background: rgba(76, 31, 44, .96);
+  border-color: #be123c;
+  color: #fecdd3;
+}
+
+.subscription-warning-overlay{position:fixed;inset:0;z-index:2147483644;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.6);backdrop-filter:blur(6px);direction:rtl}.subscription-warning-modal{width:min(480px,94vw);padding:26px;border-radius:22px;background:#fff;box-shadow:0 30px 90px rgba(15,23,42,.3);text-align:center}.subscription-warning-modal>span{width:58px;height:58px;display:grid;place-items:center;margin:0 auto 12px;border-radius:50%;background:#fff7ed;color:#ea580c;font-size:30px;font-weight:1000}.subscription-warning-modal h2{margin:0 0 8px;color:#0f172a;font-size:21px}.subscription-warning-modal p{margin:0 0 20px;color:#64748b}.subscription-warning-modal>div{display:flex;justify-content:center;gap:9px}.subscription-warning-modal button,.service-renew-button{height:42px;padding:0 17px;border:0;border-radius:10px;font-family:inherit;font-weight:1000;cursor:pointer}.subscription-warning-modal button:first-child{background:#e2e8f0;color:#475569}.subscription-warning-modal button:last-child,.service-renew-button{background:#2563eb;color:#fff}.service-renew-button{margin:0 0 18px;box-shadow:0 8px 22px rgba(37,99,235,.2)}
 
 * {
 
@@ -2785,11 +2881,21 @@ html.dark-boot .auth-boot-spinner {
   #app .menu:not(.menu-unpinned) { top: 20px; }
   .utility-menu-toggle { top: 26px; }
   #app .epn { top: 26px; }
+  .subscription-status-alert { top: 26px; }
 }
 @media (min-width: 601px) and (max-width: 768px) {
   #app .menu:not(.menu-unpinned) { top: 14px; }
   .utility-menu-toggle { top: 20px; }
   #app .epn { top: 20px; }
+  .subscription-status-alert { top: 20px; max-width: min(200px, calc(100vw - 150px)); }
+  #app.has-subscription-warning .menu:not(.menu-unpinned) {
+    width: calc(100% - 250px);
+    margin-left: 250px;
+  }
+  #app.has-subscription-warning.has-portal-bell .menu:not(.menu-unpinned) {
+    width: calc(100% - 300px);
+    margin-left: 300px;
+  }
 }
 
 /* حالت شب: دکمهٔ همبرگری و زنگوله هم‌رنگ منوی اصلی */
@@ -2844,6 +2950,26 @@ body.dark .epn-bell b { border-color: #1a1c22 !important; }
   .status-indicators { top: 9px; right: 12px; }
   .storage-status-alert { right: 12px; bottom: 12px; max-width: calc(100vw - 24px); }
   .utility-menu-panel { top: 60px; left: 12px; width: min(230px, calc(100vw - 24px)); }
+  .subscription-status-alert {
+    top: 29px;
+    left: 63px;
+    min-height: 42px;
+    max-width: min(132px, calc(100vw - 120px));
+    padding: 0 10px;
+    border-radius: 13px;
+    font-size: 10px;
+  }
+  #app.has-portal-bell .subscription-status-alert { left: 113px; }
+  .subscription-status-alert__full { display: none; }
+  .subscription-status-alert__short { display: inline; }
+  #app.has-subscription-warning .menu:not(.menu-unpinned) {
+    width: calc(100% - 200px);
+    margin-left: 200px;
+  }
+  #app.has-subscription-warning.has-portal-bell .menu:not(.menu-unpinned) {
+    width: calc(100% - 250px);
+    margin-left: 250px;
+  }
   .service-page-grid { grid-template-columns: 1fr; }
   .service-purchase-list { grid-template-columns: 1fr; }
   .service-page-hero,
