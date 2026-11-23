@@ -48,7 +48,7 @@
               </select>
 
               <div v-else-if="f.type === 'compare'" class="rb-compare">
-                <select class="rb-compare-op" v-model="comparators[f.id]" :title="comparators[f.id] === 'lt' ? 'کمتر از' : comparators[f.id] === 'gt' ? 'بیشتر از' : 'دقیقاً برابر'"><option value="lt">کمتر</option><option value="gt">بیشتر</option><option value="eq">برابر</option></select>
+                <select class="rb-compare-op" v-model="comparators[f.id]" :title="comparators[f.id] === 'lt' ? 'کمتر از' : comparators[f.id] === 'gt' ? 'بیشتر از' : 'دقیقاً برابر با'"><option value="lt">کمتر</option><option value="gt">بیشتر</option><option value="eq">دقیقاً برابر با</option></select>
                 <input class="rb-input" :placeholder="f.ph || ''" v-model="vals[f.id]" @input="formatMoney(f.id)" inputmode="numeric" />
               </div>
 
@@ -500,19 +500,19 @@ const FIELDS = [
   { g: 'مالی', id: 'amount', label: 'مبلغ', type: 'range' },
   { g: 'مالی', id: 'income', label: 'درآمد', type: 'display' },
   { g: 'مالی', id: 'expense', label: 'هزینه مواد', type: 'display' },
-  { g: 'مالی', id: 'discount', label: 'تخفیف', type: 'compare', ph: 'تومان' },
+  { g: 'مالی', id: 'discount', label: 'تخفیف', type: 'compare' },
   { g: 'مالی', id: 'finstatus', label: 'وضعیت مالی', type: 'multi' },
-  { g: 'مالی', id: 'debt', label: 'بدهی', type: 'compare', ph: 'تومان' },
-  { g: 'مالی', id: 'deposit', label: 'بیعانه', type: 'compare', ph: 'تومان' },
+  { g: 'مالی', id: 'debt', label: 'بدهی', type: 'compare' },
+  { g: 'مالی', id: 'deposit', label: 'بیعانه', type: 'compare' },
   { g: 'مالی', id: 'payment', label: 'روش پرداخت', type: 'multi' },
   { g: 'مالی', id: 'account', label: 'حساب واریزی', type: 'multi' },
-  { g: 'مالی', id: 'walletDeposit', label: 'واریز کیف پول', type: 'compare', ph: 'جمع در بازهٔ گزارش (تومان)' },
-  { g: 'مالی', id: 'walletWithdraw', label: 'برداشت کیف پول', type: 'compare', ph: 'جمع در بازهٔ گزارش (تومان)' },
+  { g: 'مالی', id: 'walletDeposit', label: 'واریز کیف پول', type: 'compare' },
+  { g: 'مالی', id: 'walletWithdraw', label: 'برداشت کیف پول', type: 'compare' },
 
   { g: 'پرسنل', id: 'doctor', label: 'پزشک', type: 'table' },
   { g: 'پرسنل', id: 'consultant', label: 'مشاور', type: 'table' },
-  { g: 'پرسنل', id: 'doctorCommission', label: 'پورسانت پزشک', type: 'compare', ph: 'تومان' },
-  { g: 'پرسنل', id: 'consultantCommission', label: 'پورسانت مشاور', type: 'compare', ph: 'تومان' },
+  { g: 'پرسنل', id: 'doctorCommission', label: 'پورسانت پزشک', type: 'compare' },
+  { g: 'پرسنل', id: 'consultantCommission', label: 'پورسانت مشاور', type: 'compare' },
   { g: 'پرسنل', id: 'salary', label: 'حقوق', type: 'display' },
   { g: 'پرسنل', id: 'overtime', label: 'اضافه کار', type: 'display' }
 ];
@@ -525,7 +525,7 @@ const PRESETS = [
   { id: 'trt', label: 'عملکرد درمان', scope: 'appointments', fields: ['section2','subsection','areas','problem','extra','count'] },
   { id: 'mkt', label: 'بازاریابی', scope: 'appointments', fields: ['source','referrer','custseg','noreturn','city'] }
 ];
-// همهٔ فیلدهای «کمتر/بیشتر/برابر» با پیش‌فرض «برابر».
+// همهٔ فیلدهای «کمتر/بیشتر/دقیقاً برابر با» با پیش‌فرض «eq» (نمایش: دقیقاً برابر با).
 const defaultComparators = () => Object.fromEntries(FIELDS.filter(f => f.type === 'compare').map(f => [f.id, 'eq']));
 const REPORT_SOURCES = [
   { id: 'appointments', label: 'نوبت‌دهی' },
@@ -1063,7 +1063,7 @@ export default {
 </script>
 
 <style scoped>
-.rb-compare{display:grid;grid-template-columns:72px minmax(0,1fr);gap:6px}.rb-compare-op{width:72px;height:38px;padding:0 4px;border:1px solid #CFE3DD;border-radius:9px;background:#F7FBFA;color:#0E6B5E;font:700 10px Vazir, sans-serif;text-align:center;cursor:pointer}.rb-compare-op:focus{outline:0;border-color:#0E6B5E;box-shadow:0 0 0 3px rgba(14,107,94,.12)}
+.rb-compare{display:grid;grid-template-columns:108px minmax(0,1fr);gap:6px}.rb-compare-op{width:108px;height:38px;padding:0 4px;border:1px solid #CFE3DD;border-radius:9px;background:#F7FBFA;color:#0E6B5E;font:700 10px Vazir, sans-serif;text-align:center;cursor:pointer}.rb-compare-op:focus{outline:0;border-color:#0E6B5E;box-shadow:0 0 0 3px rgba(14,107,94,.12)}
 .rb-total-row td{padding:13px 10px!important;border-top:2px solid #0E6B5E!important;background:#EAF6F3!important;color:#075A4F!important;font-weight:900!important}
 .rb { direction: rtl; background: #F4F7F8; color: #1F2A37; padding: 18px 20px 60px;
   font-family: Vazirmatn, system-ui, sans-serif; }
