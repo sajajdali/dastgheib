@@ -1134,7 +1134,6 @@ export default {
     const kpis = [
       {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? `نوبت‌های انجام‌شده · ${String(S.from || '').replaceAll('-', '/')} تا ${String(S.to || '').replaceAll('-', '/')}` : '--', ...gUp, bg:dark?'#1e3a5f':'#eff6ff', bd:dark?'#3b82f6':'#bfdbfe', tc:dark?'#93c5fd':'#1d4ed8', ...lg},
       {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'درآمد − هزینه‌ها − پزشک و پرسنل − مواد مصرفی' : '--', ...gUp, bg:dark?'#14352a':'#f0fdf4', bd:dark?'#22c55e':'#bbf7d0', tc:dark?'#86efac':'#15803d', ...lg},
-      {t:'دریافتی', v:kpiMoney(dashboardKpis.cash_collected), g:dashboardReady ? 'نقد، کارت، چک و کیف پول' : '--', ...gUp, bg:dark?'#164e63':'#ecfeff', bd:dark?'#22d3ee':'#a5f3fc', tc:dark?'#67e8f9':'#0e7490', ...sm},
       {t:'بدهی بیماران', v:kpiMoney(dashboardKpis.receivables), g:dashboardReady ? 'ماندهٔ نوبت‌های انجام‌شده' : '--', ...gDn, bg:dark?'#3a2e14':'#fefce8', bd:dark?'#eab308':'#fde047', tc:dark?'#fde68a':'#a16207', ...sm},
       {t:'تبلیغات', v:kpiMoney(advertisingCost), g:dashboardReady ? 'هزینه تبلیغات ثبت‌شده' : '--', ...gDn, bg:dark?'#3a2414':'#fff7ed', bd:dark?'#fb923c':'#fed7aa', tc:dark?'#fdba74':'#c2410c', ...sm},
       {t:'هزینه پزشک', v:kpiMoney(dashboardKpis.doctor_cost), g:dashboardReady ? 'حقوق و پورسانت پزشکان' : '--', ...gDn, bg:dark?'#0c4a6e':'#f0f9ff', bd:dark?'#38bdf8':'#bae6fd', tc:dark?'#7dd3fc':'#0369a1', ...sm},
