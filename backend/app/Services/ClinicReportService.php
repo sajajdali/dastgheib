@@ -796,13 +796,93 @@ class ClinicReportService
 
     public function drilldown(string $metric, array $filters): array
     {
-        if (in_array($metric, ['recognized_revenue', 'cash_collected', 'forecast_revenue'], true)) {
-            $rows = $this->appointments($filters)->get()->filter(fn ($row) => $metric === 'forecast_revenue' ? AppointmentStatuses::isScheduledForReports($row->status) : $this->isRevenueRecognized($row));
+        if (in_array($metric, ['recognized_revenue', 'cash_collected'], true)) {
+            $rows = $this->appointments($filters)->get()->filter(fn ($row) => $this->isRevenueRecognized($row));
             $ledgerReceipts = $metric === 'cash_collected' ? $this->ledgerReceipts($rows->pluck('id')) : collect();
             $amount = fn ($row) => $metric === 'cash_collected'
                 ? $this->receivedAmount($row, $ledgerReceipts)
                 : $this->appointmentValue($row);
-            return ['metric'=>$metric, 'rows'=>$rows->map(fn ($row) => ['id'=>$row->id,'date'=>$this->dateOf($row),'patient'=>trim(($row->firstname ?? '').' '.($row->lastname ?? '')),'status'=>$row->status,'done'=>$row->done,'amount'=>round($amount($row))])->values(), 'total'=>round($rows->sum($amount))];
+            return ['metric'=>$metric, 'rows'=>$rows->map(fn ($row) => ['id'=>$row->id,'date'=>$this->dateOf($row),'patient'=>$this->patientName($row),'status'=>$row->status,'done'=>$row->done,'amount'=>round($amount($row))])->values(), 'total'=>round($rows->sum($amount))];
+        }
+        if ($metric === 'receivables') {
+            $rows = $this->appointments($filters)->get()->filter(fn ($row) => $this->isRevenueRecognized($row));
+            $ledgerReceipts = $this->ledgerReceipts($rows->pluck('id'));
+            $debtors = $rows->map(function ($row) use ($ledgerReceipts) {
+                $amount = $this->outstandingReceivable($row, $ledgerReceipts);
+                if ($amount <= 0) {
+                    return null;
+                }
+
+                $service = $this->appointmentServiceNames($row);
+
+                return [
+                    'id' => $row->id,
+                    'patient' => $this->patientName($row),
+                    'phone' => $this->phoneLabel($row),
+                    'debt_date' => $this->dateOf($row),
+                    'amount' => round($amount),
+                    'service' => $service,
+                    'reason' => $service,
+                ];
+            })->filter()->values();
+
+            return ['metric' => $metric, 'rows' => $debtors, 'total' => round((float) $debtors->sum('amount'))];
+        }
+        if ($metric === 'advertising') {
+            $rows = $this->campaignAdvertisingCosts($filters)->map(fn ($row) => [
+                'id' => (int) $row->campaign_id,
+                'name' => trim((string) ($row->campaign->name ?? '')) ?: 'بدون نام',
+                'amount' => round((float) $row->amount),
+                'date' => (string) $row->occurred_on,
+            ])->values();
+
+            return ['metric' => $metric, 'rows' => $rows, 'total' => round((float) $rows->sum('amount'))];
+        }
+        if (in_array($metric, ['discount_total', 'discounts'], true)) {
+            $rows = $this->appointments($filters)->get()
+                ->filter(fn ($row) => $this->isRevenueRecognized($row) && $this->number($row->discount) > 0)
+                ->map(fn ($row) => [
+                    'id' => $row->id,
+                    'date' => $this->dateOf($row),
+                    'amount' => round($this->number($row->discount)),
+                    'reason' => trim((string) ($row->description ?? '')) ?: 'تخفیف نوبت',
+                    'service' => $this->appointmentServiceNames($row),
+                    'patient' => $this->patientName($row),
+                ])->values();
+
+            return ['metric' => 'discount_total', 'rows' => $rows, 'total' => round((float) $rows->sum('amount'))];
+        }
+        if ($metric === 'forecast_revenue') {
+            $today = (new JalaliMonthWindow)->endingToday(1)['to'];
+            $month = substr($today, 0, 7);
+            [$year, $m] = array_map('intval', explode('-', $month));
+            $previous = sprintf('%04d-%02d', $m === 1 ? $year - 1 : $year, $m === 1 ? 12 : $m - 1);
+            $prior = Appointment::query()->where('month', $previous)->select(['id', 'status', 'amount', 'services'])->lazyById(500);
+            $rate = $this->statusCounts($prior)['rate'] / 100;
+            $scheduled = $this->appointments($filters)->get()
+                ->filter(fn ($row) => AppointmentStatuses::isScheduledForReports($row->status) && $this->dateOf($row) >= $today);
+            $grossTotal = $scheduled->sum(fn ($row) => $this->appointmentValue($row));
+            $rows = $scheduled->map(function ($row) use ($rate) {
+                $gross = $this->appointmentValue($row);
+
+                return [
+                    'id' => $row->id,
+                    'patient' => $this->patientName($row),
+                    'phone' => $this->phoneLabel($row),
+                    'date' => $this->dateOf($row),
+                    'time' => trim((string) ($row->time ?? '')) ?: '—',
+                    'service' => $this->appointmentServiceNames($row),
+                    'amount' => round($gross * (1 - $rate)),
+                    'gross_amount' => round($gross),
+                ];
+            })->values();
+
+            return [
+                'metric' => $metric,
+                'rows' => $rows,
+                'total' => round($grossTotal * (1 - $rate)),
+                'cancellation_rate' => round($rate * 100, 1),
+            ];
         }
         if ($metric === 'expenses') {
             $rows = $this->otherClinicExpensesQuery($filters)
@@ -821,7 +901,7 @@ class ClinicReportService
         }
         if ($metric === 'cancellation') {
             $rows = $this->appointments($filters)->get()->filter(fn ($row) => in_array(trim((string) $row->status), ['آمد', 'کنسل شد', 'پاسخ نداد'], true));
-            return ['metric'=>$metric,'rows'=>$rows->map(fn($row)=>['id'=>$row->id,'date'=>$this->dateOf($row),'patient'=>trim(($row->firstname ?? '').' '.($row->lastname ?? '')),'status'=>$row->status])->values(),'summary'=>$this->statusCounts($rows)];
+            return ['metric'=>$metric,'rows'=>$rows->map(fn($row)=>['id'=>$row->id,'date'=>$this->dateOf($row),'patient'=>$this->patientName($row),'status'=>$row->status])->values(),'summary'=>$this->statusCounts($rows)];
         }
         abort(404, 'جزئیات این شاخص تعریف نشده است.');
     }
@@ -979,9 +1059,9 @@ class ClinicReportService
     private function appointments(array $filters): Builder
     {
         return Appointment::query()->select([
-            'id', 'month', 'day_num', 'lastname', 'phone', 'file_number',
+            'id', 'month', 'day_num', 'lastname', 'phone', 'file_number', 'time', 'description',
             'status', 'done', 'amount', 'wallet_applied', 'debt', 'discount', 'services', 'payment_details', 'source', 'campaign_id',
-            'new_customer', 'doctor', 'consultant', 'completed_at',
+            'new_customer', 'doctor', 'consultant', 'completed_at', 'created_at',
         ])->where(function(Builder $q) use($filters) {
             [$fm,$fd]=[substr($filters['from'],0,7),(int)substr($filters['from'],8,2)]; [$tm,$td]=[substr($filters['to'],0,7),(int)substr($filters['to'],8,2)];
             $q->where(fn($x)=>$x->where('month','>',$fm)->orWhere(fn($y)=>$y->where('month',$fm)->where('day_num','>=',$fd)))
@@ -1724,6 +1804,30 @@ class ClinicReportService
     private function isRevenueRecognized($row): bool
     {
         return $this->isCompleted($row);
+    }
+
+    private function patientName($row): string
+    {
+        return trim((string) ($row->lastname ?? '')) ?: 'بدون نام';
+    }
+
+    private function phoneLabel($row): string
+    {
+        $phone = trim((string) ($row->phone ?? ''));
+
+        return $phone !== '' ? $phone : '—';
+    }
+
+    private function appointmentServiceNames($row): string
+    {
+        $names = collect($row->services ?: [])->flatMap(function ($service) {
+            $service = is_array($service) ? $service : [];
+
+            return collect([trim((string) ($service['name'] ?? $service['service'] ?? ''))])
+                ->merge(collect($service['addons'] ?? [])->map(fn ($addon) => trim((string) (is_array($addon) ? ($addon['name'] ?? '') : ''))));
+        })->filter()->unique()->values();
+
+        return $names->isNotEmpty() ? $names->implode('، ') : '—';
     }
 
     private function outstandingReceivable($row, Collection $ledgerReceipts): float

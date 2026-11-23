@@ -410,7 +410,7 @@ final class AssistantToolExecutor
     {
         $range = $this->dates->resolve($arguments);
         $metric = (string) ($arguments['metric'] ?? 'recognized_revenue');
-        $labels = ['recognized_revenue'=>'درآمد شناسایی‌شده','expenses'=>'سایر هزینه‌های کلینیک','net_profit'=>'سود خالص'];
+        $labels = ['recognized_revenue'=>'درآمد شناسایی‌شده','expenses'=>'سایر هزینه‌ها','net_profit'=>'سود خالص'];
         $definitions = [
             'recognized_revenue'=>'جمع خدمات انجام‌شده و تسویه‌شده طبق گزارش مالی برنامه',
             'expenses'=>'جمع فاکتورهای هزینه در ماژول هزینه‌ها، به‌جز تبلیغات و حقوق و پزشک و مواد مصرفی',
