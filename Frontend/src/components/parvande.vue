@@ -7438,7 +7438,8 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 
 .comparison-layout .angle-guide,
 .comparison-layout .angle-dropzone,
-.comparison-layout .angle-dropzone.filled img {
+.comparison-layout .angle-dropzone.filled img,
+.comparison-layout .angle-dropzone.filled :deep(.loading-image) {
   min-height: 380px;
 }
 
