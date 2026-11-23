@@ -1407,7 +1407,7 @@ export default {
       const internalAccordions = {
         settings_profile: 'profile', settings_company: 'company',
         settings_appointment_columns: 'appointmentColumns', settings_birthday_sms: 'birthdaySmsAutomation',
-        settings_wallet: 'customerWallet', settings_report_target: 'reportTarget',
+        settings_wallet: 'customerWallet',
         settings_clinic_schedule: 'clinicSchedule', settings_password: 'password',
         settings_customer_levels: 'customerLevels',
       };
@@ -1417,6 +1417,11 @@ export default {
         settings_resources: 'resources', settings_doctors: 'resources',
         settings_staff: 'resources', settings_channels: 'resources',
       };
+      if (page === 'settings_report_target') {
+        this.reportInitialView = 'reports';
+        this.changePage('Gozaresh');
+        return;
+      }
       if (internalAccordions[page] || settingsSections[page]) {
         const section = settingsSections[page] || 'internal';
         this.settingsInitialResourceTab = page === 'settings_staff' ? 'staff' : page === 'settings_channels' ? 'channels' : 'doctor';
