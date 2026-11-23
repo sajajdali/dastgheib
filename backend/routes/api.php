@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\FollowupAutoAssignController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\ClinicReportController;
 use App\Http\Controllers\Api\DynamicReportController;
+use App\Http\Controllers\Api\ReportBuilderTemplateController;
 use App\Http\Controllers\Api\ReportWidgetController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\CampaignController;
@@ -166,6 +167,11 @@ Route::get('/report-builder/options', [DynamicReportController::class, 'options'
 Route::get('/report-builder/reports/{dynamicReport}', [DynamicReportController::class, 'show'])->middleware('permission:reports.view');
 Route::get('/report-builder/reports/{dynamicReport}/rows', [DynamicReportController::class, 'rows'])->middleware('permission:reports.view');
 Route::get('/report-builder/reports/{dynamicReport}/export', [DynamicReportController::class, 'export'])->middleware('permission:reports.view');
+Route::get('/report-builder/templates', [ReportBuilderTemplateController::class, 'index'])->middleware('permission:reports.view');
+Route::post('/report-builder/templates', [ReportBuilderTemplateController::class, 'store'])->middleware('permission:reports.view');
+Route::post('/report-builder/templates/migrate', [ReportBuilderTemplateController::class, 'migrate'])->middleware('permission:reports.view');
+Route::put('/report-builder/templates/{reportBuilderTemplate}', [ReportBuilderTemplateController::class, 'update'])->middleware('permission:reports.view');
+Route::delete('/report-builder/templates/{reportBuilderTemplate}', [ReportBuilderTemplateController::class, 'destroy'])->middleware('permission:reports.view');
 
 // نقش‌ها و دسترسی‌ها
 Route::get('/roles', [RoleController::class, 'index'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');

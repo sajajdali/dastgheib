@@ -404,6 +404,24 @@
         </div>
       </div>
     </div>
+
+    <!-- مهاجرت قالب‌های محلی به سرور کلینیک -->
+    <div v-if="migratePrompt" class="rb-scrim rb-scrim--top" @click.stop>
+      <div class="rb-modal rb-modal--confirm" @click.stop>
+        <div class="rb-warn">⇪</div>
+        <div class="rb-modaltitle">انتقال قالب‌های ذخیره‌شده</div>
+        <div class="rb-sub rb-loose">
+          {{ pd(migratePrompt.length) }} قالب فقط روی این مرورگر ذخیره شده‌اند.
+          برای اینکه همهٔ کاربران مجاز این کلینیک در همهٔ دستگاه‌ها ببینند، به سرور منتقل شوند؟
+        </div>
+        <div class="rb-modalactions rb-full">
+          <div class="rb-btn rb-btn--ghost rb-flex" @click="skipLocalMigrate">بعداً</div>
+          <div class="rb-btn rb-btn--teal rb-flex" :style="{ opacity: migrateBusy ? .6 : 1 }" @click="confirmLocalMigrate">
+            {{ migrateBusy ? 'در حال انتقال…' : 'انتقال به سرور' }}
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -525,12 +543,16 @@ const PRESETS = [
   { id: 'trt', label: 'عملکرد درمان', scope: 'appointments', fields: ['section2','subsection','areas','problem','extra','count'] },
   { id: 'mkt', label: 'بازاریابی', scope: 'appointments', fields: ['source','referrer','custseg','noreturn','city'] }
 ];
+const SYSTEM_PRESET_IDS = new Set(PRESETS.map(p => p.id));
+const LOCAL_PRESETS_KEY = 'report-builder-custom-presets';
+const LOCAL_PRESETS_MIGRATED_KEY = 'report-builder-custom-presets-migrated';
 // همهٔ فیلدهای «کمتر/بیشتر/دقیقاً برابر با» با پیش‌فرض «eq» (نمایش: دقیقاً برابر با).
 const defaultComparators = () => Object.fromEntries(FIELDS.filter(f => f.type === 'compare').map(f => [f.id, 'eq']));
 const REPORT_SOURCES = [
   { id: 'appointments', label: 'نوبت‌دهی' },
   { id: 'patients', label: 'پرونده‌ها' }
 ];
+const knownFieldIds = () => new Set(FIELDS.map(f => f.id));
 
 // داده نمونه — در پروژه واقعی جای آن از API استفاده کنید
 const MOCK = {
@@ -600,6 +622,7 @@ export default {
       pickerId: null, pickerSearch: '', rangeId: null,
       custom: [], removed: [], activePreset: null,
       newOpen: false, newName: '', confirm: null,
+      migratePrompt: null, migrateBusy: false, presetsLoading: false, presetError: '',
       busy: null, busyStep: '', timer: null,
       reportId: null, reportProgress: 0, reportError: '', resultRows: [], totalRows: 0,
       unsubscribeReport: null,
@@ -788,32 +811,184 @@ export default {
       this.show = s; this.activePreset = p.id; this.page = 1;
       this.reportScope = p.scope || 'appointments';
     },
-    savePreset() {
+    normalizeServerPreset(template) {
+      const fields = Array.isArray(template?.fields)
+        ? template.fields
+        : (Array.isArray(template?.columns) ? template.columns : []);
+      const valid = knownFieldIds();
+      const scope = REPORT_SOURCES.some(source => source.id === (template?.scope || template?.source))
+        ? (template.scope || template.source)
+        : 'appointments';
+      return {
+        id: template.id,
+        label: String(template.label || template.name || 'قالب بدون نام').trim() || 'قالب بدون نام',
+        scope,
+        fields: fields.filter(id => valid.has(id)),
+        creator_name: template.creator_name || '',
+        created_at: template.created_at || null,
+        custom: true,
+      };
+    },
+    readLocalPresets() {
+      try {
+        const presets = JSON.parse(localStorage.getItem(LOCAL_PRESETS_KEY) || '[]');
+        if (!Array.isArray(presets)) return [];
+        const valid = knownFieldIds();
+        return presets
+          .filter(p => p && p.id && (p.label || p.name) && Array.isArray(p.fields))
+          .map(p => ({
+            id: String(p.id),
+            label: String(p.label || p.name || 'قالب بدون نام').trim() || 'قالب بدون نام',
+            scope: REPORT_SOURCES.some(source => source.id === p.scope) ? p.scope : 'appointments',
+            fields: p.fields.filter(id => valid.has(id)),
+            custom: true,
+            localOnly: true,
+          }))
+          .filter(p => p.fields.length);
+      } catch (_) {
+        return [];
+      }
+    },
+    async loadCustomPresets() {
+      this.presetsLoading = true;
+      this.presetError = '';
+      try {
+        const { data } = await axios.get('/api/report-builder/templates');
+        const server = Array.isArray(data?.templates)
+          ? data.templates.map(t => this.normalizeServerPreset(t)).filter(p => p.id && p.fields.length)
+          : [];
+        this.custom = server;
+        await this.maybeMigrateLocalPresets(server);
+      } catch (error) {
+        console.warn('قالب‌های گزارش‌ساز از سرور خوانده نشد.', error);
+        this.presetError = error.response?.data?.message || 'بارگذاری قالب‌ها انجام نشد.';
+        // فقط اگر هنوز مهاجرت نشده، موقت از localStorage نشان بده.
+        if (localStorage.getItem(LOCAL_PRESETS_MIGRATED_KEY) !== '1') {
+          this.custom = this.readLocalPresets();
+        }
+      } finally {
+        this.presetsLoading = false;
+      }
+    },
+    mergeLocalPresetsIntoCustom(localPresets) {
+      const seen = new Set(this.custom.map(p => `${p.label}|${p.scope}|${p.fields.join(',')}`));
+      (localPresets || []).forEach(p => {
+        const key = `${p.label}|${p.scope}|${p.fields.join(',')}`;
+        if (!seen.has(key) && !this.custom.some(c => c.id === p.id)) {
+          this.custom.push(p);
+          seen.add(key);
+        }
+      });
+    },
+    async maybeMigrateLocalPresets(serverPresets = this.custom) {
+      if (localStorage.getItem(LOCAL_PRESETS_MIGRATED_KEY) === '1') {
+        localStorage.removeItem(LOCAL_PRESETS_KEY);
+        return;
+      }
+      const local = this.readLocalPresets();
+      if (!local.length) {
+        localStorage.setItem(LOCAL_PRESETS_MIGRATED_KEY, '1');
+        localStorage.removeItem(LOCAL_PRESETS_KEY);
+        return;
+      }
+      const serverKeys = new Set((serverPresets || []).map(p => p.id));
+      const fingerprints = new Set((serverPresets || []).map(p => `${p.label}|${p.scope}|${p.fields.join(',')}`));
+      const pending = local.filter(p => !serverKeys.has(p.id) && !fingerprints.has(`${p.label}|${p.scope}|${p.fields.join(',')}`));
+      if (!pending.length) {
+        localStorage.setItem(LOCAL_PRESETS_MIGRATED_KEY, '1');
+        localStorage.removeItem(LOCAL_PRESETS_KEY);
+        return;
+      }
+      // در همین نشست دوباره نپرس؛ قالب‌های محلی را موقتاً کنار سرور نشان بده.
+      if (sessionStorage.getItem('report-builder-migrate-skipped') === '1') {
+        this.mergeLocalPresetsIntoCustom(pending);
+        return;
+      }
+      this.migratePrompt = pending;
+    },
+    skipLocalMigrate() {
+      sessionStorage.setItem('report-builder-migrate-skipped', '1');
+      this.mergeLocalPresetsIntoCustom(this.migratePrompt || this.readLocalPresets());
+      this.migratePrompt = null;
+    },
+    async confirmLocalMigrate() {
+      if (this.migrateBusy || !this.migratePrompt?.length) return;
+      this.migrateBusy = true;
+      try {
+        const { data } = await axios.post('/api/report-builder/templates/migrate', {
+          templates: this.migratePrompt.map(p => ({
+            client_key: String(p.id).slice(0, 64),
+            name: p.label,
+            source: p.scope,
+            columns: p.fields,
+          })),
+        });
+        this.custom = Array.isArray(data?.templates)
+          ? data.templates.map(t => this.normalizeServerPreset(t)).filter(p => p.id && p.fields.length)
+          : this.custom;
+        localStorage.setItem(LOCAL_PRESETS_MIGRATED_KEY, '1');
+        localStorage.removeItem(LOCAL_PRESETS_KEY);
+        this.migratePrompt = null;
+      } catch (error) {
+        console.warn('مهاجرت قالب‌های محلی ناموفق بود.', error);
+        window.alert(error.response?.data?.message || 'انتقال قالب‌ها به سرور انجام نشد.');
+      } finally {
+        this.migrateBusy = false;
+      }
+    },
+    async savePreset() {
       const fields = this.cols.map(c => c.key);
-      if (!fields.length) return;
-      const id = 'c' + Date.now();
-      this.custom.push({ id, label: this.newName.trim() || 'قالب بدون نام', scope: this.reportScope, fields });
-      this.persistPresets();
-      this.activePreset = id; this.newOpen = false; this.newName = '';
+      if (!fields.length || this.presetsLoading) return;
+      const name = this.newName.trim() || 'قالب بدون نام';
+      try {
+        const { data } = await axios.post('/api/report-builder/templates', {
+          name,
+          source: this.reportScope,
+          columns: fields,
+        });
+        const saved = this.normalizeServerPreset(data?.template || {});
+        if (!saved.id || !saved.fields.length) throw new Error('invalid template');
+        const without = this.custom.filter(x => x.id !== saved.id && !(x.localOnly && x.label === saved.label && x.scope === saved.scope));
+        this.custom = without.concat([saved]);
+        this.activePreset = saved.id;
+        this.newOpen = false;
+        this.newName = '';
+      } catch (error) {
+        console.warn('ذخیره قالب گزارش‌ساز ناموفق بود.', error);
+        window.alert(error.response?.data?.message || 'ذخیره قالب انجام نشد.');
+      }
     },
     askRemove(p) { this.confirm = p; },
-    removeConfirmed() {
-      const id = this.confirm.id;
-      this.custom = this.custom.filter(x => x.id !== id);
-      if (this.removed.indexOf(id) === -1) this.removed.push(id);
-      if (this.activePreset === id) this.activePreset = null;
-      this.persistPresets();
-      this.confirm = null;
-    },
-    persistPresets() {
-      localStorage.setItem('report-builder-custom-presets', JSON.stringify(this.custom));
-    },
-    restorePresets() {
+    async removeConfirmed() {
+      const target = this.confirm;
+      if (!target) return;
+      const id = target.id;
+      if (SYSTEM_PRESET_IDS.has(id)) {
+        if (this.removed.indexOf(id) === -1) this.removed.push(id);
+        if (this.activePreset === id) this.activePreset = null;
+        this.confirm = null;
+        return;
+      }
+      if (target.localOnly) {
+        this.custom = this.custom.filter(x => x.id !== id);
+        try {
+          const remaining = this.readLocalPresets().filter(x => x.id !== id);
+          if (remaining.length) localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(remaining));
+          else localStorage.removeItem(LOCAL_PRESETS_KEY);
+        } catch (_) { /* ignore */ }
+        if (this.activePreset === id) this.activePreset = null;
+        this.confirm = null;
+        return;
+      }
       try {
-        const presets = JSON.parse(localStorage.getItem('report-builder-custom-presets') || '[]');
-        if (Array.isArray(presets)) this.custom = presets.filter(p => p && p.id && p.label && Array.isArray(p.fields))
-          .map(p => ({ ...p, scope: REPORT_SOURCES.some(source => source.id === p.scope) ? p.scope : 'appointments' }));
-      } catch (_) { this.custom = []; }
+        await axios.delete(`/api/report-builder/templates/${id}`);
+        this.custom = this.custom.filter(x => x.id !== id);
+        if (this.activePreset === id) this.activePreset = null;
+        this.confirm = null;
+      } catch (error) {
+        console.warn('حذف قالب گزارش‌ساز ناموفق بود.', error);
+        window.alert(error.response?.data?.message || 'حذف قالب انجام نشد.');
+      }
     },
     openField(f) {
       if (f.type === 'range') this.rangeId = f.id;
@@ -1056,7 +1231,7 @@ export default {
     }
   },
   watch: { assistantRequest: { handler(value) { this.applyAssistantRequest(value); }, deep: false } },
-  mounted() { this.restorePresets(); this.loadReportOptions(); this.applyAssistantRequest(this.assistantRequest); },
+  mounted() { this.loadCustomPresets(); this.loadReportOptions(); this.applyAssistantRequest(this.assistantRequest); },
   beforeUnmount() { clearTimeout(this.timer); this.unsubscribeReport?.(); },
   beforeDestroy() { clearTimeout(this.timer); this.unsubscribeReport?.(); }
 };
