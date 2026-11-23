@@ -25,6 +25,16 @@ test('selecting a followup patient keeps the stable patient identity', () => {
   assert.match(method, /row\.customer_level =/)
 })
 
+test('campaign patient thumbnails reuse the Time.vue table avatar hover preview', () => {
+  assert.match(source, /@mouseenter="showAvatarPreview\(\$event, patientPreviewUrl\(row\), row\.customer_level \|\| row\.customerLevel\)"/)
+  assert.match(source, /@mouseleave="hideAvatarPreview"/)
+  assert.match(source, /<Teleport to="body">/)
+  assert.match(source, /appointment-avatar-preview/)
+  assert.match(source, /showAvatarPreview\(event, url, level = 'silver'\)/)
+  assert.match(source, /const size = 116/)
+  assert.match(source, /patientPreviewUrl\(row\)/)
+})
+
 test('followup autocomplete ignores stale requests and exposes useful result details', () => {
   const start = source.indexOf('searchFollowupPatients(row) {')
   const end = source.indexOf('closeFollowupPatientSearch(row = null) {', start)

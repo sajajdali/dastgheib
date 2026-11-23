@@ -1171,7 +1171,16 @@
                     <td class="row-number-cell" :title="`ردیف ${formatRowNumber(rowIndex)}`">{{ formatRowNumber(rowIndex) }}</td>
                     <td>
                       <div class="campaign-patient-cell" :class="{ 'patient-search-open': followupPatientSearchRowId === row._localId }">
-                        <img v-if="patientAvatar(row)" :src="patientAvatar(row)" :class="['campaign-patient-avatar', patientAvatarClass(row)]" alt="" :title="followupRowHasPatient(row) ? 'باز کردن پرونده در صفحه جدید' : 'برای این مخاطب پرونده‌ای ثبت نشده است'" @click.stop="openFollowupPatientProfile(row)" />
+                        <img
+                          v-if="patientAvatar(row)"
+                          :src="patientAvatar(row)"
+                          :class="['campaign-patient-avatar', patientAvatarClass(row)]"
+                          alt=""
+                          :title="followupRowHasPatient(row) ? 'باز کردن پرونده در صفحه جدید' : 'برای این مخاطب پرونده‌ای ثبت نشده است'"
+                          @mouseenter="showAvatarPreview($event, patientPreviewUrl(row), row.customer_level || row.customerLevel)"
+                          @mouseleave="hideAvatarPreview"
+                          @click.stop="openFollowupPatientProfile(row)"
+                        />
                         <span v-else :class="['campaign-patient-avatar', 'fallback', patientAvatarClass(row)]" :title="followupRowHasPatient(row) ? 'باز کردن پرونده در صفحه جدید' : 'برای این مخاطب پرونده‌ای ثبت نشده است'" @click.stop="openFollowupPatientProfile(row)">{{ patientInitial(row) }}</span>
                         <input
                           v-model="row.fullName"
@@ -1690,6 +1699,18 @@
       </section>
     </div>
 
+    <Teleport to="body">
+      <Transition name="avatar-preview">
+        <div
+          v-if="avatarPreview"
+          :class="['appointment-avatar-preview', `level-${avatarPreview.level}`]"
+          :style="{ left: avatarPreview.left + 'px', top: avatarPreview.top + 'px' }"
+        >
+          <img :src="avatarPreview.url" alt="پیش‌نمایش عکس بیمار">
+        </div>
+      </Transition>
+    </Teleport>
+
     <div v-if="bannerGalleryCampaign" class="banner-gallery-page" @click.self="closeBannerGallery">
       <section class="banner-gallery-shell">
         <header>
@@ -1917,6 +1938,7 @@ export default {
       followupPatientSearchRowId: null,
       followupPatientSearchResults: [],
       followupPatientSearchLoading: false,
+      avatarPreview: null,
       followupPatientSearchTimer: null,
       followupPatientSearchRequest: 0,
       reasonOptions: ["هزینه", "کمبود وقت", "تصمیم‌گیری", "ترس", "مسیر", "تردید", "غیره"],
@@ -2492,6 +2514,29 @@ export default {
     consultantInitial(name) { return avatarInitial(this.consultantResource(name) || { name }); },
     patientAvatar(row) { return avatarUrl(row); },
     patientInitial(row) { return avatarInitial(row); },
+    // مثل نوبت‌دهی جدولی: برای پیش‌نمایش هاور ترجیح با عکس اصلی است.
+    patientPreviewUrl(row) {
+      const original = row?.profile_photo_url || row?.profilePhotoUrl || '';
+      if (original) return avatarUrl({ profile_photo_url: original });
+      return this.patientAvatar(row);
+    },
+    normalizeCustomerLevel(level) {
+      const value = String(level || '').trim().toLowerCase();
+      return ['problematic', 'blue', 'silver', 'gold'].includes(value) ? value : 'silver';
+    },
+    showAvatarPreview(event, url, level = 'silver') {
+      if (!url) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const size = 116;
+      const gap = 14;
+      let left = rect.left - size - gap;
+      if (left < 10) left = Math.min(window.innerWidth - size - 10, rect.right + gap);
+      const top = Math.max(10, Math.min(window.innerHeight - size - 10, rect.top + (rect.height - size) / 2));
+      this.avatarPreview = { url, left, top, level: this.normalizeCustomerLevel(level) };
+    },
+    hideAvatarPreview() {
+      this.avatarPreview = null;
+    },
     followupRowHasPatient(row) { return Boolean(row?.patient_id || row?.patientId); },
     patientAvatarClass(row) {
       if (!this.followupRowHasPatient(row)) return 'level-none';
@@ -3822,6 +3867,7 @@ export default {
       if (!row) return;
       const name = String(row.fullName || '').trim();
       if (row.patient_id && this.normalizeFollowupLookup(name) !== this.normalizeFollowupLookup(row._selectedPatientName)) {
+        this.hideAvatarPreview();
         row.patient_id = '';
         row.patientId = '';
         row.file_number = '';
@@ -6674,9 +6720,10 @@ export default {
 .followup-patient-result-info small{color:#64748b;font-size:9px;font-weight:800;white-space:nowrap}.followup-patient-result-info small b{padding:0 3px;color:#cbd5e1}
 .followup-patient-result em{flex:0 0 auto;padding:3px 6px;border-radius:999px;background:#f1f5f9;color:#64748b;font-size:8px;font-style:normal;font-weight:1000}.followup-patient-result em.level-blue{background:#dbeafe;color:#2563eb}.followup-patient-result em.level-gold{background:#fef3c7;color:#a16207}.followup-patient-result em.level-problematic{background:#fee2e2;color:#dc2626}
 .followup-patient-search-state{padding:16px;color:#64748b;font-size:10px;font-weight:900;text-align:center}
-.campaign-patient-avatar{position:relative;z-index:2;width:28px;height:28px;flex:0 0 28px;border:2px solid #cbd5e1;box-shadow:0 2px 6px rgba(15,23,42,.10);transition:transform .18s ease,box-shadow .18s ease;transform-origin:right center;cursor:pointer}.campaign-patient-avatar.level-none{border-color:#dbe3ed;box-shadow:none;cursor:default}.campaign-patient-avatar.level-silver{border-color:#94a3b8;box-shadow:0 0 0 2px rgba(148,163,184,.16)}.campaign-patient-avatar.level-blue{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.16)}.campaign-patient-avatar.level-gold{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.18)}.campaign-patient-avatar.level-problematic{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.16)}
-.campaign-patient-avatar:hover{z-index:500;transform:scale(1.12);box-shadow:0 7px 16px rgba(15,23,42,.2)}
-.contacts-table td:has(.campaign-patient-avatar:hover),.contacts-table tr:has(.campaign-patient-avatar:hover){z-index:450}
+.campaign-patient-avatar{position:relative;z-index:2;width:28px;height:28px;flex:0 0 28px;border:2px solid #cbd5e1;box-shadow:0 2px 6px rgba(15,23,42,.10);transition:box-shadow .18s ease;cursor:pointer}.campaign-patient-avatar.level-none{border-color:#dbe3ed;box-shadow:none;cursor:default}.campaign-patient-avatar.level-silver{border-color:#94a3b8;box-shadow:0 0 0 2px rgba(148,163,184,.16)}.campaign-patient-avatar.level-blue{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.16)}.campaign-patient-avatar.level-gold{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.18)}.campaign-patient-avatar.level-problematic{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.16)}
+/* مثل نوبت‌دهی جدولی: هاور فقط پیش‌نمایش ثابت را بزرگ می‌کند، خود تصویر scale نمی‌شود. */
+.campaign-patient-avatar:hover{z-index:500;transform:none;box-shadow:0 7px 16px rgba(15,23,42,.2)}
+.contacts-table td:has(.campaign-patient-avatar:hover),.contacts-table tr:has(.campaign-patient-avatar:hover){position:relative;z-index:450;overflow:visible}
 .resource-select-with-avatar{height:38px;min-width:0;gap:3px}.resource-select-with-avatar img,.resource-select-with-avatar>span{width:24px;height:24px;flex:0 0 24px;border-width:2px;font-size:9px}.resource-select-with-avatar select{min-width:0}
 .campaign-table-modal .landing-multi-trigger{height:34px;padding:0 6px;border-radius:7px;font-size:9px}
 .campaign-table-modal .landing-multi-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -6756,6 +6803,15 @@ export default {
 .automatic-sms-hint{margin:0 16px 12px!important;color:#64748b!important;font-size:10.5px!important;line-height:1.8}.automatic-sms-cell .landing-multi-trigger b{color:#7c3aed}.landing-sms-modal-overlay{position:fixed;inset:0;z-index:1000010;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.landing-sms-modal{width:min(520px,96vw);overflow:hidden;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.landing-sms-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.landing-sms-modal header small{color:#2563eb;font-size:11px;font-weight:900}.landing-sms-modal h3{margin:4px 0;font-size:18px}.landing-sms-modal p{margin:0;color:#64748b;font-size:11px}.landing-sms-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.landing-sms-list{display:grid;gap:8px;max-height:340px;overflow:auto;padding:16px}.landing-sms-list label{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:10px;padding:11px;border:1px solid #e2e8f0;border-radius:11px;cursor:pointer}.landing-sms-list label.selected{border-color:#93c5fd;background:#eff6ff}.landing-sms-list label.sent{border-color:#86efac;background:#f0fdf4}.landing-sms-list input{width:17px;height:17px;accent-color:#2563eb}.landing-sms-list span{display:grid;gap:3px}.landing-sms-list b{font-size:12px}.landing-sms-list small{color:#64748b;font-size:10px}.landing-sms-list i{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#16a34a;color:#fff;font-style:normal;font-weight:1000}.landing-sms-empty{padding:20px;text-align:center}.landing-sms-error{margin:0 16px 12px!important;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c!important}.landing-sms-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px;border-top:1px solid #e2e8f0}.landing-sms-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.landing-sms-cancel{background:#e2e8f0;color:#475569}.landing-sms-send{background:#2563eb;color:#fff}.landing-sms-send:disabled{opacity:.55;cursor:wait}.followup-appointment-overlay{position:fixed;inset:0;z-index:1000011;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.56);backdrop-filter:blur(5px)}.followup-appointment-modal{width:min(570px,96vw);overflow:visible;border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.followup-appointment-modal header{display:flex;justify-content:space-between;gap:12px;padding:18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.followup-appointment-modal header small{color:#2563eb;font-size:11px;font-weight:900}.followup-appointment-modal h3{margin:4px 0;font-size:18px}.followup-appointment-modal header p{margin:0;color:#64748b;font-size:11px}.followup-appointment-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#e2e8f0;color:#475569;font-size:22px;cursor:pointer}.followup-appointment-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:18px}.followup-appointment-form label{display:grid;gap:6px;color:#475569;font-size:11px;font-weight:900}.followup-appointment-form label.full{grid-column:1/-1}.followup-appointment-form input,.followup-appointment-form select,.followup-appointment-form textarea{width:100%;min-height:40px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#1e293b;font:inherit;outline:0}.followup-appointment-form textarea{min-height:78px;resize:vertical}.followup-appointment-form input:focus,.followup-appointment-form select:focus,.followup-appointment-form textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.followup-appointment-modal :deep(.vpd-container){z-index:1000020!important}.followup-appointment-error{margin:0 18px 14px;padding:10px;border-radius:9px;background:#fef2f2;color:#b91c1c;font-size:11px;font-weight:800}.followup-appointment-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid #e2e8f0}.followup-appointment-modal footer button{height:39px;padding:0 15px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.followup-appointment-cancel{background:#e2e8f0;color:#475569}.followup-appointment-save{background:#2563eb;color:#fff}.followup-appointment-save:disabled{opacity:.55;cursor:wait}@media(max-width:900px){.campaign-table-modal .contacts-table{min-width:1018px}}@media(max-width:540px){.followup-appointment-form{grid-template-columns:1fr}.followup-appointment-modal footer{padding:12px}.followup-appointment-modal footer button{flex:1}}</style>
 
 <style>
+/* پیش‌نمایش هاور عکس بیمار — Teleport به body؛ باید unscoped باشد (مثل نوبت‌دهی جدولی). */
+.appointment-avatar-preview{--avatar-preview-color:#94a3b8;--avatar-preview-ring:rgba(148,163,184,.18);position:fixed;z-index:2147483000;width:116px;height:116px;padding:5px;pointer-events:none;border:1px solid var(--avatar-preview-color);border-radius:50%;background:rgba(255,255,255,.98);box-shadow:0 0 0 5px var(--avatar-preview-ring),0 18px 45px rgba(15,23,42,.35);backdrop-filter:blur(8px)}
+.appointment-avatar-preview.level-problematic{--avatar-preview-color:#dc2626;--avatar-preview-ring:rgba(220,38,38,.18)}
+.appointment-avatar-preview.level-blue{--avatar-preview-color:#3b82f6;--avatar-preview-ring:rgba(59,130,246,.18)}
+.appointment-avatar-preview.level-gold{--avatar-preview-color:#d4a72c;--avatar-preview-ring:rgba(212,167,44,.2)}
+.appointment-avatar-preview img{width:100%;height:100%;display:block;object-fit:cover;border-radius:50%}
+.avatar-preview-enter-active,.avatar-preview-leave-active{transition:opacity .18s ease,transform .2s cubic-bezier(.2,.8,.2,1)}
+.avatar-preview-enter-from,.avatar-preview-leave-to{opacity:0;transform:scale(.72) translateY(8px)}
+
 /* Dark mode پیگیری (flwup) — unscoped charcoal overrides */
 /* DARK_MODE_FLWUP */
 html body.dark .flwup-root,
