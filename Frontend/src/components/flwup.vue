@@ -6709,8 +6709,9 @@ export default {
 .followup-action.create-action:hover{border-color:#60a5fa;background:#dbeafe}
 .followup-action.archive-action.active{border-color:#94a3b8;background:#e2e8f0;color:#334155}
 .followup-action.missed-action{color:#b91c1c}
-.followup-action.missed-action.active{border-color:#fca5a5;background:#fee2e2;color:#b91c1c}
+.followup-action.missed-action.active{border-color:#f87171;background:#dc2626;color:#fff;box-shadow:0 5px 14px rgba(220,38,38,.22)}
 .followup-action.missed-action b{background:#fee2e2;color:#b91c1c}
+.followup-action.missed-action.active b{background:#fff;color:#b91c1c;box-shadow:0 0 0 1px rgba(185,28,28,.12)}
 .followup-action.waiting-slot-action{color:#a16207}
 .followup-action.waiting-slot-action.active{border-color:#facc15;background:#fef9c3;color:#854d0e}
 .followup-action.waiting-slot-action b{background:#fef08a;color:#854d0e}
@@ -7351,17 +7352,28 @@ html #app.dark .flwup-root .followup-action.create-action:hover {
   color: #fff !important;
 }
 html body.dark .flwup-root .followup-action.missed-action,
-html body.dark .flwup-root .followup-action.missed-action.active,
-html #app.dark .flwup-root .followup-action.missed-action,
-html #app.dark .flwup-root .followup-action.missed-action.active {
+html #app.dark .flwup-root .followup-action.missed-action {
   background: #3a1d1d !important;
   border-color: #7f1d1d !important;
   color: #fca5a5 !important;
+}
+html body.dark .flwup-root .followup-action.missed-action.active,
+html #app.dark .flwup-root .followup-action.missed-action.active {
+  background: #b91c1c !important;
+  border-color: #f87171 !important;
+  color: #fff !important;
+  box-shadow: 0 5px 14px rgba(185, 28, 28, .35) !important;
 }
 html body.dark .flwup-root .followup-action.missed-action b,
 html #app.dark .flwup-root .followup-action.missed-action b {
   background: #450a0a !important;
   color: #fecaca !important;
+}
+html body.dark .flwup-root .followup-action.missed-action.active b,
+html #app.dark .flwup-root .followup-action.missed-action.active b {
+  background: #fff !important;
+  color: #b91c1c !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .18) !important;
 }
 html body.dark .flwup-root .followup-action.general-followup-action,
 html #app.dark .flwup-root .followup-action.general-followup-action {

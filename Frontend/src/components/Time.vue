@@ -186,7 +186,7 @@
             </th>
 
             <th
-              class="sticky-header resizable-th soft-column-divider"
+              class="sticky-header phone-col resizable-th soft-column-divider"
               :style="{ width: columnWidths.phone + 'px' }"
             >
               شماره تماس
@@ -737,10 +737,11 @@
                 </select>
               </td>
 
-              <td class="soft-column-divider" :style="{ width: columnWidths.phone + 'px' }">
+              <td class="phone-col soft-column-divider" :style="{ width: columnWidths.phone + 'px' }">
                 <input
                   v-if="canViewPatientPhone"
                   v-model="row.phone"
+                  class="phone-number-input"
                   @input="autoSetAppointmentStatus(row); saveData()"
                   @blur="fillPatientByPhone(row)"
                 />
@@ -748,7 +749,7 @@
                   v-else
                   :value="displayPatientPhone(row.phone)"
                   readonly
-                  class="masked-phone-input"
+                  class="masked-phone-input phone-number-input"
                   title="نمایش شماره تماس برای این نقش غیرفعال است"
                 />
               </td>
@@ -13373,8 +13374,13 @@ body:has(.time-page.table-view-active) {
 .appointment-patient-name {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   min-width: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
 }
 
 /* پیش‌نمایش ظریف عکس بیمار فقط در صفحه نوبت‌دهی */
@@ -13497,15 +13503,22 @@ body:has(.time-page.table-view-active) {
 .appointment-patient-name input {
   min-width: 0;
   flex: 1;
+  height: 100%;
+  max-height: 36px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
 }
 .appointment-patient-name-value {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  padding: 5px 2px;
+  padding: 4px 2px;
   color: #111827;
+  font-size: 13px;
   font-weight: 800;
-  line-height: 1.45;
+  line-height: 1.25;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -14038,30 +14051,64 @@ body:has(.time-page.table-view-active) {
   box-shadow: 0 4px 10px rgba(15, 23, 42, .06);
 }
 
+.main-schedule-table th.file-col,
+.main-schedule-table th.phone-col {
+  vertical-align: middle;
+  text-align: center;
+}
+
 .main-schedule-table th.file-col {
-  padding: 5px 7px;
-  font-size: 10px;
-  line-height: 1.35;
+  padding: 6px 7px;
+  font-size: 11px;
+  line-height: 1.3;
   white-space: normal;
 }
 
-.main-schedule-table td.file-col input {
+.main-schedule-table td.file-col,
+.main-schedule-table td.phone-col {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.main-schedule-table td.file-col input,
+.main-schedule-table td.phone-col input,
+.main-schedule-table .phone-number-input,
+.main-schedule-table .masked-phone-input {
   padding-inline: 3px;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center !important;
+  direction: ltr;
+  unicode-bidi: isolate;
   font-variant-numeric: tabular-nums;
 }
 
 .file-number-cell {
   display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  height: 100%;
+  min-height: 36px;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .file-number-cell input {
   width: auto;
   flex: 1 1 auto;
   min-width: 0;
+  height: 100%;
+  max-height: 36px;
+  text-align: center !important;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
 }
 
 .create-patient-file-btn {
