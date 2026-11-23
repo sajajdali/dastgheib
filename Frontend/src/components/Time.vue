@@ -2831,6 +2831,11 @@ import BufferedInput from './BufferedInput.vue';
 import LoadingImage from './LoadingImage.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 import { isBookingDayCapacityFull as bookingDayCapacityFull } from '../utils/bookingDayCapacity';
+import {
+  appointmentStatusChartColor as sharedAppointmentStatusChartColor,
+  appointmentStatusCssClass,
+  normalizeAppointmentStatusName,
+} from '../utils/appointmentStatusColors';
 
 const directAppointmentSaves = new WeakMap();
 
@@ -4744,23 +4749,7 @@ export default {
     },
 
     appointmentStatusChartColor(status) {
-      const s = String(status || "").trim();
-      switch (s) {
-        case "وقت داده شد":
-          return "#0c8f3d";
-        case "آمد":
-          return "#b9f6ca";
-        case "کنسل شد":
-          return "#d50000";
-        case "پاسخ نداد":
-          return "#ffcdd2";
-        case "پیگیری":
-          return "#bbdefb";
-        case "انتقال داده شده":
-          return "#7c3aed";
-        default:
-          return "#94a3b8";
-      }
+      return sharedAppointmentStatusChartColor(status);
     },
 
     appointmentDoneChartColor(done) {
@@ -5032,7 +5021,8 @@ export default {
       if (this.isEmptyAppointmentRow(row)) return "is-empty";
 
       const status = String(row?.status || "").trim();
-      if (status.includes("انتقال داده شده")) return "is-transferred";
+      const canonical = normalizeAppointmentStatusName(status);
+      if (canonical === "انتقال داده شده" || status.includes("انتقال داده") || status.includes("انتقال روز")) return "is-transferred";
       if (status.includes("کنسل")) return "is-canceled";
       if (this.isCreditor(row)) return "is-creditor";
       if (this.isDebtor(row)) return "is-debtor";
@@ -11405,24 +11395,7 @@ this.calculateFinalAmount(row)
     },
 
     statusColor(status) {
-      const s = (status || "").trim();
-
-      switch (s) {
-        case "وقت داده شد":
-          return "st-given";
-        case "آمد":
-          return "st-arrived";
-        case "کنسل شد":
-          return "st-cancel";
-        case "پاسخ نداد":
-          return "st-noans";
-        case "پیگیری":
-          return "st-follow";
-        case "انتقال داده شده":
-          return "st-transferred";
-        default:
-          return "";
-      }
+      return appointmentStatusCssClass(status);
     },
 
     togglePhotoFilter(kind) {

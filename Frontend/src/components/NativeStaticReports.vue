@@ -838,12 +838,7 @@
                 <div style="position:relative;width:160px;height:160px;flex-shrink:0">
                   <svg width="160" height="160" viewBox="0 0 120 120">
                     <g transform="rotate(-90 60 60)">
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#8bc97b" stroke-width="12" :stroke-dasharray="v.ss1.da" :stroke-dashoffset="v.ss1.of"></circle>
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#2e7d32" stroke-width="12" :stroke-dasharray="v.ss2.da" :stroke-dashoffset="v.ss2.of"></circle>
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#e02424" stroke-width="12" :stroke-dasharray="v.ss3.da" :stroke-dashoffset="v.ss3.of"></circle>
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#3b82f6" stroke-width="12" :stroke-dasharray="v.ss4.da" :stroke-dashoffset="v.ss4.of"></circle>
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#f2a0a0" stroke-width="12" :stroke-dasharray="v.ss5.da" :stroke-dashoffset="v.ss5.of"></circle>
-                      <circle cx="60" cy="60" r="54" fill="none" stroke="#f6d5d5" stroke-width="12" :stroke-dasharray="v.ss6.da" :stroke-dashoffset="v.ss6.of"></circle>
+                      <circle v-for="(seg, segI) in v.stSegs" :key="'st-seg-'+segI" cx="60" cy="60" r="54" fill="none" :stroke="seg.c" stroke-width="12" :stroke-dasharray="seg.da" :stroke-dashoffset="seg.of"></circle>
                     </g>
                   </svg>
                   <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
@@ -962,6 +957,7 @@
 import axios from 'axios'
 import DatePicker from 'vue3-persian-datetime-picker'
 import { subscribeReportWidgetProgress } from '../services/presence'
+import { appointmentStatusChartColor } from '../utils/appointmentStatusColors'
 
 export default {
   name: 'ClinicReport',
@@ -1554,14 +1550,24 @@ export default {
     const nT = nNew + nOld;
     const [ns1, ns2] = segs(nT ? [nNew/nT, nOld/nT] : [0,0]);
 
-    // status
-    const statusColors = ['#8bc97b','#2e7d32','#e02424','#3b82f6','#f2a0a0','#f6d5d5'];
+    // status — color by stable status name/key (same source as booking table + Timeline), never by array index
     const previewStatuses = [{name:'آمد',count:512},{name:'وقت داده شد',count:31},{name:'کنسل شد',count:62},{name:'انتقال روز',count:25},{name:'پاسخ نداد',count:20},{name:'پیگیری',count:12}];
-    const ST = (dashboardReady ? (customerOverview.statuses || []) : previewStatuses).slice(0,6).map((row,index)=>({n:row.name,v:Number(row.count||0),c:statusColors[index]}));
-    while(ST.length<6) ST.push({n:'—',v:0,c:statusColors[ST.length]});
-    const stT = ST.reduce((a,s) => a + s.v, 0);
-    const stSegs = segs(ST.map(s => stT ? s.v/stT : 0));
-    const stLegend = ST.filter(s=>s.v>0).map(s => ({n:s.n,c:s.c,cnt:dashboardReady?fa(s.v):'—',p:dashboardReady?pc(Math.round(s.v/stT*100)):'—'}));
+    const ST = (dashboardReady ? (customerOverview.statuses || []) : previewStatuses)
+      .slice(0, 6)
+      .map(row => ({
+        n: row.name,
+        v: Number(row.count || 0),
+        c: appointmentStatusChartColor(row.name),
+      }));
+    while (ST.length < 6) ST.push({ n: '—', v: 0, c: appointmentStatusChartColor('') });
+    const stT = ST.reduce((a, s) => a + s.v, 0);
+    const stSegs = segs(ST.map(s => (stT ? s.v / stT : 0))).map((seg, i) => ({ ...seg, c: ST[i].c }));
+    const stLegend = ST.filter(s => s.v > 0).map(s => ({
+      n: s.n,
+      c: s.c,
+      cnt: dashboardReady ? fa(s.v) : '—',
+      p: dashboardReady ? pc(Math.round(s.v / stT * 100)) : '—',
+    }));
 
     const tabSt = a => 'border:none;border-radius:999px;padding:8px 22px;font-size:13px;cursor:pointer;font-weight:' + (a?'800':'600') + ';background:' + (a?(dark?'#1a1c22':'#ffffff'):'transparent') + ';color:' + (a?(dark?'#4f8cff':'#1d4ed8'):(dark?'#9aa0a6':'#64748b')) + ';box-shadow:' + (a?(dark?'0 1px 4px rgba(0,0,0,0.35)':'0 1px 4px rgba(15,23,42,0.1)'):'none');
 
@@ -1693,7 +1699,7 @@ export default {
       gF, gM, gUnknown:dashboardReady&&unknownGenderCount?fa(unknownGenderCount):'',
       ns1,ns2,noTotal:dashboardReady?fa(nT):'—',noNew:dashboardReady?fa(nNew):'—',noOld:dashboardReady?fa(nOld):'—',
       noNewP:dashboardReady&&nT?pc(Math.round(nNew/nT*100)):'—',noOldP:dashboardReady&&nT?pc(Math.round(nOld/nT*100)):'—',
-      ss1: stSegs[0], ss2: stSegs[1], ss3: stSegs[2], ss4: stSegs[3], ss5: stSegs[4], ss6: stSegs[5],
+      stSegs,
       stLegend,stTotal:dashboardReady?fa(stT):'—',overviewReady:dashboardReady,
       overviewBusy:this.dashboardLoading || ['queued','processing'].includes(dashboardSnapshot?.status),
       capacityCalculating:this.overviewLoadingSource==='capacity' && (this.dashboardLoading || ['queued','processing'].includes(dashboardSnapshot?.status)),
