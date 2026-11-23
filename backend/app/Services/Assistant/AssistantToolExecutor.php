@@ -501,6 +501,7 @@ final class AssistantToolExecutor
         return match ($status) {
             'arrived' => ['آمد'], 'cancelled' => ['کنسل شد'], 'no_answer' => ['پاسخ نداد'],
             'followup' => ['پیگیری'], 'scheduled' => ['وقت داده شد'],
+            'waiting_slot' => ['در انتظار وقت'],
             'active' => ['وقت داده شد', 'آمد', 'پیگیری'],
             default => [],
         };

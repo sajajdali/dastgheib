@@ -9,7 +9,8 @@
             <button type="button" class="followup-action filter-action" title="فیلتر هوشمند" aria-label="فیلتر هوشمند" @click.stop="showDateReportModal = true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg><span>فیلتر</span></button>
             <button type="button" class="followup-action create-action" title="ایجاد کمپین" aria-label="ایجاد کمپین" @click.stop="openCreateCampaignModal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>ایجاد کمپین</span></button>
             <button type="button" class="followup-action archive-action" :class="{ active: showArchived }" title="نمایش آرشیوشده‌ها" aria-label="نمایش آرشیوشده‌ها" @click.stop="toggleArchivedView"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6"/></svg><span>آرشیو</span><b v-if="archivedCampaigns.length">{{ archivedCampaigns.length }}</b></button>
-            <button type="button" class="followup-action missed-action" :class="{ active: showMissedFollowups }" title="نمایش عدم پیگیری‌ها" aria-label="نمایش عدم پیگیری‌ها" @click.stop="showMissedFollowups = !showMissedFollowups"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg><span>عدم پیگیری</span><b v-if="missedFollowups.length">{{ missedFollowups.length }}</b></button>
+            <button type="button" class="followup-action missed-action" :class="{ active: showMissedFollowups }" title="نمایش عدم پیگیری‌ها" aria-label="نمایش عدم پیگیری‌ها" @click.stop="showMissedFollowups = !showMissedFollowups; if (showMissedFollowups) showWaitingSlotList = false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg><span>عدم پیگیری</span><b v-if="missedFollowups.length">{{ missedFollowups.length }}</b></button>
+            <button type="button" class="followup-action waiting-slot-action" :class="{ active: showWaitingSlotList }" title="افراد در انتظار وقت" aria-label="در انتظار وقت" @click.stop="toggleWaitingSlotList"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>در انتظار وقت</span><b v-if="waitingSlotItems.length">{{ waitingSlotItems.length }}</b></button>
             <button type="button" class="followup-action general-followup-action" title="ثبت پیگیری بدون کمپین" aria-label="پیگیری کلی" @click.stop="openGeneralFollowups"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>پیگیری کلی</span><b v-if="generalFollowupCount">{{ generalFollowupCount }}</b></button>
             <button v-if="serviceFollowupsEnabled" type="button" class="followup-action appointment-followups-action" title="ورود به پیگیری نوبت‌ها" aria-label="پیگیری نوبت‌ها" @click.stop="$emit('open-service-followups')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14l2 2 5-5"/></svg><span>پیگیری نوبت‌ها</span></button>
           </div>
@@ -57,6 +58,51 @@
           <span @dblclick.stop="openCampaign(item.campaignId, item._localId)">{{ item.fullName || 'بدون نام' }}</span><span>{{ displayPatientPhone(item.phone, item) || 'بدون شماره' }}</span>
           <span>{{ item.campaignTitle }}</span><span>{{ formatDateFa(item.followUpDate) }}</span>
           <button type="button" @click.stop="openCampaign(item.campaignId, item._localId)">باز کردن</button>
+        </div>
+      </div>
+
+      <div v-if="showWaitingSlotList" class="waiting-slot-panel">
+        <div class="waiting-slot-head">
+          <div>
+            <h3>در انتظار وقت</h3>
+            <p>نوبت‌هایی که هنوز تأیید نشده‌اند؛ با تغییر به «وقت داده شد» از این فهرست خارج می‌شوند.</p>
+          </div>
+          <button type="button" class="waiting-slot-refresh" :disabled="waitingSlotLoading" @click.stop="loadWaitingSlotAppointments">{{ waitingSlotLoading ? 'در حال بروزرسانی…' : 'بروزرسانی' }}</button>
+        </div>
+        <div v-if="waitingSlotError" class="empty-state">{{ waitingSlotError }}</div>
+        <div v-else-if="waitingSlotLoading && !waitingSlotItems.length" class="empty-state">در حال دریافت فهرست…</div>
+        <div v-else-if="!waitingSlotItems.length" class="empty-state">موردی در انتظار وقت نیست.</div>
+        <div v-else class="waiting-slot-table-wrap">
+          <table class="waiting-slot-table">
+            <thead>
+              <tr>
+                <th>نام</th>
+                <th>تلفن</th>
+                <th>پرونده</th>
+                <th>پزشک / اپراتور</th>
+                <th>بخش / خدمت</th>
+                <th>وقت پیشنهادی</th>
+                <th>ثبت درخواست</th>
+                <th>توضیح نوبت</th>
+                <th>آخرین پیگیری</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in waitingSlotItems" :key="`waiting-${item.id}`">
+                <td>{{ item.name || 'بدون نام' }}</td>
+                <td>{{ item.phone || '—' }}</td>
+                <td>{{ item.file_number || '—' }}</td>
+                <td>{{ [item.doctor, item.operator || item.consultant].filter(Boolean).join(' / ') || '—' }}</td>
+                <td>{{ item.section_service || '—' }}</td>
+                <td>{{ formatWaitingSlotProposed(item) }}</td>
+                <td>{{ formatWaitingSlotCreated(item.created_at) }}</td>
+                <td class="waiting-slot-note">{{ item.note || item.description || '—' }}</td>
+                <td>{{ formatWaitingSlotLastFollowup(item.last_followup) }}</td>
+                <td><button type="button" @click.stop="openWaitingSlotAppointment(item)">باز کردن نوبت</button></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -1934,6 +1980,10 @@ export default {
       },
       showArchived: false,
       showMissedFollowups: false,
+      showWaitingSlotList: false,
+      waitingSlotLoading: false,
+      waitingSlotError: '',
+      waitingSlotItems: [],
       patientLookupTimers: {},
       followupPatientSearchRowId: null,
       followupPatientSearchResults: [],
@@ -2334,12 +2384,14 @@ export default {
     this.loadLandingSmsTags();
     this.loadCampaignsFromServer();
     this.hydrateFollowupPatientProfiles();
+    this.loadWaitingSlotAppointments();
     this.applyAppointmentResult(this.appointmentResult);
     if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
     window.addEventListener("beforeunload", this.handleBeforeUnload);
     window.addEventListener("scroll", this.closeAllFilters, true);
     window.addEventListener("resize", this.closeAllFilters);
     window.addEventListener("focus", this.loadFollowupAppointmentStatuses);
+    window.addEventListener("focus", this.loadWaitingSlotAppointments);
     document.addEventListener("click", this.closeAutoAssignPanel);
   },
 
@@ -2351,6 +2403,7 @@ export default {
     window.removeEventListener("scroll", this.closeAllFilters, true);
     window.removeEventListener("resize", this.closeAllFilters);
     window.removeEventListener("focus", this.loadFollowupAppointmentStatuses);
+    window.removeEventListener("focus", this.loadWaitingSlotAppointments);
     document.removeEventListener("click", this.closeAutoAssignPanel);
   },
 
@@ -3521,6 +3574,67 @@ export default {
       const requestedDate = this.appointmentTimelineDate;
       this.closeCampaignModal();
       this.$emit("open-appointments-timeline", { date: requestedDate });
+    },
+
+    toggleWaitingSlotList() {
+      this.showWaitingSlotList = !this.showWaitingSlotList;
+      if (this.showWaitingSlotList) {
+        this.showMissedFollowups = false;
+        this.loadWaitingSlotAppointments();
+      }
+    },
+
+    async loadWaitingSlotAppointments() {
+      if (this.waitingSlotLoading) return;
+      this.waitingSlotLoading = true;
+      this.waitingSlotError = '';
+      try {
+        const { data } = await axios.get('/api/appointments/waiting-slot');
+        this.waitingSlotItems = Array.isArray(data?.items) ? data.items : [];
+      } catch (error) {
+        this.waitingSlotError = error.response?.data?.message || 'دریافت فهرست در انتظار وقت انجام نشد.';
+      } finally {
+        this.waitingSlotLoading = false;
+      }
+    },
+
+    formatWaitingSlotProposed(item) {
+      if (!item?.month || !item?.day_num) return item?.time || '—';
+      const date = moment(`${item.month}-${String(item.day_num).padStart(2, '0')}`, 'jYYYY-jMM-jDD', true);
+      const day = date.isValid() ? date.format('jYYYY/jMM/jDD') : `${item.month}-${item.day_num}`;
+      return [day, item.time].filter(Boolean).join(' · ');
+    },
+
+    formatWaitingSlotCreated(value) {
+      if (!value) return '—';
+      const date = moment(value);
+      return date.isValid() ? date.format('jYYYY/jMM/jDD HH:mm') : value;
+    },
+
+    formatWaitingSlotLastFollowup(last) {
+      if (!last) return '—';
+      if (typeof last === 'string') return last;
+      const parts = [last.date, last.campaign, last.note].filter(Boolean);
+      return parts.length ? parts.join(' · ') : '—';
+    },
+
+    openWaitingSlotAppointment(item) {
+      if (!item) return;
+      let requestedDate = this.getTodayString();
+      if (item.month && item.day_num) {
+        const date = moment(`${item.month}-${String(item.day_num).padStart(2, '0')}`, 'jYYYY-jMM-jDD', true);
+        if (date.isValid()) requestedDate = date.format('YYYY-MM-DD');
+      }
+      this.showWaitingSlotList = false;
+      this.$emit('open-appointments-timeline', {
+        date: requestedDate,
+        followup: {
+          fullName: item.name || '',
+          phone: item.phone || '',
+          description: item.note || item.description || '',
+          consultant: item.consultant || item.operator || '',
+        },
+      });
     },
 
     raiseFollowupAppointmentDatePicker(pickerVm = null) {
@@ -5792,6 +5906,18 @@ export default {
 .missed-followups-panel h3 { margin:0 0 12px; color:#b91c1c; }
 .missed-followup-row { display:grid; grid-template-columns:1fr 140px 1fr 120px auto; gap:10px; align-items:center; padding:10px; border-bottom:1px solid #fee2e2; }
 .missed-followup-row button { border:0; border-radius:8px; padding:7px 10px; background:#dc2626; color:#fff; font-family:inherit; cursor:pointer; }
+.waiting-slot-panel { margin:14px 0 20px; padding:16px; border:1px solid #fde047; border-radius:16px; background:#fefce8; }
+.waiting-slot-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.waiting-slot-panel h3 { margin:0 0 4px; color:#854d0e; }
+.waiting-slot-panel p { margin:0; color:#a16207; font-size:12px; }
+.waiting-slot-refresh { border:1px solid #facc15; border-radius:8px; padding:7px 12px; background:#fef08a; color:#854d0e; font-family:inherit; font-weight:800; cursor:pointer; }
+.waiting-slot-refresh:disabled { opacity:.6; cursor:wait; }
+.waiting-slot-table-wrap { overflow:auto; border:1px solid #fde68a; border-radius:12px; background:#fff; }
+.waiting-slot-table { width:100%; border-collapse:collapse; min-width:980px; }
+.waiting-slot-table th, .waiting-slot-table td { padding:10px 12px; border-bottom:1px solid #fef3c7; text-align:right; font-size:12px; vertical-align:top; }
+.waiting-slot-table th { background:#fef9c3; color:#854d0e; font-weight:900; white-space:nowrap; }
+.waiting-slot-note { max-width:220px; color:#78716c; }
+.waiting-slot-table button { border:0; border-radius:8px; padding:7px 10px; background:#ca8a04; color:#fff; font-family:inherit; cursor:pointer; white-space:nowrap; }
 .campaign-attachment-link { padding:5px 9px; border-radius:8px; background:#eef2ff; color:#4338ca; font-weight:800; text-decoration:none; }
 .campaign-header-actions{display:flex;align-items:center;gap:8px}.campaign-icon-action{position:relative;width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;padding:0;border:1px solid #dbeafe;border-radius:11px;background:#eff6ff;color:#2563eb;box-sizing:border-box;cursor:pointer;transition:.16s ease}.campaign-icon-action:hover{border-color:#93c5fd;background:#dbeafe;transform:translateY(-1px)}.campaign-icon-action svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.campaign-icon-action>span{position:absolute;top:-7px;left:-7px;min-width:19px;height:19px;display:grid;place-items:center;padding:0 4px;border:2px solid #fff;border-radius:999px;background:#2563eb;color:#fff;font-size:9px;font-weight:900}.banner-upload-action input{display:none}.campaign-excel-action{width:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-color:#bbf7d0;background:#f0fdf4;color:#15803d}.campaign-excel-action:hover{border-color:#86efac;background:#dcfce7}.campaign-excel-action b{font-size:12px;font-weight:800;white-space:nowrap}
 .banner-gallery-page{position:fixed;inset:0;z-index:2147483510;padding:24px;background:rgba(15,23,42,.56);backdrop-filter:blur(7px);overflow:auto;direction:rtl}.banner-gallery-shell{width:min(1180px,96vw);min-height:calc(100vh - 48px);box-sizing:border-box;margin:0 auto;padding:22px;border:1px solid rgba(255,255,255,.75);border-radius:26px;background:#f8fafc;box-shadow:0 30px 90px rgba(15,23,42,.34)}.banner-gallery-shell>header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px;padding:4px 3px 18px;border-bottom:1px solid #e2e8f0}.banner-gallery-shell header small{color:#2563eb;font-size:10px;font-weight:900}.banner-gallery-shell h2{margin:4px 0;color:#0f172a;font-size:23px}.banner-gallery-shell header p{margin:0;color:#64748b;font-size:11px}.banner-gallery-actions{display:flex;gap:8px}.banner-gallery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.banner-gallery-grid article{overflow:hidden;border:1px solid #dbe3ed;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.07);transition:.18s}.banner-gallery-grid article:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(15,23,42,.11)}.banner-gallery-grid article>a{height:230px;display:block;background:#e2e8f0}.banner-gallery-grid img{width:100%;height:100%;display:block;object-fit:contain}.banner-gallery-grid footer{display:flex;align-items:center;gap:10px;padding:11px 13px}.banner-gallery-grid footer span{min-width:0;flex:1;overflow:hidden;color:#334155;font-size:11px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}.banner-gallery-grid footer button{width:34px;height:34px;display:grid;place-items:center;padding:0;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#dc2626}.banner-gallery-grid footer button:hover{background:#fee2e2}.banner-gallery-grid footer svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.banner-gallery-empty{min-height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;border:1px dashed #bfdbfe;border-radius:20px;background:#fff;color:#64748b}.banner-gallery-empty svg{width:55px;height:55px;fill:none;stroke:#93c5fd;stroke-width:1.4}.banner-gallery-empty strong{color:#334155}.banner-gallery-empty small{font-size:10px}@media(max-width:850px){.banner-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.banner-gallery-page{padding:8px}.banner-gallery-shell{min-height:calc(100vh - 16px);padding:14px;border-radius:18px}.banner-gallery-grid{grid-template-columns:1fr}.banner-gallery-shell>header{align-items:flex-start}.banner-gallery-grid article>a{height:210px}}
@@ -6555,6 +6681,9 @@ export default {
 .followup-action.missed-action{color:#b91c1c}
 .followup-action.missed-action.active{border-color:#fca5a5;background:#fee2e2;color:#b91c1c}
 .followup-action.missed-action b{background:#fee2e2;color:#b91c1c}
+.followup-action.waiting-slot-action{color:#a16207}
+.followup-action.waiting-slot-action.active{border-color:#facc15;background:#fef9c3;color:#854d0e}
+.followup-action.waiting-slot-action b{background:#fef08a;color:#854d0e}
 .followup-action.general-followup-action{border-color:#c4b5fd;background:#f5f3ff;color:#6d28d9}
 .followup-action.general-followup-action:hover{border-color:#8b5cf6;background:#ede9fe;color:#5b21b6}
 .followup-action.general-followup-action b{background:#ddd6fe;color:#5b21b6}

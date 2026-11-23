@@ -8,6 +8,7 @@ use App\Models\SatisfactionInvitation;
 use App\Services\ShsmsService;
 use Illuminate\Support\Str;
 use App\Support\ActivityLogger;
+use App\Support\AppointmentStatuses;
 use App\Support\SatisfactionIntegration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -163,6 +164,14 @@ class CompletionSmsController extends Controller
             return response()->json(['message'=>'اتصال SHSMS برای این کلینیک تنظیم نشده است. توکن API را از تنظیمات پیامک وارد کنید.'], 422);
         }
         $data = $this->fillAppointmentSmsGaps($data);
+        if (in_array('appointment', $data['types'], true) && ! empty($data['appointment_id'])) {
+            $appointment = Appointment::query()->find($data['appointment_id']);
+            if ($appointment && AppointmentStatuses::isWaitingSlot($appointment->status)) {
+                return response()->json([
+                    'message' => 'تا وقتی وضعیت نوبت «در انتظار وقت» است، پیامک تأیید وقت‌دهی ارسال نمی‌شود.',
+                ], 422);
+            }
+        }
         $results = [];
         foreach ($data['types'] as $type) {
             try {

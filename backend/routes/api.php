@@ -315,6 +315,7 @@ Route::post('/service-tags', [HumanResourceController::class, 'saveServiceTags']
 
 // نوبت‌دهی
 Route::get('/appointments', [AppointmentController::class, 'getAppointments'])->middleware('permission:appointments.view');
+Route::get('/appointments/waiting-slot', [AppointmentController::class, 'waitingSlot'])->middleware('permission:followups.view|appointments.view');
 Route::get('/appointment-schedule-months', [AppointmentScheduleMonthController::class, 'index'])->middleware('permission:appointments.view');
 Route::post('/appointment-schedule-months', [AppointmentScheduleMonthController::class, 'store'])->middleware('permission:appointments.create|appointments.update');
 Route::delete('/appointment-schedule-months/{month}', [AppointmentScheduleMonthController::class, 'destroy'])->middleware('permission:appointments.update');

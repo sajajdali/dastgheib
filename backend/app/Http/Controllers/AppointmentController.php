@@ -9,6 +9,7 @@ use App\Models\AppointmentBalanceAudit;
 use App\Models\AppointmentFinancialTransaction;
 use App\Models\AppointmentNoteMessage;
 use App\Models\ActivityLog;
+use App\Models\Campaign;
 use App\Models\Channel;
 use App\Models\Doctor;
 use App\Models\Patient;
@@ -169,6 +170,112 @@ class AppointmentController extends Controller
             'month' => ['required', 'string', 'regex:/^1[34]\d{2}-(0[1-9]|1[0-2])$/'],
             'day_num' => ['required', 'integer', 'between:1,31'],
         ]);
+    }
+
+    /**
+     * Active «در انتظار وقت» bookings for the follow-up waiting list.
+     * Confirmed («وقت داده شد») rows leave this list but keep appointment history.
+     */
+    public function waitingSlot(Request $request)
+    {
+        $appointments = Appointment::query()
+            ->where('status', \App\Support\AppointmentStatuses::WAITING_SLOT)
+            ->where(fn ($query) => $this->constrainToMeaningfulAppointments($query))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(500)
+            ->get([
+                'id', 'month', 'day_num', 'time', 'lastname', 'phone', 'file_number',
+                'doctor', 'consultant', 'service_types', 'services', 'description',
+                'status', 'created_at', 'updated_at',
+            ]);
+
+        $this->withPatientHistorySections($appointments);
+        $followupsByPhone = $this->latestCampaignFollowupByPhone($appointments->pluck('phone'));
+
+        $items = $appointments->map(function (Appointment $appointment) use ($followupsByPhone, $request) {
+            $services = collect($appointment->services ?: [])
+                ->map(fn ($service) => is_array($service) ? trim((string) ($service['name'] ?? '')) : '')
+                ->filter()
+                ->unique()
+                ->values();
+            $paths = collect($appointment->getAttribute('history_section_paths') ?: []);
+            $sections = $paths->pluck('section')->filter()->unique()->values();
+            $phone = (string) ($appointment->phone ?? '');
+            $normalized = \App\Services\FollowupAutomaticSmsService::normalizePhone($phone);
+            $lastFollowup = $normalized !== '' ? ($followupsByPhone[$normalized] ?? null) : null;
+
+            return [
+                'id' => $appointment->id,
+                'name' => $appointment->lastname,
+                'phone' => PatientPhoneVisibility::canView($request) ? $phone : PatientPhoneVisibility::hideValue($phone, $request),
+                'file_number' => $appointment->file_number,
+                'doctor' => $appointment->doctor,
+                'consultant' => $appointment->consultant,
+                'operator' => $appointment->consultant,
+                'sections' => $sections->all(),
+                'services' => $services->all(),
+                'section_service' => trim(implode('، ', array_filter([
+                    $sections->implode('، '),
+                    $services->implode('، '),
+                ]))),
+                'month' => $appointment->month,
+                'day_num' => $appointment->day_num,
+                'time' => $appointment->time,
+                'proposed_at' => trim(($appointment->month ?: '').'-'.str_pad((string) ($appointment->day_num ?: 0), 2, '0', STR_PAD_LEFT).' '.substr((string) ($appointment->time ?: ''), 0, 5)),
+                'created_at' => optional($appointment->created_at)?->toDateTimeString(),
+                'description' => $appointment->description,
+                'note' => $appointment->description,
+                'last_followup' => $lastFollowup,
+                'status' => $appointment->status,
+            ];
+        })->values();
+
+        return response()->json(['items' => $items, 'count' => $items->count()]);
+    }
+
+    /** Most recent campaign-row follow-up date per normalized phone. */
+    private function latestCampaignFollowupByPhone($phones): array
+    {
+        $wanted = collect($phones)
+            ->map(fn ($phone) => \App\Services\FollowupAutomaticSmsService::normalizePhone($phone))
+            ->filter()
+            ->unique()
+            ->flip()
+            ->all();
+        if ($wanted === []) {
+            return [];
+        }
+
+        $latest = [];
+        Campaign::query()->orderByDesc('id')->limit(200)->get(['id', 'ui_payload', 'name'])
+            ->each(function (Campaign $campaign) use (&$latest, $wanted) {
+                $title = trim((string) (($campaign->ui_payload['title'] ?? null) ?: $campaign->name ?: ''));
+                foreach ((array) ($campaign->ui_payload['rows'] ?? []) as $row) {
+                    if (! is_array($row)) {
+                        continue;
+                    }
+                    $phone = \App\Services\FollowupAutomaticSmsService::normalizePhone($row['phone'] ?? '');
+                    if ($phone === '' || ! isset($wanted[$phone])) {
+                        continue;
+                    }
+                    $date = trim((string) ($row['followUpDate'] ?? $row['follow_up_date'] ?? $row['contactDate'] ?? ''));
+                    if ($date === '') {
+                        continue;
+                    }
+                    $previous = $latest[$phone]['date'] ?? '';
+                    if ($previous !== '' && strcmp($date, $previous) <= 0) {
+                        continue;
+                    }
+                    $latest[$phone] = [
+                        'date' => $date,
+                        'campaign' => $title,
+                        'note' => trim((string) ($row['description'] ?? $row['note'] ?? '')),
+                    ];
+                }
+            });
+
+        return $latest;
     }
 
     private function hideAppointmentPhones($appointments, Request $request)
@@ -1210,7 +1317,18 @@ class AppointmentController extends Controller
     /** Stamp status transitions on the server and calculate minutes from arrival to completion. */
     private function normalizeAppointmentTracking(array $appointment, ?Appointment $previous = null): array
     {
-        $arrived = trim((string) ($appointment['status'] ?? '')) === 'آمد';
+        $status = \App\Support\AppointmentStatuses::normalize($appointment['status'] ?? null);
+        if ($status !== '') {
+            $appointment['status'] = $status;
+        }
+        // Waiting for a slot is not a confirmed booking: never queue confirmation SMS.
+        if (\App\Support\AppointmentStatuses::isWaitingSlot($status)) {
+            if (($appointment['appointment_sms'] ?? null) === 'انتظار') {
+                $appointment['appointment_sms'] = null;
+            }
+        }
+
+        $arrived = $status === \App\Support\AppointmentStatuses::ARRIVED;
         $completed = trim((string) ($appointment['done'] ?? '')) === 'انجام شد';
         $recordedAt = now()->toDateTimeString();
 

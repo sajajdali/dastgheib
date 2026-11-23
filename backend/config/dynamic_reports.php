@@ -48,6 +48,7 @@ return [
     ],
     // Canonical statuses used by the appointment screen and report builder.
     'appointment_statuses' => [
+        'در انتظار وقت',
         'وقت داده شد',
         'آمد',
         'کنسل شد',

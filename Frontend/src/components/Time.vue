@@ -217,6 +217,15 @@
                 <label>
                   <input
                     type="checkbox"
+                    value="در انتظار وقت"
+                    v-model="selectedStatuses"
+                  />
+                  در انتظار وقت
+                </label>
+
+                <label>
+                  <input
+                    type="checkbox"
                     value="وقت داده شد"
                     v-model="selectedStatuses"
                   />
@@ -768,6 +777,7 @@
                   @change="onAppointmentStatusSelected(row, $event)"
                 >
                   <option value=""></option>
+                  <option value="در انتظار وقت">در انتظار وقت</option>
                   <option value="وقت داده شد">وقت داده شد</option>
                   <option value="آمد">آمد</option>
                   <option value="کنسل شد">کنسل شد</option>
@@ -1675,6 +1685,14 @@
                 @change="clearTimelineValidationError('time')"
               />
               <small v-if="timelineValidationErrors.time" class="timeline-error-text">{{ timelineValidationErrors.time }}</small>
+              <span class="timeline-waiting-slot-check" title="بدون تأیید وقت؛ پیامک تأیید ارسال نمی‌شود">
+                <input
+                  v-model="activeTimelineDraft.waitingForSlot"
+                  type="checkbox"
+                  @change="onTimelineWaitingSlotToggled"
+                >
+                <span>در انتظار وقت</span>
+              </span>
             </label>
 
             <label v-if="false">
@@ -1837,26 +1855,19 @@
               </div>
             </div>
 
-            <div class="timeline-service-sections">
+            <div class="timeline-service-sections" :class="{ 'timeline-field-error': timelineValidationErrors.serviceTypes }">
               <div class="timeline-service-sections-head">
                 <strong>بخش</strong>
                 <small>یک یا چند بخش را انتخاب کنید</small>
               </div>
               <div class="timeline-service-section-options">
                 <label v-for="section in sortedServiceSections" :key="section.id" :class="{ active: activeTimelineDraft.serviceTypes?.map(String).includes(String(section.id)) }">
-                  <input v-model="activeTimelineDraft.serviceTypes" type="checkbox" :value="String(section.id)" @change="onRowServiceTypesChanged(activeTimelineDraft)">
+                  <input v-model="activeTimelineDraft.serviceTypes" type="checkbox" :value="String(section.id)" @change="onRowServiceTypesChanged(activeTimelineDraft); clearTimelineValidationError('serviceTypes')">
                   <span>{{ section.name }}</span>
                 </label>
                 <p v-if="!sortedServiceSections.length">ابتدا بخش‌های خدمات را در انبار تعریف کنید.</p>
               </div>
-            </div>
-
-            <div v-if="!activeTimelineDraft.serviceTypes?.length" class="service-prerequisite">
-              <span>۱</span>
-              <div>
-                <strong>ابتدا بخش را انتخاب کنید</strong>
-                <p>یک یا چند بخش را از ستون «بخش» انتخاب کنید تا خدمات، محصولات و پزشکان مرتبط نمایش داده شوند.</p>
-              </div>
+              <small v-if="timelineValidationErrors.serviceTypes" class="timeline-error-text">{{ timelineValidationErrors.serviceTypes }}</small>
             </div>
 
             <div v-if="activeTimelineDraft.serviceTypes?.length" class="timeline-service-list">
@@ -2020,9 +2031,9 @@
           </label>
 
           <section class="timeline-sms-options timeline-sms-options--compact">
-            <label :class="{ active: activeTimelineDraft.sendAppointmentSms }">
-              <input v-model="activeTimelineDraft.sendAppointmentSms" type="checkbox">
-              <span><b>پیامک وقت‌دهی</b><small>در انتظار ارسال قرار بگیرد</small></span>
+            <label :class="{ active: activeTimelineDraft.sendAppointmentSms, disabled: activeTimelineDraft.waitingForSlot }">
+              <input v-model="activeTimelineDraft.sendAppointmentSms" type="checkbox" :disabled="activeTimelineDraft.waitingForSlot">
+              <span><b>پیامک وقت‌دهی</b><small>{{ activeTimelineDraft.waitingForSlot ? 'برای وضعیت در انتظار وقت غیرفعال است' : 'در انتظار ارسال قرار بگیرد' }}</small></span>
             </label>
             <label :class="{ active: activeTimelineDraft.sendInfoSms }">
               <input v-model="activeTimelineDraft.sendInfoSms" type="checkbox">
@@ -2794,7 +2805,9 @@ import { appointmentPhotosRequired as appointmentNeedsPhotos } from '../utils/ap
 import {
   appointmentStatusChartColor as sharedAppointmentStatusChartColor,
   appointmentStatusCssClass,
+  isWaitingSlotStatus,
   normalizeAppointmentStatusName,
+  WAITING_SLOT_STATUS,
 } from '../utils/appointmentStatusColors';
 
 const directAppointmentSaves = new WeakMap();
@@ -3515,7 +3528,7 @@ export default {
           queued.add(key);
           queue.push({ id: key, type, label, day, row });
         };
-        if (row.appointmentSms === 'انتظار') addToQueue('appointment', 'پیامک وقت‌دهی');
+        if (row.appointmentSms === 'انتظار' && !isWaitingSlotStatus(row.status)) addToQueue('appointment', 'پیامک وقت‌دهی');
         if (row.infoSms === 'انتظار') addToQueue('info', 'پیامک اطلاعات');
       }));
       return queue;
@@ -4431,6 +4444,10 @@ export default {
       if (hasName && hasPhone) row.status = 'وقت داده شد';
     },
 
+    isWaitingSlotAppointment(row) {
+      return isWaitingSlotStatus(row?.status);
+    },
+
     onPatientNameFocus(row) {
       // ذخیرهٔ خودکار در حین تایپ به ردیف جدید شناسهٔ نوبت می‌دهد؛ بدون این
       // خط، فیلد نام وسط تایپ به متن ثابت تبدیل می‌شد و لیست جست‌وجو بسته می‌شد.
@@ -4912,8 +4929,9 @@ export default {
     },
 
     isScheduledRow(row) {
-      const status = String(row?.status || "").trim();
-      return status.includes("وقت") || status.includes("داده") || status.includes("ÙˆÙ‚Øª") || (!!row?.time && !this.isCanceledRow(row));
+      const status = normalizeAppointmentStatusName(row?.status);
+      if (isWaitingSlotStatus(status)) return false;
+      return status === "وقت داده شد" || status.includes("وقت داده") || (!!row?.time && !this.isCanceledRow(row) && !isWaitingSlotStatus(row?.status));
     },
 
     isCanceledRow(row) {
@@ -4983,6 +5001,7 @@ export default {
 
       const status = String(row?.status || "").trim();
       const canonical = normalizeAppointmentStatusName(status);
+      if (canonical === WAITING_SLOT_STATUS || isWaitingSlotStatus(status)) return "is-waiting-slot";
       if (canonical === "انتقال داده شده" || status.includes("انتقال داده") || status.includes("انتقال روز")) return "is-transferred";
       if (status.includes("کنسل")) return "is-canceled";
       if (this.isCreditor(row)) return "is-creditor";
@@ -4990,7 +5009,7 @@ export default {
       if (status.includes("آمد")) return "is-arrived";
       if (status.includes("پاسخ نداد")) return "is-no-answer";
       if (status.includes("پیگیری")) return "is-follow";
-      if (status.includes("وقت") || status.includes("داده")) return "is-booked";
+      if (canonical === "وقت داده شد" || status.includes("وقت داده")) return "is-booked";
 
       return "is-booked";
     },
@@ -5141,7 +5160,20 @@ export default {
       }
       draft.sendAppointmentSms = false;
       draft.sendInfoSms = false;
+      draft.waitingForSlot = isWaitingSlotStatus(draft.status);
       return draft;
+    },
+
+    onTimelineWaitingSlotToggled() {
+      const draft = this.activeTimelineDraft;
+      if (!draft) return;
+      if (draft.waitingForSlot) {
+        draft.sendAppointmentSms = false;
+        if (draft.appointmentSms === 'انتظار') draft.appointmentSms = '';
+        draft.status = WAITING_SLOT_STATUS;
+      } else if (isWaitingSlotStatus(draft.status) || !String(draft.status || '').trim()) {
+        draft.status = 'وقت داده شد';
+      }
     },
 
     openTimelineAppointmentModal(day, row) {
@@ -5330,7 +5362,15 @@ export default {
       const serviceConsultants = [...new Set((draft.services || []).map(service => String(service.consultant || '').trim()).filter(Boolean))];
       const doctors = serviceDoctors.slice(0, 1);
       const consultant = serviceConsultants[0] || '';
-      draft.status = draft.status || 'وقت داده شد';
+      if (draft.waitingForSlot) {
+        draft.status = WAITING_SLOT_STATUS;
+        draft.sendAppointmentSms = false;
+        if (draft.appointmentSms === 'انتظار') draft.appointmentSms = '';
+      } else {
+        draft.status = (!String(draft.status || '').trim() || isWaitingSlotStatus(draft.status))
+          ? 'وقت داده شد'
+          : draft.status;
+      }
       draft.doctor = doctors.join('، ');
       draft.consultant = consultant;
       draft.timelineDoctors = doctors;
@@ -5344,7 +5384,7 @@ export default {
         draft._occupiedSlotConfirmedFor = timelineKey;
       }
 
-      if (draft.sendAppointmentSms) draft.appointmentSms = 'انتظار';
+      if (draft.sendAppointmentSms && !draft.waitingForSlot) draft.appointmentSms = 'انتظار';
       if (draft.sendInfoSms) draft.infoSms = 'انتظار';
       Object.keys(this.activeTimelineRow).forEach(key => {
         if (!(key in this.activeTimelineDraft) && key !== "_rowId") {
@@ -5586,6 +5626,10 @@ export default {
         errors.phone = "برای ارسال پیامک، شماره موبایل معتبر وارد کنید.";
       }
 
+      if (this.sortedServiceSections?.length && !(draft?.serviceTypes || []).length) {
+        errors.serviceTypes = "حداقل یک بخش را انتخاب کنید.";
+      }
+
       this.timelineValidationErrors = errors;
       return !Object.keys(errors).length;
     },
@@ -5604,9 +5648,12 @@ export default {
     },
 
     getStatusStyle(status) {
-      const s = (status || "").trim();
+      const s = normalizeAppointmentStatusName(status);
 
       switch (s) {
+        case WAITING_SLOT_STATUS:
+          return { backgroundColor: "#facc15" };
+
         case "وقت داده شد":
           return { backgroundColor: "#fff3cd" };
 
@@ -12838,6 +12885,33 @@ smsColor(val) {
 .timeline-description-field textarea { min-height: 64px; resize: vertical; }
 
 /* تیک‌های پیامک در انتهای فرم، کوچک و کنار هم. */
+.timeline-waiting-slot-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid #fde047;
+  border-radius: 10px;
+  background: #fefce8;
+  color: #854d0e;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  width: fit-content;
+}
+.timeline-waiting-slot-check input {
+  width: 16px !important;
+  height: 16px !important;
+  min-height: 16px !important;
+  margin: 0;
+  accent-color: #eab308;
+}
+.timeline-sms-options > label.disabled {
+  opacity: .55;
+  pointer-events: none;
+}
+
 .timeline-modal .timeline-sms-options--compact { display: flex; flex-wrap: wrap; gap: 8px; }
 .timeline-modal .timeline-sms-options--compact > label {
   flex-direction: row;
@@ -14004,6 +14078,11 @@ td.row-action-col {
   color: #fff !important;
 }
 
+.st-waiting-slot {
+  background-color: #facc15 !important;
+  color: #713f12 !important;
+}
+
 /* رنگ‌بندی انجام کار */
 .dn-yes {
   background-color: #c8e6c9 !important;
@@ -14054,6 +14133,11 @@ td.row-action-col {
 
 .main-schedule-table td.st-follow {
   background-color: #bbdefb !important;
+}
+
+.main-schedule-table td.st-waiting-slot {
+  background-color: #facc15 !important;
+  color: #713f12 !important;
 }
 
 /* ستون خدمات */
@@ -14266,6 +14350,13 @@ td.st-transferred select,
 td.st-transferred {
   background: #ede9fe !important;
   color: #5b21b6 !important;
+  font-weight: 900;
+}
+
+td.st-waiting-slot select,
+td.st-waiting-slot {
+  background: #facc15 !important;
+  color: #713f12 !important;
   font-weight: 900;
 }
 
@@ -15475,6 +15566,31 @@ td.st-arrived select {
   border-color: #93c5fd !important;
   background: linear-gradient(145deg, #eff6ff, #dbeafe) !important;
   box-shadow: inset -4px 0 0 #2563eb, 0 5px 14px rgba(37, 99, 235, .11) !important;
+}
+
+.appointment-timeline .timeline-card.is-waiting-slot {
+  border-color: #facc15 !important;
+  background: linear-gradient(145deg, #fefce8, #fef08a) !important;
+  box-shadow: inset -4px 0 0 #eab308, 0 5px 14px rgba(234, 179, 8, .16) !important;
+}
+
+.appointment-timeline .timeline-card.is-waiting-slot .timeline-time-chip {
+  border: 1px solid #fde047;
+  background: #facc15 !important;
+  color: #713f12 !important;
+  box-shadow: 0 5px 12px rgba(234, 179, 8, .18);
+}
+
+.appointment-timeline .timeline-card.is-waiting-slot .timeline-card-body strong,
+.appointment-timeline .timeline-card.is-waiting-slot .timeline-card-body span,
+.appointment-timeline .timeline-card.is-waiting-slot .timeline-card-body small {
+  color: #713f12 !important;
+}
+
+.appointment-timeline .timeline-card.is-waiting-slot .timeline-status-label {
+  border: 1px solid #fde047;
+  background: #fef08a !important;
+  color: #854d0e !important;
 }
 
 .appointment-timeline .timeline-card.is-arrived {

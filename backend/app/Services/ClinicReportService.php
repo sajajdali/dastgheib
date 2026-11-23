@@ -20,6 +20,7 @@ use App\Models\Doctor;
 use App\Models\Staff;
 use App\Models\AppSetting;
 use App\Reporting\DynamicReports\JalaliMonthWindow;
+use App\Support\AppointmentStatuses;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -758,7 +759,7 @@ class ClinicReportService
     public function drilldown(string $metric, array $filters): array
     {
         if (in_array($metric, ['recognized_revenue', 'cash_collected', 'forecast_revenue'], true)) {
-            $rows = $this->appointments($filters)->get()->filter(fn ($row) => $metric === 'forecast_revenue' ? str_contains((string) $row->status, 'وقت') : $this->isRevenueRecognized($row));
+            $rows = $this->appointments($filters)->get()->filter(fn ($row) => $metric === 'forecast_revenue' ? AppointmentStatuses::isScheduledForReports($row->status) : $this->isRevenueRecognized($row));
             $ledgerReceipts = $metric === 'cash_collected' ? $this->ledgerReceipts($rows->pluck('id')) : collect();
             $amount = fn ($row) => $metric === 'cash_collected'
                 ? $this->receivedAmount($row, $ledgerReceipts)
@@ -964,7 +965,7 @@ class ClinicReportService
         $today=(new JalaliMonthWindow)->endingToday(1)['to'];
         $month=substr($today,0,7); [$year,$m]=array_map('intval',explode('-',$month)); $previous=sprintf('%04d-%02d',$m===1?$year-1:$year,$m===1?12:$m-1);
         $prior=Appointment::query()->where('month',$previous)->select(['id','status','amount','services'])->lazyById(500); $rate=$this->statusCounts($prior)['rate']/100;
-        $scheduled=$appointments->filter(fn($r)=>str_contains((string)$r->status,'وقت') && $this->dateOf($r)>=$today);
+        $scheduled=$appointments->filter(fn($r)=>AppointmentStatuses::isScheduledForReports($r->status) && $this->dateOf($r)>=$today);
         $gross=$scheduled->sum(fn($r)=>$this->appointmentValue($r));
         return ['scheduled_value'=>round($gross),'previous_month_cancellation_rate'=>round($rate*100,1),'value'=>round($gross*(1-$rate))];
     }
