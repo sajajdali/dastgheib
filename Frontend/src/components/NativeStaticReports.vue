@@ -250,35 +250,35 @@
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">هزینه‌ها</span>
                 <small v-if="v.billCompletedAt" class="report-calculated-at">محاسبه: {{ v.billCompletedAt }}</small>
+                <button type="button" class="report-open-module-button" title="باز کردن مدیریت فاکتورها" aria-label="باز کردن مدیریت فاکتورها" @click="$emit('open-bills')">مدیریت فاکتورها <span aria-hidden="true">←</span></button>
                 <button type="button" :disabled="s.expenseLoading" @click="calculateExpenses" :title="v.billReady ? 'محاسبه مجدد هزینه‌ها' : 'محاسبه هزینه‌ها'" aria-label="محاسبه هزینه‌ها" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.bills" @change="v.hide.bills" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div class="report-card-scroll report-list-stack">
                 <p v-if="s.expenseError" role="alert" style="font-size:12px;color:#b91c1c;overflow-wrap:anywhere">{{ s.expenseError }}</p>
                 <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است.</p>
-                <template v-for="(b, bI) in v.billRows" :key="bI">
-                  <div class="expense-row">
-                    <span class="expense-row__name">{{ b.n }}</span>
-                    <div class="expense-row__bar"><div :style="'height:100%;width:' + (b.w) + ';background:#f59e0b;border-radius:999px'"></div></div>
+                <article v-for="b in v.billRows" :key="b.id" class="expense-invoice" :class="{ 'is-open': b.open }">
+                  <button type="button" class="expense-invoice__primary" @click="toggleBillRow(b.id)" :aria-expanded="b.open ? 'true' : 'false'">
+                    <span class="expense-invoice__name" :title="b.n">{{ b.n }}</span>
                     <span class="expense-money">{{ b.v }}</span>
+                    <span class="expense-invoice__no" :title="b.invoiceLabel">{{ b.invoiceLabel }}</span>
+                    <span class="expense-invoice__chevron" aria-hidden="true">{{ b.open ? '▾' : '◂' }}</span>
+                  </button>
+                  <div v-if="b.open" class="expense-invoice__details">
+                    <span><em>تاریخ فاکتور</em>{{ b.date }}</span>
+                    <span><em>طرف حساب</em>{{ b.party }}</span>
+                    <span><em>دسته‌بندی</em>{{ b.category }}</span>
+                    <span><em>وضعیت پرداخت</em>{{ b.status }}</span>
                   </div>
-                </template>
+                </article>
               </div>
               <div class="expense-summary-list">
-                <div class="expense-summary-row" style="background:#eff6ff">
-                  <span style="font-size:11.5px;color:#1d4ed8;font-weight:600">درآمد کل دوره</span>
-                  <span class="expense-summary-value" style="color:#1e40af">{{ v.billRevV }}</span>
-                </div>
                 <div class="expense-summary-row" style="background:#fef2f2">
                   <span style="font-size:11.5px;color:#b91c1c;font-weight:600">جمع هزینه‌ها</span>
                   <span class="expense-summary-value" style="color:#991b1b">{{ v.billSumV }}</span>
                 </div>
-                <div class="expense-summary-row" style="background:#f0fdf4">
-                  <span style="font-size:11.5px;color:#15803d;font-weight:600">درآمد پس از کسر</span>
-                  <span class="expense-summary-value" style="color:#166534">{{ v.billNetV }}</span>
-                </div>
               </div>
-              <div v-if="s.expenseLoading" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه هزینه‌ها</strong><small>اطلاعات ثبت‌شده در بخش هزینه‌ها بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
+              <div v-if="s.expenseLoading" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه هزینه‌ها</strong><small>فاکتورهای ثبت‌شده در مدیریت فاکتورها بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.staffinc" @dragover="v.dv.staffinc" @drop="v.dp.staffinc" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.staffinc) + ';order:' + (v.o.staffinc)" data-screen-label="درآمد پرسنل">
@@ -965,7 +965,7 @@ import { subscribeReportWidgetProgress } from '../services/presence'
 export default {
   name: 'ClinicReport',
   components: { DatePicker },
-  emits: ['open-builder'],
+  emits: ['open-builder', 'open-bills'],
   props: {
     estCancel: { type: Number, default: 30 },
     capacityDefault: { type: Number, default: 2500 },
@@ -1006,6 +1006,7 @@ export default {
       ,cancellationSnapshot: null
       ,photoSnapshot: null, photoLoading: false
       ,expenseSnapshot: null
+      ,billExpandedIds: {}
       ,customerAcquisitionSnapshot: null, customerAcquisitionLoading: false
       ,campaignPerformanceSnapshot: null, campaignPerformanceLoading: false
       ,advertisingChannelsSnapshot: null, advertisingChannelsLoading: false
@@ -1144,21 +1145,40 @@ export default {
       {t:'تعداد مراجعین', v:dashboardReady ? fa(dashboardKpis.visitors_count || 0)+' نفر' : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده' : '--', ...gUp, bg:dark?'#134e4a':'#f0fdfa', bd:dark?'#2dd4bf':'#99f6e4', tc:dark?'#5eead4':'#0d9488', ...sm}
     ];
 
-    // Expenses are already grouped and date-filtered by the report API.
+    // فاکتورهای type=expense از ماژول هزینه‌ها؛ فیلتر تاریخ روی occurred_on.
     const expenses = this.expenseSnapshot?.status === 'completed' ? this.expenseSnapshot.result : null;
     const billItems = expenses?.items || [];
-    const billMax = Math.max(0, ...billItems.map(item => Number(item.amount) || 0));
     const billMoney = value => toman(value || 0);
-    const billRows = billItems.map(item => ({
-      n: item.category || 'بدون دسته‌بندی',
-      v: billMoney(item.amount),
-      w: (billMax > 0 ? Math.round(Number(item.amount) / billMax * 100) : 0) + '%',
-    }));
+    const paymentStatusLabel = status => ({
+      paid: 'پرداخت شد',
+      unpaid: 'پرداخت نشد',
+      pending: 'در انتظار',
+      'پرداخت شد': 'پرداخت شد',
+      'پرداخت نشد': 'پرداخت نشد',
+      'در انتظار': 'در انتظار',
+    }[String(status || '').trim()] || (status ? String(status) : '—'));
+    const billDateLabel = value => {
+      const raw = String(value || '').trim();
+      if (!raw) return '—';
+      return raw.replaceAll('-', '/').replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)]);
+    };
+    const billRows = billItems.map(item => {
+      const id = item.id ?? `${item.title || ''}-${item.occurred_on || ''}-${item.amount || 0}`;
+      const invoice = String(item.invoice_number || '').trim();
+      return {
+        id,
+        n: item.title || 'بدون عنوان',
+        v: billMoney(item.amount),
+        invoiceLabel: invoice ? `ش ${invoice.replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])}` : 'بدون شماره',
+        date: billDateLabel(item.occurred_on),
+        party: item.party || '—',
+        category: item.category || 'بدون دسته‌بندی',
+        status: paymentStatusLabel(item.payment_status),
+        open: !!this.billExpandedIds[id],
+      };
+    });
     const billSum = Number(expenses?.total || 0);
-    const billRev = Number(S.reportSummary?.kpis?.recognized_revenue || 0);
-    const billRevV = expenses && S.reportSummary ? billMoney(billRev) : '—';
     const billSumV = expenses ? billMoney(billSum) : '—';
-    const billNetV = expenses && S.reportSummary ? billMoney(billRev - billSum) : '—';
     const cancelP = this.estCancel ?? 30;
     const forecastCancellation = S.reportSummary?.forecast?.previous_month_cancellation_rate;
 
@@ -1584,7 +1604,7 @@ export default {
         : (dashboardReady
           ? `بازه ${String(S.from || '').replaceAll('-', '/')} تا ${String(S.to || '').replaceAll('-', '/')}${dashboardSnapshot?.completed_at ? ` · ${this.formatSnapshotDate(dashboardSnapshot.completed_at)}` : ''}`
           : 'برای محاسبه داده‌های واقعی، روی آیکن بزنید'),
-      billRows, billRevV, billSumV, billNetV, billReady: !!expenses, billCompletedAt: this.formatSnapshotDate(this.expenseSnapshot?.completed_at),
+      billRows, billSumV, billReady: !!expenses, billCompletedAt: this.formatSnapshotDate(this.expenseSnapshot?.completed_at),
       // dash maps
       o, dsp, ck, hide, dh, dv, dp,
       // ctype
@@ -1813,6 +1833,7 @@ export default {
       this.cancellationSnapshot = null;
       this.photoSnapshot = null;
       this.expenseSnapshot = null;
+      this.billExpandedIds = {};
       this.customerAcquisitionSnapshot = null;
       this.campaignPerformanceSnapshot = null;
       this.advertisingChannelsSnapshot = null;
@@ -1871,6 +1892,7 @@ export default {
       this.cancellationSnapshot = null;
       this.photoSnapshot = null;
       this.expenseSnapshot = null;
+      this.billExpandedIds = {};
       this.customerAcquisitionSnapshot = null;
       this.campaignPerformanceSnapshot = null;
       this.advertisingChannelsSnapshot = null;
@@ -1923,6 +1945,7 @@ export default {
       this.cancellationSnapshot = null;
       this.photoSnapshot = null;
       this.expenseSnapshot = null;
+      this.billExpandedIds = {};
       this.customerAcquisitionSnapshot = null;
       this.campaignPerformanceSnapshot = null;
       this.advertisingChannelsSnapshot = null;
@@ -2288,6 +2311,12 @@ export default {
       if (typeof this._stopLoyaltyRealtime==='function') this._stopLoyaltyRealtime();
       this._stopLoyaltyRealtime=null; this._loyaltyRealtimeId=null;
     },
+    toggleBillRow(id) {
+      const next = { ...this.billExpandedIds };
+      if (next[id]) delete next[id];
+      else next[id] = true;
+      this.billExpandedIds = next;
+    },
     async calculateExpenses() {
       const requestId = (this._expenseRequestId || 0) + 1;
       this._expenseRequestId = requestId;
@@ -2296,6 +2325,7 @@ export default {
         const {data} = await axios.post('/api/reports/widgets/expenses/calculate', {from:this.s.from,to:this.s.to});
         if (requestId === this._expenseRequestId) {
           this.expenseSnapshot = data.snapshot || null;
+          this.billExpandedIds = {};
           this.set({expenseReport:this.expenseSnapshot?.result || null});
         }
       } catch (error) {
@@ -2564,7 +2594,7 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .report-refresh-button{width:34px;height:34px;min-width:34px;padding:0;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 7px rgba(37,99,235,.13);transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}.report-refresh-button:hover:not(:disabled){background:#dbeafe;border-color:#60a5fa;box-shadow:0 4px 10px rgba(37,99,235,.18);transform:translateY(-1px)}.report-refresh-button:disabled{cursor:wait;opacity:.65}.report-refresh-button--labeled{width:auto;min-width:34px;padding:0 10px;font-size:10.5px;font-weight:900;white-space:nowrap}.report-calculated-at{color:#64748b;font-size:10px;white-space:nowrap}
 .satisfaction-report-content{display:grid;gap:12px}.satisfaction-report-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.satisfaction-report-summary div{display:grid;gap:2px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.satisfaction-report-summary strong{color:#15803d;font-size:17px}.satisfaction-report-summary span{color:#94a3b8;font-size:9.5px}.satisfaction-report-questions{display:grid;gap:10px;max-height:360px;overflow:auto;padding-left:3px}.satisfaction-report-question{padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#fff}.satisfaction-report-question header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:9px}.satisfaction-report-question header strong{color:#0f172a;font-size:11.5px;line-height:1.7}.satisfaction-report-question header span{flex:0 0 auto;color:#64748b;font-size:9.5px;white-space:nowrap}.satisfaction-report-row{display:grid;grid-template-columns:minmax(52px,78px) 1fr 38px 22px;align-items:center;gap:7px;margin-top:7px;color:#475569;font-size:10px}.satisfaction-report-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.satisfaction-report-row>div{height:6px;overflow:hidden;background:#f1f5f9;border-radius:999px}.satisfaction-report-row i{display:block;height:100%;border-radius:inherit;transition:width .4s ease}.satisfaction-report-row b{color:#0f172a;text-align:left}.satisfaction-report-row small{color:#94a3b8;text-align:left}.satisfaction-report-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:12px;color:#94a3b8;font-size:11px;text-align:center}
 .report-widget-empty{min-height:82px;display:grid;place-items:center;padding:14px;border:1px dashed #bfdbfe;border-radius:12px;background:#f8fbff;color:#64748b;font-size:11px;font-weight:800;text-align:center;line-height:1.8}
-.expense-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(48px,90px) minmax(0,auto);align-items:center;gap:10px;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:9px 12px;min-width:0}.expense-row__name{min-width:0;font-weight:600;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expense-row__bar{width:100%;height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden}.expense-money{min-width:0;max-width:145px;text-align:left;font-weight:800;color:#0f172a;white-space:normal;overflow-wrap:anywhere;line-height:1.5}.expense-summary-list{display:flex;flex-direction:column;gap:7px;min-width:0}.expense-summary-row{min-width:0;min-height:42px;border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.expense-summary-value{min-width:0;max-width:100%;font-size:clamp(11px,1.05vw,15px);font-weight:800;line-height:1.4;white-space:nowrap;text-align:left;direction:rtl;font-variant-numeric:tabular-nums}
+.report-open-module-button{appearance:none;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#334155;padding:0 10px;height:34px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.report-open-module-button:hover{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}.expense-invoice{min-width:0;border-radius:10px;background:#f8fafc;overflow:hidden}.expense-invoice__primary{width:100%;appearance:none;border:0;background:transparent;padding:9px 12px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,auto) minmax(64px,88px) 14px;align-items:center;gap:8px;cursor:pointer;text-align:right;font:inherit;color:inherit}.expense-invoice__name{min-width:0;font-size:12.5px;font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expense-invoice__no{min-width:0;font-size:10.5px;font-weight:700;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.expense-invoice__chevron{color:#94a3b8;font-size:11px;line-height:1}.expense-invoice__details{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:0 12px 10px;border-top:1px solid #e2e8f0}.expense-invoice__details>span{min-width:0;display:grid;gap:1px;font-size:11px;font-weight:700;color:#0f172a;overflow-wrap:anywhere}.expense-invoice__details em{font-style:normal;font-size:9.5px;font-weight:600;color:#94a3b8}.expense-money{min-width:0;max-width:145px;text-align:left;font-weight:800;color:#0f172a;white-space:normal;overflow-wrap:anywhere;line-height:1.5}.expense-summary-list{display:flex;flex-direction:column;gap:7px;min-width:0}.expense-summary-row{min-width:0;min-height:42px;border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.expense-summary-value{min-width:0;max-width:100%;font-size:clamp(11px,1.05vw,15px);font-weight:800;line-height:1.4;white-space:nowrap;text-align:left;direction:rtl;font-variant-numeric:tabular-nums}
 .cac-campaign-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:11px;color:#334155}.cac-campaign-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.cac-campaign-row>small{color:#64748b;white-space:nowrap}.cac-campaign-row>b{color:#1d4ed8;white-space:nowrap;font-size:11px}
 .cac-campaign-scroll{display:flex;flex-direction:column;gap:7px}
 .top-services-more{align-self:center;display:inline-flex;align-items:center;gap:4px;margin-top:3px;padding:2px 4px;border:0;background:transparent;color:#2563eb;font:inherit;font-size:10px;font-weight:800;line-height:1.5;cursor:pointer}
@@ -2609,6 +2639,11 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .rpt-money{white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:-.15px}
 .expense-money{font-size:11.5px;white-space:nowrap;max-width:none;font-variant-numeric:tabular-nums}
 .expense-summary-value{font-size:clamp(11px,.95vw,13.5px)}
+@media (max-width:640px){
+  .expense-invoice__primary{grid-template-columns:minmax(0,1fr) minmax(0,auto) 14px}
+  .expense-invoice__no{display:none}
+  .expense-invoice__details{grid-template-columns:1fr}
+}
 .report-refresh-button:disabled svg{animation:report-refresh-spin .8s linear infinite}
 @keyframes report-refresh-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){.report-refresh-button:disabled svg{animation:none}}
@@ -2755,7 +2790,8 @@ html body.dark .nsr .kpi-summary-toolbar strong,
 html body.dark .nsr .rpt-money,
 html body.dark .nsr .expense-money,
 html body.dark .nsr .expense-summary-value,
-html body.dark .nsr .expense-row__name,
+html body.dark .nsr .expense-invoice__name,
+html body.dark .nsr .expense-invoice__details > span,
 html body.dark .nsr .cac-campaign-row > span,
 html body.dark .nsr .cac-campaign-row > b,
 html body.dark .nsr .satisfaction-report-question header strong,
@@ -2764,7 +2800,8 @@ html #app.dark .nsr .kpi-summary-toolbar strong,
 html #app.dark .nsr .rpt-money,
 html #app.dark .nsr .expense-money,
 html #app.dark .nsr .expense-summary-value,
-html #app.dark .nsr .expense-row__name,
+html #app.dark .nsr .expense-invoice__name,
+html #app.dark .nsr .expense-invoice__details > span,
 html #app.dark .nsr .cac-campaign-row > span,
 html #app.dark .nsr .cac-campaign-row > b,
 html #app.dark .nsr .satisfaction-report-question header strong,
@@ -2783,12 +2820,12 @@ html #app.dark .nsr .satisfaction-report-empty,
 html #app.dark .nsr .cac-campaign-row > small {
   color: #9aa0a6 !important;
 }
-html body.dark .nsr .expense-row,
+html body.dark .nsr .expense-invoice,
 html body.dark .nsr .cac-campaign-row,
 html body.dark .nsr .satisfaction-report-summary div,
 html body.dark .nsr .satisfaction-report-question,
 html body.dark .nsr .report-widget-empty,
-html #app.dark .nsr .expense-row,
+html #app.dark .nsr .expense-invoice,
 html #app.dark .nsr .cac-campaign-row,
 html #app.dark .nsr .satisfaction-report-summary div,
 html #app.dark .nsr .satisfaction-report-question,
@@ -2798,10 +2835,12 @@ html #app.dark .nsr .report-widget-empty {
   color: #e8eaed !important;
 }
 html body.dark .nsr .report-refresh-button,
+html body.dark .nsr .report-open-module-button,
 html body.dark .nsr .kpi-calculate-button,
 html body.dark .nsr .staff-income-calculate-button,
 html body.dark .nsr .roi-calculate-button,
 html #app.dark .nsr .report-refresh-button,
+html #app.dark .nsr .report-open-module-button,
 html #app.dark .nsr .kpi-calculate-button,
 html #app.dark .nsr .staff-income-calculate-button,
 html #app.dark .nsr .roi-calculate-button {
@@ -2883,13 +2922,14 @@ html #app.dark .nsr [data-drag-handle]:hover {
 }
 html body.dark .nsr .top-services-more,
 html #app.dark .nsr .top-services-more { color: #4f8cff !important; }
-html body.dark .nsr .expense-row__bar,
+html body.dark .nsr .expense-invoice__details,
 html body.dark .nsr .satisfaction-report-row > div,
 html body.dark .nsr .report-card-scroll::-webkit-scrollbar-track,
-html #app.dark .nsr .expense-row__bar,
+html #app.dark .nsr .expense-invoice__details,
 html #app.dark .nsr .satisfaction-report-row > div,
 html #app.dark .nsr .report-card-scroll::-webkit-scrollbar-track {
   background: #121417 !important;
+  border-color: #2c3038 !important;
 }
 html body.dark .nsr .report-card-scroll::-webkit-scrollbar-thumb,
 html #app.dark .nsr .report-card-scroll::-webkit-scrollbar-thumb {

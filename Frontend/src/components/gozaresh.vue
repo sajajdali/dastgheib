@@ -1,6 +1,6 @@
 <template>
   <section class="reports-page" dir="rtl">
-    <NativeStaticReports v-if="activeView === 'reports'" @open-builder="activeView = 'builder'" />
+    <NativeStaticReports v-if="activeView === 'reports'" @open-builder="activeView = 'builder'" @open-bills="$emit('open-bills')" />
     <template v-else>
       <div class="builder-page-tabs">
         <button type="button" @click="activeView = 'reports'">داشبورد</button>
@@ -18,6 +18,7 @@ import ReportBuilder from './ReportBuilder.vue'
 export default {
   name: 'Gozaresh',
   components: { NativeStaticReports, ReportBuilder },
+  emits: ['open-bills'],
   props: {
     permissions: { type: Array, default: () => [] },
     initialView: { type: String, default: 'reports' },

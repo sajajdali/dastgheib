@@ -132,36 +132,31 @@ class ClinicReportService
         return ['photo_quality' => $this->photoQuality($filters)->values()];
     }
 
+    /** فقط فاکتور/هزینه‌های ثبت‌شده در ماژول هزینه‌ها؛ بدون درآمد کلینیک و بدون هزینهٔ کمپین/تبلیغات محاسبه‌شده. */
     public function expensesReport(array $filters): array
     {
-        $query = Expense::query()
+        $rows = Expense::query()
             ->where('type', 'expense')
-            ->whereBetween('occurred_on', [$filters['from'], $filters['to']]);
+            ->whereBetween('occurred_on', [$filters['from'], $filters['to']])
+            ->orderByDesc('occurred_on')
+            ->orderByDesc('id')
+            ->get(['id', 'title', 'amount', 'invoice_number', 'occurred_on', 'party', 'category', 'payment_status']);
 
-        $advertisingTotal = (float) $this->campaignAdvertisingCosts($filters)->sum('amount');
-        $manualAdvertising = (float) $this->advertisingExpenses($filters)->sum('amount');
-        $items = $this->withCampaignAdvertising((clone $query)
-            ->selectRaw('category, SUM(amount) AS amount')
-            ->groupBy('category')
-            ->orderByDesc('amount')
-            ->get()
-            ->map(fn ($row) => (object) ['category' => $row->category, 'amount' => (float) $row->amount]), $advertisingTotal)
-            ->map(fn ($row) => [
-                'category' => trim((string) $row->category) ?: 'بدون دسته‌بندی',
-                'amount' => (float) $row->amount,
-            ])
-            ->groupBy('category')
-            ->map(fn ($rows, $category) => [
-                'category' => $category,
-                'amount' => round((float) $rows->sum('amount')),
-            ])
-            ->sortByDesc('amount')
-            ->values();
+        $items = $rows->map(fn (Expense $row) => [
+            'id' => (int) $row->id,
+            'title' => trim((string) $row->title) ?: 'بدون عنوان',
+            'amount' => round((float) $row->amount),
+            'invoice_number' => ($invoice = trim((string) ($row->invoice_number ?? ''))) !== '' ? $invoice : null,
+            'occurred_on' => (string) $row->occurred_on,
+            'party' => ($party = trim((string) ($row->party ?? ''))) !== '' ? $party : null,
+            'category' => trim((string) ($row->category ?? '')) ?: 'بدون دسته‌بندی',
+            'payment_status' => (string) ($row->payment_status ?: 'paid'),
+        ])->values();
 
         return [
             'from' => $filters['from'],
             'to' => $filters['to'],
-            'total' => round((float) (clone $query)->sum('amount') - $manualAdvertising + $advertisingTotal),
+            'total' => round((float) $rows->sum('amount')),
             'items' => $items,
         ];
     }

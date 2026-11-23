@@ -266,7 +266,7 @@
         @open-photos="openPhotosFromNotification"
       />
 
-      <Gozaresh v-if="currentPage === 'Gozaresh'" :permissions="user.permissions || []" :initial-view="reportInitialView" :assistant-report="pendingAssistantReport" />
+      <Gozaresh v-if="currentPage === 'Gozaresh'" :permissions="user.permissions || []" :initial-view="reportInitialView" :assistant-report="pendingAssistantReport" @open-bills="changePage('Bills')" />
       <ActivityLogs v-if="currentPage === 'ActivityLogs'" :permissions="user.permissions || []" />
       <AiUsageReport v-if="currentPage === 'AiUsage' && canUseAssistant" api-base="/api/assistant" />
 
