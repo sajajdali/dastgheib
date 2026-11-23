@@ -703,7 +703,7 @@
                 <div class="staff-income-loading-card">
                   <div class="staff-income-loading-ring"></div>
                   <strong>در حال محاسبه وقت‌دهی پرسنل</strong>
-                  <small>نوبت‌ها، مبالغ و پرداختی‌های ثبت‌کنندگان بررسی می‌شوند</small>
+                  <small>نوبت‌های دارای مشاور، مبالغ خدمات و پرداختی پرسنل بررسی می‌شوند</small>
                   <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
                 </div>
               </div>
@@ -1488,7 +1488,7 @@ export default {
     const cdRows = CAMPS.map(c => ({n: c.n, cost: dashboardReady ? cacMoney(c.cost) : '--',
       h1: Math.round(c.d1/interestMax*120)+'px', h2: Math.round(c.d2/interestMax*120)+'px', h3: Math.round(c.d3/interestMax*120)+'px'}));
 
-    // staff appointments, attributed to the user who originally registered each appointment
+    // staff appointments attributed to consultants on each meaningful booking (same idea as doctor report)
     const staffAppointmentsReady = this.staffAppointmentsSnapshot?.status === 'completed';
     const staffAppointmentPreview = STAFF.length ? STAFF.slice(0,3).map((staff,index) => ({
       row_id:`preview-${staff.id}`,staff_id:staff.id,name:staff.n,avatar_url:staff.ph,
@@ -1507,7 +1507,7 @@ export default {
         bring:sample?'—':reportMoney(Number(row.revenue || 0)/1000000),pors:sample?'—':reportMoney(Number(row.commission || 0)/1000000),
         fix:sample?'—':reportMoney(Number(row.salary || 0)/1000000),pay:sample?'—':reportMoney(Number(row.payment_total || 0)/1000000),
         cnt:sample?'—':fa(row.appointments || 0),rate:sample?'—':(row.conversion_rate==null?'--٪':pc(rate)),w:rate+'%',color:sample?'#cbd5e1':color,
-        rateTitle:sample?'پیش‌نمایش گزارش':`${fa(row.completed || 0)} نوبت انجام‌شده از ${fa(row.appointments || 0)} نوبت`};
+        rateTitle:sample?'پیش‌نمایش گزارش':`${fa(row.completed || 0)} نوبت انجام‌شده از ${fa(row.appointments || 0)} نوبت مشاور`};
     });
 
     // capacity

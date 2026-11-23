@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Appointment;
-use App\Models\ActivityLog;
 use App\Models\AppointmentFinancialTransaction;
 use App\Models\Campaign;
 use App\Support\CampaignFollowupNotes;
@@ -389,6 +388,35 @@ class ClinicReportService
         return collect(preg_split('/[،,]+/u', (string) $appointment->doctor))->map(fn ($name) => trim($name))->filter()->unique()->values()->all();
     }
 
+    private function appointmentConsultantNames($appointment): array
+    {
+        $serviceConsultants = collect($appointment->services ?: [])
+            ->pluck('consultant')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter();
+        if ($serviceConsultants->isNotEmpty()) {
+            return $serviceConsultants->unique()->values()->all();
+        }
+
+        return collect(preg_split('/[،,]+/u', (string) $appointment->consultant))
+            ->map(fn ($name) => trim($name))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function isMeaningfulAppointment($appointment): bool
+    {
+        return trim((string) ($appointment->lastname ?? '')) !== ''
+            || trim((string) ($appointment->phone ?? '')) !== ''
+            || trim((string) ($appointment->file_number ?? '')) !== ''
+            || trim((string) ($appointment->status ?? '')) !== ''
+            || trim((string) ($appointment->done ?? '')) !== ''
+            || $this->appointmentValue($appointment) > 0
+            || collect($appointment->services ?: [])->contains(fn ($service) => is_array($service) && trim((string) ($service['name'] ?? '')) !== '');
+    }
+
     private function appointmentDoctorRevenueShares($appointment, array $inventoryPrices): array
     {
         $fallbackDoctors = collect(preg_split('/[،,]+/u', (string) $appointment->doctor))->map(fn ($name) => trim($name))->filter()->unique()->values();
@@ -409,6 +437,41 @@ class ClinicReportService
         $weightTotal = array_sum($weights);
         $appointmentTotal = $this->appointmentValue($appointment);
         if ($weightTotal <= 0 || $appointmentTotal <= 0) return array_fill_keys(array_keys($weights), 0.0);
+        return collect($weights)->map(fn ($weight) => $appointmentTotal * $weight / $weightTotal)->all();
+    }
+
+    private function appointmentConsultantRevenueShares($appointment, array $inventoryPrices): array
+    {
+        $fallbackConsultants = collect(preg_split('/[،,]+/u', (string) $appointment->consultant))
+            ->map(fn ($name) => trim($name))
+            ->filter()
+            ->unique()
+            ->values();
+        $weights = [];
+        foreach (collect($appointment->services ?: []) as $service) {
+            $consultant = trim((string) data_get($service, 'consultant'));
+            if ($consultant === '' && $fallbackConsultants->count() === 1) {
+                $consultant = (string) $fallbackConsultants->first();
+            }
+            if ($consultant === '') {
+                continue;
+            }
+            $weight = collect([$service, ...collect(data_get($service, 'addons', []))->filter(fn ($addon) => is_array($addon))->all()])
+                ->filter(fn ($line) => is_array($line))
+                ->sum(fn (array $line) => $this->serviceNet($line, $inventoryPrices));
+            $weights[$consultant] = ($weights[$consultant] ?? 0) + max(1, $weight);
+        }
+        if ($weights === [] && $fallbackConsultants->isNotEmpty()) {
+            foreach ($fallbackConsultants as $consultant) {
+                $weights[$consultant] = 1;
+            }
+        }
+        $weightTotal = array_sum($weights);
+        $appointmentTotal = $this->appointmentValue($appointment);
+        if ($weightTotal <= 0 || $appointmentTotal <= 0) {
+            return array_fill_keys(array_keys($weights), 0.0);
+        }
+
         return collect($weights)->map(fn ($weight) => $appointmentTotal * $weight / $weightTotal)->all();
     }
 
@@ -492,9 +555,10 @@ class ClinicReportService
 
     public function staffAppointmentReport(array $filters): array
     {
+        // نسبت نوبت به مشاور/پرسنل روی خود نوبت (مثل گزارش پزشکان)، نه کاربر لاگ «ایجاد»
+        // که معمولاً سازندهٔ ردیف خالی جدول است و آمار را اشتباه به مدیر نسبت می‌دهد.
         $staff = Staff::query()->orderBy('name')->get();
-        $staffByUserId = $staff->filter(fn (Staff $item) => $item->user_id !== null)
-            ->keyBy(fn (Staff $item) => (string) $item->user_id);
+        $staffByName = $staff->keyBy(fn (Staff $item) => $this->reportNameKey($item->name));
         $rows = $staff->mapWithKeys(fn (Staff $item) => [(string) $item->id => [
             'staff_id' => $item->id,
             'name' => $item->name,
@@ -503,39 +567,47 @@ class ClinicReportService
             'completed' => 0,
             'revenue' => 0.0,
         ]])->all();
+        $inventoryPrices = $this->materialPrices();
 
-        $this->appointments($filters)->chunkById(500, function (Collection $appointments) use (&$rows, $staffByUserId): void {
-            $creators = ActivityLog::query()
-                ->where('subject_type', Appointment::class)
-                ->where('event', 'created')
-                ->whereIn('subject_id', $appointments->pluck('id'))
-                ->orderBy('id')
-                ->get(['subject_id', 'user_id', 'user_name'])
-                ->unique('subject_id')
-                ->keyBy('subject_id');
+        foreach ($this->appointments($filters)->lazyById(500) as $appointment) {
+            if (! $this->isMeaningfulAppointment($appointment)) {
+                continue;
+            }
 
-            foreach ($appointments as $appointment) {
-                $creator = $creators->get($appointment->id);
-                if (! $creator) continue;
-                $staffMember = $staffByUserId->get((string) ($creator->user_id ?? ''));
-                $id = $staffMember ? (string) $staffMember->id : 'user:'.($creator->user_id ?: $creator->user_name);
-                if (! isset($rows[$id])) {
-                    $rows[$id] = [
-                        'staff_id' => null,
-                        'name' => trim((string) $creator->user_name) ?: 'کاربر حذف‌شده',
-                        'avatar_url' => null,
-                        'appointments' => 0,
-                        'completed' => 0,
-                        'revenue' => 0.0,
-                    ];
+            $assigned = $this->appointmentConsultantNames($appointment);
+            if ($assigned === []) {
+                continue;
+            }
+
+            $seen = [];
+            foreach ($assigned as $consultantName) {
+                $member = $staffByName->get($this->reportNameKey($consultantName));
+                if (! $member) {
+                    continue;
                 }
+                $id = (string) $member->id;
+                if (isset($seen[$id])) {
+                    continue;
+                }
+                $seen[$id] = true;
                 $rows[$id]['appointments']++;
                 if ($this->isCompleted($appointment)) {
                     $rows[$id]['completed']++;
-                    $rows[$id]['revenue'] += $this->appointmentValue($appointment);
                 }
             }
-        });
+
+            if (! $this->isRevenueRecognized($appointment)) {
+                continue;
+            }
+
+            foreach ($this->appointmentConsultantRevenueShares($appointment, $inventoryPrices) as $consultantName => $amount) {
+                $member = $staffByName->get($this->reportNameKey($consultantName));
+                if (! $member) {
+                    continue;
+                }
+                $rows[(string) $member->id]['revenue'] += $amount;
+            }
+        }
 
         $payments = collect($this->resourceCosts($filters)['resources'])
             ->where('type', 'staff')->keyBy(fn (array $row) => (string) $row['id']);
@@ -553,7 +625,10 @@ class ClinicReportService
                     ? round(($row['completed'] / $row['appointments']) * 100, 1)
                     : null,
             ];
-        })->sortByDesc('conversion_rate')->values()->all()];
+        })->filter(fn (array $row) => $row['appointments'] > 0 || $row['payment_total'] > 0 || $row['commission'] > 0 || $row['salary'] > 0)
+            ->sortByDesc(fn (array $row) => [$row['conversion_rate'] ?? -1, $row['appointments'], $row['revenue']])
+            ->values()
+            ->all()];
     }
 
     public function advertisingRoiReport(array $filters): array

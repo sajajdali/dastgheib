@@ -111,4 +111,64 @@ class ClinicReportPaidAppointmentTest extends TestCase
         $this->assertSame(1600000.0, $this->invokeReport('serviceNet', ['name' => 'فیلر', 'cc' => 2, 'discount' => 400000, 'adjustment_mode' => 'discount'], $prices));
         $this->assertSame(1250000.0, $this->invokeReport('serviceNet', ['name' => 'فیلر', 'cc' => 1, 'discount' => 250000, 'adjustment_mode' => 'surcharge'], $prices));
     }
+
+    public function test_staff_report_uses_service_consultants_not_empty_slots(): void
+    {
+        $emptySlot = (object) [
+            'lastname' => '',
+            'phone' => '',
+            'file_number' => '',
+            'status' => '',
+            'done' => '',
+            'amount' => 0,
+            'wallet_applied' => 0,
+            'discount' => 0,
+            'services' => [],
+            'consultant' => 'زهره کاظمی',
+        ];
+        $booked = (object) [
+            'lastname' => 'بیمار تست',
+            'phone' => '09120000000',
+            'file_number' => '100',
+            'status' => 'وقت داده شد',
+            'done' => 'انجام شد',
+            'amount' => 12000000,
+            'wallet_applied' => 0,
+            'discount' => 0,
+            'consultant' => 'زهره کاظمی',
+            'services' => [
+                ['name' => 'لیفت', 'consultant' => 'زهره کاظمی', 'cc' => 1],
+                ['name' => 'بوتاکس', 'consultant' => 'پریا رحمانی', 'cc' => 1],
+            ],
+        ];
+
+        $this->assertFalse($this->invokeReport('isMeaningfulAppointment', $emptySlot));
+        $this->assertTrue($this->invokeReport('isMeaningfulAppointment', $booked));
+        $this->assertSame(['زهره کاظمی', 'پریا رحمانی'], $this->invokeReport('appointmentConsultantNames', $booked));
+    }
+
+    public function test_consultant_revenue_shares_split_by_service_sale_weight(): void
+    {
+        $prices = [
+            'inventory' => new Collection([
+                'لیفت' => (object) ['amount' => 10000000, 'price' => 1000000],
+                'بوتاکس' => (object) ['amount' => 5000000, 'price' => 500000],
+            ]),
+            'addons' => new Collection(),
+        ];
+        $appointment = (object) [
+            'amount' => 15000000,
+            'wallet_applied' => 0,
+            'discount' => 0,
+            'consultant' => 'زهره کاظمی',
+            'services' => [
+                ['name' => 'لیفت', 'consultant' => 'زهره کاظمی', 'cc' => 1],
+                ['name' => 'بوتاکس', 'consultant' => 'پریا رحمانی', 'cc' => 1],
+            ],
+        ];
+
+        $shares = $this->invokeReport('appointmentConsultantRevenueShares', $appointment, $prices);
+        $this->assertEqualsWithDelta(10000000.0, $shares['زهره کاظمی'], 0.01);
+        $this->assertEqualsWithDelta(5000000.0, $shares['پریا رحمانی'], 0.01);
+    }
 }
