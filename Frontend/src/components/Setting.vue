@@ -1390,7 +1390,6 @@ const clinicSchedule = ref({
   day_times: defaultDayTimes()
 });
 const savedClinicActiveDays = ref(["saturday", "monday", "wednesday"]);
-const savedClinicActiveDays = ref(["saturday", "monday", "wednesday"]);
 const company = ref({ name: "", about: "", logoFile: null, logoUrl: "", address: "", instagram_url: "", phone: "", location_url: "", latitude: null, longitude: null });
 const clinicMapElement = ref(null);
 let clinicMap = null;
