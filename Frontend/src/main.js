@@ -108,4 +108,4 @@ window.fetch = async (input, init = {}) => {
   return response
 }
 
-createApp(App).mount('#app')
+createApp(App).mount('#app-mount')

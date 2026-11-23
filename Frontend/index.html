@@ -17,7 +17,10 @@
     <script>
       try { if (localStorage.getItem('darkMode') === 'true') document.body.classList.add('dark'); } catch (e) {}
     </script>
-    <div id="app"></div>
+    <!-- Mount host only — App.vue owns the real #app shell. Nesting two #app
+         nodes made #app{padding:20px} stick on the outer host while
+         booking-page-active only cleared the inner one (left/right gutters). -->
+    <div id="app-mount"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

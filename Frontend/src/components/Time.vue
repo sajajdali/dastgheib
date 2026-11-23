@@ -3662,6 +3662,17 @@ export default {
       this.scheduleDayRowsWindowUpdate();
     },
 
+    /* Scroller is direction:ltr while the table is rtl — pin horizontal
+       scroll to the physical RIGHT so RTL “start” (نام…) is visible first. */
+    syncTableHorizontalScrollOrigin() {
+      this.$nextTick(() => {
+        const el = this.$refs.tableContainer;
+        if (!el || this.appointmentView !== 'table') return;
+        const max = Math.max(0, el.scrollWidth - el.clientWidth);
+        if (el.scrollLeft !== max) el.scrollLeft = max;
+      });
+    },
+
     async switchAppointmentView(view) {
       if (!['table', 'timeline'].includes(view) || this.appointmentView === view) return;
 
@@ -3697,6 +3708,7 @@ export default {
       });
       this.expandMatchingFilteredDays();
       this.syncAllDaysCollapsedState();
+      this.syncTableHorizontalScrollOrigin();
     },
 
     bookingChildSectionOptions(parentId) {
@@ -5376,6 +5388,7 @@ export default {
         } else {
           this.focusTodayAfterLoad();
         }
+        this.syncTableHorizontalScrollOrigin();
       }
     },
 
@@ -6967,6 +6980,7 @@ export default {
         this.restorePendingDraft();
         this.expandMatchingFilteredDays();
         this.isFetching = false;
+        this.syncTableHorizontalScrollOrigin();
         return;
       }
 
@@ -7174,6 +7188,7 @@ export default {
       this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
       this.expandMatchingFilteredDays();
       this.isFetching = false;
+      this.syncTableHorizontalScrollOrigin();
     },
 
     updateRowAmounts(row) {
@@ -13319,11 +13334,15 @@ body:has(.time-page.table-view-active) {
   overflow-x: hidden;
 }
 
-/* کمربند ایمنی: اگر شل هنوز فاصله داشت، در حالت جدول صفر شود */
+/* کمربند ایمنی: padding/margin شل #app در حالت جدول صفر شود
+   (بدون وابستگی اجباری به booking-page-active — آن کلاس روی #app تودرتوی
+   قدیمی mount اعمال نمی‌شد و gutter ۲۰px سمت چپ می‌ماند). */
+#app:has(.time-page.table-view-active),
 #app.booking-page-active:has(.time-page.table-view-active) {
   padding: 0 !important;
 }
 
+#app:has(.time-page.table-view-active) .page-container,
 #app.booking-page-active:has(.time-page.table-view-active) .page-container {
   margin: 0 !important;
   padding: 0 !important;
@@ -13882,9 +13901,11 @@ body:has(.time-page.table-view-active) {
   border: 0;
   border-radius: 0;
   background: transparent;
-  /* RTL: scrollbar-gutter:stable reserves ~15px on the LEFT (classic
-     scrollbar side). That empty strip sat left of عملیات and the
-     H-scrollbar track ran under it — do not reintroduce stable here. */
+  /* LTR scrollport: classic scrollbar on the RIGHT, and abspos overflow
+     (photo tooltips etc.) must not invent a phantom ~60px strip left of
+     عملیات the way an RTL scrollport does. Table itself stays direction:rtl. */
+  direction: ltr;
+  /* Do not reintroduce scrollbar-gutter:stable — on RTL it reserved left gutter. */
   scrollbar-gutter: auto;
   scrollbar-width: auto;
   scrollbar-color: #475569 #e2e8f0;
@@ -13938,8 +13959,10 @@ body:has(.time-page.table-view-active) {
 }
 
 .main-schedule-table {
-  /* Fill the scrollport when columns are narrower (RTL: no dead gutter
-     left of عملیات); grow past 100% when column mins need more width. */
+  /* Fill the scrollport when columns are narrower; grow past 100% when
+     column mins need more width. Keep RTL column order even though the
+     .table-container scrollport is LTR (see direction:ltr above). */
+  direction: rtl;
   width: 100%;
   min-width: max-content;
   border-collapse: separate;

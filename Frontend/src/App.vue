@@ -1799,11 +1799,15 @@ body.central-host #app {
 
 }
 
-/* جدول نوبت‌دهی: شل اپ بدون gutter خاکستری — جدول/نوار ابزار لب‌به‌لب عرض viewport */
+/* جدول نوبت‌دهی: شل اپ بدون gutter خاکستری — جدول/نوار ابزار لب‌به‌لب عرض viewport.
+   Match on :has(table-view) so a missing booking-page-active class cannot leave
+   the 20px #app padding as a dead strip left/right of the schedule. */
+#app:has(.time-page.table-view-active),
 #app.booking-page-active:has(.time-page.table-view-active) {
   padding: 0;
 }
 
+#app:has(.time-page.table-view-active) .page-container,
 #app.booking-page-active:has(.time-page.table-view-active) .page-container {
   margin: 0;
   padding: 0;
