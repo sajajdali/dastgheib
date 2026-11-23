@@ -1864,25 +1864,25 @@
                     </select>
                   </label>
                   <label v-for="level in serviceSectionLevels(service)" :key="`${level.parentId}-${level.depth}`">
-                    <span>{{ level.depth === 0 ? 'زیر‌بخش' : `زیر‌بخش سطح ${Number(level.depth + 2).toLocaleString('fa-IR')}` }}</span>
+                    <span>{{ level.depth === 0 ? 'زیر‌بخش (اختیاری)' : `زیر‌بخش سطح ${Number(level.depth + 2).toLocaleString('fa-IR')} (اختیاری)` }}</span>
                     <select :value="level.value" @change="setTimelineServiceSectionLevel(service, level, $event.target.value)">
                       <option value="">{{ serviceSectionLevelPlaceholder(level) }}</option>
                       <option v-for="sectionId in level.options" :key="sectionId" :value="String(sectionId)">{{ serviceSectionLabel(sectionId) }}</option>
                     </select>
                   </label>
                   <label>
-                    <span>خدمت</span>
+                    <span>خدمت (اختیاری)</span>
                     <Multiselect
                       v-model="service.name"
-                      :options="serviceOptionsFor(service, activeTimelineDraft)"
+                      :options="timelineServiceOptionsFor(service, activeTimelineDraft)"
                       :multiple="false"
                       :searchable="true"
                       :internal-search="true"
                       :close-on-select="true"
                       :clear-on-select="false"
                       :allow-empty="true"
-                      :disabled="!serviceCanChooseItem(service)"
-                      :placeholder="serviceCanChooseItem(service) ? 'نام خدمت را جست‌وجو کنید' : 'مسیر زیر‌بخش را کامل کنید'"
+                      :disabled="!timelineServiceCanChooseItem(service)"
+                      :placeholder="timelineServiceCanChooseItem(service) ? 'نام خدمت را جست‌وجو کنید' : 'ابتدا بخش را انتخاب کنید'"
                       select-label="انتخاب"
                       selected-label="انتخاب شد"
                       deselect-label="حذف"
@@ -1891,11 +1891,11 @@
                       @remove="onServiceNameChanged(service, activeTimelineDraft)"
                     >
                       <template #noResult>خدمتی با این نام پیدا نشد.</template>
-                      <template #noOptions>خدمتی در این زیر‌بخش ثبت نشده است.</template>
+                      <template #noOptions>خدمتی در این بخش ثبت نشده است.</template>
                     </Multiselect>
                   </label>
                   <label>
-                    <span>پزشک</span>
+                    <span>پزشک (اختیاری)</span>
                     <select v-model="service.doctor" @change="calculateRowAmount(activeTimelineDraft)">
                       <option value="">بدون پزشک</option>
                       <option v-if="service.doctor && !doctorsForService(activeTimelineDraft, service).some(item => item.name === service.doctor)" :value="service.doctor">{{ service.doctor }}</option>
@@ -1903,7 +1903,7 @@
                     </select>
                   </label>
                   <label>
-                    <span>مشاور</span>
+                    <span>مشاور (اختیاری)</span>
                     <select v-model="service.consultant" @change="calculateRowAmount(activeTimelineDraft)">
                       <option value="">بدون مشاور</option>
                       <option v-if="service.consultant && !consultantOptions.includes(service.consultant)" :value="service.consultant">{{ service.consultant }}</option>
@@ -1920,46 +1920,6 @@
                     </label>
                   </div>
                   <small v-else>برای این خدمت ناحیه‌ای تعریف نشده است.</small>
-                </div>
-                <button v-if="service.name" type="button" data-keep-enabled class="timeline-service-details-toggle" :class="{ active: service._timelineDetailsOpen }" @click.stop="service._timelineDetailsOpen = !service._timelineDetailsOpen">
-                  <span>تعداد، قیمت، تخفیف و خدمات جانبی</span><b>{{ service._timelineDetailsOpen ? '⌃' : '⌄' }}</b>
-                </button>
-                <div v-if="service.name && service._timelineDetailsOpen" class="timeline-service-details">
-                  <div class="timeline-service-detail-grid">
-                    <label><span>تعداد / سی‌سی</span><input v-model="service.cc" type="text" inputmode="numeric" placeholder="۱" @input="sanitizeServiceQuantity(service, activeTimelineDraft)"></label>
-                    <label><span>قیمت خدمت</span><input :value="formatDisplayMoney(serviceLinePrice(service))" type="text" disabled></label>
-                    <label><span>{{ service.adjustment_mode === 'surcharge' ? 'مبلغ مازاد' : 'مبلغ تخفیف' }}</span><div class="timeline-service-adjustment"><input v-model="service.discount" type="text" inputmode="numeric" placeholder="۰" @input="handleServiceDiscountInput(service, activeTimelineDraft)"><button type="button" title="تغییر بین تخفیف و مازاد" @click.stop="toggleServiceAdjustment(service, activeTimelineDraft)">↻</button></div></label>
-                    <label v-if="service.adjustment_mode === 'surcharge'" class="timeline-service-commission"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"><span>محاسبه مازاد در پورسانت پزشک</span></label>
-                    <label v-else class="timeline-discount-source"><span>سهم تخفیف</span>
-                      <select :value="service.discount_source || 'shared'" :title="discountSourceHint(service)" @change="service.discount_source = $event.target.value; calculateRowAmount(activeTimelineDraft)">
-                        <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div class="timeline-addon-box">
-                    <button type="button" class="timeline-addon-toggle" :class="{ active: expandedAddonServices.has(service) }" data-keep-enabled @click.stop="toggleServiceAddons(service)"><span>خدمات جانبی</span><b>{{ service.addons?.length || 0 }} مورد {{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b></button>
-                    <div v-if="expandedAddonServices.has(service)" class="timeline-addon-content">
-                      <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="timeline-addon-row">
-                        <label><span>نام جانبی</span><select v-model="addon.name" @change="onAddonChanged(service, addon, activeTimelineDraft)"><option value="">انتخاب جانبی</option><option v-for="name in serviceAddonOptions(service, addon)" :key="name" :value="name">{{ name }}</option></select></label>
-                        <label><span>تعداد / سی‌سی</span><input v-model="addon.cc" type="text" inputmode="numeric" placeholder="۱" @input="sanitizeServiceQuantity(addon, activeTimelineDraft)"></label>
-                        <label><span>قیمت</span><input :value="formatDisplayMoney(serviceLinePrice(addon))" type="text" disabled></label>
-                        <button type="button" class="timeline-addon-remove" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeTimelineDraft)">×</button>
-                      </div>
-                      <button type="button" class="timeline-addon-add" @click.stop="addServiceAddon(service)">+ افزودن خدمت جانبی</button>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="service.name" class="service-finalize-bar timeline-finalize-bar" :class="{ finalized: service.finalized }">
-                  <template v-if="service.finalized">
-                    <span class="service-finalized-badge">✓ ثبت نهایی شده</span>
-                    <small>{{ finalizedServiceCaption(service) }}</small>
-                    <button v-if="canEditFinalizedServices && !timelineDraftReadonly" type="button" data-keep-enabled class="service-unlock-btn" @click.stop="unlockService(activeTimelineDraft, service, false)">ویرایش</button>
-                  </template>
-                  <template v-else-if="!timelineDraftReadonly">
-                    <small>بعد از تکمیل اطلاعات این خدمت، آن را ثبت نهایی کنید.</small>
-                    <button type="button" class="service-finalize-btn" :disabled="!canFinalizeService(service)" @click.stop="finalizeService(activeTimelineDraft, service, false)">ثبت نهایی</button>
-                  </template>
                 </div>
               </article>
             </div>
@@ -4063,7 +4023,7 @@ export default {
             name: service.name || '',
             inventory_id: this.stableInventoryIdForService(service),
             sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name),
-            rootSectionId: service.rootSectionId || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name)),
+            rootSectionId: service.rootSectionId || service.root_section_id || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name)),
             tags: Array.isArray(service.tags) ? service.tags : [],
             cc: service.cc || '',
             doctor: service.doctor || '',
@@ -4084,6 +4044,12 @@ export default {
             })) : []
           }))
         : [{ name: '', sectionId: '', rootSectionId: '', cc: '', doctor: '', consultant: '', discount: '', _lastSavedCc: 0, addons: [] }];
+      const realtimeRoots = this.normalizeServiceSectionIds(item.service_types);
+      if (realtimeRoots.length === 1) {
+        services.forEach(service => {
+          if (!service.rootSectionId) service.rootSectionId = realtimeRoots[0];
+        });
+      }
 
       return {
         ...this.createEmptyAppointmentRow(),
@@ -5106,7 +5072,7 @@ export default {
         name: service.name || "",
         inventory_id: this.stableInventoryIdForService(service),
         sectionId: service.sectionId || service.section_id || this.sectionIdForService(service.name, draft),
-        rootSectionId: service.rootSectionId || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name, draft)),
+        rootSectionId: service.rootSectionId || service.root_section_id || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name, draft)),
         tags: Array.isArray(service.tags) ? [...service.tags] : [],
         cc: service.cc || "",
         doctor: service.doctor || "",
@@ -5118,6 +5084,13 @@ export default {
         _lastSavedCc: service._lastSavedCc || 0,
         addons: Array.isArray(service.addons) ? service.addons.map(addon => ({ ...addon, discount: addon.discount ? this.formatDisplayMoney(addon.discount) : "", adjustment_mode: addon.adjustment_mode || "discount", surcharge_for_doctor_commission: Boolean(addon.surcharge_for_doctor_commission), discount_source: addon.discount_source || "shared" })) : []
       }));
+      // اگر فقط بخش نوبت ذخیره شده باشد، ریشه را از serviceTypes به خدمت برگردان.
+      const draftRoots = this.normalizeServiceSectionIds(draft.serviceTypes);
+      if (draftRoots.length === 1) {
+        draft.services.forEach(service => {
+          if (!service.rootSectionId) service.rootSectionId = draftRoots[0];
+        });
+      }
       draft.timelineDoctors = Array.isArray(draft.timelineDoctors)
         ? draft.timelineDoctors.slice(0, 1)
         : [...new Set(draft.services.map(service => service.doctor).filter(Boolean))].slice(0, 1);
@@ -6988,7 +6961,7 @@ export default {
                 name: s.name || "",
                 inventory_id: this.stableInventoryIdForService(s),
                 sectionId: s.sectionId || s.section_id || this.sectionIdForService(s.name),
-                rootSectionId: s.rootSectionId || this.rootSectionIdFor(s.sectionId || s.section_id || this.sectionIdForService(s.name)),
+                rootSectionId: s.rootSectionId || s.root_section_id || this.rootSectionIdFor(s.sectionId || s.section_id || this.sectionIdForService(s.name)),
                 tags: Array.isArray(s.tags) ? s.tags : [],
                 cc: s.cc || "",
                 doctor: s.doctor || "",
@@ -7003,6 +6976,7 @@ export default {
             : [{
                 name: "",
                 sectionId: "",
+                rootSectionId: "",
                 cc: "",
                 doctor: "",
                 consultant: "",
@@ -7010,6 +6984,13 @@ export default {
                 ,_lastSavedCc: 0
                 ,addons: []
               }];
+          // بخش انتخاب‌شده روی نوبت را به ردیف‌های خدمت بدون ریشه برگردان تا در جدول قابل تکمیل بمانند.
+          const loadedRoots = this.normalizeServiceSectionIds(item.service_types);
+          if (loadedRoots.length === 1) {
+            services.forEach(service => {
+              if (!service.rootSectionId) service.rootSectionId = loadedRoots[0];
+            });
+          }
 
           day.rows.push({
             _rowId: `row-${this._rowCounter++}`,
@@ -7835,6 +7816,7 @@ this.calculateFinalAmount(row)
                       name: s.name || "",
                       inventory_id: this.stableInventoryIdForService(s),
                       section_id: s.sectionId || this.sectionIdForService(s.name, row) || null,
+                      root_section_id: s.rootSectionId || this.rootSectionIdFor(s.sectionId || this.sectionIdForService(s.name, row)) || null,
                       tags: Array.isArray(s.tags) ? s.tags : [],
                       cc: s.cc || "",
                       doctor: s.doctor || "",
@@ -10272,8 +10254,11 @@ this.calculateFinalAmount(row)
         const hasServiceName = String(service.name ?? "").trim() !== "";
         const hasServiceCc = Number(service.cc || 0) > 0;
         const hasAddon = (service.addons || []).some(addon => String(addon.name || '').trim() || Number(addon.cc || 0) > 0);
+        // خدمت ناقص تایم‌لاین (فقط بخش/پزشک/مشاور) هم باید در جدول دیده و تکمیل شود.
+        const hasPath = Boolean(service.rootSectionId || service.root_section_id || service.sectionId || service.section_id);
+        const hasStaff = String(service.doctor || '').trim() !== '' || String(service.consultant || '').trim() !== '';
 
-        return hasServiceName || hasServiceCc || hasAddon;
+        return hasServiceName || hasServiceCc || hasAddon || hasPath || hasStaff;
       });
 
       // newCustomer دیگر نشانهٔ «ردیف پر» نیست؛ پیش‌فرض جدید است و سرور نهایی می‌کند.
@@ -10528,6 +10513,25 @@ this.calculateFinalAmount(row)
       const selectedSectionId = service?.sectionId || service?.rootSectionId;
       if (!selectedSectionId) return false;
       return !this.directServiceChildSectionIds(selectedSectionId).length;
+    },
+
+    // در تایم‌لاین زیربخش اجباری نیست؛ با انتخاب بخش می‌توان خدمت را هم انتخاب کرد.
+    timelineServiceCanChooseItem(service) {
+      return Boolean(service?.rootSectionId || service?.sectionId);
+    },
+
+    // وقتی مسیر زیربخش ناقص است، همهٔ خدمات زیر همان بخش/زیربخش فعلی را نشان بده.
+    timelineServiceOptionsFor(service, row = null) {
+      if (this.serviceCanChooseItem(service)) {
+        return this.serviceOptionsFor(service, row);
+      }
+      const scopeId = service?.sectionId || service?.rootSectionId;
+      const allowedSections = new Set(this.serviceSectionScopeIds(scopeId ? [scopeId] : row?.serviceTypes));
+      return this.inventoryItems
+        .filter(item => item.active !== false)
+        .filter(item => allowedSections.size > 0 && allowedSections.has(String(item.section_id)))
+        .map(item => item.name)
+        .filter(Boolean);
     },
 
     serviceSubsectionOptions(service, row) {
