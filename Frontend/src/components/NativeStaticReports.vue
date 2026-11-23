@@ -143,7 +143,7 @@
                   <div class="staff-income-loading-track top-services-loading-track"><div></div></div>
                 </div>
               </div>
-              <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+              <div v-if="v.ctReady" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
                 <div style="position:relative;width:150px;height:150px;flex-shrink:0">
                   <svg width="150" height="150" viewBox="0 0 120 120">
                     <g transform="rotate(-90 60 60)">
@@ -174,6 +174,7 @@
                   </template>
                 </div>
               </div>
+              <div v-else-if="!v.ctCalculating" class="report-widget-empty">برای ایجاد گزارش، دکمه محاسبه را بزنید</div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.loyal" @dragover="v.dv.loyal" @drop="v.dp.loyal" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 2;display:' + (v.dsp.loyal) + ';order:' + (v.o.loyal)" data-screen-label="مشتریان وفادار">
@@ -306,13 +307,13 @@
                   <button :style="op.st" @click="op.on">{{ op.t }}</button>
                 </template>
               </div>
-              <div style="position:relative;height:175px;display:flex;align-items:flex-end;gap:14px;padding:0 6px">
+              <div v-if="v.staffIncomeReady && v.staffBars.length" style="position:relative;height:175px;display:flex;align-items:flex-end;gap:14px;padding:0 6px">
                 <template v-for="(line, lineI) in v.staffTierLines" :key="'tier-'+lineI">
                   <div :style="'position:absolute;right:0;left:0;bottom:' + (line.bottom) + ';border-top:2px dashed #f59e0b;z-index:1;pointer-events:none'">
                     <span style="position:absolute;left:0;top:-20px;background:#fffbeb;color:#b45309;font-size:10px;font-weight:800;border-radius:6px;padding:2px 8px;white-space:nowrap">{{ line.label }}</span>
                   </div>
                 </template>
-                <template v-for="(b, bI) in v.staffBars" :key="bI">
+                <template v-for="(b, bI) in v.staffBars" :key="b.id || bI">
                   <div style="flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;z-index:2">
                     <template v-for="(m, mI) in b.tierMarkers" :key="'m-'+mI">
                       <div :style="'position:absolute;left:8%;right:8%;bottom:' + (m.bottom) + ';border-top:2px dashed #f59e0b;z-index:3;pointer-events:none'">
@@ -321,14 +322,15 @@
                     </template>
                     <span class="rpt-money" :style="'font-size:9.5px;font-weight:800;color:' + (b.vc)">{{ b.v }}</span>
                     <span v-if="b.reached" style="padding:2px 7px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:9px;font-weight:900">{{ b.reachedLabel }}</span>
-                    <img v-if="b.ph" :src="b.ph" :style="'width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ' + (b.c)" alt="">
+                    <img v-if="b.ph && !brokenAvatars[b.avatarKey]" :src="b.ph" @error="markAvatarBroken(b.avatarKey)" :style="'width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ' + (b.c)" alt="">
                     <span v-else :style="'width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#e2e8f0;color:#475569;font-size:10px;font-weight:900;border:2px solid ' + (b.c)">{{ b.initial }}</span>
                     <div :style="'width:30px;height:' + (b.h) + ';background:' + (b.c) + ';border-radius:7px 7px 0 0'"></div>
                     <span style="font-size:10.5px;color:#64748b;height:20px;text-align:center;white-space:nowrap">{{ b.n }}</span>
                   </div>
                 </template>
               </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border-radius:12px;padding:10px 16px;flex-wrap:wrap;gap:8px">
+              <div v-else-if="!v.staffIncomeCalculating" class="report-widget-empty">{{ v.staffIncomeReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
+              <div v-if="v.staffIncomeReady && v.staffBars.length" style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border-radius:12px;padding:10px 16px;flex-wrap:wrap;gap:8px">
                 <span style="font-size:12.5px;color:#475569;font-weight:600">جمع فروش: <b class="rpt-money" style="color:#0f172a;font-size:13.5px">{{ v.staffSum }}</b></span>
                 <span style="font-size:12px;color:#b45309;font-weight:700">{{ v.staffOverTxt }}</span>
               </div>
@@ -399,7 +401,7 @@
                   <div style="height:9px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-left:8px"><div :style="'height:100%;width:' + (r.w) + ';background:#2563eb;border-radius:999px'"></div></div>
                 </div>
               </template>
-              <div v-if="v.adChannelsReady && !v.adRows.length" class="report-widget-empty">در این بازه مراجعه انجام‌شده یا کمپین کانال‌دار ثبت نشده است.</div>
+              <div v-if="!v.adChannelsCalculating && !v.adRows.length" class="report-widget-empty">{{ v.adChannelsReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
               </div></div>
               <div v-if="v.adChannelsCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آمار کانال‌های تبلیغاتی</strong><small>هزینهٔ کمپین‌ها و درآمد هر کانال بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
@@ -418,9 +420,9 @@
               <div style="display:grid;grid-template-columns:130px 90px 80px 80px 90px 70px 70px 1fr;gap:10px;align-items:center;font-size:11.5px;color:#94a3b8;font-weight:700;padding:0 4px">
                 <span>پزشک</span><span>آورده</span><span>پورسانت</span><span>حقوق ثابت</span><span>جمع پرداختی</span><span>مشاوره</span><span>انجام کار</span><span>نرخ تبدیل</span>
               </div>
-              <template v-for="(r, rI) in v.docRows" :key="rI">
+              <template v-for="(r, rI) in v.docRows" :key="r.id || rI">
                 <div style="display:grid;grid-template-columns:130px 90px 80px 80px 90px 70px 70px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:10px 4px">
-                  <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img :src="r.ph" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e2e8f0" alt="">{{ r.n }}<span :style="'display:' + (r.bd) + ';background:#dcfce7;color:#15803d;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:800'">برترین</span></span>
+                  <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img v-if="r.ph && !brokenAvatars[r.avatarKey]" :src="r.ph" @error="markAvatarBroken(r.avatarKey)" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e2e8f0" alt=""><span v-else class="report-avatar-initial" style="width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#e2e8f0;color:#475569;font-size:12px;font-weight:900;flex-shrink:0;border:2px solid #e2e8f0">{{ r.initial }}</span>{{ r.n }}<span :style="'display:' + (r.bd) + ';background:#dcfce7;color:#15803d;border-radius:999px;padding:1px 8px;font-size:10px;font-weight:800'">برترین</span></span>
                   <span class="rpt-money" style="color:#0f172a;font-weight:700">{{ r.bring }}</span>
                   <span class="rpt-money" style="color:#334155">{{ r.pors }}</span>
                   <span class="rpt-money" style="color:#334155">{{ r.fix }}</span>
@@ -433,7 +435,7 @@
                   </div>
                 </div>
               </template>
-              <div v-if="v.doctorPerformanceReady && !v.docRows.length" class="report-widget-empty">پزشکی برای نمایش در این گزارش ثبت نشده است.</div>
+              <div v-if="!v.doctorPerformanceCalculating && !v.docRows.length" class="report-widget-empty">{{ v.doctorPerformanceReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
               </div></div>
               <div v-if="v.doctorPerformanceCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه عملکرد پزشکان</strong><small>آورده، پرداختی و نرخ تبدیل پزشکان بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
@@ -460,7 +462,7 @@
                   </div>
                 </template>
               </div>
-              <div v-if="!v.phRows.length" class="report-widget-empty">برای نمایش کیفیت عکس‌ها براساس ناحیه و برترین‌ها، گزارش را محاسبه کنید.</div>
+              <div v-if="!v.photoCalculating && !v.phRows.length" class="report-widget-empty">{{ v.photoReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
               <div v-if="v.photoCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آنالیز عکس‌ها</strong><small>عکس‌ها، نواحی و کیفیت تصاویر بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
@@ -473,7 +475,8 @@
                 <input type="checkbox" :checked="v.ck.city" @change="v.hide.city" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div v-if="v.cityCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آمار شهرها</strong><small>نوبت‌های انجام‌شده و پرداختی‌های این بازه بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
-              <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+              <div v-else-if="!v.cityReady || !v.cityRows.length" class="report-widget-empty">{{ v.cityReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
+              <div v-if="v.cityReady && v.cityRows.length" style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
                 <div style="position:relative;width:340px;max-width:100%;aspect-ratio:400/340;flex-shrink:0">
                   <svg viewBox="0 0 400 340" style="width:100%;height:100%;display:block">
                     <path d="M16,7 L100,36 C112,58 120,70 133,77 L160,75 L203,73 C214,62 220,52 228,48 L273,43 L314,55 L353,77 L351,129 L338,157 L365,204 L365,259 L396,293 L367,336 L340,334 L273,325 L254,297 L215,306 L176,286 L139,252 L113,222 L92,229 L76,204 L43,159 L29,138 L6,66 L8,14 Z" fill="#eff6ff" stroke="#bfdbfe" stroke-width="2.5" stroke-linejoin="round"></path>
@@ -513,10 +516,11 @@
                 <input type="checkbox" :checked="v.ck.age" @change="v.hide.age" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div v-if="v.ageCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه آمار سنی</strong><small>اطلاعات مراجعین و پرداختی‌های این بازه بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
-              <div style="display:grid;grid-template-columns:70px 1fr 55px 70px 90px;gap:10px;align-items:center;font-size:11px;color:#94a3b8;font-weight:700">
+              <div v-else-if="!v.ageReady || !v.ageRows.length" class="report-widget-empty">{{ v.ageReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
+              <div v-if="v.ageReady && v.ageRows.length" style="display:grid;grid-template-columns:70px 1fr 55px 70px 90px;gap:10px;align-items:center;font-size:11px;color:#94a3b8;font-weight:700">
                 <span>بازه سنی</span><span></span><span>تعداد</span><span>پرداختی</span><span>خدمت پرتکرار</span>
               </div>
-              <div class="report-card-scroll report-list-stack">
+              <div v-if="v.ageReady && v.ageRows.length" class="report-card-scroll report-list-stack">
                 <template v-for="(r, rI) in v.ageRows" :key="rI">
                   <div style="display:grid;grid-template-columns:70px 1fr 55px 70px 90px;gap:10px;align-items:center;font-size:12px">
                     <span style="font-weight:700;color:#0f172a">{{ r.rng }}</span>
@@ -535,7 +539,7 @@
                 <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">درآمد و سود بخش‌ها</span>
                 <input type="checkbox" :checked="v.ck.sect" @change="v.hide.sect" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
-              <div class="report-card-scroll report-list-stack">
+              <div v-if="v.sectRows.length" class="report-card-scroll report-list-stack">
                 <template v-for="(r, rI) in v.sectRows" :key="rI">
                   <div style="display:flex;flex-direction:column;gap:5px">
                     <div style="display:flex;align-items:center;justify-content:space-between;font-size:12.5px">
@@ -549,7 +553,8 @@
                   </div>
                 </template>
               </div>
-              <div style="display:flex;gap:16px;font-size:11px;color:#64748b">
+              <div v-else class="report-widget-empty">برای ایجاد گزارش، دکمه محاسبه «پردرآمدترین خدمات» را بزنید</div>
+              <div v-if="v.sectRows.length" style="display:flex;gap:16px;font-size:11px;color:#64748b">
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#16a34a;display:inline-block"></i>سود</span>
                 <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:3px;background:#93c5fd;display:inline-block"></i>سایر درآمد</span>
               </div>
@@ -566,7 +571,7 @@
                 <input type="checkbox" :checked="v.ck.topsvc" @change="v.hide.topsvc" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div v-if="v.topServicesError" class="report-widget-empty" style="color:#b91c1c;border-color:#fecaca;background:#fff7f7">{{ v.topServicesError }}</div>
-              <div v-else-if="v.topServicesReady && !v.svcRows.length" class="report-widget-empty">در این بازه خدمت انجام‌شده‌ای برای محاسبه وجود ندارد.</div>
+              <div v-else-if="!v.topServicesCalculating && !v.svcRows.length" class="report-widget-empty">{{ v.topServicesReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
               <div v-if="v.svcRows.length" class="report-card-scroll top-services-scroll">
                 <template v-for="r in v.svcRows" :key="r.key">
                   <div style="display:grid;grid-template-columns:26px 130px 1fr 90px 90px;gap:10px;align-items:center;font-size:12.5px">
@@ -650,7 +655,7 @@
                   </div>
                 </template>
               </div>
-              <div v-if="v.campaignPerformanceReady && !v.cpRows.length" class="report-widget-empty">در این بازه کمپینی با لید دارای شماره تماس ثبت نشده است.</div>
+              <div v-if="!v.campaignPerformanceCalculating && !v.cpRows.length" class="report-widget-empty">{{ v.campaignPerformanceReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
               <div v-if="v.campaignPerformanceCalculating" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه بازدهی کمپین‌ها</strong><small>سرنخ‌ها، تمایل و نوبت‌های هر کمپین بررسی می‌شود</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
@@ -696,7 +701,7 @@
                 </div>
                 <template v-for="r in v.aptRows" :key="r.id">
                   <div style="display:grid;grid-template-columns:150px 100px 90px 90px 110px 90px 1fr;gap:10px;align-items:center;font-size:12.5px;background:#f8fafc;border-radius:10px;padding:10px 4px">
-                    <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img :src="r.ph" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e2e8f0" alt="">{{ r.n }}</span>
+                    <span style="font-weight:700;color:#0f172a;padding-right:8px;display:flex;align-items:center;gap:7px"><img v-if="r.ph && !brokenAvatars[r.avatarKey]" :src="r.ph" @error="markAvatarBroken(r.avatarKey)" style="width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid #e2e8f0" alt=""><span v-else class="report-avatar-initial" style="width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#e2e8f0;color:#475569;font-size:12px;font-weight:900;flex-shrink:0;border:2px solid #e2e8f0">{{ r.initial }}</span>{{ r.n }}</span>
                     <span class="rpt-money" style="color:#0f172a;font-weight:700">{{ r.bring }}</span>
                     <span class="rpt-money" style="color:#334155">{{ r.pors }}</span>
                     <span class="rpt-money" style="color:#334155">{{ r.fix }}</span>
@@ -708,7 +713,7 @@
                     </div>
                   </div>
                 </template>
-                <div v-if="v.staffAppointmentsReady && !v.aptRows.length" class="report-widget-empty">در این بازه اطلاعاتی برای پرسنل وقت‌دهی ثبت نشده است.</div>
+                <div v-if="!v.staffAppointmentsCalculating && !v.aptRows.length" class="report-widget-empty">{{ v.staffAppointmentsReady ? 'اطلاعاتی در این بازه ثبت نشده است' : 'برای ایجاد گزارش، دکمه محاسبه را بزنید' }}</div>
                 <div v-if="v.staffAppointmentsError" class="report-widget-empty" style="color:#b91c1c;border-color:#fecaca;background:#fff7f7">{{ v.staffAppointmentsError }}</div>
               </div></div>
               <div v-if="v.staffAppointmentsCalculating" class="staff-income-loading" aria-live="polite">
@@ -991,9 +996,7 @@
         </div>
         <div style="background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;display:flex;flex-direction:column;gap:12px">
           <span style="font-weight:800;font-size:15px;color:#0f172a">خلاصه تحلیل دوره</span>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#334155;background:#f0fdf4;border-radius:12px;padding:12px 16px"><span style="color:#16a34a;font-weight:800">↑</span>درآمد تیرماه نسبت به خرداد ۱۴٪ رشد داشته است.</div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#334155;background:#fef2f2;border-radius:12px;padding:12px 16px"><span style="color:#dc2626;font-weight:800">!</span>نرخ کنسلی از میانگین ۳ ماه گذشته بالاتر است؛ پیگیری یادآوری نوبت‌ها توصیه می‌شود.</div>
-          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#334155;background:#eff6ff;border-radius:12px;padding:12px 16px"><span style="color:#2563eb;font-weight:800">★</span>کانال اینستاگرام بیشترین بازگشت هزینه تبلیغات را در این دوره داشته است.</div>
+          <div class="report-widget-empty">برای ایجاد گزارش، دکمه محاسبه را بزنید</div>
         </div>
       </section>
       </template>
@@ -1063,6 +1066,7 @@ export default {
       ,staffAppointmentsSnapshot: null, staffAppointmentsLoading: false
       ,satisfactionSnapshot: null, satisfactionLoading: false
       ,overviewLoadingSource: null
+      ,brokenAvatars: {}
     };
   },
   computed: {
@@ -1294,7 +1298,7 @@ export default {
     const ctT = ctReady ? displayedSegments.reduce((sum, row) => sum + Number(row.count || 0), 0) : null;
     const ctP = ctReady
       ? displayedSegments.map(row => ctT > 0 ? Number(row.count || 0) / ctT : 0)
-      : [0.52, 0.16, 0.22, 0.10];
+      : [0, 0, 0, 0];
     const [cs1, cs2, cs3, cs4] = segs(ctP);
     const ctCols = ['#94a3b8','#93c5fd','#f59e0b','#dc2626'];
     const ctNames = ['نقره‌ای','آبی','طلایی (CIP)','دردسرساز'];
@@ -1313,14 +1317,14 @@ export default {
     const roiReady = advertisingRoiSnapshot?.status === 'completed' && advertisingRoiSnapshot?.result;
     const roiData = roiReady ? advertisingRoiSnapshot.result : null;
     const jalaliMonthNames = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-    const roiTimeline = roiReady ? (roiData?.timeline || []) : latestMonthKeys.map(month => ({month,cost:null,revenue:null,placeholder:true}));
+    const roiTimeline = roiReady ? (roiData?.timeline || []) : [];
     const roiMax = Math.max(0, ...roiTimeline.flatMap(row => [Number(row.cost || 0), Number(row.revenue || 0)]));
-    const roiBars = roiTimeline.map((row,index) => ({
+    const roiBars = roiTimeline.map((row) => ({
       n: jalaliMonthNames[Math.max(0, Number(String(row.month || '').slice(5, 7)) - 1)] || row.month,
-      ch: (row.placeholder ? 28 + index * 4 : (roiMax > 0 ? Math.max(3, Math.round(Number(row.cost || 0) / roiMax * 100)) : 0)) + 'px',
-      rh: (row.placeholder ? 52 + index * 5 : (roiMax > 0 ? Math.max(3, Math.round(Number(row.revenue || 0) / roiMax * 100)) : 0)) + 'px',
-      cc: row.placeholder ? '#cbd5e1' : '#fca5a5',
-      rc: row.placeholder ? '#94a3b8' : '#22c55e'
+      ch: (roiMax > 0 ? Math.max(3, Math.round(Number(row.cost || 0) / roiMax * 100)) : 0) + 'px',
+      rh: (roiMax > 0 ? Math.max(3, Math.round(Number(row.revenue || 0) / roiMax * 100)) : 0) + 'px',
+      cc: '#fca5a5',
+      rc: '#22c55e'
     }));
     const roiMoney = value => {
       return toman(value || 0);
@@ -1384,31 +1388,34 @@ export default {
           label: formatTierLabel(tier),
         }))
       : [];
-    const staffBars = shown.map(s => {
-      const reached = staffIncomeReady && s.reached;
-      const height = staffIncomeReady ? Math.max(4, Math.round(Number(s.v || 0) / chartMaximum * 125)) : 54;
+    const staffBars = staffIncomeReady ? shown.map(s => {
+      const reached = !!s.reached;
+      const height = Math.max(4, Math.round(Number(s.v || 0) / chartMaximum * 125));
       const reachedLabel = reached
         ? (s.reachedTier ? ('رسیده به ' + (s.tiers.find(t => Number(t.sales_from) === Number(s.reachedTier.sales_from))?.title || 'تارگت')) : 'رسیده به تارگت')
         : '';
-      const tierMarkers = (staffIncomeReady && !singleStaffMode)
+      const tierMarkers = (!singleStaffMode)
         ? s.tiers.map(tier => ({
             bottom: tierBottom(tier.sales_from),
             label: formatTierLabel(tier, s.n),
           }))
         : [];
+      const avatarKey = 'staff-income-' + String(s.id);
       return {
+        id: s.id,
+        avatarKey,
         n: s.n.split(' ')[0],
-        initial: String(s.n || 'پ').trim().charAt(0),
-        ph: s.ph,
-        v: staffIncomeReady ? mm(Number(s.v || 0) / 1000000) : '--',
+        initial: String(s.n || '؟').trim().charAt(0) || '؟',
+        ph: s.ph || null,
+        v: mm(Number(s.v || 0) / 1000000),
         h: height + 'px',
-        c: staffIncomeReady ? (reached ? '#16a34a' : s.ac) : '#cbd5e1',
+        c: reached ? '#16a34a' : s.ac,
         vc: reached ? '#15803d' : '#334155',
         reached,
         reachedLabel,
         tierMarkers,
       };
-    });
+    }) : [];
     const overCnt = staffIncomeReady ? shown.filter(s => s.reached).length : null;
     let staffOverTxt = '-- نفر به تارگت رسیدند';
     if (staffIncomeReady) {
@@ -1438,12 +1445,7 @@ export default {
 
     // ad channels
     const adChannelsReady = this.advertisingChannelsSnapshot?.status === 'completed';
-    const ADS = adChannelsReady ? (this.advertisingChannelsSnapshot?.result?.channels || []) : [
-      {name:'اینستاگرام',completed:210,cost:45000000,revenue:168000000,ratio:3.7,sample:true},
-      {name:'معرفی دوستان',completed:90,cost:0,revenue:85000000,ratio:null,sample:true},
-      {name:'گوگل',completed:60,cost:18000000,revenue:52000000,ratio:2.9,sample:true},
-      {name:'یوتیوب',completed:25,cost:12000000,revenue:20000000,ratio:1.7,sample:true}
-    ];
+    const ADS = adChannelsReady ? (this.advertisingChannelsSnapshot?.result?.channels || []) : [];
     const adMaxCompleted = Math.max(1,...ADS.map(row => Number(row.completed || 0)));
     const adMoney = value => {
       const amount = Number(value || 0);
@@ -1455,41 +1457,34 @@ export default {
       : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232563eb"><circle cx="12" cy="12" r="9"/><path fill="white" d="M7 11h10v2H7z"/></svg>';
     const adRows = ADS.map(row => {
       const ratio = row.ratio == null ? null : Number(row.ratio);
-      return {n:row.name,lg:row.icon_url || channelIcon(row.name),cnt:row.sample?'--':fa(row.completed || 0),cost:row.sample?'--':(Number(row.cost || 0)>0?adMoney(row.cost):'—'),rev:row.sample?'--':adMoney(row.revenue || 0),
-        roi:row.sample?'--':(ratio == null?'—':ratio.toLocaleString('fa-IR',{maximumFractionDigits:2})+'x'),
+      return {n:row.name,lg:row.icon_url || channelIcon(row.name),cnt:fa(row.completed || 0),cost:(Number(row.cost || 0)>0?adMoney(row.cost):'—'),rev:adMoney(row.revenue || 0),
+        roi:(ratio == null?'—':ratio.toLocaleString('fa-IR',{maximumFractionDigits:2})+'x'),
         rc:ratio == null?'#64748b':(ratio>=1?'#15803d':'#b91c1c'),w:Math.round(Number(row.completed || 0)/adMaxCompleted*100)+'%'};
     });
 
-    // docs
+    // docs — avatar_url comes from Doctor profile (منابع) keyed by doctor_id
     const doctorPerformanceReady = this.doctorPerformanceSnapshot?.status === 'completed';
-    const DOCS = doctorPerformanceReady ? (this.doctorPerformanceSnapshot?.result?.doctors || []) : [
-      {doctor_id:'sample-1',name:'پزشک نمونه ۱',avatar_url:'https://i.pravatar.cc/72?img=12',conversion_rate:68,sample:true},
-      {doctor_id:'sample-2',name:'پزشک نمونه ۲',avatar_url:'https://i.pravatar.cc/72?img=13',conversion_rate:52,sample:true},
-      {doctor_id:'sample-3',name:'پزشک نمونه ۳',avatar_url:'https://i.pravatar.cc/72?img=59',conversion_rate:36,sample:true}
-    ];
-    const realConversions = DOCS.filter(d => !d.sample && d.conversion_rate != null).map(d => Number(d.conversion_rate));
+    const DOCS = doctorPerformanceReady ? (this.doctorPerformanceSnapshot?.result?.doctors || []) : [];
+    const realConversions = DOCS.filter(d => d.conversion_rate != null).map(d => Number(d.conversion_rate));
     const bestConv = realConversions.length ? Math.max(...realConversions) : null;
     const docRows = DOCS.map(d => {
       const conv = Math.max(0, Math.min(100, Number(d.conversion_rate || 0)));
-      const sample = !!d.sample;
-      return {id:d.doctor_id,n:d.name,ph:d.avatar_url || 'https://i.pravatar.cc/72?img=68',bring:sample?'--':reportMoney(Number(d.revenue || 0)/1000000),pors:sample?'--':reportMoney(Number(d.commission || 0)/1000000),fix:sample?'--':reportMoney(Number(d.salary || 0)/1000000),pay:sample?'--':reportMoney(Number(d.payment_total || 0)/1000000),
-        cons:sample?'--':fa(d.consultations || 0),done:sample?'--':fa(d.converted || 0),convP:sample?'--':(d.conversion_rate==null?'--٪':pc(conv)),convW:conv+'%',
-        cc:conv>=60?'#15803d':conv>=40?'#f59e0b':'#dc2626',bd:!sample && bestConv!==null && conv===bestConv?'inline-block':'none'};
+      const id = d.doctor_id;
+      const avatarKey = 'doctor-' + String(id);
+      return {id, avatarKey, n:d.name, initial:String(d.name || '؟').trim().charAt(0) || '؟', ph:d.avatar_url || null, bring:reportMoney(Number(d.revenue || 0)/1000000),pors:reportMoney(Number(d.commission || 0)/1000000),fix:reportMoney(Number(d.salary || 0)/1000000),pay:reportMoney(Number(d.payment_total || 0)/1000000),
+        cons:fa(d.consultations || 0),done:fa(d.converted || 0),convP:(d.conversion_rate==null?'--٪':pc(conv)),convW:conv+'%',
+        cc:conv>=60?'#15803d':conv>=40?'#f59e0b':'#dc2626',bd:bestConv!==null && conv===bestConv?'inline-block':'none'};
     });
 
     // photos
     const photoReady = this.photoSnapshot?.status === 'completed';
-    const PH = photoReady ? (this.photoSnapshot?.result?.photo_quality || []) : [
-      {tag:'ناحیه نمونه ۱',total:10,qualified:3,percent:30},
-      {tag:'ناحیه نمونه ۲',total:8,qualified:4,percent:50},
-      {tag:'ناحیه نمونه ۳',total:12,qualified:2,percent:16.7}
-    ];
+    const PH = photoReady ? (this.photoSnapshot?.result?.photo_quality || []) : [];
     const phRows = PH.map(row => {
       const ratio = Number(row.percent || 0) / 100;
       return {n:row.tag,txt:'از '+fa(row.total || 0)+' عکس، '+fa(row.qualified || 0)+' برترین —',p:pc(row.percent || 0),
         w:Math.max(0,Math.min(100,Number(row.percent || 0)))+'%',c:ratio>=0.3?'#16a34a':ratio>=0.15?'#f59e0b':'#dc2626'};
     });
-    const phTotal = photoReady ? 'مجموع: '+fa(PH.reduce((sum,row)=>sum+Number(row.total || 0),0))+' ثبت ناحیه عکس' : 'نمایش نمونه قبل از محاسبه';
+    const phTotal = photoReady ? 'مجموع: '+fa(PH.reduce((sum,row)=>sum+Number(row.total || 0),0))+' ثبت ناحیه عکس' : '';
 
     // cities
     const CT = [
@@ -1531,23 +1526,17 @@ export default {
     const cityData = cityReady ? (this.cityStatisticsSnapshot?.result?.rows || []) : [];
     const cityRows = cityReady
       ? cityData.map(c=>({n:c.city,cnt:fa(c.count),rev:mm(c.payment/1000000),w:c.percent+'%'}))
-      : CT.map(c=>({n:c.n,cnt:'—',rev:'—',w:Math.round(c.cnt/268*100)+'%'}));
+      : [];
     const cityMax = Math.max(1,...cityData.map(c=>c.count||0));
     const cityDots = cityReady
       ? CT.concat(CT0).filter(c=>cityData.some(x=>x.city===c.n)).map(c=>{const d=cityData.find(x=>x.city===c.n);return {n:c.n,x:c.x,y:c.y,r:Math.max(9,Math.round((d?.count||0)/cityMax*28))+'px',bg:'rgba(37,99,235,0.45)',bc:'#2563eb',tc:'#334155'}})
-      : CT.map(c=>({n:c.n,x:c.x,y:c.y,r:Math.max(9,Math.round(c.cnt/268*30))+'px',bg:'rgba(37,99,235,0.32)',bc:'#60a5fa',tc:'#64748b'})).concat(CT0.map(c=>({n:c.n,x:c.x,y:c.y,r:'8px',bg:'#ffffff',bc:'#cbd5e1',tc:'#b6c2d1'})));
+      : [];
 
     // ages
-    const AG = [
-      {rng:'زیر ۳۰', cnt:142, pay:310, svc:'ژل لب'},
-      {rng:'۳۰ تا ۴۰', cnt:198, pay:560, svc:'بوتاکس'},
-      {rng:'۴۰ تا ۵۰', cnt:118, pay:420, svc:'لیفت با نخ'},
-      {rng:'بالای ۵۰', cnt:54, pay:230, svc:'فیلر گونه'}
-    ];
     const ageReady = this.ageStatisticsSnapshot?.status === 'completed';
-    const ageData = ageReady ? (this.ageStatisticsSnapshot?.result?.rows || []) : AG.map(a => ({...a, cnt:'—', pay:'—', svc:'—'}));
-    const ageMax = ageReady ? Math.max(1, ...ageData.map(a => a.count || 0)) : 198;
-    const ageRows = ageData.map(a => ({rng: a.range || a.rng, cnt: ageReady ? fa(a.count || 0) : '—', pay: ageReady ? mm((a.payment || 0) / 1000000) : '—', svc: ageReady ? (a.top_service || '—') : '—', w: Math.round((a.count ?? ({'زیر ۳۰':142,'۳۰ تا ۴۰':198,'۴۰ تا ۵۰':118,'بالای ۵۰':54}[a.rng] || 0)) / ageMax * 100)+'%'}));
+    const ageData = ageReady ? (this.ageStatisticsSnapshot?.result?.rows || []) : [];
+    const ageMax = Math.max(1, ...ageData.map(a => a.count || 0));
+    const ageRows = ageData.map(a => ({rng: a.range || a.rng, cnt: fa(a.count || 0), pay: mm((a.payment || 0) / 1000000), svc: a.top_service || '—', w: Math.round((a.count || 0) / ageMax * 100)+'%'}));
 
     // sections: درآمد و سود واقعی هر بخش اصلی، از همان محاسبهٔ «پردرآمدترین خدمات»
     const sectionsReady = this.topServicesSnapshot?.status === 'completed' && Array.isArray(this.topServicesSnapshot?.result?.sections);
@@ -1561,20 +1550,13 @@ export default {
           return {n: section.name, rev: reportMoney(revenue / 1000000), prof: reportMoney(profit / 1000000), p: pc(Math.round(Math.max(0, revenue) / seSum * 100)),
             wp: Math.round(Math.max(0, profit) / seMax * 100) + '%', wr: Math.round(Math.max(0, revenue - Math.max(0, profit)) / seMax * 100) + '%'};
         })
-      : [{n: 'برای دیدن درآمد بخش‌ها، «پردرآمدترین خدمات» را محاسبه کنید', rev: '—', prof: '—', p: '', wp: '0%', wr: '0%'}];
+      : [];
 
     // top services
     const topServicesReady = this.topServicesSnapshot?.status === 'completed';
-    const topServicesPreview = [
-      {name:'لیفت با نخ',revenue:100,profit:68,sample:true},
-      {name:'تزریق ژل',revenue:82,profit:54,sample:true},
-      {name:'هایفوتراپی',revenue:68,profit:42,sample:true},
-      {name:'بوتاکس',revenue:51,profit:31,sample:true},
-      {name:'پاکسازی پوست',revenue:39,profit:23,sample:true}
-    ];
-    const SV = topServicesReady ? (this.topServicesSnapshot?.result?.rows || []) : topServicesPreview;
+    const SV = topServicesReady ? (this.topServicesSnapshot?.result?.rows || []) : [];
     const maxServiceValue = Math.max(1, ...SV.flatMap(s => [Number(s.revenue)||0, Math.max(0,Number(s.profit)||0)]));
-    const serviceRow = (s, i) => ({key:s.name, i:fa(i+1), n:s.name, rev:s.sample?'—':mm((Number(s.revenue)||0)/1000000), prof:s.sample?'—':mm((Number(s.profit)||0)/1000000),
+    const serviceRow = (s, i) => ({key:s.name, i:fa(i+1), n:s.name, rev:mm((Number(s.revenue)||0)/1000000), prof:mm((Number(s.profit)||0)/1000000),
       wr:Math.round((Number(s.revenue)||0)/maxServiceValue*100)+'%', wp:Math.round(Math.max(0,Number(s.profit)||0)/maxServiceValue*100)+'%'});
     const allServiceRows = SV.slice().sort((a,b)=>Number(b.revenue)-Number(a.revenue)).map(serviceRow);
     const svcRows = allServiceRows;
@@ -1596,60 +1578,49 @@ export default {
     // campaigns
     const CAMPS = dashboardReady ? (S.reportSummary?.campaigns || []).map(row => ({
       n:row.name,date:row.date || '',dateN:String(row.date || ''),cost:Number(row.cost || 0),quality:Number(row.quality || 0),qualityLabel:row.quality_label || 'ضعیف',leads:Number(row.leads || 0),d1:Number(row.interest_counts?.['1'] || 0),d2:Number(row.interest_counts?.['2'] || 0),d3:Number(row.interest_counts?.['3'] || 0)
-    })) : [
-      {n:'کمپین نمونه ۱',date:'۱۴۰۵/۰۶',dateN:'1405-06',cost:10000000,quality:78,qualityLabel:'عالی',leads:24,d1:3,d2:7,d3:9},
-      {n:'کمپین نمونه ۲',date:'۱۴۰۵/۰۵',dateN:'1405-05',cost:6500000,quality:54,qualityLabel:'خوب',leads:16,d1:5,d2:6,d3:3},
-      {n:'کمپین نمونه ۳',date:'۱۴۰۵/۰۴',dateN:'1405-04',cost:4000000,quality:31,qualityLabel:'متوسط',leads:11,d1:6,d2:3,d3:1}
-    ];
+    })) : [];
     const campaignPerformanceReady = this.campaignPerformanceSnapshot?.status === 'completed';
     const campaignPerformanceRows = campaignPerformanceReady
       ? (this.campaignPerformanceSnapshot?.result?.campaigns || [])
-      : [
-          {campaign_id:'sample-1',name:'کمپین نمونه ۱',leads:20,appointments:12,performance_rate:60,sample:true},
-          {campaign_id:'sample-2',name:'کمپین نمونه ۲',leads:18,appointments:7,performance_rate:38.9,sample:true},
-          {campaign_id:'sample-3',name:'کمپین نمونه ۳',leads:14,appointments:3,performance_rate:21.4,sample:true}
-        ];
+      : [];
     const cpRows = campaignPerformanceRows.map(row => {
       const rate = Math.max(0, Math.min(100, Number(row.performance_rate || 0)));
-      return {id:row.campaign_id,n:row.name,leads:row.sample?'--':fa(row.leads || 0),appointments:row.sample?'--':fa(row.appointments || 0),rate:row.sample?'--':pc(rate),w:rate+'%',c:rate>=50?'#15803d':rate>=25?'#d97706':'#dc2626',bar:rate>=50?'linear-gradient(90deg,#4ade80,#16a34a)':rate>=25?'linear-gradient(90deg,#fbbf24,#f59e0b)':'linear-gradient(90deg,#fca5a5,#ef4444)'};
+      return {id:row.campaign_id,n:row.name,leads:fa(row.leads || 0),appointments:fa(row.appointments || 0),rate:pc(rate),w:rate+'%',c:rate>=50?'#15803d':rate>=25?'#d97706':'#dc2626',bar:rate>=50?'linear-gradient(90deg,#4ade80,#16a34a)':rate>=25?'linear-gradient(90deg,#fbbf24,#f59e0b)':'linear-gradient(90deg,#fca5a5,#ef4444)'};
     });
     const interestMax = Math.max(1,...CAMPS.flatMap(c => [c.d1,c.d2,c.d3]));
     const cdRows = CAMPS.map(c => ({n: c.n, cost: dashboardReady ? cacMoney(c.cost) : '--',
       h1: Math.round(c.d1/interestMax*120)+'px', h2: Math.round(c.d2/interestMax*120)+'px', h3: Math.round(c.d3/interestMax*120)+'px'}));
 
-    // staff appointments attributed to consultants on each meaningful booking (same idea as doctor report)
+    // staff appointments — avatar_url from Staff profile (منابع) keyed by staff_id
     const staffAppointmentsReady = this.staffAppointmentsSnapshot?.status === 'completed';
-    const staffAppointmentPreview = STAFF.length ? STAFF.slice(0,3).map((staff,index) => ({
-      row_id:`preview-${staff.id}`,staff_id:staff.id,name:staff.n,avatar_url:staff.ph,
-      conversion_rate:[68,52,36][index] ?? 36,sample:true
-    })) : [
-      {row_id:'preview-1',name:'پرسنل نمونه ۱',conversion_rate:68,sample:true},
-      {row_id:'preview-2',name:'پرسنل نمونه ۲',conversion_rate:52,sample:true},
-      {row_id:'preview-3',name:'پرسنل نمونه ۳',conversion_rate:36,sample:true}
-    ];
-    const staffAppointmentRows = staffAppointmentsReady ? (this.staffAppointmentsSnapshot?.result?.staff || []) : staffAppointmentPreview;
+    const staffById = Object.fromEntries(STAFF.map(s => [String(s.id), s]));
+    const staffAppointmentRows = staffAppointmentsReady ? (this.staffAppointmentsSnapshot?.result?.staff || []) : [];
     const aptRows = staffAppointmentRows.map(row => {
       const rate = Math.max(0, Math.min(100, Number(row.conversion_rate || 0)));
       const color = rate >= 60 ? '#15803d' : rate >= 40 ? '#f59e0b' : '#dc2626';
-      const sample = !!row.sample;
-      return {id:row.row_id || row.staff_id,n:row.name,ph:row.avatar_url || 'https://i.pravatar.cc/72?img=68',
-        bring:sample?'—':reportMoney(Number(row.revenue || 0)/1000000),pors:sample?'—':reportMoney(Number(row.commission || 0)/1000000),
-        fix:sample?'—':reportMoney(Number(row.salary || 0)/1000000),pay:sample?'—':reportMoney(Number(row.payment_total || 0)/1000000),
-        cnt:sample?'—':fa(row.appointments || 0),rate:sample?'—':(row.conversion_rate==null?'--٪':pc(rate)),w:rate+'%',color:sample?'#cbd5e1':color,
-        rateTitle:sample?'پیش‌نمایش گزارش':`${fa(row.completed || 0)} نوبت انجام‌شده از ${fa(row.appointments || 0)} نوبت مشاور`};
+      const staffId = row.staff_id;
+      const roster = staffById[String(staffId)] || null;
+      // Prefer snapshot avatar for that staff_id; fall back to roster by the same id only.
+      const photo = row.avatar_url || roster?.ph || null;
+      const avatarKey = 'staff-apt-' + String(staffId ?? row.row_id);
+      return {id:row.row_id || staffId, staffId, avatarKey, n:row.name, initial:String(row.name || '؟').trim().charAt(0) || '؟', ph:photo,
+        bring:reportMoney(Number(row.revenue || 0)/1000000),pors:reportMoney(Number(row.commission || 0)/1000000),
+        fix:reportMoney(Number(row.salary || 0)/1000000),pay:reportMoney(Number(row.payment_total || 0)/1000000),
+        cnt:fa(row.appointments || 0),rate:(row.conversion_rate==null?'--٪':pc(rate)),w:rate+'%',color,
+        rateTitle:`${fa(row.completed || 0)} نوبت انجام‌شده از ${fa(row.appointments || 0)} نوبت مشاور`};
     });
 
     // capacity
     const normalizedCapacity = String(S.cap ?? '').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٬,\s]/g,'');
     const capN = Math.max(1, parseFloat(normalizedCapacity) || 2500);
-    const filled = dashboardReady ? Math.max(0, Number(actualRevenue || 0)) : 650;
-    const capF = Math.min(1, filled / capN);
+    const filled = dashboardReady ? Math.max(0, Number(actualRevenue || 0)) : 0;
+    const capF = dashboardReady ? Math.min(1, filled / capN) : 0;
 
     // gender
     const customerOverview = dashboardReady ? (S.reportSummary?.customer_overview || {}) : {};
     const genderData = customerOverview.gender || {};
-    const femaleCount = dashboardReady ? Number(genderData.female || 0) : 399;
-    const maleCount = dashboardReady ? Number(genderData.male || 0) : 113;
+    const femaleCount = dashboardReady ? Number(genderData.female || 0) : 0;
+    const maleCount = dashboardReady ? Number(genderData.male || 0) : 0;
     const gTot = femaleCount + maleCount;
     const fP = gTot ? femaleCount / gTot : 0;
     const mP = gTot ? maleCount / gTot : 0;
@@ -1659,21 +1630,20 @@ export default {
 
     // new/old
     const customerFrequency = customerOverview.customers || {};
-    const nNew = dashboardReady ? Number(customerFrequency.new || 0) : 176;
-    const nOld = dashboardReady ? Number(customerFrequency.old || 0) : 336;
+    const nNew = dashboardReady ? Number(customerFrequency.new || 0) : 0;
+    const nOld = dashboardReady ? Number(customerFrequency.old || 0) : 0;
     const nT = nNew + nOld;
     const [ns1, ns2] = segs(nT ? [nNew/nT, nOld/nT] : [0,0]);
 
     // status — color by stable status name/key (same source as booking table + Timeline), never by array index
-    const previewStatuses = [{name:'آمد',count:512},{name:'وقت داده شد',count:31},{name:'کنسل شد',count:62},{name:'انتقال روز',count:25},{name:'پاسخ نداد',count:20},{name:'پیگیری',count:12}];
-    const ST = (dashboardReady ? (customerOverview.statuses || []) : previewStatuses)
+    const ST = (dashboardReady ? (customerOverview.statuses || []) : [])
       .slice(0, 6)
       .map(row => ({
         n: row.name,
         v: Number(row.count || 0),
         c: appointmentStatusChartColor(row.name),
       }));
-    while (ST.length < 6) ST.push({ n: '—', v: 0, c: appointmentStatusChartColor('') });
+    while (dashboardReady && ST.length < 6) ST.push({ n: '—', v: 0, c: appointmentStatusChartColor('') });
     const stT = ST.reduce((a, s) => a + s.v, 0);
     const stSegs = segs(ST.map(s => (stT ? s.v / stT : 0))).map((seg, i) => ({ ...seg, c: ST[i].c }));
     const stLegend = ST.filter(s => s.v > 0).map(s => ({
@@ -1752,7 +1722,7 @@ export default {
       l3st: chip(S.loyalRange === 3), l6st: chip(S.loyalRange === 6),
       onL3: () => this.set({loyalRange: 3}), onL6: () => this.set({loyalRange: 6}),
       loyTot: loyaltyReady ? fa(L.tot) : '--', loyRet: loyaltyReady ? fa(L.ret) : '--', loyLost: loyaltyReady ? fa(L.lost) : '--',
-      loyP: loyaltyReady ? pc(Number(loyaltyPeriod?.return_rate || 0)) : '--٪', loyRetW: loyaltyReady ? Math.round(loyP*100)+'%' : '42%',
+      loyP: loyaltyReady ? pc(Number(loyaltyPeriod?.return_rate || 0)) : '--٪', loyRetW: loyaltyReady ? Math.round(loyP*100)+'%' : '0%',
       loyaltyReady: !!loyaltyReady,
       loyaltyCalculating: ['queued','processing'].includes(loyaltySnapshot?.status),
       loyaltyProgress: Number(loyaltySnapshot?.progress || 0),
@@ -1957,9 +1927,11 @@ export default {
       this.advertisingChannelsSnapshot = null;
       this.doctorPerformanceSnapshot = null;
       this.ageStatisticsSnapshot = null;
+      this.cityStatisticsSnapshot = null;
       this.topServicesSnapshot = null;
       this.staffAppointmentsSnapshot = null;
       this.satisfactionSnapshot = null;
+      this.brokenAvatars = {};
       this.set({from:`${year}/${String(month).padStart(2,'0')}/01`,to:`${year}/${String(month).padStart(2,'0')}/${lastDay}`,cancellationReport:null,cancellationLoading:false,expenseReport:null,expenseLoading:false,expenseError:'',reportSummary:null,reportLoading:false,reportError:''});
       await this.loadDashboardSnapshot();
       if (!['completed','queued','processing'].includes(this.dashboardSnapshot?.status)) await this.calculateDashboardSummary();
@@ -2016,9 +1988,11 @@ export default {
       this.advertisingChannelsSnapshot = null;
       this.doctorPerformanceSnapshot = null;
       this.ageStatisticsSnapshot = null;
+      this.cityStatisticsSnapshot = null;
       this.topServicesSnapshot = null;
       this.staffAppointmentsSnapshot = null;
       this.satisfactionSnapshot = null;
+      this.brokenAvatars = {};
       this.set({reportSummary:null, reportLoading:false, reportError:''});
       this.loadDashboardSnapshot();
       this.loadCustomerSegmentSnapshot();
@@ -2069,9 +2043,11 @@ export default {
       this.advertisingChannelsSnapshot = null;
       this.doctorPerformanceSnapshot = null;
       this.ageStatisticsSnapshot = null;
+      this.cityStatisticsSnapshot = null;
       this.topServicesSnapshot = null;
       this.staffAppointmentsSnapshot = null;
       this.satisfactionSnapshot = null;
+      this.brokenAvatars = {};
       this.set({[key]: value, cancellationReport: null, cancellationLoading: false, expenseReport: null, expenseLoading: false, expenseError: '', reportSummary: null, reportLoading: false, reportError: ''});
       clearTimeout(this._cancellationTimer);
       this._cancellationTimer = setTimeout(() => {
@@ -2096,6 +2072,21 @@ export default {
       if (!value) return '';
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('fa-IR', {dateStyle:'short', timeStyle:'short'});
+    },
+    markAvatarBroken(key) {
+      if (!key || this.brokenAvatars[key]) return;
+      this.brokenAvatars = {...this.brokenAvatars, [key]: true};
+    },
+    resetBrokenAvatars(prefix) {
+      if (!prefix) {
+        this.brokenAvatars = {};
+        return;
+      }
+      const next = {...this.brokenAvatars};
+      Object.keys(next).forEach(key => {
+        if (String(key).startsWith(prefix)) delete next[key];
+      });
+      this.brokenAvatars = next;
     },
     async loadPhotoAnalysisSnapshot() {
       const requestId = (this._photoRequestId || 0) + 1;
@@ -2295,6 +2286,8 @@ export default {
       if (['queued','processing'].includes(this.staffIncomeSnapshot?.status)) return;
       this._staffIncomeRequestId = (this._staffIncomeRequestId || 0) + 1;
       // محاسبه روی سرور داخل همین درخواست انجام می‌شود؛ وضعیت همان لحظه «در حال محاسبه» می‌شود تا لودینگ دیده شود.
+      this.resetBrokenAvatars('staff-income-');
+      await this.loadStaffRoster();
       this.staffIncomeSnapshot = {...(this.staffIncomeSnapshot || {}), status:'processing', progress:0, stage:'در حال محاسبه…'};
       clearTimeout(this.staffIncomePollingTimer);
       this.staffIncomeLoading = true;
@@ -2571,6 +2564,7 @@ export default {
       if (this.doctorPerformanceLoading) return;
       const requestId = (this._doctorPerformanceRequestId || 0) + 1;
       this._doctorPerformanceRequestId = requestId;
+      this.resetBrokenAvatars('doctor-');
       this.doctorPerformanceLoading = true;
       try {
         const {data} = await axios.post('/api/reports/widgets/doctor-performance/calculate', {from:this.s.from,to:this.s.to});
@@ -2606,7 +2600,7 @@ export default {
       finally{if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsLoading=false}
     },
     async calculateStaffAppointments(){
-      if(this.staffAppointmentsLoading)return;const requestId=(this._staffAppointmentsRequestId||0)+1;this._staffAppointmentsRequestId=requestId;this.staffAppointmentsLoading=true;
+      if(this.staffAppointmentsLoading)return;const requestId=(this._staffAppointmentsRequestId||0)+1;this._staffAppointmentsRequestId=requestId;this.resetBrokenAvatars('staff-apt-');await this.loadStaffRoster();this.staffAppointmentsLoading=true;
       try{const {data}=await axios.post('/api/reports/widgets/staff-appointments/calculate',{from:this.s.from,to:this.s.to});if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsSnapshot=data.snapshot||null}
       catch(error){if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsSnapshot={status:'failed',error:error.response?.data?.message||'محاسبه گزارش وقت‌دهی پرسنل انجام نشد.'}}
       finally{if(requestId===this._staffAppointmentsRequestId)this.staffAppointmentsLoading=false}
@@ -2736,6 +2730,7 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .report-refresh-button{width:34px;height:34px;min-width:34px;padding:0;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 7px rgba(37,99,235,.13);transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}.report-refresh-button:hover:not(:disabled){background:#dbeafe;border-color:#60a5fa;box-shadow:0 4px 10px rgba(37,99,235,.18);transform:translateY(-1px)}.report-refresh-button:disabled{cursor:wait;opacity:.65}.report-refresh-button--labeled{width:auto;min-width:34px;padding:0 10px;font-size:10.5px;font-weight:900;white-space:nowrap}.report-calculated-at{color:#64748b;font-size:10px;white-space:nowrap}
 .satisfaction-report-content{display:grid;gap:12px}.satisfaction-report-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.satisfaction-report-summary div{display:grid;gap:2px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.satisfaction-report-summary strong{color:#15803d;font-size:17px}.satisfaction-report-summary span{color:#94a3b8;font-size:9.5px}.satisfaction-report-questions{display:flex;flex-direction:column;gap:7px;max-height:280px;overflow-y:auto;overscroll-behavior:auto;scrollbar-gutter:stable;padding-left:3px}.satisfaction-report-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;min-width:0;padding:10px 12px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;color:#334155;font-size:11.5px}.satisfaction-report-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#0f172a;line-height:1.7}.satisfaction-report-row b{flex:0 0 auto;color:#15803d;font-size:12px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}.satisfaction-report-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:12px;color:#94a3b8;font-size:11px;text-align:center}
 .report-widget-empty{min-height:82px;display:grid;place-items:center;padding:14px;border:1px dashed #bfdbfe;border-radius:12px;background:#f8fbff;color:#64748b;font-size:11px;font-weight:800;text-align:center;line-height:1.8}
+.report-avatar-initial{background:#e2e8f0;color:#475569}
 .report-open-module-button{appearance:none;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#334155;padding:0 10px;height:34px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.report-open-module-button:hover{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}.expense-invoice{min-width:0;border-radius:10px;background:#f8fafc;overflow:hidden}.expense-invoice__primary{width:100%;appearance:none;border:0;background:transparent;padding:9px 12px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,auto) minmax(64px,88px) 14px;align-items:center;gap:8px;cursor:pointer;text-align:right;font:inherit;color:inherit}.expense-invoice__name{min-width:0;font-size:12.5px;font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expense-invoice__no{min-width:0;font-size:10.5px;font-weight:700;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.expense-invoice__chevron{color:#94a3b8;font-size:11px;line-height:1}.expense-invoice__details{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:0 12px 10px;border-top:1px solid #e2e8f0}.expense-invoice__details>span{min-width:0;display:grid;gap:1px;font-size:11px;font-weight:700;color:#0f172a;overflow-wrap:anywhere}.expense-invoice__details em{font-style:normal;font-size:9.5px;font-weight:600;color:#94a3b8}.expense-money{min-width:0;max-width:145px;text-align:left;font-weight:800;color:#0f172a;white-space:normal;overflow-wrap:anywhere;line-height:1.5}.expense-summary-list{display:flex;flex-direction:column;gap:7px;min-width:0}.expense-summary-row{min-width:0;min-height:42px;border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.expense-summary-value{min-width:0;max-width:100%;font-size:clamp(11px,1.05vw,15px);font-weight:800;line-height:1.4;white-space:nowrap;text-align:left;direction:rtl;font-variant-numeric:tabular-nums}
 .cac-campaign-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:11px;color:#334155}.cac-campaign-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.cac-campaign-row>small{color:#64748b;white-space:nowrap}.cac-campaign-row>b{color:#1d4ed8;white-space:nowrap;font-size:11px}
 .cac-campaign-scroll{display:flex;flex-direction:column;gap:7px}
@@ -2968,11 +2963,13 @@ html body.dark .nsr .cac-campaign-row,
 html body.dark .nsr .satisfaction-report-summary div,
 html body.dark .nsr .satisfaction-report-row,
 html body.dark .nsr .report-widget-empty,
+html body.dark .nsr .report-avatar-initial,
 html #app.dark .nsr .expense-invoice,
 html #app.dark .nsr .cac-campaign-row,
 html #app.dark .nsr .satisfaction-report-summary div,
 html #app.dark .nsr .satisfaction-report-row,
-html #app.dark .nsr .report-widget-empty {
+html #app.dark .nsr .report-widget-empty,
+html #app.dark .nsr .report-avatar-initial {
   background: #22252d !important;
   border-color: #2c3038 !important;
   color: #e8eaed !important;
