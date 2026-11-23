@@ -604,6 +604,7 @@
                 <span class="day-label">
                   {{ day.dateLabel }}
                   <small v-if="isToday(day)" class="today-badge">امروز</small>
+                  <small v-if="isBookingDayCapacityFull(day)" class="day-capacity-full">تکمیل ظرفیت</small>
                   <small v-if="appointmentSearchResultCountForDay(day)" class="day-search-result-badge">
                     {{ appointmentSearchResultCountForDay(day).toLocaleString('fa-IR') }} نتیجه
                   </small>
@@ -1556,6 +1557,7 @@
           <strong>{{ timelineDayName(day) }}</strong>
           <span>{{ timelineDayDate(day) }}</span>
           <small v-if="isToday(day)">امروز</small>
+          <small v-if="isBookingDayCapacityFull(day)" class="day-capacity-full">تکمیل ظرفیت</small>
           <div class="timeline-day-actions">
             <button type="button" class="timeline-add-next-day-btn" title="افزودن روز بعد" aria-label="افزودن روز بعد" @click.stop="addNextDayAfter(day)">+</button>
             <button type="button" title="افزودن نوبت" @click.stop="openNewTimelineAppointment(day)">نوبت</button>
@@ -2782,6 +2784,7 @@ import "vue-multiselect/dist/vue-multiselect.css";
 import PatientAvatar from './PatientAvatar.vue';
 import BufferedInput from './BufferedInput.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
+import { isBookingDayCapacityFull as bookingDayCapacityFull } from '../utils/bookingDayCapacity';
 
 const directAppointmentSaves = new WeakMap();
 
@@ -10945,6 +10948,52 @@ this.calculateFinalAmount(row)
       });
     },
 
+    bookingFilledRowMatchesFilters(row) {
+      if (this.isEmptyAppointmentRow(row)) return false;
+      const services = row.services || [];
+      if (this.bookingRootSectionFilter) {
+        const rootOk = services.some(service => {
+          const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
+          return String(this.rootSectionIdFor(sectionId) || sectionId || '') === String(this.bookingRootSectionFilter);
+        });
+        if (!rootOk) return false;
+      }
+      if (this.bookingServiceFilter) {
+        const bookingBranchIds = new Set(this.serviceBranchIds(this.bookingServiceFilter).map(String));
+        const serviceOk = services.some(service => {
+          const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
+          return bookingBranchIds.has(String(sectionId || ''));
+        });
+        if (!serviceOk) return false;
+      }
+      if (this.bookingResourceFilter && !this.bookingRowMatchesSelectedResource(row)) return false;
+      return true;
+    },
+
+    isBookingDayCapacityFull(day) {
+      if (!this.bookingTimelineFilterActive || !day) return false;
+
+      let emptyBookableCount = 0;
+      let matchingFilledCount = 0;
+
+      for (const row of day.rows || []) {
+        if (this.isEmptyAppointmentRow(row)) {
+          if (!this.bookingScheduleAllowsRow(day, row)) continue;
+          if (this.manualDurationSlotIsOccupied(day, row)) continue;
+          if (this.bookingSlotIsOccupied(day, row)) continue;
+          emptyBookableCount += 1;
+          continue;
+        }
+        if (this.bookingFilledRowMatchesFilters(row)) matchingFilledCount += 1;
+      }
+
+      return bookingDayCapacityFull({
+        filterActive: true,
+        emptyBookableCount,
+        matchingFilledCount,
+      });
+    },
+
     manualDurationSlotIsOccupied(day, row) {
       if (!this.isEmptyAppointmentRow(row)) return false;
       const candidateTime = String(row.time || '').slice(0, 5);
@@ -14297,6 +14346,10 @@ td.st-transferred {
   color: #fff !important;
 }
 .day-separator-row.today-day td{background:linear-gradient(135deg,#2563eb,#0284c7)!important}.day-separator-row.today-day .day-row-content{color:#fff!important}.today-badge{display:inline-flex;align-items:center;margin-right:8px;padding:2px 7px;border:1px solid rgba(255,255,255,.65);border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-family:inherit;font-size:9px;font-weight:900;vertical-align:middle}
+.day-capacity-full{display:inline;margin-right:8px;padding:0;border:0;border-radius:0;background:transparent;color:#dc2626;font-family:inherit;font-size:11px;font-weight:1000;letter-spacing:.01em;vertical-align:middle;white-space:nowrap}
+.day-separator-row.today-day .day-capacity-full,.day-separator-row.holiday-day .day-capacity-full{color:#fecaca;text-shadow:0 1px 0 rgba(127,29,29,.35)}
+.timeline-day-label .day-capacity-full{display:block;margin:4px 0 0;font-size:11px;line-height:1.3}
+.timeline-day-row.today-day .timeline-day-label .day-capacity-full,.timeline-day-row.holiday-day .timeline-day-label .day-capacity-full{color:#fecaca}
 
 .day-summary-left {
   display: flex;
@@ -16072,6 +16125,8 @@ html body.dark .timeline-day-label strong,
 html #app.dark .timeline-day-label strong { color: #f1f3f4 !important; }
 html body.dark .timeline-day-label span,
 html #app.dark .timeline-day-label span { color: #9aa0a6 !important; }
+html body.dark .day-capacity-full,
+html #app.dark .day-capacity-full { color: #f87171 !important; }
 html body.dark .timeline-day-label small,
 html #app.dark .timeline-day-label small {
   background: #1e3a5f !important;
