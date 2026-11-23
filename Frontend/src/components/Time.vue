@@ -813,13 +813,13 @@
                   @change="onAppointmentStatusSelected(row, $event)"
                 >
                   <option value=""></option>
-                  <option value="در انتظار وقت">در انتظار وقت</option>
                   <option value="وقت داده شد">وقت داده شد</option>
                   <option value="آمد">آمد</option>
                   <option value="کنسل شد">کنسل شد</option>
                   <option value="پاسخ نداد">پاسخ نداد</option>
                   <option value="پیگیری">پیگیری</option>
                   <option value="انتقال داده شده">انتقال وقت</option>
+                  <option value="در انتظار وقت">در انتظار وقت</option>
                 </select>
               </td>
 
