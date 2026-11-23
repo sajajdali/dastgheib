@@ -161,33 +161,24 @@
             </span>
           </section>
 
-          <section class="beauty-flow-side-block">
-            <label>عکس برنامه زیبایی</label>
-            <button
-              v-if="profilePhoto"
-              type="button"
-              :class="['beauty-flow-profile-pick', { 'beauty-flow-profile-pick-active': isProfileSelected }]"
-              :aria-pressed="isProfileSelected"
-              @click="selectProfilePhoto"
-            >
-              <LoadingImage :src="profilePhoto.thumbnail_url || profilePhoto.url" alt="عکس پروفایل بیمار" fit="cover" />
-              <span>
-                <strong>عکس پروفایل</strong>
-                <small>{{ isProfileSelected ? 'انتخاب شده برای نقطه‌گذاری' : 'برای نقطه‌گذاری انتخاب کنید' }}</small>
-              </span>
-            </button>
-            <div v-else class="beauty-flow-profile-missing">
+          <section v-if="!profilePhoto" class="beauty-flow-side-block">
+            <div class="beauty-flow-profile-missing">
               <strong>عکس پروفایل ثبت نشده است.</strong>
               <span>برای نقطه‌گذاری در زیبایار، ابتدا عکس پروفایل بیمار را آپلود کنید.</span>
               <button type="button" class="beauty-flow-upload-profile-btn" :disabled="recordLoading" @click="openProfileUpload">آپلود عکس پروفایل</button>
             </div>
-            <small class="beauty-flow-default-photo-note">
-              نقاط زیبایار فقط روی عکس پروفایل بیمار ثبت می‌شوند.
-            </small>
           </section>
 
           <section v-if="legacyPhotos.length" class="beauty-flow-side-block beauty-flow-legacy-block">
             <label>نقاط ثبت‌شده روی عکس‌های قبلی</label>
+            <button
+              v-if="!isProfileSelected && profilePhoto"
+              type="button"
+              class="beauty-flow-legacy-pick beauty-flow-return-profile"
+              @click="selectProfilePhoto"
+            >
+              بازگشت به عکس پروفایل
+            </button>
             <button
               v-for="photo in legacyPhotos"
               :key="photo.id"
@@ -198,7 +189,7 @@
               {{ photoLabel(photo) }}
             </button>
             <small class="beauty-flow-default-photo-note">
-              این عکس‌ها فقط برای مشاهده و پیگیری نقاط قبلی نمایش داده می‌شوند.
+              این عکس‌ها فقط برای مشاهده و پیگیری نقاط قبلی نمایش داده می‌شوند. نقطه‌گذاری فقط روی عکس پروفایل است.
             </small>
           </section>
 
@@ -308,7 +299,15 @@
                 <span>{{ doneCount }} انجام شده</span>
               </div>
               <button
-                v-if="annotations.some(item => item.status !== 'done')"
+                v-if="!isProfileSelected && profilePhoto"
+                type="button"
+                class="beauty-flow-mark-all"
+                @click="selectProfilePhoto"
+              >
+                بازگشت به عکس پروفایل
+              </button>
+              <button
+                v-if="isProfileSelected && annotations.some(item => item.status !== 'done')"
                 type="button"
                 class="beauty-flow-mark-all"
                 :disabled="savingPoint"
@@ -1059,7 +1058,7 @@ export default {
       if (!this.selectedPhoto) return
       if (!this.isProfileSelected) {
         this.searchError = this.profilePhoto
-          ? 'نقطه جدید فقط روی عکس پروفایل ثبت می‌شود. عکس پروفایل را انتخاب کنید.'
+          ? 'نقطه جدید فقط روی عکس پروفایل ثبت می‌شود. از «بازگشت به عکس پروفایل» استفاده کنید.'
           : 'برای ثبت نقطه جدید، ابتدا عکس پروفایل بیمار را آپلود کنید.'
         return
       }
