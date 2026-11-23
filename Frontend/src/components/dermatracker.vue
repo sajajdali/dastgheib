@@ -3,31 +3,44 @@
     <section v-if="!activePatient" class="beauty-flow-card">
       <div class="beauty-flow-main-toolbar">
         <button type="button" class="beauty-flow-settings-btn" title="تنظیم مشکلات چهره" aria-label="تنظیم مشکلات چهره" @click="openProblemsSettings">⚙</button>
-        <button
-          type="button"
-          class="beauty-flow-create-btn"
-          title="ایجاد برنامه زیبایی"
-          aria-label="ایجاد برنامه زیبایی"
-          @click="showCreatePanel = !showCreatePanel"
-        >+</button>
         <div class="beauty-flow-search-grid beauty-flow-search-grid-compact">
-          <input v-model.trim="search.file_number" type="text" placeholder="شماره پرونده" @keydown.enter.prevent="searchPatients">
-          <input v-model.trim="search.phone" type="text" placeholder="شماره تماس" @keydown.enter.prevent="searchPatients">
+          <input
+            v-model.trim="search.file_number"
+            type="text"
+            placeholder="شماره پرونده"
+            @keydown.enter.prevent="searchPatients"
+          >
+          <input
+            v-model.trim="search.phone"
+            type="text"
+            placeholder="شماره تماس"
+            @keydown.enter.prevent="searchPatients"
+          >
           <button type="button" :disabled="searching" @click="searchPatients">
             {{ searching ? 'در حال جستجو...' : 'جستجو' }}
           </button>
         </div>
       </div>
 
-      <div v-if="showCreatePanel || searched || searching || searchError" class="beauty-flow-create-panel">
+      <div v-if="searched || searching || searchError" class="beauty-flow-create-panel" aria-live="polite">
         <div v-if="patients.length" class="beauty-flow-create-results">
-          <button v-for="patient in patients" :key="patient.id" type="button" class="beauty-flow-search-result" @click="openRecord(patient)">
+          <button
+            v-for="patient in patients"
+            :key="patient.id"
+            type="button"
+            class="beauty-flow-search-result"
+            @click="openRecord(patient)"
+          >
             <span :class="['beauty-flow-avatar', `beauty-flow-avatar-${patient.customer_level || 'silver'}`]">
               <img v-if="patient.avatar_url" :src="patient.avatar_url" alt="">
               <b v-else>{{ patientInitial(patient) }}</b>
             </span>
-            <span class="beauty-flow-search-result-info"><strong>{{ patientName(patient) }}</strong><small>پرونده {{ patient.file_number || '-' }} · {{ displayPatientPhone(patient.phone) || '-' }}</small><span v-if="patient.search_media_loading" class="beauty-flow-search-media-loading">در حال دریافت عکس‌ها...</span><span v-else-if="patient.search_media?.length" class="beauty-flow-search-media"><LoadingImage v-for="media in patient.search_media" :key="media.id" :src="media.url" :alt="media.original_name || 'عکس مراجعه‌کننده'" fit="cover" lazy /><small>{{ patient.search_media.length.toLocaleString('fa-IR') }} عکس آپلودشده</small></span><small v-else-if="patient.search_media_loaded">عکس آپلودشده‌ای ثبت نشده است</small></span>
-            <b>ساخت برنامه</b>
+            <span class="beauty-flow-search-result-info">
+              <strong>{{ patientName(patient) }}</strong>
+              <small>شماره پرونده {{ patient.file_number || '-' }}</small>
+              <small>شماره تماس {{ displayPatientPhone(patient.phone) || '-' }}</small>
+            </span>
+            <b>{{ searchResultActionLabel(patient) }}</b>
           </button>
         </div>
         <p v-if="searched && !patients.length" class="beauty-flow-muted">پرونده‌ای با این مشخصات پیدا نشد.</p>
@@ -674,7 +687,6 @@ export default {
     searching: false,
     searched: false,
     searchError: '',
-    showCreatePanel: false,
     patients: [],
     activePatient: null,
     recordLoading: false,
@@ -1106,10 +1118,15 @@ export default {
       this.loadWorklist()
       this.loadOverdue()
     },
+    searchResultActionLabel(patient) {
+      return patient?.has_beauty_plan ? 'باز کردن پرونده زیبایار' : 'ایجاد برنامه زیبایی'
+    },
     async searchPatients() {
       if (this.searching) return
       if (!this.search.file_number && !this.search.phone && !this.search.q) {
-        this.searchError = 'شماره پرونده، شماره تماس یا نام بیمار را وارد کنید.'
+        this.searchError = 'شماره پرونده یا شماره تماس را وارد کنید.'
+        this.searched = false
+        this.patients = []
         return
       }
 
@@ -1120,26 +1137,20 @@ export default {
 
       try {
         const params = new URLSearchParams()
+        params.append('with_beauty', '1')
         if (this.search.file_number) params.append('file_number', this.search.file_number)
         if (this.search.phone) params.append('phone', this.search.phone)
         if (this.search.q) params.append('q', this.search.q)
         const res = await fetch(`${API}/patients/search?${params}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.message || 'جستجو انجام نشد.')
-        this.patients = Array.isArray(data) ? data.map(patient => ({ ...patient, search_media: [], search_media_loading: true, search_media_loaded: false })) : []
+        this.patients = Array.isArray(data)
+          ? data.map(patient => ({
+              ...patient,
+              has_beauty_plan: Boolean(patient.has_beauty_plan),
+            }))
+          : []
         this.searched = true
-        await Promise.all(this.patients.map(async patient => {
-          try {
-            const mediaRes = await fetch(`${API}/patients/${patient.id}/media?all=1`)
-            const mediaData = await mediaRes.json()
-            patient.search_media = (Array.isArray(mediaData.media) ? mediaData.media : []).filter(item => item.media_type === 'image' || String(item.mime_type || '').startsWith('image/')).slice(0, 6)
-          } catch (_) {
-            patient.search_media = []
-          } finally {
-            patient.search_media_loading = false
-            patient.search_media_loaded = true
-          }
-        }))
       } catch (error) {
         this.searchError = error.message || 'جستجو انجام نشد.'
       } finally {
@@ -1148,7 +1159,6 @@ export default {
     },
     async openRecord(patient, mediaId = '', focusAnnotationId = null) {
       this.activePatient = patient
-      this.showCreatePanel = false
       this.selectedPhotoId = mediaId || ''
       this.focusAnnotationId = focusAnnotationId || null
       this.draftPoint = null
@@ -1500,17 +1510,6 @@ export default {
   box-shadow: 0 8px 24px rgba(15, 23, 42, .04);
 }
 
-.beauty-flow-create-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 40px;
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
-  font-size: 22px !important;
-  line-height: 1;
-}
 .beauty-flow-main-toolbar {
   display: flex;
   align-items: center;
@@ -1519,8 +1518,8 @@ export default {
 }
 
 .beauty-flow-create-panel {
-  margin-top: 18px;
-  padding: 20px;
+  margin-bottom: 16px;
+  padding: 16px;
   border: 1px solid #dbeafe;
   border-radius: 18px;
   background: #fff;
@@ -1531,7 +1530,7 @@ export default {
   flex: 1;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 90px;
 }
-.beauty-flow-create-results { display: grid; gap: 8px; margin-top: 14px; }
+.beauty-flow-create-results { display: grid; gap: 8px; }
 .beauty-flow-create-results > button {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
@@ -1545,16 +1544,25 @@ export default {
   border: 1px solid #e2e8f0;
 }
 .beauty-flow-create-results > button:hover { background: #eff6ff; border-color: #93c5fd; }
-.beauty-flow-search-result { align-items: flex-start; }
+.beauty-flow-search-result { align-items: center; }
 .beauty-flow-search-result-info { min-width: 0; align-items: flex-start !important; }
-.beauty-flow-search-media { display: flex !important; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
-.beauty-flow-search-media img,
-.beauty-flow-search-media :deep(.loading-image) { width: 32px; height: 32px; object-fit: cover; border-radius: 7px; border: 1px solid #dbeafe; }
-.beauty-flow-search-media :deep(.loading-image) { object-fit: unset; overflow: hidden; }
-.beauty-flow-search-media :deep(.loading-image__spinner) { width: 14px; height: 14px; border-width: 2px; }
-.beauty-flow-search-media small, .beauty-flow-search-media-loading { color: #64748b; font-size: 10px; }
 .beauty-flow-create-results > button > span:nth-child(2) { display: flex; flex-direction: column; gap: 3px; }
 .beauty-flow-create-results small { color: #64748b; font-weight: 500; }
+.beauty-flow-create-results > button > b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 170px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.4;
+  text-align: center;
+  white-space: normal;
+}
 .beauty-flow-card-header,
 .beauty-flow-record-header,
 .beauty-flow-photo-header {
@@ -1642,6 +1650,11 @@ export default {
 .beauty-flow .beauty-flow-create-results > button:hover {
   background: #eff6ff;
   border-color: #93c5fd;
+}
+
+.beauty-flow .beauty-flow-create-results > button > b {
+  background: #0f766e;
+  color: #fff;
 }
 
 .beauty-flow-create-results > button > span:nth-child(2) {
@@ -2941,6 +2954,11 @@ html #app.dark .beauty-flow .beauty-flow-search-result b,
 html #app.dark .beauty-flow .beauty-flow-search-result strong,
 html #app.dark .beauty-flow .beauty-flow-search-result-info {
   color: #f1f3f4 !important;
+}
+html body.dark .beauty-flow .beauty-flow-create-results > button > b,
+html #app.dark .beauty-flow .beauty-flow-create-results > button > b {
+  background: #0f766e !important;
+  color: #fff !important;
 }
 html body.dark .beauty-flow .beauty-flow-table th,
 html #app.dark .beauty-flow .beauty-flow-table th {

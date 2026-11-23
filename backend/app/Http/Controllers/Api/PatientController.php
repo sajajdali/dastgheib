@@ -15,6 +15,7 @@ use Illuminate\Database\QueryException;
 use App\Services\CustomerLevelService;
 use App\Services\CustomerTypeResolver;
 use App\Models\AppSetting;
+use App\Models\BeautyAnnotation;
 use App\Services\WalletAllocationService;
 use App\Support\PatientPhoneVisibility;
 use Carbon\Carbon;
@@ -212,6 +213,21 @@ class PatientController extends Controller
         $limit = max(1, min(100, (int) $request->query('limit', 50)));
         $patients = $levels->decorate($query->limit($limit)->get());
         $this->decorateCustomerType($patients, $customerTypes);
+
+        if ($request->boolean('with_beauty')) {
+            $patientIds = $patients->pluck('id')->filter()->all();
+            $withPlan = $patientIds === []
+                ? []
+                : BeautyAnnotation::query()
+                    ->whereIn('patient_id', $patientIds)
+                    ->distinct()
+                    ->pluck('patient_id')
+                    ->all();
+            $withPlanLookup = array_fill_keys(array_map('intval', $withPlan), true);
+            $patients->each(function (Patient $patient) use ($withPlanLookup) {
+                $patient->setAttribute('has_beauty_plan', isset($withPlanLookup[(int) $patient->id]));
+            });
+        }
 
         return response()->json($this->hidePatientPhones($patients, $request));
     }
