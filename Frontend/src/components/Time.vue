@@ -13305,7 +13305,8 @@ smsColor(val) {
   height: calc(100dvh - 48px);
   max-height: calc(100dvh - 48px);
   min-height: 320px;
-  padding-bottom: var(--table-shell-bottom-gap);
+  /* جدول لب‌به‌لب ناحیه محتوا (RTL: راست=شروع، چپ=پایان)؛ فاصلهٔ کناری فقط روی نوار ابزار بماند. */
+  padding: 0 0 var(--table-shell-bottom-gap);
   overflow: hidden;
 }
 
@@ -13604,13 +13605,16 @@ body:has(.time-page.table-view-active) {
   position: relative !important;
   top: auto !important;
   flex: 0 0 auto;
-  width: auto;
+  width: 100%;
   max-width: none;
   margin-right: 0;
   margin-left: 0;
+  /* نوار ابزار usable بماند؛ جدول زیر آن لب‌به‌لب است. */
+  padding: 10px;
   /* هم‌راستا با ابزارهای هر روز در جدول؛ نوار جدول در سمت راست فضای خالی دارد. */
   padding-right: 46px;
   margin-bottom: 0;
+  box-sizing: border-box;
 }
 
 .top-actions .appointment-view-switch {
@@ -13848,17 +13852,21 @@ body:has(.time-page.table-view-active) {
   box-shadow: none;
 }
 
-/* یک اسکرولر برای شبکه جدول: افقی و عمودی، با نوار ضخیم قابل‌استفاده */
+/* یک اسکرولر برای شبکه جدول: افقی و عمودی، با نوار ضخیم قابل‌استفاده — لب‌به‌لب عرض محتوا */
 .table-view-active .table-container {
   flex: 1 1 auto;
+  align-self: stretch;
   width: 100%;
-  max-width: 100%;
+  max-width: none;
+  min-width: 0;
   min-height: 0;
   margin: 0;
+  padding: 0;
   overflow: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   border: 0;
+  border-radius: 0;
   background: transparent;
   scrollbar-gutter: stable;
   scrollbar-width: auto;
