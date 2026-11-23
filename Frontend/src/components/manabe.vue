@@ -18,10 +18,11 @@
           <tr>
             <th>عکس</th>
             <th>نام</th>
-            <th>خدمات و پورسانت</th>
-           <th>حقوق ثابت (تومان)</th>
-<th>روزهای حضور</th>
-<th>حذف / اضافه</th>
+            <th>تنظیمات مالی و پورسانت</th>
+            <th>حقوق ثابت (تومان)</th>
+            <th>قالب گزارش شخصی</th>
+            <th>روزهای حضور</th>
+            <th>حذف / اضافه</th>
           </tr>
         </thead>
         <tbody>
@@ -45,7 +46,7 @@
       <small v-if="row.name && !row.user_id" class="legacy-resource-name">{{ row.name }}</small>
     </td>
 
-    <td class="doctor-settings-cell" data-label="خدمات و پورسانت">
+    <td class="doctor-settings-cell" data-label="تنظیمات مالی و پورسانت">
       <button type="button" class="doctor-settings-btn" @click="openDoctorSettings(index)">
         <span class="doctor-settings-icon">٪</span>
         <span>
@@ -69,6 +70,18 @@
         />
         <small>تومان</small>
       </label>
+    </td>
+
+    <td class="report-template-cell" data-label="قالب گزارش شخصی">
+      <button
+        type="button"
+        class="report-template-btn"
+        :disabled="!row.id"
+        :title="row.id ? 'تنظیم ستون‌های گزارش شخصی' : 'ابتدا پزشک را ذخیره کنید'"
+        @click="openReportTemplate('doctor', index)"
+      >
+        تنظیم ستون‌ها
+      </button>
     </td>
 
     <!-- روزهای کاری -->
@@ -191,14 +204,6 @@
           </section>
 
           <CommissionRules v-model="doctorRows[activeDoctorIndex]" />
-          <PersonalReportColumns
-            v-if="activeDoctor.id"
-            resource-type="doctor"
-            :resource-id="Number(activeDoctor.id)"
-            :resource-name="activeDoctor.name"
-            :current-columns="activeDoctor.personal_report_columns || []"
-            @saved="activeDoctor.personal_report_columns = $event"
-          />
         </div>
 
         <footer class="doctor-settings-modal-actions">
@@ -217,7 +222,7 @@
         <p>اطلاعات، حقوق و قوانین پورسانت پرسنل را مانند پزشکان مدیریت کنید.</p>
       </div>
       <table>
-        <thead><tr><th>عکس</th><th>نام</th><th>تنظیمات مالی و پورسانت</th><th>حقوق ثابت (تومان)</th><th>حذف / اضافه</th></tr></thead>
+        <thead><tr><th>عکس</th><th>نام</th><th>تنظیمات مالی و پورسانت</th><th>حقوق ثابت (تومان)</th><th>قالب گزارش شخصی</th><th>حذف / اضافه</th></tr></thead>
         <tbody>
           <tr v-for="(row, index) in staffRows" :key="row._staffKey" :data-resource-key="`staff-${row.id}`" :class="{ 'resource-row--highlight': highlightedResourceKey === `staff-${row.id}` }">
             <td class="resource-photo-cell" data-label="عکس">
@@ -245,6 +250,17 @@
             <td data-label="حقوق ثابت">
               <label class="salary-field"><span class="salary-field-icon">﷼</span><input class="salary-input" type="text" inputmode="numeric" :value="formatSalary(row.salary)" @input="updateSalary(row, $event)" placeholder="مثلاً ۸,۰۰۰,۰۰۰"><small>تومان</small></label>
             </td>
+            <td class="report-template-cell" data-label="قالب گزارش شخصی">
+              <button
+                type="button"
+                class="report-template-btn"
+                :disabled="!row.id"
+                :title="row.id ? 'تنظیم ستون‌های گزارش شخصی' : 'ابتدا پرسنل را ذخیره کنید'"
+                @click="openReportTemplate('staff', index)"
+              >
+                تنظیم ستون‌ها
+              </button>
+            </td>
             <td class="actions-cell" data-label="عملیات">
               <button v-if="index === staffRows.length - 1" class="btn-add" type="button" title="اضافه کردن پرسنل" @click="addStaffRow"><span>+</span><small>اضافه</small></button>
               <button v-if="staffRows.length > 1" class="btn-remove" type="button" title="حذف پرسنل" @click="removeStaffRow(index)"><span>−</span><small>حذف</small></button>
@@ -266,16 +282,36 @@
         </header>
         <div class="doctor-settings-modal-body">
           <CommissionRules v-model="staffRows[activeStaffIndex]" />
-          <PersonalReportColumns
-            v-if="activeStaff.id"
-            resource-type="staff"
-            :resource-id="Number(activeStaff.id)"
-            :resource-name="activeStaff.name"
-            :current-columns="activeStaff.personal_report_columns || []"
-            @saved="activeStaff.personal_report_columns = $event"
-          />
         </div>
         <footer class="doctor-settings-modal-actions"><span role="status">{{ staffSaveError ? staffSaveMessage : 'تغییرات به‌صورت خودکار ذخیره می‌شوند.' }}</span><button type="button" :disabled="savingStaff" @click="closeStaffSettings">{{ savingStaff ? 'در حال ذخیره...' : 'تأیید و بستن' }}</button></footer>
+      </section>
+    </div>
+
+    <div v-if="activeReportTemplate && reportTemplateResource" class="resource-modal-backdrop" @click.self="closeReportTemplate">
+      <section class="doctor-settings-modal report-template-modal" role="dialog" aria-modal="true" aria-labelledby="report-template-title">
+        <header class="doctor-settings-modal-head">
+          <div>
+            <span class="modal-eyebrow">قالب گزارش شخصی</span>
+            <h3 id="report-template-title">ستون‌های گزارش {{ reportTemplateResource.name || (activeReportTemplate.type === 'doctor' ? 'پزشک' : 'پرسنل') }}</h3>
+            <p>ستون‌ها، ترتیب، پیش‌فرض و اعمال چندنفره را از اینجا مدیریت کنید.</p>
+          </div>
+          <button type="button" class="resource-modal-close" aria-label="بستن" @click="closeReportTemplate">×</button>
+        </header>
+        <div class="doctor-settings-modal-body">
+          <PersonalReportColumns
+            :key="`${activeReportTemplate.type}-${reportTemplateResource.id}`"
+            start-open
+            :resource-type="activeReportTemplate.type"
+            :resource-id="Number(reportTemplateResource.id)"
+            :resource-name="reportTemplateResource.name"
+            :current-columns="reportTemplateResource.personal_report_columns || []"
+            @saved="onReportTemplateSaved"
+          />
+        </div>
+        <footer class="doctor-settings-modal-actions">
+          <span>پس از ذخیره قالب می‌توانید ببندید.</span>
+          <button type="button" @click="closeReportTemplate">بستن</button>
+        </footer>
       </section>
     </div>
 
@@ -352,6 +388,7 @@ export default {
     activeDoctorIndex: null,
     highlightedResourceKey: '',
     activeStaffIndex: null,
+    activeReportTemplate: null,
     activeChannelIndex: null,
     pendingChannelRemoval: null,
 
@@ -541,6 +578,11 @@ export default {
     activeStaff() {
       return this.activeStaffIndex === null ? null : this.staffRows[this.activeStaffIndex];
     },
+    reportTemplateResource() {
+      if (!this.activeReportTemplate) return null;
+      const rows = this.activeReportTemplate.type === 'doctor' ? this.doctorRows : this.staffRows;
+      return rows[this.activeReportTemplate.index] || null;
+    },
     activeChannel() {
       return this.activeChannelIndex === null ? null : this.channelRows[this.activeChannelIndex];
     },
@@ -636,6 +678,22 @@ export default {
 
     async closeStaffSettings() {
       if (await this.autoSaveStaff()) this.activeStaffIndex = null;
+    },
+
+    openReportTemplate(type, index) {
+      const rows = type === 'doctor' ? this.doctorRows : this.staffRows;
+      if (!rows[index]?.id) return;
+      this.activeReportTemplate = { type, index };
+    },
+
+    closeReportTemplate() {
+      this.activeReportTemplate = null;
+    },
+
+    onReportTemplateSaved(columns) {
+      if (this.reportTemplateResource) {
+        this.reportTemplateResource.personal_report_columns = columns;
+      }
     },
 
     openChannelSettings(index) {
@@ -1665,13 +1723,21 @@ select {
 
 .doctor-content table th:nth-child(4),
 .doctor-content table td:nth-child(4) {
-  width: 240px;
-  min-width: 240px;
+  width: 220px;
+  min-width: 220px;
+}
+
+.doctor-content table th:nth-child(5),
+.doctor-content table td:nth-child(5),
+.staff-content table th:nth-child(5),
+.staff-content table td:nth-child(5) {
+  width: 170px;
+  min-width: 170px;
 }
 
 .staff-content table {
   width: 100%;
-  min-width: 900px;
+  min-width: 1040px;
 }
 
 .staff-content table th:nth-child(4),
@@ -1690,6 +1756,35 @@ select {
   font-weight: 900;
   text-align: right;
   direction: ltr;
+}
+
+.report-template-cell {
+  vertical-align: middle;
+}
+
+.report-template-btn {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.report-template-btn:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.report-template-modal .prc {
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
 .doctor-settings-cell {
@@ -2516,8 +2611,9 @@ input:focus {
 .resource-content tbody td:first-child{border-radius:0 16px 16px 0}
 .resource-content tbody td:last-child{border-radius:16px 0 0 16px}
 .staff-content table th:nth-child(3),.staff-content table td:nth-child(3){width:360px;min-width:360px}
-.staff-content table th:nth-child(5),.staff-content table td:nth-child(5),
-.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:190px;min-width:190px}
+.staff-content table th:nth-child(6),.staff-content table td:nth-child(6),
+.doctor-content table th:nth-child(7),.doctor-content table td:nth-child(7){width:190px;min-width:190px}
+.doctor-content table th:nth-child(6),.doctor-content table td:nth-child(6){width:220px;min-width:220px}
 .staff-content .actions-cell,.doctor-content .actions-cell{min-height:58px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:nowrap}
 .staff-content .btn-add,.staff-content .btn-remove,
 .doctor-content .btn-add,.doctor-content .btn-remove{width:auto;min-width:78px;height:40px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:11px;line-height:1;white-space:nowrap;box-shadow:0 7px 16px rgba(15,23,42,.1)}

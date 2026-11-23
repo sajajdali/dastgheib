@@ -21,7 +21,7 @@ final class AssistantSettingsReader
         'clinic_schedule' => ['ساعت کاری کلینیک', 'settings.view', 'settings_clinic_schedule'],
         'customer_levels' => ['دسته‌بندی مشتری‌ها', 'settings.view', 'settings_customer_levels'],
         'wallet' => ['کیف پول مشتری و پاداش معرف', 'settings.view', 'settings_wallet'],
-        'report_targets' => ['تارگت و ظرفیت گزارش', 'settings.view', 'settings_report_target'],
+        'report_targets' => ['تارگت و ظرفیت گزارش', 'reports.view', 'reports'],
         'attendance' => ['حضور و غیاب', 'settings.view', 'settings'],
         'ai_assistant' => ['دستیار هوش مصنوعی', 'assistant.use', null],
         'my_access' => ['دسترسی‌های من', 'assistant.use', null],
