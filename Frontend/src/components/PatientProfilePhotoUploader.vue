@@ -192,10 +192,14 @@ export default {
       const image = this.crop.image
       if (!image) throw new Error('تصویری برای برش انتخاب نشده است.')
 
+      // Preview stage is only for UI (≈320 CSS px). Sample the crop from the
+      // full-resolution source into an independent export canvas of `size` px.
       const frame = this.frameSize()
-      const baseScale = Math.max(frame / image.naturalWidth, frame / image.naturalHeight)
-      const previewScale = baseScale * Number(this.crop.zoom || 1)
-      const outputScale = size / frame
+      const zoom = Math.max(1, Number(this.crop.zoom || 1))
+      const coverScale = Math.max(frame / image.naturalWidth, frame / image.naturalHeight) * zoom
+      const sourceSize = frame / coverScale
+      const sourceX = (image.naturalWidth / 2) - (this.crop.x / coverScale) - (sourceSize / 2)
+      const sourceY = (image.naturalHeight / 2) - (this.crop.y / coverScale) - (sourceSize / 2)
 
       const canvas = document.createElement('canvas')
       canvas.width = size
@@ -203,15 +207,7 @@ export default {
       const context = canvas.getContext('2d')
       context.imageSmoothingEnabled = true
       context.imageSmoothingQuality = 'high'
-      context.setTransform(
-        previewScale * outputScale,
-        0,
-        0,
-        previewScale * outputScale,
-        size / 2 + this.crop.x * outputScale,
-        size / 2 + this.crop.y * outputScale
-      )
-      context.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2)
+      context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size)
       let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality))
       // Safari may silently return PNG when WebP encoding is unavailable.
       if (blob?.type !== 'image/webp') blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality))
@@ -225,10 +221,11 @@ export default {
       this.uploading = true
       this.error = ''
       try {
-        const photoSize = this.mode === 'user' ? 512 : 800
+        // High-res photo for display; tiny 50px thumb only for list APIs that require it.
+        const photoSize = 1024
         const formData = new FormData()
-        formData.append('photo', await this.createCroppedFile(photoSize, 0.86, 'profile.webp'))
-        formData.append('thumbnail', await this.createCroppedFile(50, 0.48, 'thumbnail.webp'))
+        formData.append('photo', await this.createCroppedFile(photoSize, 0.92, 'profile.webp'))
+        formData.append('thumbnail', await this.createCroppedFile(50, 0.82, 'thumbnail.webp'))
 
         const url = this.mode === 'user'
           ? '/api/auth/user/photo'

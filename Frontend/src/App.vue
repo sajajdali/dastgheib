@@ -799,7 +799,7 @@ export default {
     },
 
     userAvatarUrl() {
-      return this.user?.avatar_url || this.user?.profile_thumbnail_url || this.user?.profile_photo_url || "";
+      return this.user?.profile_photo_url || this.user?.avatar_url || this.user?.profile_thumbnail_url || "";
     },
 
     userInitial() {

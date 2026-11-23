@@ -79,6 +79,7 @@ class User extends Authenticatable
 
     public function getAvatarUrlAttribute(): ?string
     {
-        return $this->profile_thumbnail_url ?: $this->profile_photo_url;
+        // Prefer full photo so header/profile avatars are not upscaled 50px thumbnails.
+        return $this->profile_photo_url ?: $this->profile_thumbnail_url;
     }
 }
