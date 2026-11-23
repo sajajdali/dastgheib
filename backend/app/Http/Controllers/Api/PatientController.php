@@ -173,15 +173,25 @@ class PatientController extends Controller
 
         if ($request->filled('q')) {
             $term = trim((string) $request->q);
-            $digitTerm = $this->normalizeDigits($term);
-            $query->where(function ($inner) use ($term, $digitTerm) {
-                $inner->where('first_name', 'like', "%{$term}%")
-                    ->orWhere('last_name', 'like', "%{$term}%")
-                    ->orWhereRaw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) LIKE ?", ["%{$term}%"])
-                    ->orWhereRaw($this->normalizedDigitColumn('file_number').' LIKE ?', ["%{$digitTerm}%"])
-                    ->orWhereRaw($this->normalizedDigitColumn('national_id').' LIKE ?', ["%{$digitTerm}%"])
-                    ->orWhereRaw($this->normalizedDigitColumn('phone').' LIKE ?', ["%{$digitTerm}%"]);
-            });
+            $compact = preg_replace('/[\s\-_.\/]/u', '', $term) ?? '';
+            $digitTerm = $this->normalizeDigits($compact);
+            // رقم‌ها (از جمله فارسی) → کد ملی به‌صورت پیش‌فرض؛ حروف فارسی/لاتین → نام و نام‌خانوادگی.
+            $isDigitQuery = $digitTerm !== ''
+                && preg_match('/^\d+$/', $digitTerm) === 1
+                && preg_match('/\p{L}/u', $compact) !== 1;
+
+            if ($isDigitQuery) {
+                $query->where(function ($inner) use ($digitTerm) {
+                    $inner->whereRaw($this->normalizedDigitColumn('national_id').' LIKE ?', ["%{$digitTerm}%"])
+                        ->orWhereRaw($this->normalizedDigitColumn('file_number').' LIKE ?', ["%{$digitTerm}%"]);
+                });
+            } else {
+                $query->where(function ($inner) use ($term) {
+                    $inner->where('first_name', 'like', "%{$term}%")
+                        ->orWhere('last_name', 'like', "%{$term}%")
+                        ->orWhereRaw("CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) LIKE ?", ["%{$term}%"]);
+                });
+            }
         }
 
         if ($request->filled('file_number')) {
@@ -196,10 +206,11 @@ class PatientController extends Controller
 
         if ($request->filled('national_id')) {
             $value = $this->normalizeDigits($request->national_id);
-            $query->whereRaw($this->normalizedDigitColumn('national_id').' = ?', [$value]);
+            $query->whereRaw($this->normalizedDigitColumn('national_id').' LIKE ?', ["%{$value}%"]);
         }
 
-        $patients = $levels->decorate($query->limit(25)->get());
+        $limit = max(1, min(100, (int) $request->query('limit', 50)));
+        $patients = $levels->decorate($query->limit($limit)->get());
         $this->decorateCustomerType($patients, $customerTypes);
 
         return response()->json($this->hidePatientPhones($patients, $request));

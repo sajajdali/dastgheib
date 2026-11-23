@@ -693,7 +693,7 @@
                       <button
                         v-for="patient in tablePatientSearchResults"
                         v-else
-                        :key="patient.id || patient.file_number"
+                        :key="patient.id || patient.file_number || patient.national_id"
                         type="button"
                         class="timeline-patient-result"
                         @click="selectTablePatient(row, patient)"
@@ -701,7 +701,7 @@
                         <PatientAvatar :patient="patient" :level="normalizeCustomerLevel(patient.customer_level)" :size="38" />
                         <span class="timeline-patient-result-info">
                           <strong>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</strong>
-                          <small>پرونده {{ patient.file_number || '—' }} <b>•</b> {{ displayPatientPhone(patient.phone) || 'بدون موبایل' }}</small>
+                          <small>{{ patientSearchIdentityText(patient) }}</small>
                         </span>
                         <em :class="`level-${normalizeCustomerLevel(patient.customer_level)}`">{{ customerLevelLabel(patient.customer_level) }}</em>
                       </button>
@@ -1748,7 +1748,7 @@
                 v-model="activeTimelineDraft.lastname"
                 type="text"
                 autocomplete="off"
-                placeholder="نام، شماره پرونده یا موبایل..."
+                placeholder="نام یا کد ملی..."
                 @input="onTimelinePatientSearch"
                 @focus="onTimelinePatientSearch"
                 @blur="closeTimelinePatientSearch"
@@ -1759,7 +1759,7 @@
                 <button
                   v-for="patient in timelinePatientSearchResults"
                   v-else
-                  :key="patient.id || patient.file_number"
+                  :key="patient.id || patient.file_number || patient.national_id"
                   type="button"
                   class="timeline-patient-result"
                   @click="selectTimelinePatient(patient)"
@@ -1767,7 +1767,7 @@
                   <PatientAvatar :patient="patient" :level="normalizeCustomerLevel(patient.customer_level)" :size="44" />
                   <span class="timeline-patient-result-info">
                     <strong>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</strong>
-                    <small>پرونده {{ patient.file_number || '—' }} <b>•</b> {{ displayPatientPhone(patient.phone) || 'بدون موبایل' }}</small>
+                    <small>{{ patientSearchIdentityText(patient) }}</small>
                   </span>
                   <em :class="`level-${normalizeCustomerLevel(patient.customer_level)}`">{{ customerLevelLabel(patient.customer_level) }}</em>
                 </button>
@@ -4388,13 +4388,27 @@ export default {
       this.saveData();
     },
 
+    patientSearchIdentityText(patient) {
+      const parts = [];
+      if (patient?.file_number) parts.push(`پرونده ${patient.file_number}`);
+      if (patient?.national_id) parts.push(`کد ملی ${patient.national_id}`);
+      return parts.join(' · ') || 'بدون شناسه پرونده';
+    },
+
+    bookingPatientSearchParams(query) {
+      const term = String(query || '').trim();
+      if (term.length < 2) return null;
+      return { q: term, limit: 50 };
+    },
+
     searchTablePatients(row) {
       clearTimeout(this.tablePatientSearchTimer);
       const query = String(row?.lastname || '').trim();
       const rowId = row?._rowId;
       const requestId = ++this.tablePatientSearchRequest;
+      const params = this.bookingPatientSearchParams(query);
 
-      if (!rowId || query.length < 2) {
+      if (!rowId || !params) {
         this.tablePatientSearchRowId = null;
         this.tablePatientSearchResults = [];
         this.tablePatientSearchLoading = false;
@@ -4406,7 +4420,7 @@ export default {
       this.tablePatientSearchLoading = true;
       this.tablePatientSearchTimer = setTimeout(async () => {
         try {
-          const { data } = await axios.get('/api/patients/search', { params: { q: query } });
+          const { data } = await axios.get('/api/patients/search', { params });
           if (requestId !== this.tablePatientSearchRequest || this.tablePatientSearchRowId !== rowId) return;
           this.tablePatientSearchResults = Array.isArray(data) ? data : [];
         } catch (error) {
@@ -5281,8 +5295,8 @@ export default {
       this.autoSetAppointmentStatus(this.activeTimelineDraft);
       this.clearTimelineValidationError("lastname");
       clearTimeout(this.timelinePatientSearchTimer);
-      const query = String(this.activeTimelineDraft.lastname || '').trim();
-      if (query.length < 2) {
+      const params = this.bookingPatientSearchParams(this.activeTimelineDraft.lastname);
+      if (!params) {
         this.timelinePatientSearchResults = [];
         this.timelinePatientSearchOpen = false;
         return;
@@ -5291,7 +5305,7 @@ export default {
       this.timelinePatientSearchLoading = true;
       this.timelinePatientSearchTimer = setTimeout(async () => {
         try {
-          const { data } = await axios.get('/api/patients/search', { params: { q: query } });
+          const { data } = await axios.get('/api/patients/search', { params });
           this.timelinePatientSearchResults = Array.isArray(data) ? data : [];
         } catch (error) {
           console.error('خطا در جست‌وجوی بیمار تایم‌لاین', error);
