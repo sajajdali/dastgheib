@@ -43,7 +43,6 @@
               color="#2563eb"
               @update:model-value="updateReportDate('to', $event)"
             />
-            <button @click="v.toggleOpen" style="background:#2563eb;color:#ffffff;border:none;border-radius:10px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,0.3)">{{ v.openLbl }}</button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <div style="position:relative">
@@ -63,7 +62,6 @@
           </div>
         </div>
   
-        <template v-if="v.showDash">
         <div>
   
           <section class="kpi-summary-section" data-screen-label="شاخص‌های کلیدی گزارش">
@@ -865,7 +863,6 @@
   
           </div>
         </div>
-        </template>
   
         <template v-if="v.filterOpen">
           <div style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px" @click="v.closeFilter" data-screen-label="پنجره فیلترها">
@@ -969,7 +966,6 @@ export default {
   props: {
     estCancel: { type: Number, default: 30 },
     capacityDefault: { type: Number, default: 2500 },
-    defaultOpen: { type: Boolean, default: true }
   },
   data() {
     const KEYS = ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'];
@@ -993,7 +989,7 @@ export default {
       KEYS: ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'],
       NAMES: {ctype:'دسته‌بندی مشتریان',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'هزینه‌ها',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
       s: {
-      tab:'r', open:(this.defaultOpen===false?false:true), filterOpen:false, mngOpen:false,
+      tab:'r', filterOpen:false, mngOpen:false,
       filters:{}, bdFrom:'', bdTo:'', hidden:{}, order:KEYS.slice(), ddOpen:null, ddQ:'',
       monthSel:3, loyalRange:6, staff:'همه', cap:String(this.capacityDefault ?? 2500),
       reportSummary:null, reportLoading:false, reportError:'', topServicesExpanded:false, campSort:'quality', from:`${currentYear}/${currentMonthText}/01`, to:`${currentYear}/${currentMonthText}/${currentMonthLastDayText}`}
@@ -1574,8 +1570,6 @@ export default {
       // date bar
       fromV: S.from, toV: S.to,
       onFrom: e => this.updateReportDate('from', e.target.value), onTo: e => this.updateReportDate('to', e.target.value),
-      showDash: S.open, toggleOpen: () => this.set(s => ({open: !s.open})),
-      openLbl: S.open ? 'بستن داشبوردها' : 'نمایش داشبوردها',
       // filters
       filterOpen: S.filterOpen,
       openFilter: () => this.set({filterOpen: true}),
