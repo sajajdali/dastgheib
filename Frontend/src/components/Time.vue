@@ -17440,6 +17440,22 @@ html #app.dark .service-mini-summary {
 }
 
 /* month bar */
+html body.dark .table-hscroll-bar,
+html #app.dark .table-hscroll-bar {
+  border-color: #3a3f4a !important;
+  background: #1a1c22 !important;
+  box-shadow: 0 8px 22px rgba(0,0,0,.4) !important;
+  scrollbar-color: #94a3b8 #1a1c22;
+}
+html body.dark .table-hscroll-bar::-webkit-scrollbar-track,
+html #app.dark .table-hscroll-bar::-webkit-scrollbar-track {
+  background: #1a1c22 !important;
+}
+html body.dark .table-hscroll-bar::-webkit-scrollbar-thumb,
+html #app.dark .table-hscroll-bar::-webkit-scrollbar-thumb {
+  background: #94a3b8 !important;
+  border-color: #1a1c22 !important;
+}
 html body.dark .fixed-bottom-bar,
 html #app.dark .fixed-bottom-bar {
   background: rgba(26,28,34,.96) !important;
