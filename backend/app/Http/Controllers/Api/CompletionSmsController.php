@@ -150,7 +150,7 @@ class CompletionSmsController extends Controller
     public function sendAppointment(Request $request)
     {
         $data = $request->validate([
-            'types' => ['required', 'array', 'min:1'], 'types.*' => ['in:appointment,info'],
+            'types' => ['required', 'array', 'min:1'], 'types.*' => ['in:appointment,info,cancel'],
             'patient_phone' => ['bail', 'required', 'string', 'regex:/^09\d{9}$/'], 'patient_name' => ['nullable', 'string', 'max:255'],
             'date' => ['nullable', 'string', 'max:50'], 'time' => ['nullable', 'string', 'max:20'],
             'doctors' => ['nullable', 'array', 'max:2'], 'doctors.*' => ['string', 'max:255'],
@@ -172,6 +172,7 @@ class CompletionSmsController extends Controller
                 ], 422);
             }
         }
+        // پیامک کنسلی فقط اطلاع‌رسانی است و وضعیت نوبت را عوض نمی‌کند.
         $results = [];
         foreach ($data['types'] as $type) {
             try {
@@ -193,6 +194,7 @@ class CompletionSmsController extends Controller
                     'patient_name' => $data['patient_name'] ?? '',
                     'date' => $data['date'] ?? '',
                     'time' => $data['time'] ?? '',
+                    'appointment_id' => $data['appointment_id'] ?? null,
                 ]);
                 $results[$type] = ['success'=>true, 'sent_at'=>now()->format('Y-m-d H:i:s')];
             } catch (\Throwable $e) {
@@ -284,6 +286,7 @@ class CompletionSmsController extends Controller
         return match($type) {
             'appointment' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? '', $values['doctor'] ?? '', $values['clinic'] ?? ''],
             'info' => [$values['name'] ?? '', $values['clinic_address'] ?? '', $values['clinic_instagram_url'] ?? '', $values['clinic_phone'] ?? '', $values['clinic_location_url'] ?? ''],
+            'cancel', 'appointment_reminder' => [$values['name'] ?? '', $values['date'] ?? '', $values['time'] ?? ''],
             'welcome' => [$values['name'] ?? '', AppSetting::clinicName(), $values['link'] ?? ''],
             'referral_credit' => [$values['name'] ?? '', $values['amount'] ?? '', $values['balance'] ?? ''],
             'treatment_care' => [$values['name'] ?? '', $values['link'] ?? ''],

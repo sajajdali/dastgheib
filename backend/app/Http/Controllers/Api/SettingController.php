@@ -54,6 +54,8 @@ class SettingController extends Controller
         return [
             ['id' => 'appointment', 'group' => 'ثبت نوبت', 'title' => 'پیامک ثبت نوبت', 'category' => 'appointment', 'parameters' => ['نام و نام خانوادگی بیمار', 'تاریخ نوبت', 'ساعت نوبت', 'نام پزشک', 'نام کلینیک']],
             ['id' => 'info', 'group' => 'ثبت نوبت', 'title' => 'پیامک اطلاعات', 'category' => 'info', 'parameters' => ['نام بیمار', 'آدرس مرکز', 'لینک اینستاگرام', 'شماره تماس', 'لینک لوکیشن']],
+            ['id' => 'appointment-reminder', 'group' => 'ثبت نوبت', 'title' => 'یادآوری یک روز قبل', 'category' => 'appointment_reminder', 'parameters' => ['نام بیمار', 'تاریخ نوبت', 'ساعت نوبت']],
+            ['id' => 'cancel', 'group' => 'ثبت نوبت', 'title' => 'پیامک کنسلی', 'category' => 'cancel', 'parameters' => ['نام بیمار', 'تاریخ نوبت', 'ساعت نوبت']],
             ['id' => 'welcome', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'نظرسنجی', 'category' => 'welcome', 'parameters' => ['نام و نام خانوادگی بیمار', 'نام کلینیک', 'لینک رضایت‌مندی']],
             ['id' => 'referral-credit', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'واریز مبلغ برای معرف', 'category' => 'referral_credit', 'parameters' => ['نام بیمار', 'مبلغ واریزی', 'مانده اعتبار معرف']],
             ['id' => 'treatment-care', 'group' => 'پیامک‌های پس از انجام درمان', 'title' => 'توصیه‌های بعد از درمان', 'category' => 'treatment_care', 'parameters' => ['نام بیمار', 'لینک راهنمای درمان']],
@@ -70,11 +72,16 @@ class SettingController extends Controller
         return collect($this->fixedSmsTemplates())->map(function (array $template) use ($storedByCategory) {
             $current = $storedByCategory->get($template['category'], []);
             $legacy = AppSetting::getByKey('sms_'.$template['category'], '');
+            $content = trim((string) ($current['content'] ?? $legacy));
+            // الگوهای جدید کنسلی/یادآوری تا وقتی نام الگو ذخیره نشده پیش‌فرض غیرفعال‌اند تا ذخیره تنظیمات قفل نشود.
+            $defaultActive = ! in_array($template['category'], ['appointment_reminder', 'cancel'], true);
 
             return [
                 ...$template,
-                'content' => trim((string) ($current['content'] ?? $legacy)),
-                'active' => array_key_exists('active', $current) ? (bool) $current['active'] : true,
+                'content' => $content,
+                'active' => array_key_exists('active', $current)
+                    ? (bool) $current['active']
+                    : ($content !== '' ? true : $defaultActive),
             ];
         })->all();
     }
@@ -894,7 +901,7 @@ class SettingController extends Controller
             'clinic_info.phone' => ['nullable', 'string', 'max:100'],
             'clinic_info.location_url' => ['nullable', 'string', 'max:2000'],
             'templates' => ['present', 'array'],
-            'templates.*.category' => ['required', 'in:appointment,info,welcome,referral_credit,treatment_care,payment_link'],
+            'templates.*.category' => ['required', 'in:appointment,info,appointment_reminder,cancel,welcome,referral_credit,treatment_care,payment_link'],
             'templates.*.content' => ['nullable', 'string', 'max:190'],
             'templates.*.active' => ['required', 'boolean'],
             'birthday.enabled' => ['required', 'boolean'],
@@ -934,11 +941,16 @@ class SettingController extends Controller
         $submittedTemplates = collect($validated['templates'])->keyBy('category');
         $templates = collect($this->fixedSmsTemplates())->map(function (array $template) use ($submittedTemplates) {
             $submitted = $submittedTemplates->get($template['category'], []);
+            $content = trim((string) ($submitted['content'] ?? ''));
+            // یادآوری نوبت کلید on/off ندارد؛ با داشتن نام الگو همیشه فعال محسوب می‌شود.
+            $active = $template['category'] === 'appointment_reminder'
+                ? $content !== ''
+                : (bool) ($submitted['active'] ?? false);
 
             return [
                 ...$template,
-                'content' => trim((string) ($submitted['content'] ?? '')),
-                'active' => (bool) ($submitted['active'] ?? false),
+                'content' => $content,
+                'active' => $active,
             ];
         });
         $missingTemplate = $templates->first(fn (array $template) => $template['active'] && $template['content'] === '');

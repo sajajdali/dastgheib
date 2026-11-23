@@ -1128,7 +1128,7 @@
                     <span>{{ service.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(service, row)">↻</button>
                   </div>
                   <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
-                  <select v-else :value="service.discount_source || 'shared'" class="discount-source-select" :title="discountSourceHint(service)" @change="service.discount_source = $event.target.value; calculateRowAmount(row)">
+                  <select v-else :value="service.discount_source || 'shared'" class="discount-source-select" :class="{ 'is-discount-source-disabled': !hasDiscountAmount(service) }" :disabled="!hasDiscountAmount(service)" :title="discountSourceHint(service)" @change="service.discount_source = $event.target.value; calculateRowAmount(row)">
                     <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                   </select>
 
@@ -1160,7 +1160,7 @@
                               <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, row)">
                               <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, row)">↻</button>
                             </div>
-                            <select v-if="addon.adjustment_mode !== 'surcharge'" v-bind:value="addon.discount_source || 'shared'" class="discount-source-select addon-discount-source" :title="discountSourceHint(addon)" @change="addon.discount_source = $event.target.value; calculateRowAmount(row)">
+                            <select v-if="addon.adjustment_mode !== 'surcharge'" v-bind:value="addon.discount_source || 'shared'" class="discount-source-select addon-discount-source" :class="{ 'is-discount-source-disabled': !hasDiscountAmount(addon) }" :disabled="!hasDiscountAmount(addon)" :title="discountSourceHint(addon)" @change="addon.discount_source = $event.target.value; calculateRowAmount(row)">
                               <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
                             </select>
                           </div>
@@ -5831,6 +5831,9 @@ export default {
         if (!await this.persistDirectAppointment(row)) return 'cancelled';
       }
       if (!row?.appointmentId) return 'cancelled';
+      if (reason === 'پاسخ نداد') {
+        return this.promptNoAnswerFollowup(row);
+      }
       const days = (row.services || []).map(s => Number(this.getServiceData(s)?.followup_days || 0)).filter(Boolean);
       const defaultDate = this.nextActiveFollowupDate(Math.max(1, days.length ? Math.max(...days) : 1));
       const result = await Swal.fire({
@@ -5845,15 +5848,89 @@ export default {
       });
       if (result.isDenied) return 'without-followup';
       if (!result.isConfirmed || !result.value) return 'cancelled';
+      return this.saveAppointmentFollowup(row, result.value, reason);
+    },
+
+    async promptNoAnswerFollowup(row) {
+      const choice = await Swal.fire({
+        icon: 'question',
+        title: 'ثبت پیگیری',
+        showDenyButton: true,
+        showCancelButton: false,
+        confirmButtonText: 'ثبت پیگیری',
+        denyButtonText: 'ارسال پیامک کنسلی',
+        reverseButtons: true,
+        allowOutsideClick: true,
+        allowEscapeKey: true,
+      });
+      if (choice.isDenied) {
+        await this.sendNoAnswerCancelSms(row);
+        return 'without-followup';
+      }
+      if (!choice.isConfirmed) {
+        // بستن مودال وضعیت انتخاب‌شده را نگه می‌دارد؛ فقط پیگیری ثبت نمی‌شود.
+        return 'without-followup';
+      }
+
+      const days = (row.services || []).map(s => Number(this.getServiceData(s)?.followup_days || 0)).filter(Boolean);
+      const defaultDate = this.nextActiveFollowupDate(Math.max(1, days.length ? Math.max(...days) : 1));
+      const dateResult = await Swal.fire({
+        icon: 'question',
+        title: 'ثبت پیگیری',
+        input: 'select',
+        inputOptions: this.activeFollowupDateOptions(),
+        inputValue: defaultDate,
+        showCancelButton: true,
+        confirmButtonText: 'ثبت پیگیری',
+        cancelButtonText: 'بستن',
+        inputValidator: value => (!value ? 'تاریخ پیگیری را انتخاب کنید.' : undefined),
+      });
+      if (!dateResult.isConfirmed || !dateResult.value) return 'without-followup';
+      return this.saveAppointmentFollowup(row, dateResult.value, 'پاسخ نداد');
+    },
+
+    async saveAppointmentFollowup(row, dueDate, reason) {
       try {
-        const { data } = await axios.post(`/api/appointments/${row.appointmentId}/followups`, { due_date: result.value, reason });
+        const { data } = await axios.post(`/api/appointments/${row.appointmentId}/followups`, { due_date: dueDate, reason });
         const replaced = (data.followups || []).some(item => item.replaced);
         await Swal.fire({ icon: 'success', title: replaced ? 'تاریخ پیگیری به‌روزرسانی شد' : 'پیگیری ثبت شد', timer: 1000, showConfirmButton: false });
-        row.nextFollowupDate = result.value;
+        row.nextFollowupDate = dueDate;
         return 'scheduled';
       } catch (error) {
-        await Swal.fire({ icon:'error', title:'ثبت پیگیری انجام نشد', text: this.saveErrorMessage(error) });
+        await Swal.fire({ icon: 'error', title: 'ثبت پیگیری انجام نشد', text: this.saveErrorMessage(error) });
         return 'cancelled';
+      }
+    },
+
+    async sendNoAnswerCancelSms(row) {
+      if (!this.canViewPatientPhone) {
+        await Swal.fire({ icon: 'info', title: 'ارسال پیامک برای این نقش غیرفعال است' });
+        return;
+      }
+      const phone = this.normalizePhoneDigits(row?.phone);
+      if (!/^09\d{9}$/.test(phone)) {
+        await Swal.fire({ icon: 'warning', title: 'شماره موبایل وارد نشده یا معتبر نیست' });
+        return;
+      }
+      const day = this.days.find(item => (item.rows || []).includes(row));
+      try {
+        const { data } = await axios.post('/api/sms/appointment', {
+          types: ['cancel'],
+          patient_phone: phone,
+          patient_name: row.lastname || '',
+          date: day?.dateLabel || '',
+          time: row.time || '',
+          appointment_id: row.appointmentId || null,
+        });
+        const result = data.results?.cancel;
+        if (!result?.success) throw new Error(result?.message || 'ارسال پیامک ناموفق بود.');
+        await Swal.fire({ icon: 'success', title: 'پیامک کنسلی ارسال شد', timer: 1200, showConfirmButton: false });
+      } catch (error) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'ارسال پیامک کنسلی انجام نشد',
+          text: error.response?.data?.message || error.message || 'ارسال پیامک ناموفق بود.',
+        });
       }
     },
 
@@ -11602,11 +11679,25 @@ smsColor(val) {
       this.saveData();
     },
 
+    hasDiscountAmount(line) {
+      return line?.adjustment_mode !== 'surcharge' && this.moneyToNumber(line?.discount) > 0;
+    },
+
+    syncDiscountSourceForAmount(line) {
+      if (!line || line.adjustment_mode === 'surcharge') return;
+      if (this.moneyToNumber(line.discount) <= 0) {
+        line.discount_source = 'shared';
+      } else if (!['clinic', 'doctor', 'shared'].includes(line.discount_source)) {
+        line.discount_source = 'shared';
+      }
+    },
+
     handleServiceDiscountInput(service, row) {
       const price = this.serviceLinePrice(service);
       const amount = Math.max(0, this.moneyToNumber(service.discount));
       const adjustment = service.adjustment_mode === 'surcharge' ? amount : Math.min(amount, price);
       service.discount = adjustment ? this.formatDisplayMoney(adjustment) : "";
+      this.syncDiscountSourceForAmount(service);
       this.updateRowAmounts(row);
     },
 
@@ -15995,7 +16086,7 @@ td.st-arrived select {
 .discount-source-select{flex:0 0 104px;width:104px;height:32px!important;min-width:0!important;padding:0 9px 0 22px!important;border:1px solid #fecaca!important;border-radius:7px!important;background:#fff7f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b91c1c' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat left 8px center!important;color:#b91c1c!important;font-family:inherit;font-size:10px!important;font-weight:900;text-align:right;direction:rtl;appearance:none;-webkit-appearance:none;cursor:pointer;box-shadow:none;transition:border-color .15s,box-shadow .15s}
 .discount-source-select:hover{border-color:#fca5a5!important}
 .discount-source-select:focus{outline:0;border-color:#f87171!important;box-shadow:0 0 0 3px rgba(248,113,113,.15)}
-.discount-source-select:disabled{opacity:.7;cursor:default}
+.discount-source-select:disabled,.discount-source-select.is-discount-source-disabled{opacity:.45;cursor:not-allowed;color:#94a3b8!important;border-color:#e2e8f0!important;background-color:#f8fafc!important}
 .discount-source-select option{background:#fff;color:#0f172a;font-weight:700}
 .addon-adjustment-cell{display:grid;gap:4px;min-width:0}.addon-adjustment-cell .discount-source-select{width:100%;height:28px!important}
 .timeline-discount-source{display:grid;gap:4px}.timeline-discount-source select{height:38px;padding:0 10px 0 26px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b91c1c' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat left 10px center;color:#b91c1c;font-family:inherit;font-weight:900;appearance:none;-webkit-appearance:none}

@@ -756,14 +756,16 @@
           <section v-for="group in smsTemplateGroups" :key="group.title" class="sms-template-group">
             <header><span>سناریوهای {{ group.title }}</span><small>{{ group.templates.length }} الگو</small></header>
             <p v-if="group.title === 'پیامک‌های پس از انجام درمان'" class="sms-template-group-note">برای هر پیامک، نام الگو را وارد و گزینهٔ «فعال» را روشن کنید؛ فقط گزینه‌های فعال در پنجرهٔ پایان نوبت نمایش داده می‌شوند.</p>
-            <article v-for="template in group.templates" :key="template.id" class="template-card" :class="{ 'is-inactive': !template.active }">
+            <article v-for="template in group.templates" :key="template.id" class="template-card" :class="{ 'is-inactive': template.category !== 'appointment_reminder' && !template.active }">
             <div class="template-card-head">
               <strong>{{ template.title }}</strong>
-              <label class="active-switch">
+              <span v-if="template.category === 'appointment_reminder'" class="active-switch always-on"><span>همیشه فعال</span></span>
+              <label v-else class="active-switch">
                 <input v-model="template.active" type="checkbox">
                 <span>{{ template.active ? 'فعال' : 'غیرفعال' }}</span>
               </label>
             </div>
+            <p v-if="template.category === 'appointment_reminder'" class="sms-template-group-note">یادآوری یک روز قبل ساعت ۱۰ صبح برای همه کلینیک‌ها ارسال می‌شود؛ فقط نام الگوی SHSMS را وارد کنید.</p>
 
             <label class="template-message-field">
               <input
@@ -1223,6 +1225,8 @@ const leadAlertDefinitions = [
 const smsTemplateTextSamples = {
   appointment: "سلام %param1%\nنوبت شما در تاریخ %param2% ساعت %param3% با پزشک %param4% در کلینیک %param5% ثبت شد.",
   info: "سلام %param1%\nآدرس مرکز: %param2%\nلینک اینستاگرام: %param3%\nشماره تماس: %param4%\nلوکیشن: %param5%\nبا تشکر",
+  appointment_reminder: "خانم/آقای %param1%، جهت یادآوری، فردا در تاریخ %param2% ساعت %param3% در خدمت شما هستیم.",
+  cancel: "خانم/آقای %param1%، نوبت شما در تاریخ %param2% ساعت %param3% لغو شده است.",
   welcome: "%param1% عزیز،\nنظر شما برای %param2% ارزشمند است:\n%param3%",
   referral_credit: "%param1% عزیز\nمبلغ %param2% تومان به اعتبار شما واریز شد.\nمانده اعتبار: %param3% تومان",
   treatment_care: "%param1% عزیز\nراهنمای مراقبت پس از درمان:\n%param2%",
@@ -2791,6 +2795,13 @@ textarea{ min-height:120px; resize:none; }
   border-color: #86efac;
   background: #f0fdf4;
   color: #15803d;
+}
+
+.active-switch.always-on {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #15803d;
+  cursor: default;
 }
 
 .delete-template-btn {

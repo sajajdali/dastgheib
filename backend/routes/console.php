@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use App\Jobs\SendAppointmentReminderSms;
 use App\Jobs\SendBirthdaySms;
 use App\Jobs\SendLeadAlertSms;
 use App\Services\ShsmsService;
@@ -37,6 +38,19 @@ Schedule::command('modules:expire-subscriptions')->hourly()->timezone('Asia/Tehr
 Schedule::command('subscriptions:expire')->hourly()->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('storage:reconcile')->dailyAt('03:00')->timezone('Asia/Tehran')->withoutOverlapping();
 Schedule::command('automatic-sms:send-due')->everyMinute()->timezone('Asia/Tehran')->withoutOverlapping();
+// یادآوری نوبت یک روز قبل، ساعت ثابت ۱۰ صبح برای همه کلینیک‌ها — بدون کلید فعال‌سازی per-tenant.
+Schedule::call(function () {
+    Tenant::query()->get()->each(function (Tenant $tenant) {
+        try {
+            tenancy()->initialize($tenant);
+            (new SendAppointmentReminderSms)->handle(app(ShsmsService::class));
+        } catch (Throwable $exception) {
+            report($exception);
+        } finally {
+            tenancy()->end();
+        }
+    });
+})->name('appointment-reminder-sms-all-tenants')->dailyAt(SendAppointmentReminderSms::SEND_AT)->timezone('Asia/Tehran')->withoutOverlapping();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
