@@ -163,16 +163,21 @@
 
       <!-- صفحات -->
       <section v-if="currentPage === 'Profile'" class="profile-page" dir="rtl">
+        <PatientProfilePhotoUploader
+          ref="userProfileUploader"
+          mode="user"
+          @uploaded="onCurrentUserPhotoUploaded"
+          @error="onCurrentUserPhotoError"
+        />
         <section class="profile-editor-modal">
           <header>
             <div><small>پروفایل کاربری</small><h2>ویرایش پروفایل</h2></div>
           </header>
           <div class="profile-editor-body">
-            <label class="profile-editor-avatar" :style="{ background: userAvatarUrl ? '#fff' : menuAvatarColor }">
+            <button type="button" class="profile-editor-avatar" :style="{ background: userAvatarUrl ? '#fff' : menuAvatarColor }" title="تغییر عکس پروفایل" @click="pickCurrentUserPhoto">
               <img v-if="userAvatarUrl" :src="userAvatarUrl" :alt="user.name || 'کاربر'">
               <span v-else>{{ userInitial }}</span>
-              <input type="file" accept="image/*" @change="uploadCurrentUserPhoto">
-            </label>
+            </button>
             <div>
               <strong>{{ user.name }}</strong>
               <small>{{ userContactText || 'بدون اطلاعات تماس' }}</small>
@@ -202,10 +207,7 @@
             </label>
           </div>
           <footer>
-            <label class="profile-upload-btn">
-              تغییر عکس
-              <input type="file" accept="image/*" @change="uploadCurrentUserPhoto">
-            </label>
+            <button type="button" class="profile-upload-btn" @click="pickCurrentUserPhoto">تغییر عکس</button>
             <button type="button" class="profile-remove-btn" :disabled="!userAvatarUrl" @click="removeCurrentUserPhoto">حذف عکس</button>
             <button type="button" class="profile-save-btn" :disabled="profileSaving" @click="saveProfile">
               {{ profileSaving ? 'در حال ذخیره...' : 'ذخیره پروفایل' }}
@@ -485,6 +487,7 @@ import AiAssistant from "./components/AiAssistant.vue";
 import GroupChat from "./components/GroupChat.vue";
 import AiUsageReport from "./components/AiUsageReport.vue";
 import IncomingCallStack from "./components/incoming-call/IncomingCallStack.vue";
+import PatientProfilePhotoUploader from "./components/PatientProfilePhotoUploader.vue";
 import { startPresence, stopPresence } from "./services/presence";
 
 const centralDomains = (import.meta.env.VITE_CENTRAL_DOMAINS || "localhost,127.0.0.1,admin.s8n.ir")
@@ -546,7 +549,8 @@ export default {
     AiAssistant,
     GroupChat,
     AiUsageReport,
-    IncomingCallStack
+    IncomingCallStack,
+    PatientProfilePhotoUploader
 
   },
 
@@ -1259,46 +1263,17 @@ export default {
       if (!this.attendanceEnabled && this.currentPage === "HRtimes") this.currentPage = null;
     },
 
-    async makeSquareWebp(file, size, quality, fileName) {
-      const image = new Image();
-      const url = URL.createObjectURL(file);
-      try {
-        await new Promise((resolve, reject) => {
-          image.onload = resolve;
-          image.onerror = reject;
-          image.src = url;
-        });
-        const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
-        const context = canvas.getContext("2d");
-        const side = Math.min(image.width, image.height);
-        const sx = (image.width - side) / 2;
-        const sy = (image.height - side) / 2;
-        context.drawImage(image, sx, sy, side, side, 0, 0, size, size);
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/webp", quality));
-        return new File([blob], fileName, { type: "image/webp" });
-      } finally {
-        URL.revokeObjectURL(url);
-      }
+    pickCurrentUserPhoto() {
+      this.$refs.userProfileUploader?.pick();
     },
 
-    async uploadCurrentUserPhoto(event) {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-      if (!file) return;
-      try {
-        const formData = new FormData();
-        formData.append("photo", await this.makeSquareWebp(file, 512, 0.72, "photo.webp"));
-        formData.append("thumbnail", await this.makeSquareWebp(file, 50, 0.48, "thumbnail.webp"));
-        const { data } = await axios.post("/api/auth/user/photo", formData, {
-          headers: { "Accept": "application/json" }
-        });
-        if (data.user) this.user = { ...this.user, ...data.user };
-        await Swal.fire({ icon: "success", title: "عکس ذخیره شد", timer: 1300, showConfirmButton: false });
-      } catch (error) {
-        await Swal.fire({ icon: "error", title: "خطا", text: error.response?.data?.message || "آپلود عکس انجام نشد." });
-      }
+    async onCurrentUserPhotoUploaded(data) {
+      if (data?.user) this.user = { ...this.user, ...data.user };
+      await Swal.fire({ icon: "success", title: "عکس ذخیره شد", timer: 1300, showConfirmButton: false });
+    },
+
+    async onCurrentUserPhotoError(message) {
+      await Swal.fire({ icon: "error", title: "خطا", text: message || "آپلود عکس انجام نشد." });
     },
 
     openProfileEditor() {
@@ -2296,7 +2271,7 @@ html.dark-boot .auth-boot-spinner {
 .profile-editor-modal{width:min(820px,100%);margin:0 auto;padding:22px;border:1px solid #dbe3ef;border-radius:22px;background:#fff;color:#0f172a;box-shadow:0 18px 48px rgba(15,23,42,.08)}
 .profile-editor-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}.profile-editor-modal header small{color:#2563eb;font-weight:900}.profile-editor-modal h2{margin:3px 0 0;font-size:20px}.profile-editor-modal header button{width:36px;height:36px;border:0;border-radius:11px;background:#f1f5f9;color:#64748b;font-size:24px;cursor:pointer}
 .profile-editor-body{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid #eef2f7;border-radius:18px;background:#f8fafc}.profile-editor-body>div{display:grid;gap:4px}.profile-editor-body strong{font-size:16px}.profile-editor-body small{color:#64748b;direction:ltr}
-.profile-editor-avatar{width:76px;height:76px;flex:0 0 76px;display:grid;place-items:center;overflow:hidden;border-radius:50%;box-shadow:0 10px 24px rgba(15,23,42,.12);cursor:pointer}.profile-editor-avatar img{width:100%;height:100%;object-fit:cover;display:block}.profile-editor-avatar span{color:#fff;font-size:31px;font-weight:900}.profile-editor-avatar input,.profile-upload-btn input{display:none}
+.profile-editor-avatar{width:76px;height:76px;flex:0 0 76px;display:grid;place-items:center;overflow:hidden;border:0;padding:0;border-radius:50%;box-shadow:0 10px 24px rgba(15,23,42,.12);cursor:pointer;font:inherit}.profile-editor-avatar img{width:100%;height:100%;object-fit:cover;display:block}.profile-editor-avatar span{color:#fff;font-size:31px;font-weight:900}
 .profile-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.profile-editor-fields label{display:grid;gap:7px;color:#334155;font-size:12px;font-weight:900}.profile-editor-fields input{height:46px;border:1px solid #dbe3ef;border-radius:13px;background:#f8fafc;padding:0 13px;font-family:inherit;outline:none}.profile-editor-fields input:focus{border-color:#bfdbfe;box-shadow:0 0 0 4px rgba(37,99,235,.08)}
 .profile-gender-picker{height:46px;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border:1px solid #dbeafe;border-radius:13px;background:#f8fbff}.profile-gender-picker button{border:0;border-radius:10px;background:#fff;color:#64748b;cursor:pointer;box-shadow:0 0 0 1px #e2e8f0 inset}.profile-gender-picker button.active{background:#2563eb;color:#fff}.profile-gender-picker svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .profile-password-field{position:relative}.profile-password-field input{padding-left:42px}.profile-password-field button{position:absolute;left:8px;bottom:9px;width:28px;height:28px;border:0;border-radius:9px;background:transparent;color:#2563eb;display:grid;place-items:center;cursor:pointer}.profile-password-field svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}

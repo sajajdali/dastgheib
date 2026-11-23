@@ -28,11 +28,12 @@
           @pointermove="moveDrag"
           @pointerup="endDrag"
           @pointercancel="endDrag"
+          @wheel.prevent="onWheel"
         >
           <img
             v-if="crop.sourceUrl"
             :src="crop.sourceUrl"
-            alt="پیش‌نمایش عکس بیمار"
+            :alt="mode === 'user' ? 'پیش‌نمایش عکس کاربر' : 'پیش‌نمایش عکس بیمار'"
             :class="{ portrait: crop.image && crop.image.naturalHeight > crop.image.naturalWidth }"
             :style="{ transform: `translate(calc(-50% + ${crop.x}px), calc(-50% + ${crop.y}px)) scale(${crop.zoom})` }"
             draggable="false"
@@ -43,17 +44,25 @@
           </div>
         </div>
 
-        <p class="profile-crop-help">عکس را بکشید تا چهره وسط قرار بگیرد. بهتر است سر و شانه‌ها داخل دایره باشند.</p>
-        <label class="profile-crop-zoom">
-          <span>کوچک</span>
-          <input v-model.number="crop.zoom" type="range" min="1" max="3" step="0.01" @input="clampPosition">
-          <span>بزرگ</span>
-        </label>
+        <p class="profile-crop-help">عکس را بکشید تا چهره وسط قرار بگیرد. زوم و جابه‌جایی طوری است که قاب خالی نماند و تصویر کشیده نشود.</p>
+
+        <div class="profile-crop-toolbar">
+          <button type="button" :disabled="uploading" title="کوچک‌تر" aria-label="کوچک‌تر" @click="nudgeZoom(-0.1)">−</button>
+          <label class="profile-crop-zoom">
+            <span>کوچک</span>
+            <input v-model.number="crop.zoom" type="range" min="1" max="3" step="0.01" @input="clampPosition">
+            <span>بزرگ</span>
+          </label>
+          <button type="button" :disabled="uploading" title="بزرگ‌تر" aria-label="بزرگ‌تر" @click="nudgeZoom(0.1)">+</button>
+          <button type="button" class="profile-crop-tool-label" :disabled="uploading" title="پر کردن قاب" @click="fitFrame">پر کردن</button>
+          <button type="button" class="profile-crop-tool-label" :disabled="uploading" title="بازنشانی" @click="resetCrop">بازنشانی</button>
+        </div>
+
         <p v-if="error" class="profile-crop-error">{{ error }}</p>
         <div class="profile-crop-actions">
           <button type="button" class="secondary-btn" :disabled="uploading" @click="cancel">انصراف</button>
           <button type="button" class="primary-btn" :disabled="uploading" @click="confirm">
-            {{ uploading ? 'در حال ذخیره...' : 'تأیید و ذخیره عکس' }}
+            {{ uploading ? 'در حال ذخیره...' : 'تأیید و ذخیره' }}
           </button>
         </div>
       </section>
@@ -62,8 +71,7 @@
 </template>
 
 <script>
-// Picks, crops and uploads a patient's profile photo (same output as the
-// patient-file gallery: an 800px photo plus a 50px thumbnail).
+// Shared crop/preview for patient and user avatars: cover-fit circle, pan/zoom, then upload.
 const emptyCrop = () => ({
   open: false,
   sourceUrl: '',
@@ -79,6 +87,7 @@ const emptyCrop = () => ({
 export default {
   name: 'PatientProfilePhotoUploader',
   props: {
+    mode: { type: String, default: 'patient' }, // patient | user
     patientId: { type: [Number, String], default: null }
   },
   emits: ['uploaded', 'error'],
@@ -93,7 +102,8 @@ export default {
   methods: {
     // Must be called from a click handler so the browser opens the file dialog.
     pick() {
-      if (!this.patientId || this.uploading) return
+      if (this.uploading) return
+      if (this.mode === 'patient' && !this.patientId) return
       this.$refs.fileInput?.click()
     },
     async onFileSelected(event) {
@@ -115,6 +125,7 @@ export default {
         })
         this.error = ''
         this.crop = { ...emptyCrop(), open: true, sourceUrl, image }
+        this.$nextTick(() => this.resetCrop())
       } catch (error) {
         URL.revokeObjectURL(sourceUrl)
         this.$emit('error', error.message)
@@ -147,10 +158,29 @@ export default {
     endDrag() {
       this.crop.dragging = false
     },
+    onWheel(event) {
+      if (!this.crop.image || this.uploading) return
+      this.nudgeZoom(event.deltaY < 0 ? 0.08 : -0.08)
+    },
+    nudgeZoom(delta) {
+      this.crop.zoom = Math.min(3, Math.max(1, Number((Number(this.crop.zoom || 1) + delta).toFixed(2))))
+      this.clampPosition()
+    },
+    fitFrame() {
+      // Cover-fit: zoom 1 already fills the circle with Math.max base scale; center the image.
+      this.crop.zoom = 1
+      this.crop.x = 0
+      this.crop.y = 0
+      this.clampPosition()
+    },
+    resetCrop() {
+      this.fitFrame()
+    },
     clampPosition() {
       const image = this.crop.image
       if (!image) return
       const frame = this.frameSize()
+      // Cover scale: image always fills the circular frame (no empty bands), never stretched.
       const baseScale = Math.max(frame / image.naturalWidth, frame / image.naturalHeight)
       const scale = baseScale * Number(this.crop.zoom || 1)
       const maxX = Math.max(0, (image.naturalWidth * scale - frame) / 2)
@@ -190,15 +220,20 @@ export default {
       return new File([blob], filename.replace(/\.[^.]+$/, `.${extension}`), { type: blob.type })
     },
     async confirm() {
-      if (!this.patientId || this.uploading) return
+      if (this.uploading) return
+      if (this.mode === 'patient' && !this.patientId) return
       this.uploading = true
       this.error = ''
       try {
+        const photoSize = this.mode === 'user' ? 512 : 800
         const formData = new FormData()
-        formData.append('photo', await this.createCroppedFile(800, 0.86, 'profile.webp'))
+        formData.append('photo', await this.createCroppedFile(photoSize, 0.86, 'profile.webp'))
         formData.append('thumbnail', await this.createCroppedFile(50, 0.48, 'thumbnail.webp'))
 
-        const res = await fetch(`/api/patients/${this.patientId}/profile-photo`, {
+        const url = this.mode === 'user'
+          ? '/api/auth/user/photo'
+          : `/api/patients/${this.patientId}/profile-photo`
+        const res = await fetch(url, {
           method: 'POST',
           headers: { Accept: 'application/json' },
           body: formData
@@ -267,7 +302,31 @@ export default {
 .face-head { position: absolute; top: 20%; left: 38%; width: 24%; height: 31%; border: 1px dashed #fff; border-radius: 48%; }
 .face-shoulders { position: absolute; left: 24%; bottom: 14%; width: 52%; height: 29%; border: 1px dashed #fff; border-bottom: 0; border-radius: 50% 50% 0 0; }
 .profile-crop-help { margin: 13px 0 10px; color: #64748b; font-size: 11px; line-height: 1.8; text-align: center; }
-.profile-crop-zoom { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; color: #64748b; font-size: 10px; }
+.profile-crop-toolbar {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px auto auto;
+  align-items: center;
+  gap: 8px;
+}
+.profile-crop-toolbar > button {
+  height: 34px;
+  min-width: 34px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.profile-crop-toolbar > button.profile-crop-tool-label {
+  padding: 0 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.profile-crop-toolbar > button:disabled { opacity: .55; cursor: wait; }
+.profile-crop-zoom { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; color: #64748b; font-size: 10px; min-width: 0; }
 .profile-crop-zoom input { width: 100%; accent-color: #2563eb; }
 .profile-crop-error { margin: 12px 0 0; padding: 9px; border-radius: 9px; background: #fef2f2; color: #b91c1c; font-size: 11px; }
 .profile-crop-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
@@ -275,4 +334,12 @@ export default {
 .profile-crop-actions .primary-btn { background: #2563eb; color: #fff; }
 .profile-crop-actions .secondary-btn { background: #eaf2ff; color: #1d4ed8; }
 .profile-crop-actions button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 480px) {
+  .profile-crop-toolbar {
+    grid-template-columns: 36px 1fr 36px;
+  }
+  .profile-crop-toolbar > button.profile-crop-tool-label {
+    grid-column: span 1;
+  }
+}
 </style>
