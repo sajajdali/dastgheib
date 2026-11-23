@@ -1904,7 +1904,7 @@ export default {
       if (nextNotifications.length !== existing.length) {
         this.writeInventoryZeroNotifications(nextNotifications)
       } else {
-        // هشدار زرد حداقل موجودی در منو باید بلافاصله بعد از ذخیره به‌روز شود.
+        // شمارش هشدار موجودی در منو باید بلافاصله بعد از ذخیره به‌روز شود.
         window.dispatchEvent(new CustomEvent("app:notifications-changed"))
       }
 

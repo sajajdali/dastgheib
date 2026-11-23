@@ -7,10 +7,9 @@
         :key="item.value"
         class="menu-item"
         :class="{
-          active: currentPage === item.value || (item.value === 'Peygiri' && currentPage === 'ServiceFollowups'),
-          'menu-item-stock-warning': item.value === 'Anbar' && inventoryLowStockCount > 0
+          active: currentPage === item.value || (item.value === 'Peygiri' && currentPage === 'ServiceFollowups')
         }"
-        :title="item.value === 'Anbar' && inventoryLowStockCount > 0 ? `${formatBadgeCount(inventoryLowStockCount)} کالا به حداقل موجودی رسیده است` : null"
+        :title="item.value === 'Anbar' && notificationCounts.Anbar > 0 ? `${formatBadgeCount(notificationCounts.Anbar)} کالا با هشدار موجودی` : null"
         @click="select(item.value)"
       >
         <div class="menu-dot"></div>
@@ -18,7 +17,6 @@
         <span
           v-if="item.value !== 'Vaghtdahi' && item.value !== 'Photos' && notificationCounts[item.value] > 0"
           class="notification-badge"
-          :class="{ 'notification-badge-warning': item.value === 'Anbar' && inventoryLowStockCount > 0 && !inventoryZeroCount }"
           :aria-label="`${notificationCounts[item.value]} مورد سررسید شده`"
         >
           {{ formatBadgeCount(notificationCounts[item.value]) }}
@@ -1127,24 +1125,6 @@ export default {
 }
 
 .menu-item.active .notification-badge { border-color: #318dfd; }
-
-/* رسیدن کالا به حداقل موجودی: تب «خدمات» و نشان آن زرد می‌شوند. */
-.notification-badge.notification-badge-warning {
-  background: linear-gradient(145deg, #fde047, #eab308);
-  color: #422006;
-  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.45);
-}
-
-.menu-item.menu-item-stock-warning:not(.active) {
-  border-color: #facc15;
-  background: #fef9c3;
-  color: #854d0e;
-}
-
-.menu-item.menu-item-stock-warning:not(.active) .menu-dot {
-  background: #eab308;
-  box-shadow: 0 0 0 3px rgba(234, 179, 8, .2);
-}
 
 @keyframes notification-pop {
   from { opacity: 0; transform: scale(0.45); }
