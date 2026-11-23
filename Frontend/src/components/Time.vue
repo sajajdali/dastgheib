@@ -39,19 +39,38 @@
         <span :class="['arrow-all', { collapsed: allCollapsed }]">▼</span>
       </button>
       <div class="appointment-search-wrap">
-        <div class="appointment-search-input-wrap">
-          <input ref="globalSearchInput" type="text" v-model="searchQuery" @input="scheduleTableSearch" class="global-search-box" :class="{ 'is-assistant-typing': assistantTyping }" placeholder="جستجو در کل جدول..." />
-          <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
+        <div class="appointment-search-cluster">
+          <div class="appointment-search-input-wrap" :class="{ 'is-year-mode': searchEntireYear }">
+            <label
+              class="appointment-search-scope-toggle"
+              :class="{ active: searchEntireYear }"
+              :title="searchEntireYear ? 'جست‌وجو در سال (فعال)' : 'جست‌وجو در ماه — برای کل سال تیک بزنید'"
+            >
+              <input
+                type="checkbox"
+                v-model="searchEntireYear"
+                aria-label="جست‌وجو در سال"
+                @change="onSearchEntireYearChanged"
+              />
+            </label>
+            <input
+              ref="globalSearchInput"
+              type="text"
+              v-model="searchQuery"
+              @input="scheduleTableSearch"
+              class="global-search-box"
+              :class="{ 'is-assistant-typing': assistantTyping }"
+              :placeholder="appointmentSearchPlaceholder"
+              :aria-label="appointmentSearchPlaceholder"
+            />
+            <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
+          </div>
+          <label v-if="searchEntireYear" class="appointment-year-search-picker" title="سال جست‌وجو">
+            <select v-model="searchYear" @change="onSearchYearChanged">
+              <option v-for="year in availableSearchYears" :key="year" :value="year">{{ formatScheduleYear(year) }}</option>
+            </select>
+          </label>
         </div>
-        <label class="appointment-year-search-toggle" :class="{ active: searchEntireYear }">
-          <input type="checkbox" v-model="searchEntireYear" @change="onSearchEntireYearChanged" />
-          <span>جست‌وجو در کل سال</span>
-        </label>
-        <label v-if="searchEntireYear" class="appointment-year-search-picker" title="سال جست‌وجو">
-          <select v-model="searchYear" @change="onSearchYearChanged">
-            <option v-for="year in availableSearchYears" :key="year" :value="year">{{ formatScheduleYear(year) }}</option>
-          </select>
-        </label>
         <div v-if="appliedSearchQuery.trim()" class="appointment-search-navigation">
           <button type="button" title="نتیجه قبلی" aria-label="نتیجه قبلی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(-1)">↑</button>
           <span>{{ searchResults.length ? searchResultIndex + 1 : 0 }} از {{ searchResults.length }}</span>
@@ -3197,6 +3216,9 @@ export default {
       if (/^1[34]\d{2}$/.test(String(this.searchYear || ''))) years.add(String(this.searchYear));
       if (/^1[34]\d{2}$/.test(String(this.selectedScheduleYear || ''))) years.add(String(this.selectedScheduleYear));
       return [...years].sort((a, b) => Number(b) - Number(a));
+    },
+    appointmentSearchPlaceholder() {
+      return this.searchEntireYear ? 'جست‌وجو در سال' : 'جست‌وجو در ماه';
     },
     activeSearchResultDateLabel() {
       const result = this.searchResults[this.searchResultIndex];
@@ -13693,37 +13715,51 @@ body:has(.time-page.table-view-active) {
   flex-wrap: wrap;
 }
 
-.appointment-search-input-wrap { position:relative; display:flex; align-items:center; }
-.appointment-search-input-wrap .global-search-box { padding-left:34px; }
-
-.appointment-year-search-toggle {
-  height: 32px;
+.appointment-search-cluster {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid #dbe5f1;
-  border-radius: 9px;
-  background: #fff;
-  color: #475569;
-  font-size: 10px;
-  font-weight: 900;
+  gap: 5px;
+  min-width: 0;
+}
+.appointment-search-input-wrap { position:relative; display:flex; align-items:center; }
+.appointment-search-input-wrap .global-search-box {
+  padding-left: 34px;
+  padding-right: 30px;
+  width: 210px;
+}
+.appointment-search-scope-toggle {
+  position: absolute;
+  right: 8px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border-radius: 4px;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(15, 23, 42, .05);
   user-select: none;
 }
-.appointment-year-search-toggle input { width: 14px; height: 14px; accent-color: #2563eb; cursor: pointer; }
-.appointment-year-search-toggle.active,
-.appointment-year-search-toggle:hover {
-  border-color: #93c5fd;
+.appointment-search-scope-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+.appointment-search-scope-toggle.active,
+.appointment-search-scope-toggle:hover {
   background: #eff6ff;
-  color: #1d4ed8;
+}
+.appointment-search-input-wrap.is-year-mode .global-search-box {
+  border-color: #93c5fd;
 }
 .appointment-year-search-picker {
   height: 32px;
   display: inline-flex;
   align-items: center;
-  padding: 0 4px 0 8px;
+  flex: 0 0 auto;
+  padding: 0 4px 0 6px;
   border: 1px solid #dbe5f1;
   border-radius: 9px;
   background: #fff;
@@ -13731,6 +13767,7 @@ body:has(.time-page.table-view-active) {
 }
 .appointment-year-search-picker select {
   height: 28px;
+  max-width: 72px;
   border: 0;
   background: transparent;
   color: #334155;
