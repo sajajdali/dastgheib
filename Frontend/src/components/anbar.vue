@@ -73,6 +73,21 @@
             @click.stop="toggleTreeNode(node.section)"
           ></button>
           <input v-model="node.section.name" :title="node.section.name || treePlaceholder(node.level)" :placeholder="treePlaceholder(node.level)" @click.stop @focus="selectTreeNode(node.section)">
+          <button
+            type="button"
+            class="tree-photo-btn"
+            :class="{ off: !sectionPhotosRequired(node.section) }"
+            :title="sectionPhotosRequired(node.section) ? 'ثبت عکس قبل و بعد برای این بخش الزامی است' : 'برای این خدمت ثبت عکس قبل و بعد الزامی نیست.'"
+            :aria-label="sectionPhotosRequired(node.section) ? 'الزام عکس روشن' : 'الزام عکس خاموش'"
+            :aria-pressed="sectionPhotosRequired(node.section)"
+            @click.stop="toggleSectionPhotosRequired(node.section)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 7h1.2l1-1.5h3.6L16 7H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3z"/>
+              <circle cx="12" cy="13" r="3.2"/>
+            </svg>
+            <i v-if="!sectionPhotosRequired(node.section)" class="tree-photo-off-mark" aria-hidden="true">×</i>
+          </button>
           <div class="tree-color-picker"><button type="button" class="tree-color-btn" title="رنگ فعلی این آیتم؛ برای بازکردن پالت کلیک کنید" @click.stop="toggleSectionColorMenu(sectionKey(node.section))"><span :style="{ background: sectionColor(node.section) }"></span></button><div v-if="colorPickerSectionKey === sectionKey(node.section)" class="section-color-menu tree-color-menu" @click.stop><button v-for="color in sectionColorsList" :key="color" type="button" class="section-color-swatch" :style="{ background: color }" :title="`انتخاب رنگ ${color}`" @click="setSectionColorFor(sectionKey(node.section), color)"></button><button type="button" class="section-color-reset" @click="setSectionColorFor(sectionKey(node.section), '')">حذف رنگ</button></div></div>
           <span class="tree-count">{{ treeNodeCount(node.section).toLocaleString('fa-IR') }}</span>
           <span
@@ -1525,6 +1540,7 @@ export default {
           level: Number(section.level || 1),
             name: section.name,
           color: section.color || null,
+          photos_required: section.photos_required !== false && section.photosRequired !== false,
           sort_order: section.sort_order ?? index
         }))
         const databaseColors = this.sections.reduce((colors, section) => {
@@ -1697,6 +1713,7 @@ export default {
         level: section.level,
         name: section.name,
         color: section.color || this.sectionColors[String(this.sectionKey(section))] || null,
+        photos_required: section.photos_required !== false,
         sort_order: section.sort_order
       }
     },
@@ -1876,8 +1893,18 @@ export default {
         parent_id: parentId,
         level,
         name,
+        photos_required: true,
         sort_order: this.sections.length
       }
+    },
+
+    sectionPhotosRequired(section) {
+      return section?.photos_required !== false
+    },
+
+    toggleSectionPhotosRequired(section) {
+      if (!section) return
+      section.photos_required = section.photos_required === false
     },
 
     addRootSection() {
@@ -3229,12 +3256,58 @@ p {
 
 .tree-more-btn,
 .tree-add-btn,
-.tree-toggle-btn {
+.tree-toggle-btn,
+.tree-photo-btn {
   flex: 0 0 auto;
   border: 0;
   background: transparent;
   font-family: inherit;
   cursor: pointer;
+}
+
+.tree-photo-btn {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #2563eb;
+}
+
+.tree-photo-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tree-photo-btn:hover {
+  background: #eef2f7;
+}
+
+.tree-photo-btn.off {
+  color: #94a3b8;
+}
+
+.tree-photo-off-mark {
+  position: absolute;
+  inset: auto 1px 0 auto;
+  width: 11px;
+  height: 11px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #dc2626;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0 0 1px #fecaca;
 }
 
 .tree-more-btn {
@@ -5043,6 +5116,13 @@ html #app.dark .inventory-page .inventory-tree-frame.expanded .inventory-tree {
   background: #22252d !important;
   box-shadow: 0 22px 50px rgba(0,0,0,.55) !important;
 }
+html body.dark .inventory-page .tree-photo-btn,
+html #app.dark .inventory-page .tree-photo-btn { color:#93c5fd; }
+html body.dark .inventory-page .tree-photo-btn.off,
+html #app.dark .inventory-page .tree-photo-btn.off { color:#94a3b8; }
+html body.dark .inventory-page .tree-photo-btn:hover,
+html #app.dark .inventory-page .tree-photo-btn:hover { background:#1e293b; }
+
 html body.dark .inventory-page .tree-node,
 html body.dark .inventory-page .tree-node:hover,
 html body.dark .inventory-page .tree-node.active,

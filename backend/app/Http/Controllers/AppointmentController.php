@@ -34,6 +34,7 @@ use App\Support\PatientPhoneVisibility;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use App\Support\AppointmentPastAccess;
+use App\Support\AppointmentPhotosRequirement;
 use App\Support\ActivityLogger;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -1129,6 +1130,12 @@ class AppointmentController extends Controller
         if (trim((string) $appointment->status) !== 'آمد') {
             return response()->json([
                 'message' => 'ثبت عکس فقط بعد از تغییر وضعیت نوبت به «آمد» امکان‌پذیر است.',
+            ], 422);
+        }
+
+        if (! AppointmentPhotosRequirement::forAppointment($appointment)) {
+            return response()->json([
+                'message' => 'برای این خدمت ثبت عکس قبل و بعد الزامی نیست.',
             ], 422);
         }
 

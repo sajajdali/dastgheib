@@ -19,11 +19,13 @@ class InventorySection extends Model
         'level',
         'name',
         'color',
+        'photos_required',
         'sort_order',
     ];
 
     protected $casts = [
         'level' => 'integer',
+        'photos_required' => 'boolean',
     ];
 
     public function inventories()

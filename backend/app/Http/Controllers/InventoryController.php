@@ -153,6 +153,13 @@ class InventoryController extends Controller
                     'color' => $section['color'] ?? null,
                     'sort_order' => $section['sort_order'] ?? $index,
                 ];
+                if (Schema::hasColumn('inventory_sections', 'photos_required')) {
+                    $sectionAttributes['photos_required'] = array_key_exists('photos_required', $section)
+                        ? filter_var($section['photos_required'], FILTER_VALIDATE_BOOLEAN)
+                        : (array_key_exists('photosRequired', $section)
+                            ? filter_var($section['photosRequired'], FILTER_VALIDATE_BOOLEAN)
+                            : true);
+                }
                 if ($record->exists) {
                     $sectionAttributes = array_filter($sectionAttributes,
                         fn ($key) => array_key_exists($key, $section), ARRAY_FILTER_USE_KEY);

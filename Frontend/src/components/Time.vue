@@ -1311,7 +1311,7 @@
                 <button
                   type="button"
                   class="appointment-photo-light"
-                  :class="photoStatusState(row, 'before')"
+                  :class="[photoStatusState(row, 'before'), { 'not-required': !appointmentPhotosRequired(row) }]"
                   :disabled="photoStatusState(row, 'before') === 'gray' || Boolean(photoStatusSavingKey)"
                   :data-tooltip="photoStatusTooltip(row, 'before')"
                   :aria-label="photoStatusTitle(row, 'before')"
@@ -1323,7 +1323,7 @@
                 <button
                   type="button"
                   class="appointment-photo-light"
-                  :class="photoStatusState(row, 'after')"
+                  :class="[photoStatusState(row, 'after'), { 'not-required': !appointmentPhotosRequired(row) }]"
                   :disabled="photoStatusState(row, 'after') === 'gray' || Boolean(photoStatusSavingKey)"
                   :data-tooltip="photoStatusTooltip(row, 'after')"
                   :aria-label="photoStatusTitle(row, 'after')"
@@ -2831,6 +2831,7 @@ import BufferedInput from './BufferedInput.vue';
 import LoadingImage from './LoadingImage.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 import { isBookingDayCapacityFull as bookingDayCapacityFull } from '../utils/bookingDayCapacity';
+import { appointmentPhotosRequired as appointmentNeedsPhotos } from '../utils/appointmentPhotosRequired';
 import {
   appointmentStatusChartColor as sharedAppointmentStatusChartColor,
   appointmentStatusCssClass,
@@ -11406,7 +11407,17 @@ this.calculateFinalAmount(row)
       else this.showAfterPhotoFilter = shouldOpen;
     },
 
+    appointmentPhotosRequired(row) {
+      return appointmentNeedsPhotos(
+        row,
+        this.serviceSections || [],
+        (service, appointmentRow) => this.sectionIdForService(service?.name, appointmentRow)
+      );
+    },
+
     photoStatusState(row, kind) {
+      // خدمات بدون الزام عکس (مثل لیزر) همیشه خاکستری می‌مانند و در فیلتر قرمز/سبز نمی‌آیند.
+      if (!this.appointmentPhotosRequired(row)) return 'gray';
       const takenAt = kind === 'before' ? row?.beforePhotoTakenAt : row?.afterPhotoTakenAt;
       if (takenAt) return 'green';
       return String(row?.status || '').trim() === 'آمد' ? 'red' : 'gray';
@@ -11414,6 +11425,7 @@ this.calculateFinalAmount(row)
 
     photoStatusTitle(row, kind) {
       const label = kind === 'before' ? 'عکس قبل' : 'عکس بعد';
+      if (!this.appointmentPhotosRequired(row)) return 'برای این خدمت ثبت عکس قبل و بعد الزامی نیست.';
       const state = this.photoStatusState(row, kind);
       if (state === 'gray') return `${label}: بیمار هنوز نیامده است`;
       if (state === 'red') return `${label}: در انتظار ثبت توسط عکاس؛ برای تأیید کلیک کنید`;
@@ -11424,6 +11436,7 @@ this.calculateFinalAmount(row)
 
     photoStatusTooltip(row, kind) {
       const label = kind === 'before' ? 'عکس قبل' : 'عکس بعد';
+      if (!this.appointmentPhotosRequired(row)) return 'برای این خدمت ثبت عکس قبل و بعد الزامی نیست.';
       const state = this.photoStatusState(row, kind);
       if (state === 'gray') return `خاکستری — ${label}: بیمار هنوز در وضعیت «آمد» قرار نگرفته است.`;
       if (state === 'red') return `قرمز — ${label}: بیمار آمده، اما عکس هنوز ثبت نشده است. عکاس برای تأیید روی چراغ کلیک کند.`;
@@ -14008,6 +14021,7 @@ th.sms-col .header-with-filter > span:first-child {
 }
 .row-actions-trigger{width:76px;height:32px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:10px;background:linear-gradient(180deg,#fff,#f8fafc);color:#475569;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;box-shadow:0 3px 8px rgba(15,23,42,.07);transition:.18s ease}.row-actions-trigger svg{width:15px;height:15px;fill:currentColor}.row-actions-trigger:hover,.row-actions-trigger.active{border-color:#93c5fd;background:#eff6ff;color:#2563eb;box-shadow:0 5px 14px rgba(37,99,235,.14)}td.row-action-col.action-menu-open{position:relative;z-index:2200}.row-actions-menu{position:absolute;top:calc(100% - 3px);left:5px;z-index:2201;width:238px;overflow:hidden;border:1px solid #dbe3ed;border-radius:15px;background:#fff;box-shadow:0 18px 45px rgba(15,23,42,.24);direction:rtl;text-align:right!important;animation:row-actions-enter .16s ease}.row-actions-menu>header{display:grid;gap:2px;padding:11px 13px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#eff6ff,#f8fafc);text-align:right!important}.row-actions-menu>header strong{color:#1e3a8a;font-size:11px}.row-actions-menu>header small{overflow:hidden;color:#64748b;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.row-actions-menu>button{width:100%!important;height:auto!important;min-height:48px;display:grid!important;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:9px;padding:7px 10px!important;border:0!important;border-bottom:1px solid #f1f5f9!important;border-radius:0!important;background:#fff!important;color:#334155!important;font-family:inherit;cursor:pointer;transition:.15s ease}.row-actions-menu>button:last-child{border-bottom:0!important}.row-actions-menu>button:hover{background:#f8fafc!important}.row-actions-menu>button>span{min-width:0;display:grid;gap:2px;text-align:right!important}.row-actions-menu>button b{color:#1e293b;font-size:11px;text-align:right!important}.row-actions-menu>button small{color:#94a3b8;font-size:8px;font-weight:700;text-align:right!important}.row-actions-menu .action-icon{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#e0f2fe;color:#0369a1;font-size:18px;font-style:normal;font-weight:900}.row-actions-menu .action-icon.clock{background:#fef3c7;color:#b45309}.row-actions-menu .action-icon.history{background:#e0e7ff;color:#4f46e5}.row-actions-menu>button.danger{background:#fffafa!important}.row-actions-menu>button.danger:hover{background:#fef2f2!important}.row-actions-menu>button.danger b{color:#b91c1c}.row-actions-menu .action-icon.remove{background:#fee2e2;color:#dc2626}@keyframes row-actions-enter{from{opacity:0;transform:translateY(-5px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 .photo-status-col{width:76px;min-width:76px;max-width:76px;text-align:center!important;position:relative}.photo-status-col .header-with-filter>span:first-child{font-size:10px}.appointment-photo-light{position:relative;width:34px!important;height:34px!important;min-width:34px!important;display:inline-grid!important;place-items:center!important;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;cursor:pointer;transition:transform .18s ease,filter .18s ease}.appointment-photo-light span{display:block;width:22px;height:22px;border:3px solid rgba(255,255,255,.9);border-radius:50%;box-shadow:0 2px 7px rgba(15,23,42,.25),inset 0 0 0 1px rgba(15,23,42,.1)}.appointment-photo-light.gray span{background:#94a3b8}.appointment-photo-light.red span{background:#fca5a5;box-shadow:0 0 0 4px #fee2e2,0 2px 8px rgba(220,38,38,.3);animation:photo-status-pulse 1.8s infinite}.appointment-photo-light.green span{background:#22c55e;box-shadow:0 0 0 4px #dcfce7,0 2px 8px rgba(22,163,74,.3)}.appointment-photo-light.red:hover,.appointment-photo-light.green:hover{transform:scale(1.13);filter:saturate(1.15)}.appointment-photo-light:disabled{opacity:1;cursor:default}.appointment-photo-light::before{content:"";position:absolute;right:50%;bottom:calc(100% + 5px);z-index:1602;border:6px solid transparent;border-top-color:#0f172a;transform:translateX(50%);opacity:0;visibility:hidden;pointer-events:none;transition:.15s ease}.appointment-photo-light::after{content:attr(data-tooltip);position:absolute;right:50%;bottom:calc(100% + 16px);z-index:1601;width:max-content;max-width:260px;padding:8px 11px;border-radius:9px;background:#0f172a;color:#fff;font-family:inherit;font-size:10px;font-weight:700;line-height:1.8;white-space:normal;text-align:right!important;direction:rtl;box-shadow:0 9px 24px rgba(15,23,42,.3);transform:translateX(50%) translateY(4px);opacity:0;visibility:hidden;pointer-events:none;transition:.15s ease}.appointment-photo-light:hover::before,.appointment-photo-light:hover::after,.appointment-photo-light:focus-visible::before,.appointment-photo-light:focus-visible::after{opacity:1;visibility:visible}.appointment-photo-light:hover::after,.appointment-photo-light:focus-visible::after{transform:translateX(50%) translateY(0)}.photo-filter-dropdown{right:auto;left:4px;min-width:125px}.photo-filter-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(15,23,42,.12)}.photo-filter-dot.gray{background:#94a3b8}.photo-filter-dot.red{background:#fca5a5}.photo-filter-dot.green{background:#22c55e}@keyframes photo-status-pulse{0%,100%{box-shadow:0 0 0 3px #fee2e2,0 2px 8px rgba(220,38,38,.25)}50%{box-shadow:0 0 0 6px rgba(254,226,226,.65),0 2px 10px rgba(220,38,38,.35)}}
+.appointment-photo-light.not-required{cursor:not-allowed!important;opacity:.72;filter:grayscale(.15)}.appointment-photo-light.not-required:hover{transform:none!important;filter:grayscale(.15)}
 .row-history-btn{width:26px;height:26px;display:inline-grid;place-items:center;flex:0 0 26px;margin:0;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;color:#4f46e5;cursor:pointer;transition:.2s}.row-history-btn:hover{border-color:#a5b4fc;background:#e0e7ff}.row-history-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .appointment-history-overlay{position:fixed;inset:0;z-index:1000020;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.55);backdrop-filter:blur(5px)}.appointment-history-modal{width:min(720px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e2e8f0;border-radius:20px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.32);direction:rtl}.appointment-history-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#eff6ff,#f0fdf4)}.appointment-history-modal header small{color:#2563eb;font-size:10px;font-weight:900}.appointment-history-modal h3{margin:4px 0;font-size:20px}.appointment-history-modal header p{margin:0;color:#64748b;font-size:11px}.appointment-history-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:#64748b;font-size:22px;cursor:pointer}.appointment-history-filters{display:flex;gap:7px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid #e2e8f0;background:#fff}.appointment-history-filters button{height:32px;padding:0 12px;border:1px solid #dbeafe;border-radius:999px;background:#f8fbff;color:#475569;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.appointment-history-filters button.active{border-color:#2563eb;background:#2563eb;color:#fff}.appointment-history-empty{min-height:220px;display:grid;place-items:center;color:#64748b;font-size:12px;font-weight:900}.appointment-history-timeline{overflow:auto;padding:18px 22px}.appointment-history-timeline article{position:relative;display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;padding-bottom:14px}.appointment-history-timeline article:not(:last-child)::before{content:"";position:absolute;right:8px;top:18px;bottom:-2px;width:2px;background:#dbeafe}.appointment-history-timeline article>i{position:relative;z-index:1;width:16px;height:16px;border:3px solid #bfdbfe;border-radius:50%;background:#2563eb;box-shadow:0 0 0 3px #fff}.appointment-history-timeline article>div{padding:11px 13px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}.appointment-history-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.appointment-history-card-head strong{color:#1e293b;font-size:13px}.appointment-history-card-head time{color:#64748b;font-size:10px;direction:ltr}.appointment-history-timeline p{margin:5px 0 0;color:#64748b;font-size:10px}.appointment-history-timeline p b{color:#1d4ed8}.appointment-history-timeline small{display:block;margin-top:7px;padding-top:7px;border-top:1px solid #f1f5f9;color:#475569;font-size:10px;line-height:1.8;word-break:break-word}
 
