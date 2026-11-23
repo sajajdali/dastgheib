@@ -1114,11 +1114,13 @@
             <button type="button" title="بستن" aria-label="بستن" @click="closeMediaViewer">×</button>
           </header>
           <div class="media-viewer-stage">
-            <img
+            <LoadingImage
               :src="mediaViewerItem.url"
               :alt="mediaViewerItem.original_name || mediaViewerItem.file_name || 'تصویر پرونده'"
-              decoding="async"
-            >
+              fit="contain"
+              dark
+              show-label
+            />
           </div>
         </section>
       </div>
@@ -1488,7 +1490,7 @@
                   >
                     <input type="file" accept="image/*" @change="uploadAnglePhoto($event, activePhotoAngle)">
                     <template v-if="activeAngleMedia">
-                      <img :src="activeAngleMedia.url" :alt="activeAngleMedia.photo_angle_label || activePhotoAngle.label">
+                      <LoadingImage :src="activeAngleMedia.url" :alt="activeAngleMedia.photo_angle_label || activePhotoAngle.label" fit="cover" dark />
                       <b class="angle-check">✓</b>
                       <span class="angle-replace">تغییر عکس</span>
                       <button type="button" class="angle-remove" @click.prevent.stop="deleteMediaItem(activeAngleMedia)">حذف</button>
@@ -1570,18 +1572,21 @@
 
             <div class="media-grid">
               <div v-for="item in filteredMediaItems" :key="item.id" class="media-item" :class="{ 'no-consent-media': item.usage_consent === false }">
-                <div class="media-preview" :class="{ 'is-image': item.media_type === 'image' }">
-                  <img
+                <div
+                  class="media-preview"
+                  :class="{ 'is-image': item.media_type === 'image' }"
+                  :title="item.media_type === 'image' ? 'برای نمایش کامل کلیک کنید' : undefined"
+                  @click="item.media_type === 'image' && openMediaViewer(item)"
+                >
+                  <LoadingImage
                     v-if="item.media_type === 'image'"
                     :src="item.url"
                     :alt="item.original_name"
-                    loading="lazy"
-                    decoding="async"
-                    title="برای نمایش کامل کلیک کنید"
-                    @click="openMediaViewer(item)"
-                  >
+                    fit="cover"
+                    lazy
+                  />
                   <span v-if="item.usage_consent === false" class="no-consent-badge">عدم رضایت استفاده از تصاویر</span>
-                  <video v-else :src="item.url" controls></video>
+                  <video v-else-if="item.media_type !== 'image'" :src="item.url" controls></video>
                   <button
                     class="star-btn"
                     :class="{ active: item.is_featured, loading: item.starLoading }"
@@ -1720,14 +1725,14 @@
               <figure :class="{ empty: !activeBeforeAfterPair.before }">
                 <b>قبل</b>
                 <a v-if="activeBeforeAfterPair.before" :href="mediaDownloadUrl(activeBeforeAfterPair.before)" class="compare-download-btn" title="دانلود عکس قبل" download>↓ دانلود</a>
-                <img v-if="activeBeforeAfterPair.before" :src="activeBeforeAfterPair.before.url" :alt="activeBeforeAfterPair.before.original_name || 'عکس قبل'">
+                <LoadingImage v-if="activeBeforeAfterPair.before" :src="activeBeforeAfterPair.before.url" :alt="activeBeforeAfterPair.before.original_name || 'عکس قبل'" fit="contain" dark show-label />
                 <span v-if="!activeBeforeAfterPair.before" class="compare-missing-message">عکس قبل برای نمای «{{ activeBeforeAfterPair.angle || 'بدون عنوان' }}» آپلود نشده است.</span>
                 <button v-if="!activeBeforeAfterPair.before" type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'before')">ورود به گالری برای آپلود</button>
               </figure>
               <figure :class="{ empty: !activeBeforeAfterPair.after }">
                 <b>بعد</b>
                 <a v-if="activeBeforeAfterPair.after" :href="mediaDownloadUrl(activeBeforeAfterPair.after)" class="compare-download-btn" title="دانلود عکس بعد" download>↓ دانلود</a>
-                <img v-if="activeBeforeAfterPair.after" :src="activeBeforeAfterPair.after.url" :alt="activeBeforeAfterPair.after.original_name || 'عکس بعد'">
+                <LoadingImage v-if="activeBeforeAfterPair.after" :src="activeBeforeAfterPair.after.url" :alt="activeBeforeAfterPair.after.original_name || 'عکس بعد'" fit="contain" dark show-label />
                 <span v-if="!activeBeforeAfterPair.after" class="compare-missing-message">عکس بعد برای نمای «{{ activeBeforeAfterPair.angle || 'بدون عنوان' }}» آپلود نشده است.</span>
                 <button v-if="!activeBeforeAfterPair.after" type="button" class="compare-upload-missing" @click="goUploadMissingComparePhoto(activeBeforeAfterPair, 'after')">ورود به گالری برای آپلود</button>
               </figure>
@@ -1761,7 +1766,7 @@
 
         <div class="media-edit-body">
           <div class="media-edit-preview">
-            <img v-if="editMediaForm.media_type === 'image'" :src="editMediaForm.url" :alt="editMediaForm.original_name">
+            <LoadingImage v-if="editMediaForm.media_type === 'image'" :src="editMediaForm.url" :alt="editMediaForm.original_name" fit="contain" dark />
             <video v-else :src="editMediaForm.url" controls></video>
           </div>
 
@@ -1824,6 +1829,7 @@ import jalaliday from 'jalaliday'
 import moment from 'moment-jalaali'
 import iranCitiesData from '@/data/iran-cities.json'
 import PatientAvatar from './PatientAvatar.vue'
+import LoadingImage from './LoadingImage.vue'
 
 const normalizePersianText = value => String(value || '')
   .replace(/ي/g, 'ی')
@@ -1857,7 +1863,8 @@ export default {
     DatePicker,
     JalaliDateInput,
     Multiselect,
-    PatientAvatar
+    PatientAvatar,
+    LoadingImage
   },
 
   props: {
@@ -8802,13 +8809,17 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   background: #eff6ff;
 }
 
-.angle-dropzone.filled img {
+.angle-dropzone.filled img,
+.angle-dropzone.filled :deep(.loading-image) {
   width: 100%;
   height: 100%;
   min-height: 310px;
   object-fit: contain;
   object-position: center;
   display: block;
+}
+.angle-dropzone.filled :deep(.loading-image) {
+  object-fit: unset;
 }
 
 .angle-check {
@@ -9268,13 +9279,17 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 
 .compare-download-btn:hover { background: #dbeafe; }
 
-.compare-photo-grid img {
+.compare-photo-grid img,
+.compare-photo-grid :deep(.loading-image) {
   width: 100%;
   height: 100%;
   max-height: min(62vh, 620px);
   min-height: 420px;
   display: block;
   object-fit: contain;
+}
+.compare-photo-grid :deep(.loading-image) {
+  object-fit: unset;
 }
 
 .compare-photo-grid figure.empty {
@@ -9387,15 +9402,20 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 }
 
 .media-preview img,
-.media-preview video {
+.media-preview video,
+.media-preview :deep(.loading-image) {
   width: 100%;
   height: 100%;
   object-fit: contain;
   object-position: center;
   display: block;
 }
+.media-preview :deep(.loading-image) {
+  object-fit: unset;
+}
 
-.media-preview.is-image img {
+.media-preview.is-image img,
+.media-preview.is-image :deep(.loading-image) {
   cursor: zoom-in;
 }
 
@@ -9572,12 +9592,16 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
 }
 
 .media-edit-preview img,
-.media-edit-preview video {
+.media-edit-preview video,
+.media-edit-preview :deep(.loading-image) {
   width: 100%;
   height: 100%;
   object-fit: contain;
   object-position: center;
   display: block;
+}
+.media-edit-preview :deep(.loading-image) {
+  object-fit: unset;
 }
 
 .media-viewer-overlay {
@@ -9644,13 +9668,18 @@ input::-webkit-input-placeholder { color: currentColor; opacity: 0.6; }
   overflow: auto;
 }
 
-.media-viewer-stage img {
+.media-viewer-stage img,
+.media-viewer-stage :deep(.loading-image) {
   width: 100%;
   height: 100%;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   object-position: center;
+}
+.media-viewer-stage :deep(.loading-image) {
+  object-fit: unset;
+  min-height: min(70vh, 720px);
 }
 
 .media-edit-form {

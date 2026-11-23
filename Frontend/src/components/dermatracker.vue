@@ -26,7 +26,7 @@
               <img v-if="patient.avatar_url" :src="patient.avatar_url" alt="">
               <b v-else>{{ patientInitial(patient) }}</b>
             </span>
-            <span class="beauty-flow-search-result-info"><strong>{{ patientName(patient) }}</strong><small>پرونده {{ patient.file_number || '-' }} · {{ displayPatientPhone(patient.phone) || '-' }}</small><span v-if="patient.search_media_loading" class="beauty-flow-search-media-loading">در حال دریافت عکس‌ها...</span><span v-else-if="patient.search_media?.length" class="beauty-flow-search-media"><img v-for="media in patient.search_media" :key="media.id" :src="media.url" :alt="media.original_name || 'عکس مراجعه‌کننده'" loading="lazy"><small>{{ patient.search_media.length.toLocaleString('fa-IR') }} عکس آپلودشده</small></span><small v-else-if="patient.search_media_loaded">عکس آپلودشده‌ای ثبت نشده است</small></span>
+            <span class="beauty-flow-search-result-info"><strong>{{ patientName(patient) }}</strong><small>پرونده {{ patient.file_number || '-' }} · {{ displayPatientPhone(patient.phone) || '-' }}</small><span v-if="patient.search_media_loading" class="beauty-flow-search-media-loading">در حال دریافت عکس‌ها...</span><span v-else-if="patient.search_media?.length" class="beauty-flow-search-media"><LoadingImage v-for="media in patient.search_media" :key="media.id" :src="media.url" :alt="media.original_name || 'عکس مراجعه‌کننده'" fit="cover" lazy /><small>{{ patient.search_media.length.toLocaleString('fa-IR') }} عکس آپلودشده</small></span><small v-else-if="patient.search_media_loaded">عکس آپلودشده‌ای ثبت نشده است</small></span>
             <b>ساخت برنامه</b>
           </button>
         </div>
@@ -170,7 +170,7 @@
               :aria-pressed="isProfileSelected"
               @click="selectProfilePhoto"
             >
-              <img :src="profilePhoto.thumbnail_url || profilePhoto.url" alt="عکس پروفایل بیمار">
+              <LoadingImage :src="profilePhoto.thumbnail_url || profilePhoto.url" alt="عکس پروفایل بیمار" fit="cover" />
               <span>
                 <strong>عکس پروفایل</strong>
                 <small>{{ isProfileSelected ? 'انتخاب شده برای نقطه‌گذاری' : 'برای نقطه‌گذاری انتخاب کنید' }}</small>
@@ -319,7 +319,14 @@
             </header>
 
             <div :class="['beauty-flow-photo-stage', { 'beauty-flow-photo-stage-readonly': !isProfileSelected }]" @click="startPoint">
-              <img :src="selectedPhoto.url" :alt="isProfileSelected ? 'عکس پروفایل بیمار' : 'عکس قبلی بیمار'">
+              <LoadingImage
+                :src="selectedPhoto.url"
+                :alt="isProfileSelected ? 'عکس پروفایل بیمار' : 'عکس قبلی بیمار'"
+                fit="contain"
+                dark
+                show-label
+                @load="markPhotoLoaded(selectedPhoto.url)"
+              />
               <button
                 v-for="point in annotations"
                 :key="point.id"
@@ -371,8 +378,16 @@
             <div class="beauty-compare-grid">
               <figure v-for="side in compareSides" :key="side.key" :class="['beauty-compare-photo', `is-${side.key}`]">
                 <button v-if="side.photo" type="button" :class="{ 'is-loading': !isPhotoLoaded(side.photo.url) }" :title="`نمایش بزرگ عکس ${side.label}`" @click="openLightbox(side.key)">
-                  <img :key="side.photo.url" :src="side.photo.url" :alt="`${side.label} · ${compareAngle.label}`" @load="markPhotoLoaded(side.photo.url)" @error="markPhotoLoaded(side.photo.url)">
-                  <span v-if="!isPhotoLoaded(side.photo.url)" class="bf-photo-spinner" role="status" aria-label="در حال بارگذاری عکس"></span>
+                  <LoadingImage
+                    :key="side.photo.url"
+                    :src="side.photo.url"
+                    :alt="`${side.label} · ${compareAngle.label}`"
+                    fit="contain"
+                    dark
+                    show-label
+                    @load="markPhotoLoaded(side.photo.url)"
+                    @error="markPhotoLoaded(side.photo.url)"
+                  />
                   <span class="beauty-compare-zoom-hint" aria-hidden="true">⤢</span>
                 </button>
                 <div v-else class="beauty-compare-empty">عکس {{ side.label }} برای این زاویه ثبت نشده است</div>
@@ -407,7 +422,7 @@
             <div v-if="photoFolders.length" class="beauty-folders-grid">
               <button v-for="folder in photoFolders" :key="folder.id" type="button" class="beauty-folder" @click="openPhotoFolder(folder.id)">
                 <span class="beauty-folder-cover">
-                  <img v-if="folder.cover_url" :src="folder.cover_url" alt="" loading="lazy">
+                  <LoadingImage v-if="folder.cover_url" :src="folder.cover_url" alt="" fit="cover" lazy />
                   <i v-else aria-hidden="true">▤</i>
                 </span>
                 <span class="beauty-folder-info">
@@ -503,12 +518,13 @@
 <script>
 import DatePicker from 'vue3-persian-datetime-picker'
 import PatientProfilePhotoUploader from './PatientProfilePhotoUploader.vue'
+import LoadingImage from './LoadingImage.vue'
 
 const API = '/api'
 
 export default {
   name: 'Dermatracker',
-  components: { DatePicker, PatientProfilePhotoUploader },
+  components: { DatePicker, PatientProfilePhotoUploader, LoadingImage },
   props: {
     permissions: {
       type: Array,
@@ -1321,7 +1337,10 @@ export default {
 .beauty-flow-search-result { align-items: flex-start; }
 .beauty-flow-search-result-info { min-width: 0; align-items: flex-start !important; }
 .beauty-flow-search-media { display: flex !important; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
-.beauty-flow-search-media img { width: 32px; height: 32px; object-fit: cover; border-radius: 7px; border: 1px solid #dbeafe; }
+.beauty-flow-search-media img,
+.beauty-flow-search-media :deep(.loading-image) { width: 32px; height: 32px; object-fit: cover; border-radius: 7px; border: 1px solid #dbeafe; }
+.beauty-flow-search-media :deep(.loading-image) { object-fit: unset; overflow: hidden; }
+.beauty-flow-search-media :deep(.loading-image__spinner) { width: 14px; height: 14px; border-width: 2px; }
 .beauty-flow-search-media small, .beauty-flow-search-media-loading { color: #64748b; font-size: 10px; }
 .beauty-flow-create-results > button > span:nth-child(2) { display: flex; flex-direction: column; gap: 3px; }
 .beauty-flow-create-results small { color: #64748b; font-weight: 500; }
@@ -1704,12 +1723,22 @@ export default {
   background: #f0fdfa;
   cursor: default;
 }
-.beauty-flow-profile-pick img {
+.beauty-flow-profile-pick img,
+.beauty-flow-profile-pick :deep(.loading-image) {
   width: 54px;
   height: 54px;
   flex: 0 0 54px;
   border-radius: 10px;
   object-fit: cover;
+}
+.beauty-flow-profile-pick :deep(.loading-image) {
+  object-fit: unset;
+  overflow: hidden;
+}
+.beauty-flow-profile-pick :deep(.loading-image__spinner) {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
 }
 .beauty-flow-profile-pick span {
   display: flex;
@@ -1943,13 +1972,19 @@ export default {
   background: #111827;
   cursor: crosshair;
 }
-.beauty-flow-photo-stage img {
+.beauty-flow-photo-stage img,
+.beauty-flow-photo-stage :deep(.loading-image) {
   display: block;
   width: 100%;
   max-width: 100%;
   max-height: 72vh;
   object-fit: contain;
   user-select: none;
+}
+.beauty-flow-photo-stage :deep(.loading-image) {
+  object-fit: unset;
+  min-height: 420px;
+  pointer-events: none;
 }
 .beauty-flow-point {
   position: absolute;
@@ -2112,7 +2147,9 @@ export default {
 .beauty-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .beauty-compare-photo { margin: 0; display: grid; gap: 8px; }
 .beauty-compare-photo > button { display: block; width: 100%; height: auto !important; padding: 0 !important; border: 0 !important; border-radius: 12px !important; overflow: hidden; background: #111827 !important; cursor: zoom-in; }
-.beauty-compare-photo img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: contain; }
+.beauty-compare-photo img,
+.beauty-compare-photo :deep(.loading-image) { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: contain; }
+.beauty-compare-photo :deep(.loading-image) { object-fit: unset; }
 .beauty-compare-empty { display: grid; place-items: center; aspect-ratio: 3 / 4; padding: 16px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; color: #94a3b8; font-size: 12px; font-weight: 800; text-align: center; }
 .beauty-compare-photo figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #64748b; }
 .beauty-compare-photo figcaption b { padding: 3px 10px; border-radius: 999px; font-size: 11px; }
@@ -2125,7 +2162,10 @@ export default {
 .beauty-folders .beauty-folder { display: flex; align-items: center; gap: 10px; width: 100%; height: auto !important; padding: 8px !important; border: 1px solid #e2e8f0 !important; border-radius: 12px !important; background: #fff !important; color: #0f172a !important; text-align: right; cursor: pointer; transition: border-color .15s, background .15s; }
 .beauty-folders .beauty-folder:hover { border-color: #0f766e !important; background: #f0fdfa !important; }
 .beauty-folder-cover { flex: 0 0 56px; width: 56px; height: 56px; display: grid; place-items: center; overflow: hidden; border-radius: 10px; background: #e2e8f0; color: #64748b; font-size: 22px; font-style: normal; }
-.beauty-folder-cover img { width: 100%; height: 100%; object-fit: cover; }
+.beauty-folder-cover img,
+.beauty-folder-cover :deep(.loading-image) { width: 100%; height: 100%; object-fit: cover; }
+.beauty-folder-cover :deep(.loading-image) { object-fit: unset; }
+.beauty-folder-cover :deep(.loading-image__spinner) { width: 18px; height: 18px; border-width: 2px; }
 .beauty-folder-info { display: grid; gap: 3px; min-width: 0; }
 .beauty-folder-info strong { font-size: 13px; font-weight: 900; }
 .beauty-folder-info small { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
