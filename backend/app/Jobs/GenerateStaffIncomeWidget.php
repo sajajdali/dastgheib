@@ -29,7 +29,7 @@ class GenerateStaffIncomeWidget implements ShouldQueue
         $this->updateSnapshot($snapshot, ['status'=>'processing','progress'=>5,'stage'=>'آماده‌سازی اطلاعات پرسنل','error'=>null]);
         $this->updateSnapshot($snapshot, ['progress'=>30,'stage'=>'محاسبه درآمد و پورسانت پرسنل']);
         $result = $reports->staffIncomeReport($snapshot->filters ?? []);
-        $this->updateSnapshot($snapshot, ['progress'=>90,'stage'=>'بررسی تحقق سقف پرسنل']);
+        $this->updateSnapshot($snapshot, ['progress'=>90,'stage'=>'بررسی پله‌های فروش پرسنل']);
         $this->updateSnapshot($snapshot, [
             'result'=>$result,'status'=>'completed','progress'=>100,'stage'=>'گزارش درآمد پرسنل آماده است',
             'error'=>null,'completed_at'=>now(),

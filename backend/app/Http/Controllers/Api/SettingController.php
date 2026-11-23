@@ -762,7 +762,7 @@ class SettingController extends Controller
         return response()->json(['success' => true, 'message' => 'تنظیمات داخلی با موفقیت ذخیره شدند.']);
     }
 
-    /** ذخیره سقف تارگت پرسنل و گنجایش ماهانه از داشبورد گزارش. */
+    /** ذخیره گنجایش ماهانه (و در صورت ارسال، مقدار قدیمی سقف تارگت) از داشبورد گزارش. */
     public function saveReportTargets(Request $request)
     {
         $this->persistReportTargets($request);

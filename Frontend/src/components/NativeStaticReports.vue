@@ -294,9 +294,9 @@
             <div :draggable="true" @dragstart="v.dh.staffinc" @dragover="v.dv.staffinc" @drop="v.dp.staffinc" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.staffinc) + ';order:' + (v.o.staffinc)" data-screen-label="درآمد پرسنل">
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
-                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">درآمد پرسنل و سقف (تارگت)</span>
+                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">درآمد پرسنل و پله‌های تارگت</span>
                 <small v-if="v.staffIncomeCompletedAt" class="report-calculated-at">محاسبه: {{ v.staffIncomeCompletedAt }}</small>
-                <button type="button" :disabled="v.staffIncomeCalculating" @click="calculateStaffIncome" :title="v.staffIncomeReady ? 'محاسبه مجدد' : 'محاسبه درآمد پرسنل'" aria-label="محاسبه درآمد پرسنل و سقف" class="report-refresh-button">
+                <button type="button" :disabled="v.staffIncomeCalculating" @click="calculateStaffIncome" :title="v.staffIncomeReady ? 'محاسبه مجدد' : 'محاسبه درآمد پرسنل'" aria-label="محاسبه درآمد پرسنل و پله‌های تارگت" class="report-refresh-button">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg>
                 </button>
                 <input type="checkbox" :checked="v.ck.staffinc" @change="v.hide.staffinc" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
@@ -307,13 +307,20 @@
                 </template>
               </div>
               <div style="position:relative;height:175px;display:flex;align-items:flex-end;gap:14px;padding:0 6px">
-                <div :style="'position:absolute;right:0;left:0;bottom:' + (v.targetB) + ';border-top:2px dashed #f59e0b;z-index:1'">
-                  <span style="position:absolute;left:0;top:-20px;background:#fffbeb;color:#b45309;font-size:10.5px;font-weight:800;border-radius:6px;padding:2px 8px">{{ v.targetTxt }}</span>
-                </div>
+                <template v-for="(line, lineI) in v.staffTierLines" :key="'tier-'+lineI">
+                  <div :style="'position:absolute;right:0;left:0;bottom:' + (line.bottom) + ';border-top:2px dashed #f59e0b;z-index:1;pointer-events:none'">
+                    <span style="position:absolute;left:0;top:-20px;background:#fffbeb;color:#b45309;font-size:10px;font-weight:800;border-radius:6px;padding:2px 8px;white-space:nowrap">{{ line.label }}</span>
+                  </div>
+                </template>
                 <template v-for="(b, bI) in v.staffBars" :key="bI">
-                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;z-index:2">
+                  <div style="flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;z-index:2">
+                    <template v-for="(m, mI) in b.tierMarkers" :key="'m-'+mI">
+                      <div :style="'position:absolute;left:8%;right:8%;bottom:' + (m.bottom) + ';border-top:2px dashed #f59e0b;z-index:3;pointer-events:none'">
+                        <span style="position:absolute;left:50%;transform:translateX(-50%);top:-17px;background:#fffbeb;color:#b45309;font-size:8px;font-weight:800;border-radius:5px;padding:1px 5px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis">{{ m.label }}</span>
+                      </div>
+                    </template>
                     <span class="rpt-money" :style="'font-size:9.5px;font-weight:800;color:' + (b.vc)">{{ b.v }}</span>
-                    <span v-if="b.reached" style="padding:2px 7px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:9px;font-weight:900">رسیده به تارگت</span>
+                    <span v-if="b.reached" style="padding:2px 7px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:9px;font-weight:900">{{ b.reachedLabel }}</span>
                     <img v-if="b.ph" :src="b.ph" :style="'width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid ' + (b.c)" alt="">
                     <span v-else :style="'width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#e2e8f0;color:#475569;font-size:10px;font-weight:900;border:2px solid ' + (b.c)">{{ b.initial }}</span>
                     <div :style="'width:30px;height:' + (b.h) + ';background:' + (b.c) + ';border-radius:7px 7px 0 0'"></div>
@@ -322,11 +329,7 @@
                 </template>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border-radius:12px;padding:10px 16px;flex-wrap:wrap;gap:8px">
-                <span style="font-size:12.5px;color:#475569;font-weight:600">جمع کل: <b class="rpt-money" style="color:#0f172a;font-size:13.5px">{{ v.staffSum }}</b></span>
-                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b">
-                  سقف تارگت (میلیون تومان):
-                  <input type="text" inputmode="numeric" :value="v.staffTargetV" @change="v.onStaffTarget" style="width:88px;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;color:#0f172a;outline:none;direction:ltr;text-align:center">
-                </label>
+                <span style="font-size:12.5px;color:#475569;font-weight:600">جمع فروش: <b class="rpt-money" style="color:#0f172a;font-size:13.5px">{{ v.staffSum }}</b></span>
                 <span style="font-size:12px;color:#b45309;font-weight:700">{{ v.staffOverTxt }}</span>
               </div>
               <div v-if="v.staffIncomeCalculating" class="staff-income-loading" aria-live="polite">
@@ -1038,13 +1041,13 @@ export default {
     return {
       isDarkUi: false,
       KEYS: ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'],
-      NAMES: {ctype:'دسته‌بندی مشتریان',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'سایر هزینه‌های کلینیک',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
+      NAMES: {ctype:'دسته‌بندی مشتریان',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'سایر هزینه‌های کلینیک',staffinc:'درآمد پرسنل و پله‌های تارگت',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
       s: {
       tab:'r', filterOpen:false, mngOpen:false,
       filters:{}, bdFrom:'', bdTo:'', hidden:{}, order:KEYS.slice(), ddOpen:null, ddQ:'',
       monthSel:3, loyalRange:6, staff:'همه', cap:String(this.capacityDefault ?? 2500),
       reportSummary:null, reportLoading:false, reportError:'', topServicesExpanded:false, campSort:'quality', from:`${currentYear}/${currentMonthText}/01`, to:`${currentYear}/${currentMonthText}/${currentMonthLastDayText}`}
-      ,cancellationReport: null, cancellationLoading: false, expenseReport: null, expenseLoading: false, expenseError: '', reportSummary: null, reportLoading: false, staffTarget: 120
+      ,cancellationReport: null, cancellationLoading: false, expenseReport: null, expenseLoading: false, expenseError: '', reportSummary: null, reportLoading: false
       ,customerSegmentSnapshot: null, customerSegmentLoading: false
       ,dashboardSnapshot: null, dashboardLoading: false
       ,staffRoster: [], staffIncomeSnapshot: null, staffIncomeLoading: false
@@ -1340,28 +1343,94 @@ export default {
     const cancellationReady = cancellationSnapshot?.status === 'completed' && cancellationSnapshot?.result;
     const cancellationResult = cancellationReady ? cancellationSnapshot.result : null;
 
-    // staff income
+    // staff income + sales-tier targets from staff settings (sales_bonus_tiers)
     const staffIncomeSnapshot = this.staffIncomeSnapshot;
     const staffIncomeReady = staffIncomeSnapshot?.status === 'completed' && staffIncomeSnapshot?.result;
     const staffResultRows = staffIncomeReady && Array.isArray(staffIncomeSnapshot.result.staff) ? staffIncomeSnapshot.result.staff : [];
     const staffResultById = Object.fromEntries(staffResultRows.map(row => [String(row.id), row]));
     const staffColors = ['#2563eb','#0d9488','#7c3aed','#db2777','#f59e0b','#0891b2','#4f46e5'];
+    const formatTierLabel = (tier, staffName = '') => {
+      const salesTxt = mm(Number(tier.sales_from || 0) / 1000000);
+      const bonusTxt = mm(Number(tier.salary_addition || 0) / 1000000);
+      const title = tier.title || ('پله ' + fa(Number(tier.index || 1)));
+      const base = title + ' · فروش ' + salesTxt + ' · پاداش ' + bonusTxt;
+      return staffName ? (String(staffName).split(' ')[0] + ' · ' + base) : base;
+    };
     const STAFF = this.staffRoster.map((staff, index) => {
       const result = staffResultById[String(staff.id)] || {};
-      return {id:staff.id,n:staff.name,ph:staff.avatar_url,ac:staffColors[index % staffColors.length],v:staffIncomeReady ? Number(result.income || 0) : null,reached:!!result.target_reached};
+      const tiers = Array.isArray(result.sales_bonus_tiers) ? result.sales_bonus_tiers : [];
+      const sales = staffIncomeReady ? Number(result.sales ?? result.income ?? 0) : null;
+      const reachedTier = result.reached_tier || null;
+      return {
+        id: staff.id,
+        n: staff.name,
+        ph: staff.avatar_url,
+        ac: staffColors[index % staffColors.length],
+        v: sales,
+        reached: !!result.target_reached,
+        reachedTier,
+        tiers: (result.sales_bonus_enabled && tiers.length) ? tiers : [],
+        salesBonus: Number(result.sales_bonus || 0),
+      };
     });
-    const target = staffIncomeReady ? Math.max(0, Number(staffIncomeSnapshot.result.target || 0)) : null;
     const staffChips = ['همه'].concat(STAFF.map(s => s.n)).map(n => ({t: n, st: chip(S.staff === n), on: () => this.set({staff: n})}));
     const shown = STAFF.filter(s => S.staff === 'همه' || s.n === S.staff);
-    const chartMaximum = staffIncomeReady ? Math.max(target || 0, ...shown.map(s => Number(s.v || 0)), 1) : 1;
+    const singleStaffMode = S.staff !== 'همه' && shown.length === 1;
+    const visibleTier = singleStaffMode
+      ? shown[0].tiers
+      : shown.flatMap(s => s.tiers.map(tier => ({...tier, staffName: s.n})));
+    const chartMaximum = staffIncomeReady
+      ? Math.max(1, ...shown.map(s => Number(s.v || 0)), ...visibleTier.map(t => Number(t.sales_from || 0)))
+      : 1;
+    const tierBottom = (amount) => (22 + Math.min(125, Math.round(Number(amount || 0) / chartMaximum * 125))) + 'px';
+    const staffTierLines = (staffIncomeReady && singleStaffMode)
+      ? shown[0].tiers.map(tier => ({
+          bottom: tierBottom(tier.sales_from),
+          label: formatTierLabel(tier),
+        }))
+      : [];
     const staffBars = shown.map(s => {
       const reached = staffIncomeReady && s.reached;
       const height = staffIncomeReady ? Math.max(4, Math.round(Number(s.v || 0) / chartMaximum * 125)) : 54;
-      return {n: s.n.split(' ')[0], initial:String(s.n || 'پ').trim().charAt(0), ph:s.ph, v:staffIncomeReady ? mm(Number(s.v || 0) / 1000000) : '--', h:height+'px', c:staffIncomeReady ? (reached ? '#16a34a' : s.ac) : '#cbd5e1', vc:reached ? '#15803d' : '#334155', reached};
+      const reachedLabel = reached
+        ? (s.reachedTier ? ('رسیده به ' + (s.tiers.find(t => Number(t.sales_from) === Number(s.reachedTier.sales_from))?.title || 'تارگت')) : 'رسیده به تارگت')
+        : '';
+      const tierMarkers = (staffIncomeReady && !singleStaffMode)
+        ? s.tiers.map(tier => ({
+            bottom: tierBottom(tier.sales_from),
+            label: formatTierLabel(tier, s.n),
+          }))
+        : [];
+      return {
+        n: s.n.split(' ')[0],
+        initial: String(s.n || 'پ').trim().charAt(0),
+        ph: s.ph,
+        v: staffIncomeReady ? mm(Number(s.v || 0) / 1000000) : '--',
+        h: height + 'px',
+        c: staffIncomeReady ? (reached ? '#16a34a' : s.ac) : '#cbd5e1',
+        vc: reached ? '#15803d' : '#334155',
+        reached,
+        reachedLabel,
+        tierMarkers,
+      };
     });
     const overCnt = staffIncomeReady ? shown.filter(s => s.reached).length : null;
-    const staffOverTxt = !staffIncomeReady ? '-- نفر به تارگت رسیدند' : (overCnt > 0 ? '⭐ ' + fa(overCnt) + ' نفر به تارگت رسیدند' : 'هنوز کسی به تارگت نرسیده است');
-    const targetB = staffIncomeReady ? (22 + Math.min(125, Math.round((target || 0) / chartMaximum * 125))) + 'px' : '86px';
+    let staffOverTxt = '-- نفر به تارگت رسیدند';
+    if (staffIncomeReady) {
+      if (singleStaffMode) {
+        const person = shown[0];
+        if (person.reached && person.reachedTier) {
+          const title = person.tiers.find(t => Number(t.sales_from) === Number(person.reachedTier.sales_from))?.title || 'پله';
+          staffOverTxt = '⭐ ' + title + ' · پاداش ' + mm(Number(person.salesBonus || person.reachedTier.salary_addition || 0) / 1000000);
+        } else if (person.tiers.length) {
+          staffOverTxt = 'هنوز به پله فروش نرسیده است';
+        } else {
+          staffOverTxt = 'پله فروشی برای این پرسنل تعریف نشده';
+        }
+      } else {
+        staffOverTxt = overCnt > 0 ? ('⭐ ' + fa(overCnt) + ' نفر به تارگت رسیدند') : 'هنوز کسی به تارگت نرسیده است';
+      }
+    }
 
     // satisfaction (multiple-choice questions, separated by question)
     const satisfactionReady = this.satisfactionSnapshot?.status === 'completed';
@@ -1712,9 +1781,7 @@ export default {
       cnReady: cancellationReady,
       cnCompletedAt: this.formatSnapshotDate(cancellationSnapshot?.completed_at),
       // staff
-      staffChips, staffBars, targetB, targetTxt: staffIncomeReady ? 'سقف: ' + mm(target / 1000000) : 'سقف: --',
-      staffTargetV: Number(S.staffTarget || 0).toLocaleString('fa-IR'),
-      onStaffTarget: e => this.saveStaffTarget(e.target.value),
+      staffChips, staffBars, staffTierLines,
       staffSum: staffIncomeReady ? mm(shown.reduce((sum,staff) => sum + Number(staff.v || 0), 0) / 1000000) : '--', staffOverTxt,
       staffIncomeReady: !!staffIncomeReady,
       staffIncomeCalculating: ['queued','processing'].includes(staffIncomeSnapshot?.status),
@@ -2624,28 +2691,17 @@ export default {
     async loadStaffTarget() {
       try {
         const { data } = await axios.get('/api/settings');
-        const staffTarget = Math.max(0, Number(data.report_staff_target) || 0);
         const capacityToman = Math.max(0, Number(data.report_monthly_capacity) || 0);
         const capMillions = capacityToman > 0 ? capacityToman / 1000000 : Number(this.capacityDefault ?? 2500);
-        this.set({staffTarget, cap: String(capMillions)});
+        this.set({cap: String(capMillions)});
       } catch (error) {
-        console.warn('Report staff target could not be loaded.', error);
+        console.warn('Report monthly capacity could not be loaded.', error);
       }
     },
     parseFaNumber(value) {
       const fa = '۰۱۲۳۴۵۶۷۸۹';
       const normalized = String(value ?? '').replace(/[۰-۹]/g, d => String(fa.indexOf(d))).replace(/[٬,\s]/g, '');
       return Math.max(0, Number(normalized) || 0);
-    },
-    async saveStaffTarget(raw) {
-      const staffTarget = this.parseFaNumber(raw);
-      this.set({staffTarget});
-      try {
-        await axios.post('/api/settings/report-targets', {report_staff_target: staffTarget});
-        await this.calculateStaffIncome();
-      } catch (error) {
-        console.warn('Report staff target could not be saved.', error);
-      }
     },
     async saveMonthlyCapacity() {
       const millions = this.parseFaNumber(this.s.cap);

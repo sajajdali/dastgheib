@@ -523,24 +523,86 @@ class ClinicReportService
 
     public function staffIncomeReport(array $filters): array
     {
-        $staffById = Staff::query()->get()->keyBy('id');
-        $target = (float) AppSetting::getByKey('report_staff_target', 0) * 1000000;
-        $rows = $this->resourceCosts($filters)['resources']->where('type', 'staff')
-            ->filter(fn (array $row) => $staffById->has($row['id']))
-            ->map(function (array $row) use ($staffById, $target): array {
-            $staff = $staffById->get($row['id']);
-            $income = (float) ($row['commission'] ?? 0);
+        $staffById = Staff::query()->orderBy('id')->get()->keyBy('id');
+        $costById = $this->resourceCosts($filters)['resources']->where('type', 'staff')->keyBy('id');
+        $months = $this->monthsBetween($filters['from'], $filters['to']);
+        $appointments = app(\App\Http\Controllers\AppointmentController::class);
+
+        // فروش هر ماه با همان قاعدهٔ حقوق/پرسنل (خدمات انجام‌شده بعد از تخفیف و کسر مواد).
+        $salesByStaffId = [];
+        $reachedByStaffId = [];
+        $bonusByStaffId = [];
+        foreach ($months as $month) {
+            $monthSales = $appointments->monthlyTargetSales($month);
+            foreach ($staffById as $staff) {
+                $sales = (float) ($monthSales['staff-'.$staff->id] ?? 0);
+                $salesByStaffId[$staff->id] = ($salesByStaffId[$staff->id] ?? 0) + $sales;
+                if (! ($staff->sales_bonus_enabled ?? false)) {
+                    continue;
+                }
+                $tier = $appointments->reachedSalesTier($staff, $sales);
+                if (! $tier) {
+                    continue;
+                }
+                $addition = (float) ($tier['salary_addition'] ?? 0);
+                $bonusByStaffId[$staff->id] = ($bonusByStaffId[$staff->id] ?? 0) + $addition;
+                $previous = $reachedByStaffId[$staff->id] ?? null;
+                if (! $previous || (float) ($tier['sales_from'] ?? 0) >= (float) ($previous['sales_from'] ?? 0)) {
+                    $reachedByStaffId[$staff->id] = $tier;
+                }
+            }
+        }
+
+        $rows = $staffById->map(function (Staff $staff) use ($costById, $salesByStaffId, $reachedByStaffId, $bonusByStaffId): array {
+            $cost = $costById->get($staff->id, []);
+            $income = (float) ($cost['commission'] ?? 0);
+            $sales = (float) ($salesByStaffId[$staff->id] ?? 0);
+            $enabled = (bool) ($staff->sales_bonus_enabled ?? false);
+            $tiers = $enabled
+                ? collect($staff->sales_bonus_tiers ?? [])
+                    ->map(fn ($tier) => [
+                        'sales_from' => max(0, (float) ($tier['sales_from'] ?? 0)),
+                        'salary_addition' => max(0, (float) ($tier['salary_addition'] ?? 0)),
+                    ])
+                    ->filter(fn (array $tier) => $tier['sales_from'] > 0)
+                    ->sortBy('sales_from')
+                    ->values()
+                    ->map(fn (array $tier, int $index) => [
+                        'index' => $index + 1,
+                        'title' => 'پله '.($index + 1),
+                        'sales_from' => round($tier['sales_from']),
+                        'salary_addition' => round($tier['salary_addition']),
+                    ])
+                    ->all()
+                : [];
+            $reachedTier = $reachedByStaffId[$staff->id] ?? null;
+            $reachedPayload = $reachedTier ? [
+                'sales_from' => round((float) ($reachedTier['sales_from'] ?? 0)),
+                'salary_addition' => round((float) ($reachedTier['salary_addition'] ?? 0)),
+            ] : null;
+
             return [
-                'id'=>$row['id'], 'name'=>$row['name'], 'avatar_url'=>$staff?->avatar_url,
-                'income'=>round($income), 'salary'=>round((float) ($row['salary'] ?? 0)),
-                'total_payable'=>round((float) ($row['total'] ?? 0)), 'target'=>round($target),
-                'target_reached'=>$target > 0 && $income >= $target,
+                'id' => $staff->id,
+                'name' => $staff->name,
+                'avatar_url' => $staff->avatar_url,
+                'income' => round($income),
+                'sales' => round($sales),
+                'salary' => round((float) ($cost['salary'] ?? 0)),
+                'total_payable' => round((float) ($cost['total'] ?? 0)),
+                'sales_bonus_enabled' => $enabled,
+                'sales_bonus_tiers' => $tiers,
+                'reached_tier' => $reachedPayload,
+                'sales_bonus' => round((float) ($bonusByStaffId[$staff->id] ?? 0)),
+                'target_reached' => $reachedPayload !== null,
             ];
-            })->values();
+        })->values();
 
         return [
-            'target'=>round($target), 'total_income'=>round((float) $rows->sum('income')),
-            'reached_count'=>$rows->where('target_reached', true)->count(), 'staff'=>$rows->all(),
+            'total_income' => round((float) $rows->sum('income')),
+            'total_sales' => round((float) $rows->sum('sales')),
+            'total_sales_bonus' => round((float) $rows->sum('sales_bonus')),
+            'reached_count' => $rows->where('target_reached', true)->count(),
+            'staff' => $rows->all(),
         ];
     }
 
@@ -989,17 +1051,25 @@ class ClinicReportService
         foreach ($lines as $key => $items) if (! $resources->has($key)) $resources->put($key, ['type'=>$items->first()->resource_type,'id'=>$items->first()->resource_id,'name'=>$items->first()->resource_name,'base_salary'=>0]);
         foreach ($adjustments as $key => $items) if (! $resources->has($key)) $resources->put($key, ['type'=>$items->first()->resource_type,'id'=>$items->first()->resource_id,'name'=>'پرسنل حذف‌شده','base_salary'=>0]);
         $salaryRatio = $this->salaryRatio($filters);
-        $target = (float) AppSetting::getByKey('report_staff_target', 0);
-        $rows = $resources->map(function ($resource, $key) use ($lines, $adjustments, $salaryRatio, $target) {
+        $rows = $resources->map(function ($resource, $key) use ($lines, $adjustments, $salaryRatio) {
             $items = $lines->get($key, collect());
             $savedSalary = (float) $items->where('earning_type', 'salary')->sum('amount');
             $salary = $savedSalary ?: $resource['base_salary'] * $salaryRatio;
             $commission = (float) $items->whereIn('earning_type', [...ResourceEarningLine::COMMISSION_TYPES, ResourceEarningLine::REFERRAL_TYPE, 'sales_bonus'])->sum('amount');
             $referralCommission = (float) $items->where('earning_type', ResourceEarningLine::REFERRAL_TYPE)->sum('amount');
+            $salesBonus = (float) $items->where('earning_type', 'sales_bonus')->sum('amount');
             $attendance = (float) $items->whereIn('earning_type', ['attendance_overtime','attendance_shortage','attendance_absence'])->sum('amount');
             $adjustment = (float) $adjustments->get($key, collect())->sum('amount');
             $total = $salary + $commission + $attendance + $adjustment;
-            return ['type'=>$resource['type'],'id'=>$resource['id'],'name'=>$resource['name'],'salary'=>round($salary),'commission'=>round($commission),'referral_commission'=>round($referralCommission),'attendance'=>round($attendance),'adjustment'=>round($adjustment),'total'=>round($total),'target'=>$resource['type']==='staff' ? round($target) : null,'target_reached'=>$resource['type']==='staff' && $target > 0 ? $commission >= $target : null];
+            // تارگت از پله‌های فروش منابع می‌آید؛ تحقق = وجود پاداش پلکانی در همان بازه.
+            return [
+                'type'=>$resource['type'],'id'=>$resource['id'],'name'=>$resource['name'],
+                'salary'=>round($salary),'commission'=>round($commission),'referral_commission'=>round($referralCommission),
+                'attendance'=>round($attendance),'adjustment'=>round($adjustment),'total'=>round($total),
+                'sales_bonus'=>round($salesBonus),
+                'target'=>null,
+                'target_reached'=>$resource['type']==='staff' ? $salesBonus > 0 : null,
+            ];
         })->values();
         return ['resources'=>$rows,'doctor_total'=>$rows->where('type','doctor')->sum('total'),'staff_total'=>$rows->where('type','staff')->sum('total')];
     }

@@ -130,7 +130,7 @@ final class AssistantSettingsReader
                 'مهلت استفاده (روز)' => (string) data_get($data, 'wallet_settings.expiry_days', 0),
             ],
             'report_targets' => [
-                'سقف تارگت پرسنل (میلیون تومان)' => (string) ($data['report_staff_target'] ?? 0),
+                'پله‌های تارگت پرسنل' => 'از تنظیمات منابع ← پرسنل ← افزایش حقوق در صورت فروش',
                 'ظرفیت ماهانه' => (string) ($data['report_monthly_capacity'] ?? 0),
             ],
             'attendance' => ['حضور و غیاب' => $on($data['attendance_enabled'] ?? false)],
