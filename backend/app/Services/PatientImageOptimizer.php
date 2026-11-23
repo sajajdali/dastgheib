@@ -16,6 +16,13 @@ class PatientImageOptimizer
     public function store(UploadedFile $file, string $directory, array $settings): array
     {
         $mime = (string) $file->getMimeType();
+        $isHeic = $this->isHeicUpload($file, $mime);
+
+        // Some browsers send HEIC as application/octet-stream; treat by extension/client mime.
+        if ($isHeic && ! Str::startsWith($mime, 'image/')) {
+            $mime = 'image/heic';
+        }
+
         if (! Str::startsWith($mime, 'image/')) {
             $path = $file->store($directory, 'public');
 
@@ -51,41 +58,58 @@ class PatientImageOptimizer
             throw ValidationException::withMessages(['file' => 'فضای موقت برای پردازش عکس در دسترس نیست.']);
         }
 
+        $decodedHeic = null;
+
         try {
+            $workSource = $source;
+            $workMime = $mime;
+
+            // GD cannot decode HEIC. Prefer ImageMagick; otherwise decode via heif-convert first.
+            if ($isHeic && ! $this->magickBinary()) {
+                $decodedHeic = $this->decodeHeicToJpeg($source);
+                if (! $decodedHeic) {
+                    throw ValidationException::withMessages([
+                        'file' => 'تبدیل عکس HEIC به WebP روی این سرور ممکن نیست. ImageMagick با پشتیبانی HEIC یا ابزار heif-convert لازم است.',
+                    ]);
+                }
+                $workSource = $decodedHeic;
+                $workMime = 'image/jpeg';
+            }
+
             $magick = $this->magickBinary();
             if (! $magick) {
-                if (! $this->convertWithGd($source, $temporary, $mime, $maxSide, $targetBytes, (int) $settings['quality'])) {
-                    if (in_array($mime, ['image/heic', 'image/heif'], true)) {
-                        // HEIC/HEIF cannot be decoded by GD. Keep the original upload instead of losing it.
-                        $path = $file->store($directory, 'public');
+                if (! $this->convertWithGd($workSource, $temporary, $workMime, $maxSide, $targetBytes, (int) $settings['quality'])) {
+                    throw ValidationException::withMessages(['file' => 'تبدیل این عکس به WebP انجام نشد.']);
+                }
+            } else {
+                $converted = $this->convertWithMagick(
+                    $workSource,
+                    $temporary,
+                    $maxSide,
+                    $targetBytes,
+                    (int) $settings['quality']
+                );
 
-                        return ['path' => $path, 'size' => (int) $file->getSize(), 'mime_type' => $mime];
+                // Magick present but HEIC delegate failed: decode then retry once.
+                if (! $converted && $isHeic && $workSource === $source) {
+                    $decodedHeic = $this->decodeHeicToJpeg($source);
+                    if ($decodedHeic) {
+                        $converted = $this->convertWithMagick(
+                            $decodedHeic,
+                            $temporary,
+                            $maxSide,
+                            $targetBytes,
+                            (int) $settings['quality']
+                        );
                     }
-                    throw ValidationException::withMessages(['file' => 'تبدیل این عکس به WebP انجام نشد.']);
-                }
-            }
-            // The size is a soft target: never lower quality below 80 to hit it.
-            for ($quality = (int) $settings['quality']; $magick && $quality >= 80; $quality = max(79, $quality - 4)) {
-                $process = new Process([
-                    $magick, $source.'[0]', '-auto-orient',
-                    '-resize', "{$maxSide}x{$maxSide}>",
-                    '-strip', '-quality', (string) $quality,
-                    'webp:'.$temporary,
-                ]);
-                $process->setTimeout(90);
-
-                try {
-                    $process->run();
-                } catch (\Throwable $exception) {
-                    throw ValidationException::withMessages(['file' => 'پردازش عکس در سرور در دسترس نیست.']);
                 }
 
-                if (! $process->isSuccessful() || ! is_file($temporary) || filesize($temporary) === 0) {
-                    throw ValidationException::withMessages(['file' => 'تبدیل این عکس به WebP انجام نشد.']);
-                }
-
-                if (filesize($temporary) <= $targetBytes || $quality <= 80) {
-                    break;
+                if (! $converted) {
+                    throw ValidationException::withMessages([
+                        'file' => $isHeic
+                            ? 'تبدیل عکس HEIC به WebP انجام نشد. پشتیبانی HEIC را در ImageMagick بررسی کنید.'
+                            : 'تبدیل این عکس به WebP انجام نشد.',
+                    ]);
                 }
             }
 
@@ -105,13 +129,101 @@ class PatientImageOptimizer
             ];
         } finally {
             @unlink($temporary);
+            if ($decodedHeic) {
+                @unlink($decodedHeic);
+            }
         }
+    }
+
+    private function isHeicUpload(UploadedFile $file, string $mime): bool
+    {
+        if (in_array($mime, ['image/heic', 'image/heif'], true)) {
+            return true;
+        }
+
+        $clientMime = strtolower((string) $file->getClientMimeType());
+        if (in_array($clientMime, ['image/heic', 'image/heif'], true)) {
+            return true;
+        }
+
+        return (bool) preg_match('/\.(heic|heif)$/i', (string) $file->getClientOriginalName());
+    }
+
+    private function convertWithMagick(string $source, string $temporary, int $maxSide, int $targetBytes, int $quality): bool
+    {
+        $magick = $this->magickBinary();
+        if (! $magick) {
+            return false;
+        }
+
+        for ($q = $quality; $q >= 80; $q = max(79, $q - 4)) {
+            $process = new Process([
+                $magick, $source.'[0]', '-auto-orient',
+                '-resize', "{$maxSide}x{$maxSide}>",
+                '-strip', '-quality', (string) $q,
+                'webp:'.$temporary,
+            ]);
+            $process->setTimeout(90);
+
+            try {
+                $process->run();
+            } catch (\Throwable $exception) {
+                return false;
+            }
+
+            if (! $process->isSuccessful() || ! is_file($temporary) || filesize($temporary) === 0) {
+                return false;
+            }
+
+            if (filesize($temporary) <= $targetBytes || $q <= 80) {
+                return true;
+            }
+        }
+
+        return is_file($temporary) && filesize($temporary) > 0;
+    }
+
+    /** Decode HEIC/HEIF to a temporary JPEG via heif-convert when Magick/GD cannot. */
+    private function decodeHeicToJpeg(string $source): ?string
+    {
+        $binary = (new ExecutableFinder)->find('heif-convert');
+        if (! $binary) {
+            return null;
+        }
+
+        $destination = tempnam(sys_get_temp_dir(), 'clinic-heic-');
+        if ($destination === false) {
+            return null;
+        }
+        @unlink($destination);
+        $destination .= '.jpg';
+
+        $process = new Process([$binary, $source, $destination]);
+        $process->setTimeout(90);
+
+        try {
+            $process->run();
+        } catch (\Throwable $exception) {
+            @unlink($destination);
+
+            return null;
+        }
+
+        if (! $process->isSuccessful() || ! is_file($destination) || filesize($destination) === 0) {
+            @unlink($destination);
+
+            return null;
+        }
+
+        return $destination;
     }
 
     private function frameCount(string $source): int
     {
         $magick = $this->magickBinary();
-        if (! $magick) return 1;
+        if (! $magick) {
+            return 1;
+        }
         $process = new Process([$magick, 'identify', '-ping', '-format', "%n\n", $source]);
         try {
             $process->run();
@@ -130,17 +242,27 @@ class PatientImageOptimizer
     private function convertWithGd(string $source, string $destination, string $mime, int $maxSide, int $targetBytes, int $quality): bool
     {
         if (! function_exists('imagecreatefromstring') || ! function_exists('imagewebp')
-            || ! in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], true)) return false;
+            || ! in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], true)) {
+            return false;
+        }
 
         $image = @imagecreatefromstring(file_get_contents($source));
-        if (! $image) return false;
+        if (! $image) {
+            return false;
+        }
 
         try {
             if ($mime === 'image/jpeg' && function_exists('exif_read_data')) {
                 $orientation = (int) (@exif_read_data($source)['Orientation'] ?? 1);
-                if ($orientation === 3) $image = imagerotate($image, 180, 0);
-                if ($orientation === 6) $image = imagerotate($image, 270, 0);
-                if ($orientation === 8) $image = imagerotate($image, 90, 0);
+                if ($orientation === 3) {
+                    $image = imagerotate($image, 180, 0);
+                }
+                if ($orientation === 6) {
+                    $image = imagerotate($image, 270, 0);
+                }
+                if ($orientation === 8) {
+                    $image = imagerotate($image, 90, 0);
+                }
             }
 
             $width = imagesx($image);
@@ -152,8 +274,12 @@ class PatientImageOptimizer
             imagecopyresampled($output, $image, 0, 0, 0, 0, imagesx($output), imagesy($output), $width, $height);
             try {
                 for ($q = $quality; $q >= 80; $q = max(79, $q - 4)) {
-                    if (! imagewebp($output, $destination, $q)) return false;
-                    if (filesize($destination) <= $targetBytes || $q <= 80) break;
+                    if (! imagewebp($output, $destination, $q)) {
+                        return false;
+                    }
+                    if (filesize($destination) <= $targetBytes || $q <= 80) {
+                        break;
+                    }
                 }
             } finally {
                 imagedestroy($output);

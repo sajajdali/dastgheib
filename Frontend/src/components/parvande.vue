@@ -3989,7 +3989,7 @@ export default {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
-          throw new Error(data.message || 'آپلود انجام نشد')
+          throw new Error(this.mediaUploadErrorMessage(data, 'آپلود انجام نشد'))
         }
         this.selectedMediaFiles = []
         await this.loadPatientMedia(this.currentMediaFolderId, false)
@@ -4048,7 +4048,7 @@ export default {
           const result = await Swal.fire({
             icon: 'info',
             title: 'پیش‌نمایش این عکس در مرورگر ممکن نیست',
-            text: 'می‌توانید فایل HEIC را بدون تنظیم دستی کادر بفرستید تا سرور آن را به WebP تبدیل کند.',
+            text: 'فایل HEIC بدون تنظیم دستی کادر به سرور فرستاده می‌شود و آنجا به WebP تبدیل می‌گردد. اگر آپلود خطا داد، معمولاً سقف حجم PHP است.',
             showCancelButton: true,
             confirmButtonText: 'آپلود عکس',
             cancelButtonText: 'انصراف'
@@ -4197,7 +4197,7 @@ export default {
         })
 
         const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.message || 'آپلود عکس زاویه انجام نشد')
+        if (!res.ok) throw new Error(this.mediaUploadErrorMessage(data, 'آپلود عکس زاویه انجام نشد'))
         await this.loadPatientMedia(this.currentMediaFolderId, false)
         return true
       } catch (error) {
@@ -4208,6 +4208,20 @@ export default {
         this.mediaLoading = false
         this.angleUploadLoading = false
       }
+    },
+
+    mediaUploadErrorMessage(data, fallback = 'آپلود انجام نشد') {
+      const bag = data?.errors && typeof data.errors === 'object' ? data.errors : null
+      const firstBag = bag
+        ? Object.values(bag).flat().find(item => String(item || '').trim())
+        : ''
+      let message = String(firstBag || data?.message || fallback).trim() || fallback
+      if (/failed to upload/i.test(message) || /files\.0/i.test(message)) {
+        message = 'آپلود فایل انجام نشد. اگر عکس HEIC است، معمولاً سقف حجم PHP مانع شده؛ پس از رفع محدودیت، سرور آن را به WebP تبدیل می‌کند.'
+      } else if (/must be a file of type/i.test(message)) {
+        message = 'فرمت فایل مجاز نیست. برای عکس از JPG، PNG، WEBP، GIF یا HEIC استفاده کنید.'
+      }
+      return message
     },
 
     finishAnglePhotos() {

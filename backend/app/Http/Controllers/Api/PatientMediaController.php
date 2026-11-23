@@ -11,9 +11,11 @@ use App\Models\PatientMediaFolder;
 use App\Services\PatientImageOptimizer;
 use App\Services\PatientPhotoSettings;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PatientMediaController extends Controller
 {
@@ -290,6 +292,8 @@ class PatientMediaController extends Controller
 
     public function storeFiles(Request $request, Patient $patient)
     {
+        $this->assertUploadedMediaFiles($request->file('files', []));
+
         $data = $request->validate([
             'folder_id' => 'nullable|integer|exists:patient_media_folders,id',
             'files' => 'required|array|min:1',
@@ -301,7 +305,7 @@ class PatientMediaController extends Controller
             'photo_angle_label' => 'nullable|string|max:120',
             'photo_angle_degrees' => 'nullable|integer|min:0|max:180',
             'usage_consent' => 'nullable|boolean',
-        ]);
+        ], $this->mediaUploadValidationMessages());
 
         $folderId = $data['folder_id'] ?? null;
         $folder = null;
@@ -375,6 +379,10 @@ class PatientMediaController extends Controller
     {
         abort_unless($media->patient_id === $patient->id, 404);
 
+        if ($request->hasFile('file')) {
+            $this->assertUploadedMediaFiles([$request->file('file')], 'file');
+        }
+
         $data = $request->validate([
             'file' => 'nullable|file|max:51200|mimes:jpg,jpeg,png,webp,gif,heic,heif,mp4,mov,avi,webm',
             'is_featured' => 'nullable|boolean',
@@ -385,7 +393,7 @@ class PatientMediaController extends Controller
             'photo_angle_key' => 'nullable|string|max:60',
             'photo_angle_label' => 'nullable|string|max:120',
             'photo_angle_degrees' => 'nullable|integer|min:0|max:180',
-        ]);
+        ], $this->mediaUploadValidationMessages('file'));
         unset($data['file']);
         $data['gender'] = null;
 
@@ -688,6 +696,68 @@ class PatientMediaController extends Controller
                 'message' => 'برای این زاویه قبلاً عکس ثبت شده است؛ همان عکس را جایگزین کنید.',
             ], 422));
         }
+    }
+
+    /** پیام‌های فارسی اعتبارسنجی آپلود رسانه (به‌خصوص HEIC و خطای حجم PHP). */
+    private function mediaUploadValidationMessages(string $field = 'files.*'): array
+    {
+        $prefix = $field === 'file' ? 'file' : 'files.*';
+
+        return [
+            "{$prefix}.uploaded" => 'آپلود فایل انجام نشد. اگر عکس HEIC است، معمولاً به‌خاطر سقف حجم PHP است؛ فایل را دوباره بفرستید یا با پشتیبانی هماهنگ کنید.',
+            "{$prefix}.file" => 'فایل آپلود معتبر نیست.',
+            "{$prefix}.max" => 'حجم فایل بیشتر از ۵۰ مگابایت است.',
+            "{$prefix}.mimes" => 'فرمت فایل مجاز نیست. برای عکس از JPG، PNG، WEBP، GIF یا HEIC و برای ویدیو از MP4/MOV استفاده کنید.',
+            'files.required' => 'حداقل یک فایل برای آپلود لازم است.',
+        ];
+    }
+
+    /**
+     * قبل از validate لاراول، خطای PHP آپلود را به پیام فارسی شفاف تبدیل می‌کند
+     * (مثلاً UPLOAD_ERR_INI_SIZE برای HEIC بزرگ‌تر از upload_max_filesize).
+     *
+     * @param  array<int, mixed>  $files
+     */
+    private function assertUploadedMediaFiles(array $files, string $attributePrefix = 'files'): void
+    {
+        $messages = [];
+        foreach (array_values($files) as $index => $file) {
+            if (! $file instanceof UploadedFile) {
+                continue;
+            }
+            if ($file->isValid()) {
+                continue;
+            }
+
+            $attribute = $attributePrefix === 'file' ? 'file' : "{$attributePrefix}.{$index}";
+            $messages[$attribute] = [$this->uploadedFileFailureMessage($file)];
+        }
+
+        if ($messages) {
+            throw ValidationException::withMessages($messages);
+        }
+    }
+
+    private function uploadedFileFailureMessage(UploadedFile $file): string
+    {
+        $limit = ini_get('upload_max_filesize') ?: '۲M';
+        $name = $file->getClientOriginalName() ?: 'فایل';
+        $isHeic = (bool) preg_match('/\.(heic|heif)$/i', $name)
+            || in_array(strtolower((string) $file->getClientMimeType()), ['image/heic', 'image/heif'], true);
+
+        return match ($file->getError()) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => $isHeic
+                ? "آپلود عکس HEIC به‌خاطر سقف حجم سرور ({$limit}) انجام نشد. سرور باید این فایل را به WebP تبدیل کند؛ محدودیت آپلود PHP را افزایش دهید و دوباره تلاش کنید."
+                : "حجم «{$name}» بیشتر از سقف آپلود سرور ({$limit}) است.",
+            UPLOAD_ERR_PARTIAL => "آپلود «{$name}» ناقص ماند. دوباره تلاش کنید.",
+            UPLOAD_ERR_NO_FILE => 'فایلی برای آپلود دریافت نشد.',
+            UPLOAD_ERR_NO_TMP_DIR => 'پوشه موقت آپلود روی سرور در دسترس نیست.',
+            UPLOAD_ERR_CANT_WRITE => 'نوشتن فایل آپلود روی دیسک سرور ممکن نشد.',
+            UPLOAD_ERR_EXTENSION => 'یک افزونه PHP آپلود را متوقف کرد.',
+            default => $isHeic
+                ? 'آپلود عکس HEIC انجام نشد. فایل را دوباره بفرستید تا سرور آن را به WebP تبدیل کند.'
+                : "آپلود «{$name}» انجام نشد.",
+        };
     }
 
     private function normalizeServiceTags(array $services): array

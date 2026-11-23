@@ -19,7 +19,8 @@ Run commands from these directories:
 Backend command:
 
 ```sh
-APP_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:5175 FRONTEND_URLS=http://127.0.0.1:5175,http://localhost:5175,http://demo.localhost:5175,http://clinic1.localhost:5175 SANCTUM_STATEFUL_DOMAINS=127.0.0.1:5175,localhost:5175,demo.localhost:5175,clinic1.localhost:5175,*.localhost:5175 REVERB_HOST=127.0.0.1 REVERB_PORT=8081 REVERB_SERVER_HOST=0.0.0.0 REVERB_SERVER_PORT=8081 VITE_REVERB_HOST=127.0.0.1 VITE_REVERB_PORT=8081 /opt/homebrew/bin/php artisan serve --host=0.0.0.0 --port=8001
+# Homebrew PHP defaults to upload_max_filesize=2M; load backend/php.d so HEIC gallery uploads can reach PatientImageOptimizer.
+PHP_INI_SCAN_DIR="/Applications/XAMPP/xamppfiles/htdocs/dastgheib/backend/php.d:" APP_URL=http://127.0.0.1:8001 FRONTEND_URL=http://127.0.0.1:5175 FRONTEND_URLS=http://127.0.0.1:5175,http://localhost:5175,http://demo.localhost:5175,http://clinic1.localhost:5175 SANCTUM_STATEFUL_DOMAINS=127.0.0.1:5175,localhost:5175,demo.localhost:5175,clinic1.localhost:5175,*.localhost:5175 REVERB_HOST=127.0.0.1 REVERB_PORT=8081 REVERB_SERVER_HOST=0.0.0.0 REVERB_SERVER_PORT=8081 VITE_REVERB_HOST=127.0.0.1 VITE_REVERB_PORT=8081 /opt/homebrew/bin/php artisan serve --host=0.0.0.0 --port=8001
 ```
 
 Reverb command:
