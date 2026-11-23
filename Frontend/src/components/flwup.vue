@@ -782,7 +782,7 @@
                       </select>
                     </td>
 
-                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !row.description }" @click.stop="openDescriptionModal(row, true)">{{ row.description || 'بدون توضیح' }}</button></td>
+                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" @click.stop="openDescriptionModal(row, true)">{{ truncateFollowupDescription(row) || 'بدون توضیح' }}</button></td>
 
                     <td><input v-model="row.reason" disabled /></td>
 
@@ -1358,7 +1358,7 @@
                       </select>
                     </td>
 
-                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !row.description }" @click.stop="openDescriptionModal(row)">{{ row.description || 'ثبت توضیحات' }}</button></td>
+                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" @click.stop="openDescriptionModal(row)">{{ truncateFollowupDescription(row) || 'ثبت توضیحات' }}</button></td>
 
                     <td>
                       <select v-model="row.reason">
@@ -1548,6 +1548,12 @@
           <button type="button" title="بستن" @click="closeFollowupHistory">×</button>
         </header>
 
+        <div v-if="historyLatestNotePreview" class="history-latest-banner">
+          <small>آخرین یادداشت</small>
+          <strong>{{ historyLatestNotePreview.text }}</strong>
+          <span>{{ formatDateTimeFa(historyLatestNotePreview.created_at) }}<template v-if="historyLatestNotePreview.author"> · {{ historyLatestNotePreview.author }}</template><template v-if="historyLatestNotePreview.campaignTitle"> · {{ historyLatestNotePreview.campaignTitle }}</template></span>
+        </div>
+
         <div class="history-table-wrap">
           <table class="history-table">
             <thead><tr><th>کمپین</th><th>تاریخ تماس</th><th>پیگیری بعدی</th><th>مشاور</th><th>منبع</th><th>وضعیت</th><th>تمایل</th><th>علت</th><th>توضیحات ثبت‌شده</th></tr></thead>
@@ -1556,7 +1562,22 @@
                 <td><strong>{{ item.campaignTitle || 'کمپین بدون عنوان' }}</strong><small v-if="item.isCurrent">ردیف فعلی</small></td>
                 <td>{{ formatDateFa(item.contactDate) || '-' }}</td>
                 <td>{{ formatDateFa(item.followUpDate) || '-' }}</td>
-                <td>{{ item.consultant || '-' }}</td><td>{{ item.source || '-' }}</td><td>{{ item.status || '-' }}</td><td>{{ item.interest || '-' }}</td><td>{{ item.reason || '-' }}</td><td class="history-note">{{ item.description || 'توضیحی ثبت نشده است.' }}</td>
+                <td>{{ item.consultant || '-' }}</td><td>{{ item.source || '-' }}</td><td>{{ item.status || '-' }}</td><td>{{ item.interest || '-' }}</td><td>{{ item.reason || '-' }}</td>
+                <td class="history-note">
+                  <div v-if="followupNotesForRow(item).length" class="history-notes-thread">
+                    <p class="history-notes-latest"><b>آخرین:</b> {{ latestFollowupDescription(item) }}</p>
+                    <div
+                      v-for="(note, noteIndex) in followupNotesForRow(item)"
+                      :key="note.id"
+                      class="history-note-bubble"
+                      :class="{ latest: noteIndex === followupNotesForRow(item).length - 1 }"
+                    >
+                      <header><time>{{ formatDateTimeFa(note.created_at) }}</time><span v-if="note.author">{{ note.author }}</span></header>
+                      <p>{{ note.text }}</p>
+                    </div>
+                  </div>
+                  <template v-else>توضیحی ثبت نشده است.</template>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -1565,15 +1586,65 @@
     </div>
 
     <div v-if="descriptionModalOpen" class="description-modal-overlay" @click.self="closeDescriptionModal">
-      <section class="description-modal" role="dialog" aria-modal="true" aria-labelledby="followup-description-title">
+      <section class="description-modal description-notes-modal" role="dialog" aria-modal="true" aria-labelledby="followup-description-title">
         <header>
-          <div><small>{{ descriptionModalReadonly ? 'مشاهده توضیحات' : 'ثبت توضیحات پیگیری' }}</small><h3 id="followup-description-title">{{ activeDescriptionRow?.fullName || 'مخاطب' }}</h3></div>
+          <div>
+            <small>{{ descriptionModalReadonly ? 'مشاهده یادداشت‌های پیگیری' : 'یادداشت‌های پیگیری' }}</small>
+            <h3 id="followup-description-title">{{ activeDescriptionRow?.fullName || 'مخاطب' }}</h3>
+            <p v-if="descriptionNotesDraft.length">{{ descriptionNotesDraft.length.toLocaleString('fa-IR') }} یادداشت</p>
+          </div>
           <button type="button" aria-label="بستن" @click="closeDescriptionModal">×</button>
         </header>
-        <textarea v-model="descriptionDraft" :readonly="descriptionModalReadonly" :placeholder="descriptionModalReadonly ? 'توضیحی ثبت نشده است.' : 'توضیحات تماس را بنویسید...'" autofocus></textarea>
+
+        <div class="description-notes-thread" ref="descriptionNotesThread">
+          <p v-if="!descriptionNotesDraft.length" class="description-notes-empty">{{ descriptionModalReadonly ? 'توضیحی ثبت نشده است.' : 'هنوز یادداشتی نیست؛ اولین یادداشت را پایین بنویسید.' }}</p>
+          <article
+            v-for="note in descriptionNotesDraft"
+            :key="note.id"
+            class="description-note-bubble"
+            :class="{ editing: descriptionEditingNoteId === note.id }"
+          >
+            <header>
+              <time>{{ formatDateTimeFa(note.updated_at || note.created_at) }}</time>
+              <span v-if="note.author">{{ note.author }}</span>
+              <button
+                v-if="!descriptionModalReadonly && descriptionEditingNoteId !== note.id"
+                type="button"
+                class="description-note-edit"
+                @click="startEditDescriptionNote(note)"
+              >ویرایش</button>
+            </header>
+            <textarea
+              v-if="descriptionEditingNoteId === note.id"
+              v-model="descriptionEditText"
+              rows="3"
+              placeholder="متن یادداشت..."
+            ></textarea>
+            <p v-else>{{ note.text }}</p>
+            <footer v-if="descriptionEditingNoteId === note.id">
+              <button type="button" class="description-cancel" @click="cancelEditDescriptionNote">انصراف</button>
+              <button type="button" class="description-save" @click="applyEditDescriptionNote(note)">ذخیره یادداشت</button>
+            </footer>
+          </article>
+        </div>
+
+        <div v-if="!descriptionModalReadonly" class="description-notes-composer">
+          <label>
+            <span>یادداشت جدید</span>
+            <textarea
+              v-model="descriptionNewNoteText"
+              rows="3"
+              placeholder="یادداشت بعدی را بنویسید..."
+              @keydown.meta.enter.prevent="addDescriptionNote"
+              @keydown.ctrl.enter.prevent="addDescriptionNote"
+            ></textarea>
+          </label>
+          <button type="button" class="description-add-note" :disabled="!descriptionNewNoteText.trim()" @click="addDescriptionNote">افزودن یادداشت</button>
+        </div>
+
         <footer>
           <button type="button" class="description-cancel" @click="closeDescriptionModal">بستن</button>
-          <button v-if="!descriptionModalReadonly" type="button" class="description-save" @click="saveDescriptionModal">ثبت توضیحات</button>
+          <button v-if="!descriptionModalReadonly" type="button" class="description-save" @click="saveDescriptionModal">ثبت یادداشت‌ها</button>
         </footer>
       </section>
     </div>
@@ -1669,6 +1740,12 @@ import DatePicker from 'vue3-persian-datetime-picker'
 import JalaliDateInput from './JalaliDateInput.vue'
 import draggable from "vuedraggable";
 import { avatarInitial, avatarUrl, findResourceByName } from '@/utils/avatar';
+import {
+  createFollowupNote,
+  latestFollowupNoteText,
+  normalizeFollowupRowNotes,
+  truncateFollowupNote,
+} from '@/utils/followupNotes';
 
 function debounce(fn, delay = 800) {
   let timer = null;
@@ -1901,7 +1978,10 @@ export default {
       descriptionModalOpen: false,
       descriptionModalReadonly: false,
       activeDescriptionRow: null,
-      descriptionDraft: '',
+      descriptionNotesDraft: [],
+      descriptionEditingNoteId: null,
+      descriptionEditText: '',
+      descriptionNewNoteText: '',
 
       staffOptions: [],
       doctorOptions: [],
@@ -2190,6 +2270,17 @@ export default {
     historySubjectPhone() {
       return this.activeHistoryRow?.phone || "";
     },
+    historyLatestNotePreview() {
+      let latest = null;
+      for (const item of this.followupHistory) {
+        for (const note of this.followupNotesForRow(item)) {
+          if (!latest || String(note.created_at) >= String(latest.created_at)) {
+            latest = { ...note, campaignTitle: item.campaignTitle || '' };
+          }
+        }
+      }
+      return latest;
+    },
   },
 
   created() {
@@ -2415,19 +2506,91 @@ export default {
       this.followupProfileError = '';
       this.followupProfile = null;
     },
+    followupNotesForRow(row) {
+      const clone = { ...(row || {}), notes: Array.isArray(row?.notes) ? row.notes.map(note => ({ ...note })) : row?.notes };
+      return normalizeFollowupRowNotes(clone).notes || [];
+    },
+    latestFollowupDescription(row) {
+      const notes = this.followupNotesForRow(row);
+      return latestFollowupNoteText(notes) || String(row?.description || '').trim();
+    },
+    truncateFollowupDescription(row) {
+      return truncateFollowupNote(this.latestFollowupDescription(row));
+    },
+    currentFollowupAuthor() {
+      return String(this.currentUser?.name || this.currentUser?.nickname || '').trim();
+    },
+    formatDateTimeFa(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '—';
+      const parsed = moment(raw);
+      return parsed.isValid() ? parsed.format('jYYYY/jMM/jDD HH:mm') : raw;
+    },
+    scrollDescriptionNotesToEnd() {
+      this.$nextTick(() => {
+        const thread = this.$refs.descriptionNotesThread;
+        if (thread) thread.scrollTop = thread.scrollHeight;
+      });
+    },
     openDescriptionModal(row, readonly = false) {
+      normalizeFollowupRowNotes(row);
       this.activeDescriptionRow = row;
       this.descriptionModalReadonly = readonly;
-      this.descriptionDraft = row?.description || '';
+      this.descriptionNotesDraft = this.followupNotesForRow(row).map(note => ({ ...note }));
+      this.descriptionEditingNoteId = null;
+      this.descriptionEditText = '';
+      this.descriptionNewNoteText = '';
       this.descriptionModalOpen = true;
+      this.scrollDescriptionNotesToEnd();
     },
     closeDescriptionModal() {
       this.descriptionModalOpen = false;
       this.activeDescriptionRow = null;
-      this.descriptionDraft = '';
+      this.descriptionNotesDraft = [];
+      this.descriptionEditingNoteId = null;
+      this.descriptionEditText = '';
+      this.descriptionNewNoteText = '';
+    },
+    startEditDescriptionNote(note) {
+      this.descriptionEditingNoteId = note.id;
+      this.descriptionEditText = note.text || '';
+    },
+    cancelEditDescriptionNote() {
+      this.descriptionEditingNoteId = null;
+      this.descriptionEditText = '';
+    },
+    applyEditDescriptionNote(note) {
+      const text = String(this.descriptionEditText || '').trim();
+      if (!text) {
+        this.notify('متن یادداشت خالی است.');
+        return;
+      }
+      note.text = text;
+      note.updated_at = new Date().toISOString();
+      if (!note.author) note.author = this.currentFollowupAuthor() || null;
+      this.cancelEditDescriptionNote();
+    },
+    addDescriptionNote() {
+      const text = String(this.descriptionNewNoteText || '').trim();
+      if (!text) return;
+      this.descriptionNotesDraft.push(createFollowupNote(text, this.currentFollowupAuthor()));
+      this.descriptionNewNoteText = '';
+      this.scrollDescriptionNotesToEnd();
     },
     saveDescriptionModal() {
-      if (this.activeDescriptionRow) this.activeDescriptionRow.description = this.descriptionDraft.trim();
+      if (this.descriptionEditingNoteId) {
+        const editing = this.descriptionNotesDraft.find(note => note.id === this.descriptionEditingNoteId);
+        if (editing) this.applyEditDescriptionNote(editing);
+      }
+      if (String(this.descriptionNewNoteText || '').trim()) this.addDescriptionNote();
+      if (this.activeDescriptionRow) {
+        const notes = this.descriptionNotesDraft
+          .map(note => ({ ...note, text: String(note.text || '').trim() }))
+          .filter(note => note.text);
+        this.activeDescriptionRow.notes = notes;
+        this.activeDescriptionRow.description = latestFollowupNoteText(notes);
+        this.debouncedSaveLocal?.();
+      }
       this.closeDescriptionModal();
     },
 
@@ -2503,11 +2666,13 @@ export default {
     },
 
     followupRowMatches(row, terms) {
+      const noteTexts = this.followupNotesForRow(row).map(note => note.text).join(" ");
       const searchable = this.normalizeFollowupLookup([
         row.fullName,
         row.phone,
         row.consultant,
         row.description,
+        noteTexts,
         row.source,
       ].filter(Boolean).join(" "));
       return terms.some(term => searchable.includes(term));
@@ -2754,7 +2919,7 @@ export default {
       let campaign = this.generalFollowupCampaign;
       try {
         const { data } = await axios.post('/api/campaigns/general');
-        const serverCampaign = {
+        const serverCampaign = this.normalizeCampaignRows({
           ...(data.ui_payload || {}),
           id: data.id,
           title: 'پیگیری کلی',
@@ -2764,7 +2929,7 @@ export default {
           isGeneralFollowup: true,
           rows: Array.isArray(data.ui_payload?.rows) ? data.ui_payload.rows : [],
           _serverPersisted: true,
-        };
+        });
         const index = this.campaigns.findIndex(item => String(item.id) === String(serverCampaign.id));
         if (index >= 0) this.campaigns.splice(index, 1, serverCampaign);
         else this.campaigns.unshift(serverCampaign);
@@ -3763,6 +3928,7 @@ export default {
         gender: "",
         consultant: "",
         description: "",
+        notes: [],
         source: "",
         subsectionId: null,
         subsectionName: "",
@@ -3782,6 +3948,12 @@ export default {
         customer_level: "silver",
       };
       this.$nextTick(() => this.scrollToHighlightedFollowupRow());
+    },
+
+    normalizeCampaignRows(campaign) {
+      if (!campaign || !Array.isArray(campaign.rows)) return campaign;
+      campaign.rows.forEach(row => normalizeFollowupRowNotes(row));
+      return campaign;
     },
 
     scrollToHighlightedFollowupRow() {
@@ -4481,6 +4653,9 @@ export default {
     campaignApiPayload(campaign) {
       const uiPayload = JSON.parse(JSON.stringify(campaign));
       delete uiPayload._serverPersisted;
+      if (Array.isArray(uiPayload.rows)) {
+        uiPayload.rows = uiPayload.rows.map(row => normalizeFollowupRowNotes({ ...row }));
+      }
       const normalizedDate = this.normalizeDateValue(campaign.date);
       const serverDate = normalizedDate && moment(normalizedDate, 'YYYY-MM-DD', true).isValid()
         ? moment(normalizedDate, 'YYYY-MM-DD').format('jYYYY-jMM-jDD')
@@ -4536,6 +4711,7 @@ export default {
         Object.assign(campaign, overrides);
         const serverRows = Array.isArray(data?.ui_payload?.rows) ? data.ui_payload.rows : [];
         campaign.rows = mergeRowLists(snapshot.rows, serverRows, campaign.rows, "mine").rows;
+        this.normalizeCampaignRows(campaign);
         this.rememberServerRows(campaign, serverRows);
         this.campaignPersistedFingerprints[key] = this.campaignFingerprint({ ...snapshot, ...overrides, rows: serverRows });
         return data;
@@ -4544,6 +4720,7 @@ export default {
         if (serverCampaign) {
           const serverRows = Array.isArray(serverCampaign.ui_payload?.rows) ? serverCampaign.ui_payload.rows : [];
           campaign.rows = mergeRowLists(baseRows, serverRows, campaign.rows, "theirs").rows;
+          this.normalizeCampaignRows(campaign);
           this.rememberServerRows(campaign, serverRows);
           const names = (error.response.data?.conflicts || [])
             .map(conflict => serverRows.find(row => String(row._localId) === String(conflict.row_id)))
@@ -4609,7 +4786,7 @@ export default {
         const localCampaigns = this.campaigns.slice();
         const { data } = await axios.get('/api/campaigns');
         if (Array.isArray(data) && data.length) {
-          const sharedCampaigns = data.map(item => ({
+          const sharedCampaigns = data.map(item => this.normalizeCampaignRows({
             ...(item.ui_payload || {}),
             id: item.id,
             title: item.ui_payload?.title || item.name || '',
@@ -4623,6 +4800,7 @@ export default {
           const unsyncedLocalCampaigns = localCampaigns.filter(campaign =>
             !campaign._serverPersisted && !serverIds.has(String(campaign.id))
           );
+          unsyncedLocalCampaigns.forEach(campaign => this.normalizeCampaignRows(campaign));
           this.campaigns = [...sharedCampaigns, ...unsyncedLocalCampaigns];
           sharedCampaigns.forEach(campaign => this.rememberServerRows(campaign, campaign.rows));
           this.markCampaignsPersisted(sharedCampaigns);
@@ -4684,7 +4862,7 @@ export default {
           isGeneralFollowup: Boolean(campaign.isGeneralFollowup),
           _serverPersisted: Boolean(campaign._serverPersisted),
           rows: Array.isArray(campaign.rows)
-            ? campaign.rows.map((r, idx) => ({
+            ? campaign.rows.map((r, idx) => normalizeFollowupRowNotes({
                 _localId: r._localId || `local-${Date.now()}-${idx}`,
                 fullName: r.fullName ?? "",
                 phone: r.phone ?? "",
@@ -4694,6 +4872,7 @@ export default {
                 gender: r.gender ?? "",
                 consultant: r.consultant ?? "",
                 description: r.description ?? "",
+                notes: Array.isArray(r.notes) ? r.notes : [],
                 source: r.source ?? "",
                 subsectionId: r.subsectionId ?? null,
                 subsectionName: r.subsectionName ?? "",
@@ -6507,7 +6686,7 @@ export default {
 .history-card dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.history-card dl div{min-width:0;padding:8px;border-radius:9px;background:#f8fafc}.history-card dt{margin-bottom:4px;color:#94a3b8;font-size:9px;font-weight:900}.history-card dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-size:11px;font-weight:900}
 .history-description{margin-top:10px!important;padding:10px;border-radius:10px;background:#f8fafc;color:#334155!important;font-size:12px!important;line-height:1.9!important;white-space:pre-wrap}
 .history-table-wrap{overflow:auto;padding:16px 18px 20px}.history-table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;font-size:11px}.history-table th,.history-table td{padding:10px 9px;border-left:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-align:center;vertical-align:middle}.history-table th:first-child,.history-table td:first-child{border-right:1px solid #e2e8f0}.history-table th{position:sticky;top:0;z-index:1;background:#f8fafc;color:#475569;font-size:10px;font-weight:1000}.history-table tbody tr:nth-child(even) td{background:#fbfdff}.history-table tbody tr.current td{background:#eff6ff;border-bottom-color:#bfdbfe}.history-table td strong{display:block;color:#1e3a8a;font-size:11px}.history-table td small{display:block;margin-top:4px;color:#2563eb;font-size:9px;font-weight:1000}.history-table .history-note{min-width:210px;max-width:310px;text-align:right;white-space:pre-wrap;line-height:1.8;color:#334155}
-.description-modal-overlay{position:fixed;z-index:1000014;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}.description-modal{width:min(620px,96vw);overflow:hidden;border:1px solid rgba(255,255,255,.85);border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.description-modal header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:17px 18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.description-modal header small{color:#2563eb;font-size:10px;font-weight:1000}.description-modal header h3{margin:4px 0 0;color:#172033;font-size:17px}.description-modal header button{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:#64748b;font-size:22px;cursor:pointer}.description-modal textarea{display:block;width:calc(100% - 32px);min-height:180px;resize:vertical;margin:16px;padding:12px;border:1px solid #dbe3ed;border-radius:11px;background:#fff;color:#334155;font:800 12px/1.9 inherit;outline:0}.description-modal textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.14)}.description-modal textarea[readonly]{background:#f8fafc;color:#475569}.description-modal footer{display:flex;justify-content:flex-end;gap:8px;padding:13px 16px;border-top:1px solid #e2e8f0}.description-modal footer button{height:37px;padding:0 14px;border:0;border-radius:9px;font-family:inherit;font-size:10px;font-weight:1000;cursor:pointer}.description-cancel{background:#e2e8f0;color:#475569}.description-save{background:#2563eb;color:#fff}
+.description-modal-overlay{position:fixed;z-index:1000014;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}.description-modal{width:min(620px,96vw);overflow:hidden;border:1px solid rgba(255,255,255,.85);border-radius:19px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.35)}.description-notes-modal{width:min(680px,96vw);max-height:92vh;display:flex;flex-direction:column}.description-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:17px 18px;border-bottom:1px solid #e2e8f0;background:#f8fbff}.description-modal>header small{color:#2563eb;font-size:10px;font-weight:1000}.description-modal>header h3{margin:4px 0 0;color:#172033;font-size:17px}.description-modal>header p{margin:4px 0 0;color:#64748b;font-size:11px;font-weight:800}.description-modal>header>button{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:#64748b;font-size:22px;cursor:pointer}.description-notes-thread{flex:1 1 auto;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:16px;background:linear-gradient(180deg,#f8fbff 0%,#fff 42%)}.description-notes-empty{margin:28px 0;text-align:center;color:#94a3b8;font-size:12px;font-weight:800}.description-note-bubble{align-self:stretch;max-width:100%;padding:11px 12px;border:1px solid #e2e8f0;border-radius:14px 14px 4px 14px;background:#fff;box-shadow:0 6px 16px rgba(15,23,42,.05)}.description-note-bubble.editing{border-color:#93c5fd;background:#f8fbff}.description-note-bubble>header{display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap}.description-note-bubble>header time{color:#64748b;font-size:10px;font-weight:900}.description-note-bubble>header span{color:#2563eb;font-size:10px;font-weight:1000}.description-note-edit{margin-right:auto;height:28px;padding:0 10px;border:1px solid #dbe3ed;border-radius:8px;background:#f8fafc;color:#334155;font:1000 9px inherit;cursor:pointer}.description-note-bubble>p{margin:0;color:#334155;font:800 12px/1.9 inherit;white-space:pre-wrap}.description-note-bubble textarea{display:block;width:100%;min-height:84px;resize:vertical;padding:10px;border:1px solid #dbe3ed;border-radius:10px;background:#fff;color:#334155;font:800 12px/1.9 inherit;outline:0}.description-note-bubble textarea:focus,.description-notes-composer textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.14)}.description-note-bubble>footer{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}.description-notes-composer{padding:0 16px 12px;border-top:1px solid #eef2f7}.description-notes-composer label{display:grid;gap:6px;margin-top:12px}.description-notes-composer span{color:#64748b;font-size:10px;font-weight:1000}.description-notes-composer textarea{display:block;width:100%;min-height:88px;resize:vertical;padding:11px;border:1px solid #dbe3ed;border-radius:11px;background:#fff;color:#334155;font:800 12px/1.9 inherit;outline:0}.description-add-note{margin-top:8px;height:34px;padding:0 12px;border:0;border-radius:9px;background:#e2e8f0;color:#334155;font:1000 10px inherit;cursor:pointer}.description-add-note:disabled{opacity:.55;cursor:not-allowed}.description-modal>footer{display:flex;justify-content:flex-end;gap:8px;padding:13px 16px;border-top:1px solid #e2e8f0}.description-modal>footer button,.description-note-bubble>footer button{height:37px;padding:0 14px;border:0;border-radius:9px;font-family:inherit;font-size:10px;font-weight:1000;cursor:pointer}.description-cancel{background:#e2e8f0;color:#475569}.description-save{background:#2563eb;color:#fff}.history-latest-banner{margin:14px 18px 0;padding:12px 14px;border:1px solid #bfdbfe;border-radius:14px;background:linear-gradient(135deg,#eff6ff,#f8fbff)}.history-latest-banner small{display:block;color:#2563eb;font-size:10px;font-weight:1000}.history-latest-banner strong{display:block;margin:5px 0;color:#0f172a;font-size:13px;line-height:1.8;white-space:pre-wrap}.history-latest-banner span{display:block;color:#64748b;font-size:11px;font-weight:800}.history-notes-thread{display:grid;gap:8px;text-align:right}.history-notes-latest{margin:0 0 4px;color:#1d4ed8;font-size:11px;font-weight:900;line-height:1.7}.history-note-bubble{padding:8px 10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}.history-note-bubble.latest{border-color:#93c5fd;background:#eff6ff}.history-note-bubble>header{display:flex;gap:8px;align-items:center;margin-bottom:4px;color:#64748b;font-size:9px;font-weight:900}.history-note-bubble>header span{color:#2563eb}.history-note-bubble>p{margin:0;color:#334155;font-size:11px;line-height:1.8;white-space:pre-wrap}
 .followup-profile-overlay{position:fixed;z-index:1000012;inset:0;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px)}.followup-profile-modal{width:min(680px,96vw);max-height:92vh;overflow:auto;border:1px solid rgba(255,255,255,.85);border-radius:22px;background:#fff;color:#0f172a;box-shadow:0 28px 90px rgba(15,23,42,.35)}.followup-profile-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.followup-profile-head{display:flex;align-items:center;gap:12px;min-width:0}.followup-profile-avatar{width:58px;height:58px;flex:0 0 58px;border:3px solid #94a3b8;border-radius:50%;object-fit:cover;background:#e2e8f0}.followup-profile-avatar.fallback{display:grid;place-items:center;color:#475569;font-size:20px;font-weight:1000}.followup-profile-avatar.level-none{border-color:#dbe3ed}.followup-profile-avatar.level-silver{border-color:#94a3b8}.followup-profile-avatar.level-blue{border-color:#3b82f6}.followup-profile-avatar.level-gold{border-color:#f59e0b}.followup-profile-avatar.level-problematic{border-color:#ef4444}.followup-profile-head small{color:#2563eb;font-size:10px;font-weight:1000}.followup-profile-head h3{margin:4px 0;font-size:19px}.followup-profile-head p{margin:0;color:#64748b;font-size:11px;font-weight:800}.followup-profile-modal>header>button{width:36px;height:36px;border:0;border-radius:10px;background:#fff;color:#64748b;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 5px 14px rgba(15,23,42,.08)}.followup-profile-loading,.followup-profile-error{padding:40px 20px;text-align:center;font-size:13px;font-weight:900}.followup-profile-loading{color:#2563eb}.followup-profile-error{color:#b91c1c}.followup-profile-body{padding:18px}.followup-profile-stats,.followup-profile-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.followup-profile-stats{margin-bottom:14px}.followup-profile-stats article,.followup-profile-details article{min-width:0;padding:11px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.followup-profile-stats span,.followup-profile-details span{display:block;margin-bottom:5px;color:#94a3b8;font-size:9px;font-weight:900}.followup-profile-stats strong,.followup-profile-details strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#334155;font-size:11px}.followup-profile-stats article.danger{border-color:#fecaca;background:#fff7f7}.followup-profile-stats article.danger strong{color:#b91c1c}.followup-profile-hint{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:800;line-height:1.8}@media(max-width:560px){.followup-profile-stats,.followup-profile-details{grid-template-columns:1fr}.followup-profile-modal>header{padding:15px}.followup-profile-head h3{font-size:17px}}
 @media(max-width:760px){.history-card dl{grid-template-columns:1fr 1fr}.history-modal>header{padding:15px}.history-timeline{padding:14px}.history-modal h3{font-size:18px}}
 @media(max-width:480px){.history-card dl{grid-template-columns:1fr}}
@@ -7502,6 +7681,57 @@ html #app.dark .description-modal textarea {
   background: #121417 !important;
   border-color: #3a3f4a !important;
   color: #f1f3f4 !important;
+}
+html body.dark .description-notes-thread,
+html #app.dark .description-notes-thread {
+  background: linear-gradient(180deg, #22252d 0%, #1a1c22 42%) !important;
+}
+html body.dark .description-note-bubble,
+html body.dark .history-note-bubble,
+html body.dark .history-latest-banner,
+html #app.dark .description-note-bubble,
+html #app.dark .history-note-bubble,
+html #app.dark .history-latest-banner {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .description-note-bubble.editing,
+html body.dark .history-note-bubble.latest,
+html #app.dark .description-note-bubble.editing,
+html #app.dark .history-note-bubble.latest {
+  background: #1e3a5f !important;
+  border-color: #4f8cff !important;
+}
+html body.dark .description-notes-empty,
+html body.dark .description-note-bubble > header time,
+html body.dark .history-latest-banner span,
+html body.dark .history-note-bubble > header,
+html #app.dark .description-notes-empty,
+html #app.dark .description-note-bubble > header time,
+html #app.dark .history-latest-banner span,
+html #app.dark .history-note-bubble > header {
+  color: #9aa0a6 !important;
+}
+html body.dark .description-note-bubble > p,
+html body.dark .history-notes-latest,
+html body.dark .history-note-bubble > p,
+html body.dark .history-latest-banner strong,
+html #app.dark .description-note-bubble > p,
+html #app.dark .history-notes-latest,
+html #app.dark .history-note-bubble > p,
+html #app.dark .history-latest-banner strong {
+  color: #e8eaed !important;
+}
+html body.dark .description-note-edit,
+html body.dark .description-add-note,
+html body.dark .description-cancel,
+html #app.dark .description-note-edit,
+html #app.dark .description-add-note,
+html #app.dark .description-cancel {
+  background: #2a2f3a !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
 }
 html body.dark .history-timeline,
 html body.dark .history-card,

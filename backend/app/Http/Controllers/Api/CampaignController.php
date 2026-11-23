@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\InventorySection;
 use App\Services\CampaignRowMerger;
+use App\Support\CampaignFollowupNotes;
 use App\Support\FollowupLeadPhoneVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +20,14 @@ class CampaignController extends Controller
     {
         $campaigns = Campaign::query()->orderByDesc('active')->orderBy('name')->get();
         $visible = FollowupLeadPhoneVisibility::visibleConsultants($request);
-        $campaigns->each(fn (Campaign $campaign) => FollowupLeadPhoneVisibility::maskCampaign($campaign, $visible));
+        $campaigns->each(function (Campaign $campaign) use ($visible): void {
+            $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
+            if (is_array($payload['rows'] ?? null)) {
+                $payload['rows'] = CampaignFollowupNotes::normalizePayloadRows($payload['rows']);
+                $campaign->setAttribute('ui_payload', $payload);
+            }
+            FollowupLeadPhoneVisibility::maskCampaign($campaign, $visible);
+        });
 
         // نسخهٔ سبک برای فید «سرنخ‌ها»: بنرها و فایل‌های پیوست حذف می‌شوند.
         if ($request->boolean('summary')) {
@@ -114,6 +122,10 @@ class CampaignController extends Controller
         $data = $this->data($request);
         if (is_array($data['ui_payload']['rows'] ?? null)) {
             $data['ui_payload']['rows'] = app(CampaignRowMerger::class)->withIds($data['ui_payload']['rows']);
+            $data['ui_payload']['rows'] = CampaignFollowupNotes::normalizePayloadRows(
+                $data['ui_payload']['rows'],
+                $request->user()?->name
+            );
         }
 
         return response()->json($this->forViewer(Campaign::create($data), $request), 201);
@@ -132,6 +144,10 @@ class CampaignController extends Controller
             if (is_array($data['ui_payload']['rows'] ?? null)) {
                 $serverPayload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
                 $data['ui_payload']['rows'] = FollowupLeadPhoneVisibility::restoreMaskedPhones($data['ui_payload']['rows'], $serverPayload['rows'] ?? []);
+                $data['ui_payload']['rows'] = CampaignFollowupNotes::normalizePayloadRows(
+                    $data['ui_payload']['rows'],
+                    $request->user()?->name
+                );
             }
             $campaign->update($data);
 
@@ -157,7 +173,10 @@ class CampaignController extends Controller
                 ], 409);
             }
 
-            $data['ui_payload']['rows'] = $result['rows'];
+            $data['ui_payload']['rows'] = CampaignFollowupNotes::normalizePayloadRows(
+                $result['rows'],
+                $request->user()?->name
+            );
             $current->update($data);
 
             return $this->forViewer($current->fresh(), $request);
@@ -173,6 +192,12 @@ class CampaignController extends Controller
 
     private function forViewer(Campaign $campaign, Request $request): Campaign
     {
+        $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
+        if (is_array($payload['rows'] ?? null)) {
+            $payload['rows'] = CampaignFollowupNotes::normalizePayloadRows($payload['rows']);
+            $campaign->setAttribute('ui_payload', $payload);
+        }
+
         return FollowupLeadPhoneVisibility::maskCampaign($campaign, FollowupLeadPhoneVisibility::visibleConsultants($request));
     }
 
