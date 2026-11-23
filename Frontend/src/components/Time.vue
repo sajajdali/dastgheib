@@ -1522,14 +1522,6 @@
           <span>{{ timelineDayDate(day) }}</span>
           <small v-if="isToday(day)">امروز</small>
           <small v-if="isBookingDayCapacityFull(day)" class="day-capacity-full">تکمیل ظرفیت</small>
-          <div class="timeline-day-actions">
-            <button
-              v-if="canCreateBookingOnDay(day)"
-              type="button"
-              title="افزودن نوبت"
-              @click.stop="openNewTimelineAppointment(day)"
-            >نوبت</button>
-          </div>
         </aside>
 
         <div class="timeline-slots" :aria-label="`نوبت‌های ${day.dateLabel}`">
@@ -1598,23 +1590,6 @@
               @click.stop="confirmTimelineSlotMerge(day, row)"
             >+</button>
           </template>
-
-          <article
-            v-if="canCreateBookingOnDay(day)"
-            class="timeline-card timeline-add-card is-empty"
-            :style="timelineBookingCardStyle()"
-            role="button"
-            tabindex="0"
-            title="ثبت نوبت جدید در انتهای این روز"
-            @click.stop="openNewTimelineAppointment(day)"
-            @keydown.enter.prevent="openNewTimelineAppointment(day)"
-          >
-            <div class="timeline-time-chip">بدون ساعت</div>
-            <div class="timeline-card-empty">
-              <span>+</span>
-              <strong>ثبت نوبت</strong>
-            </div>
-          </article>
         </div>
       </div>
     </section>
@@ -5655,13 +5630,13 @@ export default {
           return { backgroundColor: "#facc15" };
 
         case "وقت داده شد":
-          return { backgroundColor: "#fff3cd" };
+          return { backgroundColor: "#1d4ed8", color: "#fff" };
 
         case "آمد":
-          return { backgroundColor: "#d1e7dd" };
+          return { backgroundColor: "#bfdbfe", color: "#1e3a8a" };
 
         case "کنسل شد":
-          return { backgroundColor: "#f8d7da" };
+          return { backgroundColor: "#d50000", color: "#fff" };
 
         case "پاسخ نداد":
           return { backgroundColor: "#e2e3e5" };
@@ -12229,10 +12204,10 @@ smsColor(val) {
   width: 148px;
   height: 154px;
   scroll-snap-align: start;
-  border: 1px solid #087a34;
+  border: 1px solid #1e40af;
   border-radius: 12px;
-  background: #0c8f3d;
-  box-shadow: 0 6px 16px rgba(12, 143, 61, .16);
+  background: #1d4ed8;
+  box-shadow: 0 6px 16px rgba(29, 78, 216, .16);
   cursor: pointer;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
@@ -12272,8 +12247,8 @@ smsColor(val) {
 }
 
 .timeline-card.is-arrived {
-  background: #b9f6ca;
-  border-color: #86efac;
+  background: #bfdbfe;
+  border-color: #93c5fd;
 }
 
 .timeline-card.is-follow {
@@ -12319,11 +12294,11 @@ smsColor(val) {
   justify-content: center;
   padding: 0 10px;
   border-radius: 6px 6px 3px 3px;
-  background: #16a34a;
+  background: #1e40af;
   color: #fff;
   font-size: 11px;
   font-weight: 1000;
-  box-shadow: 0 5px 12px rgba(22, 163, 74, .18);
+  box-shadow: 0 5px 12px rgba(29, 78, 216, .18);
 }
 
 .timeline-card.is-empty .timeline-time-chip {
@@ -12333,8 +12308,8 @@ smsColor(val) {
 }
 
 .timeline-card.is-arrived .timeline-time-chip {
-  background: #69d98c;
-  color: #14532d;
+  background: #93c5fd;
+  color: #1e3a8a;
   box-shadow: none;
 }
 
@@ -14052,12 +14027,13 @@ td.row-action-col {
 
 /* رنگ‌بندی وضعیت */
 .st-given {
-  background-color: #0c8f3d !important;
+  background-color: #1d4ed8 !important;
   color: white !important;
 }
 
 .st-arrived {
-  background-color: #b9f6ca !important;
+  background-color: #bfdbfe !important;
+  color: #1e3a8a !important;
 }
 
 .st-cancel {
@@ -14114,12 +14090,13 @@ td.row-action-col {
 }
 /* وضعیت روی TD (خیلی مهم برای درست نمایش دادن) */
 .main-schedule-table td.st-given {
-  background-color: #0c8f3d !important;
+  background-color: #1d4ed8 !important;
   color: white !important;
 }
 
 .main-schedule-table td.st-arrived {
-  background-color: #b9f6ca !important;
+  background-color: #bfdbfe !important;
+  color: #1e3a8a !important;
 }
 
 .main-schedule-table td.st-cancel {
@@ -14323,17 +14300,20 @@ td.row-action-col {
 
 td.st-given select,
 td.st-given {
-  background: #fff3cd !important;
+  background: #1d4ed8 !important;
+  color: #fff !important;
 }
 
 td.st-arrived select,
 td.st-arrived {
-  background: #d1e7dd !important;
+  background: #bfdbfe !important;
+  color: #1e3a8a !important;
 }
 
 td.st-cancel select,
 td.st-cancel {
-  background: #f8d7da !important;
+  background: #d50000 !important;
+  color: #fff !important;
 }
 
 td.st-noans select,
@@ -15449,14 +15429,14 @@ tr.data-row td {
   transition: background-color .28s ease;
 }
 
-/* رنگ نهایی وضعیت «آمد»؛ روشن و کم‌رنگ برای خوانایی بهتر جدول */
+/* رنگ نهایی وضعیت «آمد»؛ آبی روشن هم‌تراز با Timeline */
 .main-schedule-table td.st-arrived,
 .main-schedule-table td.st-arrived select,
 td.st-arrived,
 td.st-arrived select {
-  background: #ecfdf5 !important;
-  color: #166534 !important;
-  border-color: #bbf7d0 !important;
+  background: #bfdbfe !important;
+  color: #1e3a8a !important;
+  border-color: #93c5fd !important;
 }
 
 /* پیامک‌های ارسال‌شده در پنجرهٔ پایان درمان */
@@ -15563,9 +15543,9 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-booked {
-  border-color: #93c5fd !important;
-  background: linear-gradient(145deg, #eff6ff, #dbeafe) !important;
-  box-shadow: inset -4px 0 0 #2563eb, 0 5px 14px rgba(37, 99, 235, .11) !important;
+  border-color: #1e40af !important;
+  background: #1d4ed8 !important;
+  box-shadow: inset -4px 0 0 #1e3a8a, 0 5px 14px rgba(29, 78, 216, .22) !important;
 }
 
 .appointment-timeline .timeline-card.is-waiting-slot {
@@ -15594,8 +15574,8 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-arrived {
-  border-color: #bbf7d0 !important;
-  background: #ecfdf5 !important;
+  border-color: #93c5fd !important;
+  background: #bfdbfe !important;
   box-shadow: none !important;
 }
 
@@ -15631,33 +15611,33 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-time-chip {
-  border: 1px solid #93c5fd;
-  background: #fff !important;
-  color: #1d4ed8 !important;
-  box-shadow: 0 5px 12px rgba(37, 99, 235, .12);
+  border: 1px solid #1e3a8a;
+  background: #1e40af !important;
+  color: #fff !important;
+  box-shadow: 0 5px 12px rgba(29, 78, 216, .22);
 }
-.appointment-timeline .timeline-card.is-arrived .timeline-time-chip { background: #bbf7d0 !important; color: #166534 !important; }
+.appointment-timeline .timeline-card.is-arrived .timeline-time-chip { background: #93c5fd !important; color: #1e3a8a !important; }
 .appointment-timeline .timeline-card.is-canceled .timeline-time-chip { background: #b91c1c !important; color: #fff !important; }
 .appointment-timeline .timeline-card.is-empty .timeline-time-chip { background: #e5e7eb !important; color: #64748b !important; }
 
 .appointment-timeline .timeline-card.is-arrived .timeline-card-body strong,
 .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
 .appointment-timeline .timeline-card.is-arrived .timeline-card-body small,
-.appointment-timeline .timeline-card.is-arrived .timeline-status-label { color: #166534 !important; }
+.appointment-timeline .timeline-card.is-arrived .timeline-status-label { color: #1e3a8a !important; }
 
 .appointment-timeline .timeline-card.is-booked .timeline-card-body strong {
-  color: #1e3a8a !important;
+  color: #fff !important;
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-card-body span,
 .appointment-timeline .timeline-card.is-booked .timeline-card-body small {
-  color: #334155 !important;
+  color: rgba(255, 255, 255, .9) !important;
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-status-label {
-  border: 1px solid #bfdbfe;
-  background: #dbeafe !important;
-  color: #1d4ed8 !important;
+  border: 1px solid rgba(255, 255, 255, .35);
+  background: rgba(255, 255, 255, .2) !important;
+  color: #fff !important;
 }
 
 .appointment-timeline .timeline-card.is-canceled .timeline-card-body strong,
@@ -15665,7 +15645,7 @@ td.st-arrived select {
 .appointment-timeline .timeline-card.is-canceled .timeline-card-body small,
 .appointment-timeline .timeline-card.is-canceled .timeline-status-label { color: #fff !important; }
 
-.appointment-timeline .timeline-card.is-arrived .timeline-status-label { background: #d1fae5 !important; }
+.appointment-timeline .timeline-card.is-arrived .timeline-status-label { background: #dbeafe !important; }
 .appointment-timeline .timeline-card.is-canceled .timeline-status-label { background: rgba(255, 255, 255, .2) !important; }
 
 .appointment-timeline .timeline-delete-appointment-btn {
@@ -16291,7 +16271,7 @@ body.dark .dn-cons,
 body.dark .main-schedule-table td.st-arrived,
 body.dark .st-arrived,
 #app.dark .main-schedule-table td.st-arrived,
-#app.dark .st-arrived { background-color: #14532d !important; color: #bbf7d0 !important; }
+#app.dark .st-arrived { background-color: #1e3a5f !important; color: #bfdbfe !important; }
 body.dark .main-schedule-table td.st-noans,
 body.dark .st-noans,
 body.dark .sms-wait,
@@ -16712,7 +16692,7 @@ html #app.dark .dn-cons { background-color: #3a3f4a !important; color: #e8eaed !
 html body.dark .main-schedule-table td.st-arrived,
 html body.dark .st-arrived,
 html #app.dark .main-schedule-table td.st-arrived,
-html #app.dark .st-arrived { background-color: #14532d !important; color: #bbf7d0 !important; }
+html #app.dark .st-arrived { background-color: #1e3a5f !important; color: #bfdbfe !important; }
 html body.dark .main-schedule-table td.st-noans,
 html body.dark .st-noans,
 html body.dark .sms-wait,
@@ -17086,8 +17066,8 @@ html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-status-l
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived,
 html #app.dark .appointment-timeline .timeline-card.is-arrived {
-  background: #14532d !important;
-  border-color: #22c55e !important;
+  background: #1e3a5f !important;
+  border-color: #60a5fa !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body strong,
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
@@ -17097,16 +17077,16 @@ html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-bo
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body small,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label {
-  color: #bbf7d0 !important;
+  color: #bfdbfe !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label {
-  background: rgba(34, 197, 94, .22) !important;
+  background: rgba(96, 165, 250, .22) !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-time-chip,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-time-chip {
-  background: #166534 !important;
-  color: #bbf7d0 !important;
+  background: #1d4ed8 !important;
+  color: #dbeafe !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-follow,
 html body.dark .appointment-timeline .timeline-card.is-no-answer,
@@ -17482,8 +17462,8 @@ html #app.dark td.st-arrived,
 html #app.dark td.st-arrived select,
 html #app.dark .st-arrived,
 html #app.dark select.st-arrived {
-  background-color: #14352a !important;
-  color: #86efac !important;
+  background-color: #1e3a5f !important;
+  color: #bfdbfe !important;
 }
 html body.dark .main-schedule-table td.dn-yes,
 html body.dark .main-schedule-table td.dn-yes select,

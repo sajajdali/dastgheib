@@ -20,11 +20,11 @@ export const APPOINTMENT_STATUS_KEYS = Object.freeze({
 
 export const WAITING_SLOT_STATUS = APPOINTMENT_STATUS_KEYS.waiting_slot;
 
-/** Hex colors matching tabular booking (`.st-*`) status cells. */
+/** Hex colors matching tabular booking (`.st-*`) status cells and Timeline cards. */
 export const APPOINTMENT_STATUS_COLORS = Object.freeze({
   'در انتظار وقت': '#facc15',
-  'وقت داده شد': '#0c8f3d',
-  'آمد': '#b9f6ca',
+  'وقت داده شد': '#1d4ed8',
+  'آمد': '#bfdbfe',
   'کنسل شد': '#d50000',
   'پاسخ نداد': '#ffcdd2',
   'پیگیری': '#bbdefb',

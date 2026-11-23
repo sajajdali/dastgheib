@@ -3152,7 +3152,7 @@ body.dark select.st-arrived,
 #app.dark .main-schedule-table td.st-arrived,
 #app.dark .main-schedule-table td.st-arrived select,
 #app.dark .st-arrived,
-#app.dark select.st-arrived { background-color:#14352a !important; color:#86efac !important; }
+#app.dark select.st-arrived { background-color:#1e3a5f !important; color:#bfdbfe !important; }
 body.dark .main-schedule-table td.dn-yes,
 body.dark .main-schedule-table td.dn-yes select,
 body.dark .dn-yes,
