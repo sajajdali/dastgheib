@@ -96,7 +96,7 @@
               <tbody>
                 <tr v-for="line in report.lines" :key="line.id" :class="{ edited: line.manually_edited && line.status !== 'deleted', deleted: line.status === 'deleted' }">
                   <td>{{ line.day_num ? Number(line.day_num).toLocaleString('fa-IR') : '-' }}</td>
-                  <td>{{ lineType(line.earning_type) }}</td>
+                  <td>{{ lineSourceLabel(line) }}</td>
                   <td>
                     <span>{{ line.description || '-' }}</span>
                     <small v-if="line.status === 'deleted'" class="line-status">حذف‌شده</small>
@@ -202,7 +202,7 @@
       <section class="line-detail-modal">
         <header>
           <div>
-            <small>{{ lineType(detailLine.earning_type) }}</small>
+            <small>{{ lineSourceLabel(detailLine) }}</small>
             <h2>{{ editingLine ? 'ویرایش محاسبه' : (detailLine.description || 'جزئیات محاسبه') }}</h2>
           </div>
           <button type="button" @click="closeLineDetail">×</button>
@@ -215,6 +215,7 @@
           <article v-if="isAttendanceLine(detailLine)"><span>ورود / خروج</span><strong>{{ attendanceClockText(detailLine) }}</strong></article>
           <article v-if="isAttendanceLine(detailLine)"><span>ساعت کارکرد</span><strong>{{ Number(detailLine.calculation_snapshot?.worked_hours || 0).toLocaleString('fa-IR') }}</strong></article>
           <article v-if="isAttendanceLine(detailLine)"><span>اختلاف ساعت</span><strong>{{ Number(detailLine.calculation_snapshot?.diff_hours || 0).toLocaleString('fa-IR') }}</strong></article>
+          <article v-if="!editingLine"><span>منبع قانون</span><strong>{{ lineSourceLabel(detailLine) }}</strong></article>
           <article v-if="!editingLine"><span>خدمت/آیتم موثر</span><strong>{{ detailLine.service_name || detailLine.inventory_name || '-' }}</strong></article>
           <article v-if="!editingLine"><span>مبلغ خام همین خط</span><strong>{{ money(detailLine.gross_amount) }}</strong></article>
           <article v-if="!editingLine"><span>تخفیف همین خط</span><strong>{{ money(detailLine.discount_amount) }}</strong></article>
@@ -521,15 +522,19 @@ export default {
     },
     lineType(type) {
       return {
-        base_commission: 'پورسانت پایه',
-        inventory_commission: 'پورسانت انبار',
+        base_commission: 'پورسانت پیش‌فرض پزشک',
+        inventory_commission: 'استثنای اختصاصی خدمت',
         inventory_default_commission: 'پورسانت پیش‌فرض انبار',
+        section_commission: 'پورسانت بخش/زیربخش',
         sales_bonus: 'پاداش فروش',
         referral_commission: 'پورسانت معرفی مشتری',
         attendance_overtime: 'اضافه‌کاری',
         attendance_shortage: 'کسری ساعت',
         attendance_absence: 'غیبت'
       }[type] || type || '-'
+    },
+    lineSourceLabel(line) {
+      return line?.calculation_snapshot?.calculation_source_label || this.lineType(line?.earning_type)
     },
     isAttendanceLine(line) {
       return ['attendance_overtime', 'attendance_shortage', 'attendance_absence'].includes(line?.earning_type)

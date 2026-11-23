@@ -90,7 +90,7 @@ class SendLeadAlertSms
         $commissions = 0;
 
         foreach ($appointments as $appointment) {
-            // پورسانت با همان قاعدهٔ حقوق: استثنای شخص، پورسانت کلی انبار، درصد منابع.
+            // پورسانت با همان قاعدهٔ حقوق: استثنای شخص، قانون بخش/زیربخش، درصد منابع.
             $commissions += app(AppointmentController::class)->estimatedResourceCommission($appointment);
             foreach ($appointment->services ?? [] as $service) {
                 $item = $inventory->get($service['name'] ?? '');

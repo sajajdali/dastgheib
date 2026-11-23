@@ -7382,8 +7382,8 @@ export default {
       return this.staff.find(person => String(person.name || '').trim() === name) || null;
     },
 
-    // پورسانت یک خدمت با همان قاعدهٔ حقوق: استثنای شخص روی خدمت، سپس پورسانت کلی انبار، سپس درصد منابع.
-    // قانون‌های انبار به نوع مشتری وابسته نیستند و تیک «بعد از کسر مواد» در همهٔ حالت‌های درصدی اعمال می‌شود.
+    // پورسانت یک خدمت با همان قاعدهٔ حقوق: استثنای شخص، قانون زیربخش، قانون بخش، سپس درصد منابع.
+    // قانون‌های ساختار خدمات به نوع مشتری وابسته نیستند و تیک «بعد از کسر مواد» در همهٔ حالت‌های درصدی اعمال می‌شود.
     serviceCommission(resource, recipientType, row, service, item, cc) {
       if (!resource || !item || service?.addon_definition_id || cc <= 0) return 0;
       if (this.sourceBlocksCommission(row, recipientType)) return 0;
@@ -7423,10 +7423,26 @@ export default {
         exceptions = rules.filter(rule => rule.recipient_type === 'user' && Number(rule.recipient_id) === Number(resource.user_id));
       }
       if (exceptions.length) return exceptions.reduce((sum, rule) => sum + amount(rule.commission_type, rule.commission_value), 0);
-      if (Number(item.default_commission_value) > 0) return amount(item.default_commission_type, item.default_commission_value);
+
+      const sectionRule = this.resolveInventorySectionCommission(item);
+      if (sectionRule) return amount(sectionRule.type, sectionRule.value);
 
       const percent = this.resourceCustomerPercent(resource, row);
       return percent === null ? 0 : amount('percent', percent);
+    },
+
+    resolveInventorySectionCommission(item) {
+      const sections = this.serviceSections || [];
+      let section = sections.find(entry => Number(entry.id) === Number(item?.section_id || item?.sectionId));
+      while (section) {
+        const type = section.commission_type || section.commissionType;
+        if (type === 'percent' || type === 'fixed') {
+          return { type, value: Number(section.commission_value ?? section.commissionValue) || 0 };
+        }
+        const parentId = section.parent_id || section.parentId;
+        section = parentId ? sections.find(entry => Number(entry.id) === Number(parentId)) : null;
+      }
+      return null;
     },
 
     salesSalaryBonus(resource, totalSales) {

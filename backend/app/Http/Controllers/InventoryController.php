@@ -160,9 +160,33 @@ class InventoryController extends Controller
                             ? filter_var($section['photosRequired'], FILTER_VALIDATE_BOOLEAN)
                             : true);
                 }
+                if (Schema::hasColumn('inventory_sections', 'commission_type')) {
+                    $rawType = $section['commission_type'] ?? $section['commissionType'] ?? null;
+                    $rawValue = $section['commission_value'] ?? $section['commissionValue'] ?? null;
+                    $hasRuleKey = array_key_exists('commission_type', $section)
+                        || array_key_exists('commissionType', $section)
+                        || array_key_exists('commission_value', $section)
+                        || array_key_exists('commissionValue', $section);
+                    if ($hasRuleKey) {
+                        $type = in_array($rawType, ['percent', 'fixed'], true) ? $rawType : null;
+                        $sectionAttributes['commission_type'] = $type;
+                        $sectionAttributes['commission_value'] = $type === null ? null : (float) $rawValue;
+                    }
+                }
                 if ($record->exists) {
-                    $sectionAttributes = array_filter($sectionAttributes,
-                        fn ($key) => array_key_exists($key, $section), ARRAY_FILTER_USE_KEY);
+                    $sectionAttributes = array_filter($sectionAttributes, function ($key) use ($section) {
+                        if ($key === 'photos_required') {
+                            return array_key_exists('photos_required', $section) || array_key_exists('photosRequired', $section);
+                        }
+                        if ($key === 'commission_type' || $key === 'commission_value') {
+                            return array_key_exists('commission_type', $section)
+                                || array_key_exists('commissionType', $section)
+                                || array_key_exists('commission_value', $section)
+                                || array_key_exists('commissionValue', $section);
+                        }
+
+                        return array_key_exists($key, $section);
+                    }, ARRAY_FILTER_USE_KEY);
                 }
                 $record->fill($sectionAttributes);
                 if (! $record->exists || $record->isDirty()) $record->save();

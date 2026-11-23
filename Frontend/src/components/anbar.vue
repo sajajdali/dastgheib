@@ -88,6 +88,17 @@
             </svg>
             <i v-if="!sectionPhotosRequired(node.section)" class="tree-photo-off-mark" aria-hidden="true">×</i>
           </button>
+          <button
+            type="button"
+            class="tree-commission-btn"
+            :class="{ active: sectionHasCommissionRule(node.section) }"
+            :title="sectionCommissionTooltip(node.section)"
+            :aria-label="sectionCommissionModalTitle(node.section)"
+            @click.stop="openSectionCommissionModal(node.section)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15.4 14.9 8.6M9.5 9.5h.01M14.5 14.5h.01"/></svg>
+            <i v-if="sectionHasCommissionRule(node.section)" class="tree-commission-active-mark" aria-hidden="true">✓</i>
+          </button>
           <div class="tree-color-picker"><button type="button" class="tree-color-btn" title="رنگ فعلی این آیتم؛ برای بازکردن پالت کلیک کنید" @click.stop="toggleSectionColorMenu(sectionKey(node.section))"><span :style="{ background: sectionColor(node.section) }"></span></button><div v-if="colorPickerSectionKey === sectionKey(node.section)" class="section-color-menu tree-color-menu" @click.stop><button v-for="color in sectionColorsList" :key="color" type="button" class="section-color-swatch" :style="{ background: color }" :title="`انتخاب رنگ ${color}`" @click="setSectionColorFor(sectionKey(node.section), color)"></button><button type="button" class="section-color-reset" @click="setSectionColorFor(sectionKey(node.section), '')">حذف رنگ</button></div></div>
           <span class="tree-count">{{ treeNodeCount(node.section).toLocaleString('fa-IR') }}</span>
           <span
@@ -177,16 +188,6 @@
         </div>
 
         <div class="inventory-save-actions">
-          <button
-            class="global-commission-btn"
-            type="button"
-            title="تعریف پورسانت کلی برای همه خدمات"
-            aria-label="تعریف پورسانت کلی برای همه خدمات"
-            @click="openCommissionModal(null, 'all')"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.2 15.4 14.9 8.6M9.5 9.5h.01M14.5 14.5h.01"/></svg>
-            <span>پورسانت کلی</span>
-          </button>
           <button class="service-tags-page-btn" type="button" @click="openServiceTagsPage">
             <span>🏷</span>
             نواحی
@@ -194,6 +195,10 @@
           <button class="inventory-addons-page-btn" type="button" @click="openAddonManager">
             <span>✦</span>
             مدیریت جانبی‌ها
+          </button>
+          <button class="face-problems-page-btn" type="button" title="تنظیم مشکلات چهره برای زیبایار" @click="openFaceProblemsSettings">
+            <span>◎</span>
+            مشکلات چهره
           </button>
           <span class="save-status" :class="saveState">
             {{ saveStatusText }}
@@ -234,12 +239,9 @@
         <div v-if="!needsCompletedHierarchy || isRootSelection || searchQuery" class="panel-head">
           <div>
             <h3>{{ lowStockOnly ? `آیتم‌های کم‌موجودی (${displayedRows.length.toLocaleString('fa-IR')})` : searchQuery ? 'نتایج جست‌وجو در کل خدمات' : isRootSelection ? `گروه کلی ${activeSectionName}` : inventoryTableTitle }}</h3>
-            <p>{{ lowStockOnly ? 'از همهٔ بخش‌ها؛ تمام‌شده‌ها اول. با کلیک روی نام بخش به همان زیرخدمت می‌روید.' : searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : isRootSelection ? 'پورسانت کلی، روی همه آیتم‌های زیرگروه‌های این گروه اعمال می‌شود.' : inventoryTableSubtitle }}</p>
+            <p>{{ lowStockOnly ? 'از همهٔ بخش‌ها؛ تمام‌شده‌ها اول. با کلیک روی نام بخش به همان زیرخدمت می‌روید.' : searchQuery ? 'نتایج همه بخش‌ها نمایش داده می‌شوند.' : isRootSelection ? 'پورسانت این گروه را از آیکون ٪ کنار نام بخش در درخت ساختار تنظیم کنید.' : inventoryTableSubtitle }}</p>
           </div>
           <div class="panel-actions">
-            <button class="text-btn ghost" type="button" @click="openCommissionModal(isRootSelection ? null : selectedRow, isRootSelection ? 'group' : 'section')">
-              {{ isRootSelection ? 'ثبت پورسانت کلی گروه' : 'ثبت پورسانت' }}
-            </button>
             <button
               v-if="!isRootSelection"
               class="text-btn primary"
@@ -472,6 +474,91 @@
 
       <ServiceTagsManager v-if="inventoryView === 'service-tags'" @back="closeServiceTagsPage" @saved="syncServiceTagOptions" />
     </main>
+
+    <div v-if="faceProblemsSettings.open" class="modal-backdrop" @click.self="closeFaceProblemsSettings">
+      <section class="commission-modal face-problems-modal" role="dialog" aria-modal="true" aria-labelledby="inventory-face-problems-title">
+        <div class="modal-head">
+          <div>
+            <small>تنظیمات زیبایار</small>
+            <h3 id="inventory-face-problems-title">مشکلات چهره</h3>
+            <p>موارد این فهرست هنگام ثبت نقطه روی چهره در زیبایار نمایش داده می‌شوند.</p>
+          </div>
+          <button class="modal-close" type="button" aria-label="بستن" @click="closeFaceProblemsSettings">×</button>
+        </div>
+        <form class="face-problems-form" @submit.prevent="addFaceProblem">
+          <input v-model.trim="faceProblemsSettings.draftInput" type="text" maxlength="160" placeholder="مثلاً لک یا افتادگی">
+          <button class="text-btn primary" type="submit">افزودن</button>
+        </form>
+        <div class="face-problems-list" aria-label="فهرست مشکلات چهره">
+          <span v-for="(problem, index) in faceProblemsSettings.draft" :key="`${problem}-${index}`">
+            {{ problem }}
+            <button type="button" :aria-label="`حذف ${problem}`" @click="removeFaceProblem(index)">×</button>
+          </span>
+          <p v-if="!faceProblemsSettings.draft.length" class="empty-state">هنوز مشکلی تعریف نشده است.</p>
+        </div>
+        <p v-if="faceProblemsSettings.error" class="face-problems-error">{{ faceProblemsSettings.error }}</p>
+        <div class="modal-actions">
+          <button class="text-btn ghost" type="button" @click="closeFaceProblemsSettings">انصراف</button>
+          <button class="text-btn primary" type="button" :disabled="faceProblemsSettings.saving" @click="saveFaceProblems">
+            {{ faceProblemsSettings.saving ? 'در حال ذخیره...' : 'ذخیره تغییرات' }}
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="sectionCommissionModal.open" class="modal-backdrop" @click.self="closeSectionCommissionModal">
+      <div class="commission-modal" role="dialog" aria-modal="true">
+        <div class="modal-head">
+          <div>
+            <h3>{{ sectionCommissionModalTitle(sectionCommissionModal.section) }}</h3>
+            <p>درصد، مبلغ ثابت، یا بدون قانون اختصاصی (ارث از والد).</p>
+          </div>
+          <button class="modal-close" type="button" @click="closeSectionCommissionModal">×</button>
+        </div>
+        <div class="modal-grid section-commission-modes">
+          <label>
+            <input v-model="sectionCommissionModal.mode" type="radio" value="inherit">
+            بدون قانون اختصاصی
+          </label>
+          <label>
+            <input v-model="sectionCommissionModal.mode" type="radio" value="percent">
+            درصدی
+          </label>
+          <label>
+            <input v-model="sectionCommissionModal.mode" type="radio" value="fixed">
+            مبلغ ثابت
+          </label>
+        </div>
+        <div v-if="sectionCommissionModal.mode !== 'inherit'" class="modal-grid">
+          <label>
+            مقدار
+            <input
+              v-if="sectionCommissionModal.mode === 'fixed'"
+              :value="formatMoneyInput(sectionCommissionModal.value)"
+              type="text"
+              inputmode="numeric"
+              placeholder="مثلاً ۳۰۰,۰۰۰"
+              @input="onFixedCommissionInput($event, sectionCommissionModal)"
+            >
+            <input v-else v-model.number="sectionCommissionModal.value" type="number" min="0" placeholder="مثلاً ۱۰">
+          </label>
+        </div>
+        <div class="modal-preview">
+          <span>{{ sectionCommissionModal.mode === 'inherit' ? 'ارث از بخش والد / پیش‌فرض پزشک' : 'قانون فعال این ردیف' }}</span>
+          <strong>{{ sectionCommissionModal.mode === 'inherit' ? 'بدون قانون اختصاصی' : commissionLabel(sectionCommissionModal.mode, sectionCommissionModal.value) }}</strong>
+        </div>
+        <div class="modal-actions">
+          <button class="text-btn ghost" type="button" @click="closeSectionCommissionModal">انصراف</button>
+          <button
+            v-if="sectionHasCommissionRule(sectionCommissionModal.section)"
+            class="text-btn ghost danger"
+            type="button"
+            @click="clearSectionCommissionRule"
+          >حذف قانون</button>
+          <button class="text-btn primary" type="button" @click="saveSectionCommissionModal">ذخیره</button>
+        </div>
+      </div>
+    </div>
 
     <div v-if="showDefaultCommissionModal" class="modal-backdrop" @click.self="closeDefaultCommissionModal">
       <div class="commission-modal" role="dialog" aria-modal="true">
@@ -811,6 +898,19 @@ export default {
         tag: "",
         type: "percent",
         value: 0
+      },
+      faceProblemsSettings: {
+        open: false,
+        draft: [],
+        draftInput: "",
+        saving: false,
+        error: "",
+      },
+      sectionCommissionModal: {
+        open: false,
+        section: null,
+        mode: "inherit",
+        value: 0,
       },
       stockMovement: {
         open: false,
@@ -1541,6 +1641,12 @@ export default {
             name: section.name,
           color: section.color || null,
           photos_required: section.photos_required !== false && section.photosRequired !== false,
+          commission_type: ['percent', 'fixed'].includes(section.commission_type || section.commissionType)
+            ? (section.commission_type || section.commissionType)
+            : null,
+          commission_value: ['percent', 'fixed'].includes(section.commission_type || section.commissionType)
+            ? (Number(section.commission_value ?? section.commissionValue) || 0)
+            : null,
           sort_order: section.sort_order ?? index
         }))
         const databaseColors = this.sections.reduce((colors, section) => {
@@ -1704,6 +1810,7 @@ export default {
     },
 
     sectionPayload(section) {
+      const hasRule = ['percent', 'fixed'].includes(section.commission_type)
       return {
         id: section.id,
         updated_at: section.updated_at,
@@ -1714,6 +1821,8 @@ export default {
         name: section.name,
         color: section.color || this.sectionColors[String(this.sectionKey(section))] || null,
         photos_required: section.photos_required !== false,
+        commission_type: hasRule ? section.commission_type : null,
+        commission_value: hasRule ? (Number(section.commission_value) || 0) : null,
         sort_order: section.sort_order
       }
     },
@@ -1894,6 +2003,8 @@ export default {
         level,
         name,
         photos_required: true,
+        commission_type: null,
+        commission_value: null,
         sort_order: this.sections.length
       }
     },
@@ -1905,6 +2016,125 @@ export default {
     toggleSectionPhotosRequired(section) {
       if (!section) return
       section.photos_required = section.photos_required === false
+    },
+
+    sectionHasCommissionRule(section) {
+      return ['percent', 'fixed'].includes(section?.commission_type)
+    },
+
+    sectionCommissionTooltip(section) {
+      if (!this.sectionHasCommissionRule(section)) return 'بدون قانون اختصاصی پورسانت'
+      const number = Number(section.commission_value) || 0
+      if (section.commission_type === 'fixed') {
+        return `${number.toLocaleString('fa-IR')} تومان ثابت`
+      }
+      return `${number.toLocaleString('fa-IR')}٪`
+    },
+
+    sectionCommissionModalTitle(section) {
+      const name = String(section?.name || '').trim() || 'بدون نام'
+      return Number(section?.level || 1) <= 1
+        ? `تنظیم پورسانت بخش ${name}`
+        : `تنظیم پورسانت زیربخش ${name}`
+    },
+
+    openSectionCommissionModal(section) {
+      if (!section) return
+      const hasRule = this.sectionHasCommissionRule(section)
+      this.sectionCommissionModal = {
+        open: true,
+        section,
+        mode: hasRule ? section.commission_type : 'inherit',
+        value: hasRule ? (Number(section.commission_value) || 0) : 0,
+      }
+    },
+
+    closeSectionCommissionModal() {
+      this.sectionCommissionModal = { open: false, section: null, mode: 'inherit', value: 0 }
+    },
+
+    applySectionCommissionRule(section, mode, value) {
+      if (!section) return
+      if (mode === 'percent' || mode === 'fixed') {
+        section.commission_type = mode
+        section.commission_value = Number(value) || 0
+      } else {
+        section.commission_type = null
+        section.commission_value = null
+      }
+    },
+
+    saveSectionCommissionModal() {
+      const section = this.sectionCommissionModal.section
+      if (!section) return
+      this.applySectionCommissionRule(section, this.sectionCommissionModal.mode, this.sectionCommissionModal.value)
+      this.queueSave()
+      this.closeSectionCommissionModal()
+    },
+
+    clearSectionCommissionRule() {
+      const section = this.sectionCommissionModal.section
+      if (!section) return
+      this.applySectionCommissionRule(section, 'inherit', 0)
+      this.queueSave()
+      this.closeSectionCommissionModal()
+    },
+
+    normalizeFaceProblem(value) {
+      return String(value || '').trim().replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' ')
+    },
+
+    async openFaceProblemsSettings() {
+      this.faceProblemsSettings.error = ''
+      this.faceProblemsSettings.draftInput = ''
+      this.faceProblemsSettings.open = true
+      try {
+        const { data } = await axios.get('/api/beauty/context')
+        this.faceProblemsSettings.draft = Array.isArray(data?.problems) ? [...data.problems] : []
+      } catch (error) {
+        this.faceProblemsSettings.draft = []
+        this.faceProblemsSettings.error = error?.response?.data?.message || error.message || 'دریافت مشکلات چهره انجام نشد.'
+      }
+    },
+
+    closeFaceProblemsSettings() {
+      if (this.faceProblemsSettings.saving) return
+      this.faceProblemsSettings.open = false
+      this.faceProblemsSettings.draftInput = ''
+      this.faceProblemsSettings.error = ''
+    },
+
+    addFaceProblem() {
+      const problem = this.normalizeFaceProblem(this.faceProblemsSettings.draftInput)
+      if (!problem) return
+      if (this.faceProblemsSettings.draft.some(item => this.normalizeFaceProblem(item) === problem)) {
+        this.faceProblemsSettings.error = 'این مشکل قبلاً اضافه شده است.'
+        return
+      }
+      this.faceProblemsSettings.draft.push(problem)
+      this.faceProblemsSettings.draftInput = ''
+      this.faceProblemsSettings.error = ''
+    },
+
+    removeFaceProblem(index) {
+      this.faceProblemsSettings.draft.splice(index, 1)
+      this.faceProblemsSettings.error = ''
+    },
+
+    async saveFaceProblems() {
+      this.faceProblemsSettings.saving = true
+      this.faceProblemsSettings.error = ''
+      try {
+        const { data } = await axios.post('/api/beauty/problems', {
+          problems: this.faceProblemsSettings.draft,
+        })
+        this.faceProblemsSettings.draft = Array.isArray(data?.problems) ? [...data.problems] : []
+        this.faceProblemsSettings.open = false
+      } catch (error) {
+        this.faceProblemsSettings.error = error?.response?.data?.message || error.message || 'ذخیره مشکلات چهره انجام نشد.'
+      } finally {
+        this.faceProblemsSettings.saving = false
+      }
     },
 
     addRootSection() {
@@ -2669,7 +2899,7 @@ export default {
 .inventory-addons-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:32px;padding:0 8px;border:1px solid #c4b5fd;border-radius:8px;background:#faf5ff;color:#6d28d9;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}.inventory-addons-btn:hover{border-color:#8b5cf6;background:#f3e8ff}.inventory-addons-btn b{display:grid;place-items:center;min-width:17px;height:17px;border-radius:9px;background:#7c3aed;color:#fff}.inventory-addons-btn span{font-size:16px;line-height:1}.inventory-addons-modal{width:min(590px,94vw)}.inventory-addons-search{width:100%;box-sizing:border-box;margin-top:14px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;font-family:inherit;text-align:right}.inventory-addons-help{margin:10px 0;color:#64748b;font-size:11px;line-height:1.8}.inventory-addons-list{max-height:360px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px}.inventory-addon-option{display:flex;align-items:center;gap:10px;padding:11px;border-bottom:1px solid #edf2f7;cursor:pointer}.inventory-addon-option:last-child{border-bottom:0}.inventory-addon-option input{width:17px;height:17px;accent-color:#7c3aed}.inventory-addon-option span{display:grid;gap:3px;min-width:0}.inventory-addon-option strong{color:#1e293b;font-size:12px}.inventory-addon-option small{color:#64748b;font-size:10px}.inventory-addons-empty{margin:0;padding:20px;color:#94a3b8;text-align:center;font-size:12px}
 .movement-history-head{display:flex;align-items:center;justify-content:space-between}.movement-history-head button{border:0;background:transparent;color:#2563eb;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.movement-page{display:grid;gap:16px;padding:18px;border:1px solid #dbeafe;border-radius:18px;background:#fff}.movement-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:14px;border-radius:13px;background:#f8fafc}.movement-filters label{display:grid;gap:5px;color:#64748b;font-size:11px;font-weight:800}.movement-filters input{height:37px;border:1px solid #cbd5e1;border-radius:8px;padding:0 9px;font-family:inherit}.movement-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.movement-summary article{display:grid;gap:5px;padding:14px;border:1px solid #e2e8f0;border-radius:12px;color:#64748b;font-size:11px}.movement-summary strong{font-size:20px;color:#0f172a}.movement-summary .in{border-color:#bbf7d0;background:#f0fdf4}.movement-summary .in strong{color:#15803d}.movement-summary .out{border-color:#fecaca;background:#fff7f7}.movement-summary .out strong{color:#dc2626}.movement-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:12px}.movement-table{width:100%;border-collapse:collapse}.movement-table th,.movement-table td{padding:12px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:12px}.movement-table th{background:#f8fafc;color:#475569}.movement-table tr.in b{color:#15803d}.movement-table tr.out b{color:#dc2626}.movement-loading{padding:14px;color:#64748b;font-size:12px}@media(max-width:700px){.movement-summary{grid-template-columns:1fr}.movement-table{min-width:620px}}
 
-.inventory-addons-page-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 11px;border:1px solid #c4b5fd;border-radius:10px;background:#faf5ff;color:#6d28d9;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.inventory-addons-page-btn:hover{border-color:#8b5cf6;background:#f3e8ff}.inventory-addons-btn{gap:2px;width:38px;height:32px;min-height:32px;padding:0}.inventory-addons-btn span{font-size:14px}.inventory-addons-parent{width:100%;box-sizing:border-box;margin-top:14px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-family:inherit;text-align:right}
+.inventory-addons-page-btn,.face-problems-page-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 11px;border:1px solid #c4b5fd;border-radius:10px;background:#faf5ff;color:#6d28d9;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.inventory-addons-page-btn:hover{border-color:#8b5cf6;background:#f3e8ff}.face-problems-page-btn{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.face-problems-page-btn:hover{border-color:#60a5fa;background:#dbeafe}.inventory-addons-btn{gap:2px;width:38px;height:32px;min-height:32px;padding:0}.inventory-addons-btn span{font-size:14px}.inventory-addons-parent{width:100%;box-sizing:border-box;margin-top:14px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-family:inherit;text-align:right}.face-problems-form{display:flex;gap:8px;margin-top:14px}.face-problems-form input{flex:1;min-width:0;height:38px;padding:0 11px;border:1px solid #cbd5e1;border-radius:9px;font-family:inherit}.face-problems-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;min-height:48px}.face-problems-list>span{display:inline-flex;align-items:center;gap:6px;padding:6px 8px 6px 10px;border:1px solid #dbeafe;border-radius:999px;background:#f8fbff;color:#1e3a8a;font-size:12px;font-weight:800}.face-problems-list>span button{width:20px;height:20px;border:0;border-radius:50%;background:#fee2e2;color:#dc2626;cursor:pointer}.face-problems-error{margin:10px 0 0;color:#dc2626;font-size:12px}.section-commission-modes{display:grid;gap:8px;margin-top:14px}.section-commission-modes label{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-size:12px;font-weight:800;cursor:pointer}.text-btn.danger{color:#dc2626}
 .addon-manager-modal{width:min(980px,96vw)}.addon-manager-table{margin-top:16px;overflow:auto;border:1px solid #e2e8f0;border-radius:11px}.addon-manager-row{display:grid;grid-template-columns:minmax(170px,1.7fr) repeat(4,minmax(90px,1fr)) 72px 34px;gap:8px;align-items:center;padding:9px;border-bottom:1px solid #edf2f7}.addon-manager-row:last-child{border-bottom:0}.addon-manager-head{background:#f8fafc;color:#475569;font-size:11px;font-weight:900}.addon-manager-row input[type="number"],.addon-manager-row input[type="text"]{width:100%;box-sizing:border-box;height:35px;border:1px solid #cbd5e1;border-radius:7px;padding:0 8px;font-family:inherit;text-align:right}.addon-active{display:flex;align-items:center;justify-content:center;gap:5px;color:#475569;font-size:11px;font-weight:800}.addon-active input{width:16px;height:16px;accent-color:#2563eb}.addon-delete{width:30px;height:30px;border:0;border-radius:7px;background:#fee2e2;color:#dc2626;font-size:18px;cursor:pointer}.addon-add-btn{margin-top:12px}@media(max-width:760px){.addon-manager-row{min-width:760px}}
 
 .inventory-page {
@@ -3257,12 +3487,62 @@ p {
 .tree-more-btn,
 .tree-add-btn,
 .tree-toggle-btn,
-.tree-photo-btn {
+.tree-photo-btn,
+.tree-commission-btn {
   flex: 0 0 auto;
   border: 0;
   background: transparent;
   font-family: inherit;
   cursor: pointer;
+}
+
+.tree-photo-btn,
+.tree-commission-btn {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: #2563eb;
+}
+
+.tree-commission-btn {
+  color: #94a3b8;
+}
+
+.tree-commission-btn.active {
+  color: #0f766e;
+}
+
+.tree-commission-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+.tree-commission-btn:hover {
+  background: #eef2f7;
+}
+
+.tree-commission-active-mark {
+  position: absolute;
+  inset: auto 0 0 auto;
+  width: 11px;
+  height: 11px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-style: normal;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0 0 1px #99f6e4;
 }
 
 .tree-photo-btn {
@@ -5121,7 +5401,13 @@ html #app.dark .inventory-page .tree-photo-btn { color:#93c5fd; }
 html body.dark .inventory-page .tree-photo-btn.off,
 html #app.dark .inventory-page .tree-photo-btn.off { color:#94a3b8; }
 html body.dark .inventory-page .tree-photo-btn:hover,
-html #app.dark .inventory-page .tree-photo-btn:hover { background:#1e293b; }
+html #app.dark .inventory-page .tree-photo-btn:hover,
+html body.dark .inventory-page .tree-commission-btn:hover,
+html #app.dark .inventory-page .tree-commission-btn:hover { background:#1e293b; }
+html body.dark .inventory-page .tree-commission-btn,
+html #app.dark .inventory-page .tree-commission-btn { color:#64748b; }
+html body.dark .inventory-page .tree-commission-btn.active,
+html #app.dark .inventory-page .tree-commission-btn.active { color:#5eead4; }
 
 html body.dark .inventory-page .tree-node,
 html body.dark .inventory-page .tree-node:hover,
@@ -5233,7 +5519,7 @@ html #app.dark .inventory-page .service-tag-popover {
 html body.dark .inventory-page .commission-chip,
 html body.dark .inventory-page .booking-settings-btn,
 html body.dark .inventory-page .booking-table-cell,
-html body.dark .inventory-page .global-commission-btn,
+html body.dark .inventory-page .face-problems-page-btn,
 html body.dark .inventory-page .service-tags-page-btn,
 html body.dark .inventory-page .inventory-addons-page-btn,
 html body.dark .inventory-page .inventory-addons-btn,
@@ -5244,7 +5530,7 @@ html body.dark .inventory-page .row-remove,
 html #app.dark .inventory-page .commission-chip,
 html #app.dark .inventory-page .booking-settings-btn,
 html #app.dark .inventory-page .booking-table-cell,
-html #app.dark .inventory-page .global-commission-btn,
+html #app.dark .inventory-page .face-problems-page-btn,
 html #app.dark .inventory-page .service-tags-page-btn,
 html #app.dark .inventory-page .inventory-addons-page-btn,
 html #app.dark .inventory-page .inventory-addons-btn,

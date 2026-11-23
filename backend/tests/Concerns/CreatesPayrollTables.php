@@ -12,9 +12,16 @@ trait CreatesPayrollTables
     {
         Schema::create('doctors', fn (Blueprint $table) => $this->payrollResourceTable($table));
         Schema::create('staff', fn (Blueprint $table) => $this->payrollResourceTable($table));
+        Schema::create('inventory_sections', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('parent_id')->nullable(); $table->unsignedInteger('level')->default(1);
+            $table->string('name'); $table->string('color')->nullable(); $table->boolean('photos_required')->default(true);
+            $table->string('commission_type', 20)->nullable(); $table->decimal('commission_value', 15, 2)->nullable();
+            $table->unsignedInteger('sort_order')->default(0); $table->timestamps();
+        });
         Schema::create('inventories', function (Blueprint $table) {
-            $table->id(); $table->string('name'); $table->decimal('amount', 15, 2)->default(0);
-            $table->decimal('price', 15, 2)->default(0); $table->string('default_commission_type')->nullable();
+            $table->id(); $table->unsignedBigInteger('section_id')->nullable(); $table->string('name');
+            $table->decimal('amount', 15, 2)->default(0); $table->decimal('price', 15, 2)->default(0);
+            $table->string('default_commission_type')->nullable();
             $table->decimal('default_commission_value', 15, 2)->default(0); $table->timestamps();
         });
         Schema::create('inventory_commissions', function (Blueprint $table) {

@@ -20,12 +20,15 @@ class InventorySection extends Model
         'name',
         'color',
         'photos_required',
+        'commission_type',
+        'commission_value',
         'sort_order',
     ];
 
     protected $casts = [
         'level' => 'integer',
         'photos_required' => 'boolean',
+        'commission_value' => 'decimal:2',
     ];
 
     public function inventories()

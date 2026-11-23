@@ -10,6 +10,7 @@ use App\Models\AttendanceMonth;
 use App\Models\Doctor;
 use App\Models\Inventory;
 use App\Models\InventoryCommission;
+use App\Models\InventorySection;
 use App\Models\ResourceEarningLine;
 use App\Models\SalaryAdvance;
 use App\Models\Staff;
@@ -78,19 +79,22 @@ class PayrollCalculationTest extends TestCase
         ]))->getData(true);
     }
 
-    public function test_inventory_default_commission_is_counted_in_payroll_and_sales_bonus(): void
+    public function test_section_commission_is_counted_in_payroll_and_sales_bonus(): void
     {
-        Inventory::query()->create(['name' => 'بوتاکس', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        $section = InventorySection::query()->create(['name' => 'تزریقات', 'level' => 1, 'commission_type' => 'percent', 'commission_value' => 10]);
+        Inventory::query()->create(['name' => 'بوتاکس', 'amount' => 1000000, 'section_id' => $section->id]);
         $this->doctor->update(['sales_bonus_enabled' => true, 'sales_bonus_tiers' => [['sales_from' => 1000000, 'salary_addition' => 300000]]]);
         $this->visit(['name' => 'بوتاکس']);
 
         $this->resync();
         $summary = $this->payroll()['summary'];
+        $line = ResourceEarningLine::query()->where('resource_type', 'doctor')->where('earning_type', 'section_commission')->first();
 
         $this->assertSame(100000.0, (float) $summary['inventory_commission']);
         $this->assertSame(100000.0, (float) $summary['total_commission']);
         $this->assertSame(300000.0, (float) $summary['sales_bonus']);
         $this->assertSame(5400000.0, (float) $summary['total_earned']);
+        $this->assertSame('پورسانت بخش تزریقات', $line?->calculation_snapshot['calculation_source_label'] ?? null);
     }
 
     public function test_surcharge_is_not_treated_as_discount(): void
@@ -165,22 +169,36 @@ class PayrollCalculationTest extends TestCase
         $this->assertSame(0.0, (float) $this->payroll('1405-08')['summary']['service_commission']);
     }
 
-    public function test_commission_priority_is_person_exception_then_inventory_default_then_resource(): void
+    public function test_commission_priority_is_person_exception_then_subsection_then_section_then_resource(): void
     {
-        $withException = Inventory::query()->create(['name' => 'استایلج', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        $root = InventorySection::query()->create(['name' => 'پوست', 'level' => 1, 'commission_type' => 'percent', 'commission_value' => 8]);
+        $sub = InventorySection::query()->create(['name' => 'تزریق', 'parent_id' => $root->id, 'level' => 2, 'commission_type' => 'percent', 'commission_value' => 10]);
+        $withException = Inventory::query()->create(['name' => 'استایلج', 'amount' => 1000000, 'section_id' => $sub->id]);
         InventoryCommission::query()->create(['inventory_id' => $withException->id, 'recipient_type' => 'doctor', 'recipient_id' => $this->doctor->id, 'recipient_name' => $this->doctor->name, 'commission_type' => 'fixed', 'commission_value' => 50000]);
-        Inventory::query()->create(['name' => 'میکرونیدلینگ', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        Inventory::query()->create(['name' => 'میکرونیدلینگ', 'amount' => 1000000, 'section_id' => $sub->id]);
+        Inventory::query()->create(['name' => 'فیلر لب', 'amount' => 1000000, 'section_id' => InventorySection::query()->create(['name' => 'لب', 'parent_id' => $root->id, 'level' => 2])->id]);
         Inventory::query()->create(['name' => 'پیلینگ', 'amount' => 1000000]);
         $exception = $this->visit(['name' => 'استایلج', 'cc' => 2]);
-        $default = $this->visit(['name' => 'میکرونیدلینگ']);
+        $subsection = $this->visit(['name' => 'میکرونیدلینگ']);
+        $section = $this->visit(['name' => 'فیلر لب']);
         $resource = $this->visit(['name' => 'پیلینگ']);
 
         $this->resync();
 
         $this->assertSame(100000.0, $this->commission($exception));
         $this->assertSame(200000.0, $this->commission($exception, 'staff'));
-        $this->assertSame(100000.0, $this->commission($default));
+        $this->assertSame(100000.0, $this->commission($subsection));
+        $this->assertSame(80000.0, $this->commission($section));
         $this->assertSame(200000.0, $this->commission($resource));
+        $label = fn (Appointment $visit) => ResourceEarningLine::query()
+            ->where('appointment_id', $visit->id)
+            ->where('resource_type', 'doctor')
+            ->first()
+            ?->calculation_snapshot['calculation_source_label'] ?? null;
+        $this->assertSame('استثنای اختصاصی خدمت', $label($exception));
+        $this->assertSame('پورسانت زیربخش تزریق', $label($subsection));
+        $this->assertSame('پورسانت بخش پوست', $label($section));
+        $this->assertSame('پورسانت پیش‌فرض پزشک', $label($resource));
     }
 
     public function test_exception_for_a_system_user_applies_to_their_linked_resource(): void
@@ -196,25 +214,28 @@ class PayrollCalculationTest extends TestCase
         $this->assertSame(200000.0, $this->commission($visit));
     }
 
-    public function test_inventory_rules_ignore_customer_type_but_resource_percent_does_not(): void
+    public function test_section_rules_ignore_customer_type_but_resource_percent_does_not(): void
     {
         $this->doctor->update(['existing_customer_bonus' => null]);
-        Inventory::query()->create(['name' => 'بوتاکس', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        $section = InventorySection::query()->create(['name' => 'تزریقات', 'level' => 1, 'commission_type' => 'percent', 'commission_value' => 10]);
+        Inventory::query()->create(['name' => 'بوتاکس', 'amount' => 1000000, 'section_id' => $section->id]);
         Inventory::query()->create(['name' => 'پیلینگ', 'amount' => 1000000]);
 
-        $inventoryRule = $this->visit(['name' => 'بوتاکس']);
+        $sectionRule = $this->visit(['name' => 'بوتاکس']);
         $resourceRule = $this->visit(['name' => 'پیلینگ']);
         $this->resync();
 
-        $this->assertSame(100000.0, $this->commission($inventoryRule));
+        $this->assertSame(100000.0, $this->commission($sectionRule));
         $this->assertSame(0.0, $this->commission($resourceRule));
     }
 
     public function test_materials_flag_applies_to_percent_rules_everywhere_but_not_fixed_amounts(): void
     {
         $this->doctor->update(['commission_after_materials' => true]);
-        $percent = Inventory::query()->create(['name' => 'فیلر', 'amount' => 1000000, 'price' => 400000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
-        Inventory::query()->create(['name' => 'نخ', 'amount' => 1000000, 'price' => 400000, 'default_commission_type' => 'fixed', 'default_commission_value' => 70000]);
+        $percentSection = InventorySection::query()->create(['name' => 'فیلر', 'level' => 1, 'commission_type' => 'percent', 'commission_value' => 10]);
+        $fixedSection = InventorySection::query()->create(['name' => 'نخ', 'level' => 1, 'commission_type' => 'fixed', 'commission_value' => 70000]);
+        $percent = Inventory::query()->create(['name' => 'فیلر', 'amount' => 1000000, 'price' => 400000, 'section_id' => $percentSection->id]);
+        Inventory::query()->create(['name' => 'نخ', 'amount' => 1000000, 'price' => 400000, 'section_id' => $fixedSection->id]);
         Inventory::query()->create(['name' => 'مزو', 'amount' => 1000000, 'price' => 400000]);
         InventoryCommission::query()->create(['inventory_id' => $percent->id, 'recipient_type' => 'staff', 'recipient_id' => $this->staff->id, 'recipient_name' => $this->staff->name, 'commission_type' => 'percent', 'commission_value' => 10]);
         $percentVisit = $this->visit(['name' => 'فیلر']);
@@ -231,7 +252,8 @@ class PayrollCalculationTest extends TestCase
 
     public function test_profit_estimate_uses_the_same_commission_rules_before_the_visit_is_done(): void
     {
-        $inventory = Inventory::query()->create(['name' => 'استایلج', 'amount' => 1000000, 'default_commission_type' => 'percent', 'default_commission_value' => 10]);
+        $section = InventorySection::query()->create(['name' => 'تزریق', 'level' => 2, 'commission_type' => 'percent', 'commission_value' => 10]);
+        $inventory = Inventory::query()->create(['name' => 'استایلج', 'amount' => 1000000, 'section_id' => $section->id]);
         InventoryCommission::query()->create(['inventory_id' => $inventory->id, 'recipient_type' => 'doctor', 'recipient_id' => $this->doctor->id, 'recipient_name' => $this->doctor->name, 'commission_type' => 'fixed', 'commission_value' => 50000]);
         $visit = $this->visit(['name' => 'استایلج'], null);
         $unpaid = $this->visit(['name' => 'استایلج'], null, '1405-08', false);

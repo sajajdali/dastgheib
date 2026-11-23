@@ -2,7 +2,6 @@
   <main class="beauty-flow" dir="rtl">
     <section v-if="!activePatient" class="beauty-flow-card">
       <div class="beauty-flow-main-toolbar">
-        <button type="button" class="beauty-flow-settings-btn" title="تنظیم مشکلات چهره" aria-label="تنظیم مشکلات چهره" @click="openProblemsSettings">⚙</button>
         <div class="beauty-flow-search-grid beauty-flow-search-grid-compact">
           <input
             v-model.trim="search.file_number"
@@ -272,7 +271,6 @@
           </div>
         </div>
         <div class="beauty-flow-record-actions">
-          <button type="button" class="beauty-flow-back beauty-flow-problems-settings-btn" @click="openProblemsSettings">مشکلات چهره</button>
           <button type="button" class="beauty-flow-back" @click="$emit('back-to-patient-profile', activePatient)">بازگشت به پرونده</button>
           <button type="button" class="beauty-flow-back" @click="closeRecord">بازگشت</button>
         </div>
@@ -635,30 +633,6 @@
       </footer>
     </div>
 
-    <div v-if="problemsSettingsOpen" class="beauty-problems-backdrop" @click.self="closeProblemsSettings">
-      <section class="beauty-problems-modal" role="dialog" aria-modal="true" aria-labelledby="beauty-problems-title">
-        <header>
-          <div><small>تنظیمات زیبایار</small><h3 id="beauty-problems-title">مشکلات چهره</h3><p>موارد این فهرست هنگام ثبت نقطه روی چهره نمایش داده می‌شوند.</p></div>
-          <button type="button" aria-label="بستن" @click="closeProblemsSettings">×</button>
-        </header>
-        <form @submit.prevent="addFaceProblem">
-          <input v-model.trim="problemDraft" type="text" maxlength="160" placeholder="مثلاً لک یا افتادگی">
-          <button type="submit">افزودن</button>
-        </form>
-        <div class="beauty-problems-list">
-          <span v-for="(problem, index) in problemsSettingsDraft" :key="problem">
-            {{ problem }}
-            <button type="button" :aria-label="`حذف ${problem}`" @click="removeFaceProblem(index)">×</button>
-          </span>
-          <p v-if="!problemsSettingsDraft.length">هنوز مشکلی تعریف نشده است.</p>
-        </div>
-        <p v-if="problemsSettingsError" class="beauty-problems-error">{{ problemsSettingsError }}</p>
-        <footer>
-          <button type="button" @click="closeProblemsSettings">انصراف</button>
-          <button type="button" :disabled="problemsSettingsSaving" @click="saveFaceProblems">{{ problemsSettingsSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات' }}</button>
-        </footer>
-      </section>
-    </div>
   </main>
 </template>
 
@@ -727,11 +701,6 @@ export default {
     focusAnnotationId: null,
     areas: [],
     problems: [],
-    problemsSettingsOpen: false,
-    problemsSettingsDraft: [],
-    problemsSettingsSaving: false,
-    problemsSettingsError: '',
-    problemDraft: '',
     draftPoint: null,
     selectedAnnotation: null,
     savingPoint: false,
@@ -1014,56 +983,6 @@ export default {
     },
     hasMoreAnnotationText(point) {
       return String(point?.note || '').length > 46
-    },
-    normalizeFaceProblem(value) {
-      return String(value || '').trim().replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' ')
-    },
-    openProblemsSettings() {
-      this.problemsSettingsDraft = [...this.problems]
-      this.problemDraft = ''
-      this.problemsSettingsError = ''
-      this.problemsSettingsOpen = true
-    },
-    closeProblemsSettings() {
-      if (this.problemsSettingsSaving) return
-      this.problemsSettingsOpen = false
-      this.problemDraft = ''
-      this.problemsSettingsError = ''
-    },
-    addFaceProblem() {
-      const problem = this.normalizeFaceProblem(this.problemDraft)
-      if (!problem) return
-      if (this.problemsSettingsDraft.some(item => this.normalizeFaceProblem(item) === problem)) {
-        this.problemsSettingsError = 'این مشکل قبلاً اضافه شده است.'
-        return
-      }
-      this.problemsSettingsDraft.push(problem)
-      this.problemDraft = ''
-      this.problemsSettingsError = ''
-    },
-    removeFaceProblem(index) {
-      this.problemsSettingsDraft.splice(index, 1)
-      this.problemsSettingsError = ''
-    },
-    async saveFaceProblems() {
-      this.problemsSettingsSaving = true
-      this.problemsSettingsError = ''
-      try {
-        const res = await fetch(`${API}/beauty/problems`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ problems: this.problemsSettingsDraft })
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.message || 'ذخیره مشکلات چهره انجام نشد.')
-        this.problems = Array.isArray(data.problems) ? data.problems : []
-        this.problemsSettingsDraft = [...this.problems]
-        this.problemsSettingsOpen = false
-      } catch (error) {
-        this.problemsSettingsError = error.message || 'ذخیره مشکلات چهره انجام نشد.'
-      } finally {
-        this.problemsSettingsSaving = false
-      }
     },
     async loadContext() {
       try {

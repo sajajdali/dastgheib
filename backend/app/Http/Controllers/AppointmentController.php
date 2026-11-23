@@ -2751,7 +2751,7 @@ class AppointmentController extends Controller
         }
 
         $names = collect($lines)->pluck('name')->filter()->unique()->values();
-        $inventories = Inventory::with('commissions')->whereIn('name', $names)->get()->keyBy('name');
+        $inventories = Inventory::with(['commissions', 'section.parent'])->whereIn('name', $names)->get()->keyBy('name');
         $doctors = Doctor::query()->get()->keyBy(fn (Doctor $doctor) => $this->resourceKey($doctor->name));
         $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
         $doctorCommissionEnabled = (bool) ($appointment->doctor_commission_enabled ?? true);
@@ -3235,6 +3235,8 @@ class AppointmentController extends Controller
             return [];
         }
 
+        $resourceLabel = $type === 'doctor' ? 'پورسانت پیش‌فرض پزشک' : 'پورسانت پیش‌فرض پرسنل';
+
         return [$this->earningPayload(
             $appointment,
             $line,
@@ -3246,13 +3248,17 @@ class AppointmentController extends Controller
             $commissionValue,
             $amount,
             $amounts,
-            "پورسانت پایه {$commissionValue}% برای {$line['name']}"
+            "{$resourceLabel} {$commissionValue}% برای {$line['name']}",
+            [
+                'calculation_source' => 'resource',
+                'calculation_source_label' => $resourceLabel,
+            ]
         )];
     }
 
     /**
-     * اولویت قطعی: استثنای شخص روی خدمت، سپس پورسانت کلی انبار، سپس درصد منابع.
-     * قانون‌های انبار مستقل از نوع مشتری‌اند و تیک «بعد از کسر مواد» نیرو در همهٔ حالت‌های درصدی اعمال می‌شود.
+     * اولویت قطعی: استثنای شخص روی خدمت، سپس قانون زیربخش، سپس قانون بخش، سپس درصد پیش‌فرض منابع.
+     * قانون‌های ساختار خدمات مستقل از نوع مشتری‌اند و تیک «بعد از کسر مواد» نیرو در همهٔ حالت‌های درصدی اعمال می‌شود.
      */
     private function preferredCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
     {
@@ -3260,16 +3266,80 @@ class AppointmentController extends Controller
             return $this->inventoryCommissionPayloads($appointment, $line, $inventory, $type, $resource);
         }
 
-        if ((float) $inventory->default_commission_value > 0) {
-            $commissionType = $inventory->default_commission_type === 'fixed' ? 'fixed' : 'percent';
-            $value = (float) $inventory->default_commission_value;
+        $sectionRule = $this->resolveSectionCommissionRule($inventory);
+        if ($sectionRule) {
+            $commissionType = $sectionRule['type'];
+            $value = $sectionRule['value'];
             [$amount, $amounts] = $this->lineCommission($type, $commissionType, $value, $line, $inventory, $resource);
-            return $amount > 0
-                ? [$this->earningPayload($appointment, $line, $inventory, $type, $resource, 'inventory_default_commission', $commissionType, $value, $amount, $amounts, "پورسانت پیش‌فرض انبار {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}")]
-                : [];
+            if ($amount <= 0) {
+                return [];
+            }
+
+            return [$this->earningPayload(
+                $appointment,
+                $line,
+                $inventory,
+                $type,
+                $resource,
+                'section_commission',
+                $commissionType,
+                $value,
+                $amount,
+                $amounts,
+                "{$sectionRule['label']} {$value}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}",
+                [
+                    'calculation_source' => 'section',
+                    'calculation_source_label' => $sectionRule['label'],
+                    'section_id' => $sectionRule['section_id'],
+                    'section_name' => $sectionRule['section_name'],
+                    'section_level' => $sectionRule['section_level'],
+                ]
+            )];
         }
 
         return $this->baseCommissionPayloads($appointment, $line, $inventory, $type, $resource);
+    }
+
+    /**
+     * نزدیک‌ترین قانون پورسانت روی درخت بخش/زیربخش خدمت را برمی‌گرداند.
+     * @return array{type:string,value:float,label:string,section_id:int,section_name:string,section_level:int}|null
+     */
+    private function resolveSectionCommissionRule(Inventory $inventory): ?array
+    {
+        $section = $inventory->relationLoaded('section')
+            ? $inventory->section
+            : ($inventory->section_id ? InventorySection::query()->find($inventory->section_id) : null);
+
+        while ($section) {
+            $type = $section->commission_type;
+            if (in_array($type, ['percent', 'fixed'], true)) {
+                $level = (int) ($section->level ?? 1);
+                $name = trim((string) ($section->name ?? '')) ?: 'بدون نام';
+                $label = $level <= 1
+                    ? "پورسانت بخش {$name}"
+                    : "پورسانت زیربخش {$name}";
+
+                return [
+                    'type' => $type === 'fixed' ? 'fixed' : 'percent',
+                    'value' => (float) ($section->commission_value ?? 0),
+                    'label' => $label,
+                    'section_id' => (int) $section->id,
+                    'section_name' => $name,
+                    'section_level' => $level,
+                ];
+            }
+
+            if ($section->relationLoaded('parent')) {
+                $section = $section->parent;
+                continue;
+            }
+
+            $section = $section->parent_id
+                ? InventorySection::query()->find($section->parent_id)
+                : null;
+        }
+
+        return null;
     }
 
     private function inventoryCommissionPayloads(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource): array
@@ -3296,15 +3366,29 @@ class AppointmentController extends Controller
                 $commissionValue,
                 $amount,
                 $amounts,
-                "پورسانت اختصاصی انبار {$commissionValue}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}"
+                "استثنای اختصاصی خدمت {$commissionValue}".($commissionType === 'percent' ? '%' : ' تومان')." برای {$line['name']}",
+                [
+                    'calculation_source' => 'inventory_exception',
+                    'calculation_source_label' => 'استثنای اختصاصی خدمت',
+                ]
             );
         }
 
         return $payloads;
     }
 
-    private function earningPayload(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource, string $earningType, string $commissionType, float $commissionValue, float $amount, array $amounts, string $description): array
+    private function earningPayload(Appointment $appointment, array $line, Inventory $inventory, string $type, Doctor|Staff $resource, string $earningType, string $commissionType, float $commissionValue, float $amount, array $amounts, string $description, array $snapshotOverrides = []): array
     {
+        $defaultSource = match (true) {
+            $earningType === 'inventory_commission' => ['inventory_exception', 'استثنای اختصاصی خدمت'],
+            $earningType === 'section_commission' => ['section', $snapshotOverrides['calculation_source_label'] ?? 'پورسانت بخش'],
+            $earningType === 'inventory_default_commission' => ['inventory', 'پورسانت پیش‌فرض انبار'],
+            default => ['resource', $type === 'doctor' ? 'پورسانت پیش‌فرض پزشک' : 'پورسانت پیش‌فرض پرسنل'],
+        };
+
+        $calculationSource = $snapshotOverrides['calculation_source'] ?? $defaultSource[0];
+        $calculationSourceLabel = $snapshotOverrides['calculation_source_label'] ?? $defaultSource[1];
+
         return [
             'appointment_id' => $appointment->id,
             'month' => $appointment->month,
@@ -3331,9 +3415,9 @@ class AppointmentController extends Controller
             'commission_after_materials' => (bool) ($resource->commission_after_materials ?? false),
             'commission_customer_scope' => $resource->commission_customer_scope ?? 'both',
             'appointment_new_customer' => (bool) $appointment->new_customer,
-            'calculation_snapshot' => [
-                'calculation_source' => str_starts_with($earningType, 'inventory') ? 'inventory' : 'resource',
-                'calculation_source_label' => str_starts_with($earningType, 'inventory') ? 'تنظیمات انبار' : 'تنظیمات کلی منبع',
+            'calculation_snapshot' => array_merge([
+                'calculation_source' => $calculationSource,
+                'calculation_source_label' => $calculationSourceLabel,
                 'resource_bonus' => (float) ($resource->customerCommissionPercent((bool) $appointment->new_customer) ?? 0),
                 'resource_new_customer_bonus' => $resource->customerCommissionPercent(true),
                 'resource_existing_customer_bonus' => $resource->customerCommissionPercent(false),
@@ -3346,14 +3430,14 @@ class AppointmentController extends Controller
                 'discount_source' => $amounts['discount_source'] ?? null,
                 'commission_before_discount' => $amounts['commission_before_discount'] ?? null,
                 'doctor_discount_deduction' => $amounts['doctor_discount_deduction'] ?? null,
-            ],
+            ], $snapshotOverrides),
             'audit_events' => [[
                 'event' => 'created_from_appointment',
                 'at' => now()->toIso8601String(),
                 'user_id' => auth()->id(),
                 'user_name' => auth()->user()?->name,
                 'appointment_id' => $appointment->id,
-                'source' => str_starts_with($earningType, 'inventory') ? 'inventory' : 'resource',
+                'source' => $calculationSource,
             ]],
             'description' => $description,
         ];
