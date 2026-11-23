@@ -1632,7 +1632,8 @@ export default {
   align-items: center;
   gap: 8px;
 }
-.beauty-flow-list-tab {
+/* Specificity must beat `.beauty-flow button` (teal primary) so inactive tabs stay neutral. */
+.beauty-flow .beauty-flow-list-tab {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1640,12 +1641,13 @@ export default {
   padding: 0 12px;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
-  background: #f8fafc;
-  color: #334155;
+  background: #fff;
+  color: #475569;
   font-size: 12px;
   font-weight: 900;
+  box-shadow: none;
 }
-.beauty-flow-list-tab svg {
+.beauty-flow .beauty-flow-list-tab svg {
   width: 15px;
   height: 15px;
   fill: none;
@@ -1654,7 +1656,7 @@ export default {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.beauty-flow-list-tab b {
+.beauty-flow .beauty-flow-list-tab b {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1663,40 +1665,87 @@ export default {
   padding: 0 6px;
   border-radius: 999px;
   background: #e2e8f0;
-  color: #334155;
+  color: #475569;
   font-size: 11px;
 }
-.beauty-flow-list-tab.active {
+.beauty-flow .beauty-flow-list-tab.active {
   border-color: #99f6e4;
   background: #ecfdf5;
   color: #0f766e;
 }
-.beauty-flow-list-tab.active b {
+.beauty-flow .beauty-flow-list-tab.active b {
   background: #ccfbf1;
   color: #0f766e;
 }
-.beauty-flow-list-tab-overdue.active {
-  border-color: #fca5a5;
-  background: #fef2f2;
+.beauty-flow .beauty-flow-list-tab-overdue {
   color: #b91c1c;
 }
-.beauty-flow-list-tab-overdue.active b,
-.beauty-flow-list-tab-overdue b {
+.beauty-flow .beauty-flow-list-tab-overdue b {
   background: #fee2e2;
   color: #b91c1c;
+}
+.beauty-flow .beauty-flow-list-tab-overdue.active {
+  border-color: #f87171;
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(220, 38, 38, .22);
+}
+.beauty-flow .beauty-flow-list-tab-overdue.active b {
+  background: #fff;
+  color: #b91c1c;
+  box-shadow: 0 0 0 1px rgba(185, 28, 28, .12);
+}
+.beauty-flow-worklist-filters,
+.beauty-flow-overdue-filters {
+  margin-bottom: 12px;
 }
 .beauty-flow-worklist-filters {
   display: grid;
   grid-template-columns: repeat(2, minmax(150px, 190px));
   gap: 10px;
-  margin-bottom: 12px;
 }
 .beauty-flow-overdue-filters {
   display: grid;
   grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(140px, 170px)) repeat(2, minmax(120px, 150px)) repeat(2, minmax(110px, 130px)) minmax(140px, 170px) 90px;
   gap: 10px;
-  margin-bottom: 12px;
   align-items: center;
+}
+/* Calendar trigger: clinic teal instead of library bright blue */
+.beauty-flow :deep(.vpd-icon-btn) {
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #0f766e !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+.beauty-flow :deep(.vpd-icon-btn:hover) {
+  background: #0d9488 !important;
+}
+.beauty-flow :deep(.vpd-icon-btn svg) {
+  width: 18px;
+  height: 18px;
+}
+.beauty-flow-worklist-filters :deep(.vpd-input-group),
+.beauty-flow-overdue-filters :deep(.vpd-input-group) {
+  width: 100%;
+  height: 42px;
+  overflow: hidden;
+  border: 1px solid #dbe3ea;
+  border-radius: 12px;
+  background: #fff;
+}
+.beauty-flow-worklist-filters :deep(.vpd-input-group input),
+.beauty-flow-overdue-filters :deep(.vpd-input-group input) {
+  height: 42px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 .beauty-flow-worklist-table {
   min-width: 1040px;
@@ -2911,31 +2960,64 @@ html body.dark .beauty-flow .beauty-flow-list-tab,
 html #app.dark .beauty-flow .beauty-flow-list-tab {
   background: #22252d !important;
   border-color: #3a3f4a !important;
-  color: #e8eaed !important;
+  color: #c5cad3 !important;
+  box-shadow: none !important;
 }
 html body.dark .beauty-flow .beauty-flow-list-tab b,
 html #app.dark .beauty-flow .beauty-flow-list-tab b {
   background: #2a2f3a !important;
-  color: #c5cad3 !important;
+  color: #e8eaed !important;
 }
 html body.dark .beauty-flow .beauty-flow-list-tab.active,
 html #app.dark .beauty-flow .beauty-flow-list-tab.active {
   background: #14352a !important;
-  border-color: #2f6f57 !important;
-  color: #86efac !important;
+  border-color: #0f766e !important;
+  color: #5eead4 !important;
 }
-html body.dark .beauty-flow .beauty-flow-list-tab-overdue.active,
-html #app.dark .beauty-flow .beauty-flow-list-tab-overdue.active {
-  background: #3a1d22 !important;
+html body.dark .beauty-flow .beauty-flow-list-tab.active b,
+html #app.dark .beauty-flow .beauty-flow-list-tab.active b {
+  background: #115e59 !important;
+  color: #ccfbf1 !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab-overdue,
+html #app.dark .beauty-flow .beauty-flow-list-tab-overdue {
+  background: #3a1d1d !important;
   border-color: #7f1d1d !important;
   color: #fca5a5 !important;
 }
 html body.dark .beauty-flow .beauty-flow-list-tab-overdue b,
-html body.dark .beauty-flow .beauty-flow-list-tab-overdue.active b,
-html #app.dark .beauty-flow .beauty-flow-list-tab-overdue b,
-html #app.dark .beauty-flow .beauty-flow-list-tab-overdue.active b {
-  background: #4c1d24 !important;
+html #app.dark .beauty-flow .beauty-flow-list-tab-overdue b {
+  background: #450a0a !important;
   color: #fecaca !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab-overdue.active,
+html #app.dark .beauty-flow .beauty-flow-list-tab-overdue.active {
+  background: #b91c1c !important;
+  border-color: #f87171 !important;
+  color: #fff !important;
+  box-shadow: 0 5px 14px rgba(185, 28, 28, .28) !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab-overdue.active b,
+html #app.dark .beauty-flow .beauty-flow-list-tab-overdue.active b {
+  background: #fff !important;
+  color: #b91c1c !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .18) !important;
+}
+html body.dark .beauty-flow .beauty-flow-worklist-filters .vpd-input-group,
+html body.dark .beauty-flow .beauty-flow-overdue-filters .vpd-input-group,
+html #app.dark .beauty-flow .beauty-flow-worklist-filters .vpd-input-group,
+html #app.dark .beauty-flow .beauty-flow-overdue-filters .vpd-input-group {
+  background: #121417 !important;
+  border-color: #3a3f4a !important;
+}
+html body.dark .beauty-flow .vpd-icon-btn,
+html #app.dark .beauty-flow .vpd-icon-btn {
+  background: #0f766e !important;
+  color: #fff !important;
+}
+html body.dark .beauty-flow .vpd-icon-btn:hover,
+html #app.dark .beauty-flow .vpd-icon-btn:hover {
+  background: #14b8a6 !important;
 }
 html body.dark .beauty-flow .beauty-flow-overdue-days,
 html #app.dark .beauty-flow .beauty-flow-overdue-days {
