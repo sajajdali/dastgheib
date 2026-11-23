@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'central-api/*',
             'login',
+            'quick-login',
             'logout',
             'api/*',
             'broadcasting/auth',

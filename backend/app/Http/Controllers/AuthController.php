@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Models\Doctor;
 use App\Models\Staff;
 use App\Support\ActivityLogger;
+use App\Support\QuickLoginAccess;
 use App\Services\TenantSubscriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -68,6 +69,34 @@ class AuthController extends Controller
         $request->session()->regenerate();
         ActivityLogger::manual('login', 'ورود و خروج', $request->user(), [], [], [
             'login_field' => $field,
+        ]);
+
+        return response()->json([
+            'message' => 'ورود با موفقیت انجام شد.',
+            'user' => $this->userData($request),
+        ]);
+    }
+
+    /** آیا دکمهٔ «ورود سریع با مدیر کل» برای این IP نمایش داده شود؟ */
+    public function quickLoginStatus(Request $request): JsonResponse
+    {
+        $available = QuickLoginAccess::allowed($request) && QuickLoginAccess::adminUser() !== null;
+
+        return response()->json(['available' => $available]);
+    }
+
+    /** ورود بدون رمز با مدیر کل؛ فقط از IP مجاز یا اجرای محلی، و در سوابق فعالیت ثبت می‌شود. */
+    public function quickLogin(Request $request): JsonResponse
+    {
+        abort_unless(QuickLoginAccess::allowed($request), 404);
+        $user = QuickLoginAccess::adminUser();
+        abort_unless($user, 404);
+
+        Auth::guard('web')->login($user, true);
+        $request->session()->regenerate();
+        ActivityLogger::manual('login', 'ورود و خروج', $user, [], [], [
+            'login_field' => 'quick_login',
+            'ip' => $request->ip(),
         ]);
 
         return response()->json([

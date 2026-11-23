@@ -41,6 +41,9 @@ Route::middleware([
         })->where('path', '.*');
         Route::get('/csrf-cookie', fn () => response()->noContent())->name('tenant.csrf-cookie');
         Route::post('/login', [AuthController::class, 'login'])->middleware('guest')->name('login');
+        // ورود سریع با مدیر کل فقط برای IP مجاز (config/quick_login.php) یا اجرای محلی.
+        Route::get('/quick-login', [AuthController::class, 'quickLoginStatus']);
+        Route::post('/quick-login', [AuthController::class, 'quickLogin'])->middleware(['guest', 'throttle:10,1']);
         Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth');
 
         Route::get('/', function () {

@@ -78,6 +78,11 @@
           {{ loading ? 'در حال ورود...' : 'ورود به سامانه' }}
         </button>
 
+        <button v-if="quickLoginAvailable" class="quick-login-button" type="button" :disabled="loading || quickLoading" @click="quickLogin">
+          <span v-if="quickLoading" class="button-spinner"></span>
+          {{ quickLoading ? 'در حال ورود...' : 'ورود سریع با مدیر کل' }}
+        </button>
+
       </form>
 
       <div class="login-footer">دسترسی شما بر اساس نقش سازمانی کنترل می‌شود.</div>
@@ -122,6 +127,33 @@ async function submitLogin() {
   }
 }
 
+// دکمهٔ ورود سریع فقط وقتی دیده می‌شود که سرور IP را مجاز بداند (IP مدیر یا اجرای محلی).
+const quickLoginAvailable = ref(false);
+const quickLoading = ref(false);
+
+async function checkQuickLogin() {
+  try {
+    const { data } = await axios.get(`${BACKEND_URL}/quick-login`);
+    quickLoginAvailable.value = Boolean(data?.available);
+  } catch {
+    quickLoginAvailable.value = false;
+  }
+}
+
+async function quickLogin() {
+  quickLoading.value = true;
+  error.value = "";
+  try {
+    await axios.get(`${BACKEND_URL}/csrf-cookie`);
+    const { data } = await axios.post(`${BACKEND_URL}/quick-login`);
+    emit("authenticated", data.user);
+  } catch (requestError) {
+    error.value = requestError.response?.data?.message || "ورود سریع انجام نشد.";
+  } finally {
+    quickLoading.value = false;
+  }
+}
+
 function refreshCaptcha() {
   const a = Math.floor(Math.random() * 8) + 2;
   const b = Math.floor(Math.random() * 7) + 3;
@@ -152,13 +184,17 @@ function toPersianDigits(value) {
 
 onMounted(() => {
   refreshCaptcha();
+  checkQuickLogin();
   loginInput.value?.focus();
 });
 </script>
 
 <style scoped>
 .login-page {
-  position: relative;
+  /* تمام صفحه، بدون قاب فاصلهٔ #app دور آن */
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
   min-height: 100vh;
   display: grid;
   place-items: center;
@@ -325,10 +361,90 @@ onMounted(() => {
 .login-button:disabled { opacity:.7; cursor:wait; }
 .button-spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
 .login-footer { margin-top:22px; padding-top:17px; border-top:1px solid #edf1f7; color:#94a3b8; text-align:center; font-size:11px; }
+.quick-login-button {
+  width:100%;
+  height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:9px;
+  margin-top:10px;
+  border:1px dashed #93c5fd;
+  border-radius:13px;
+  color:#1d4ed8;
+  background:#eff6ff;
+  font-family:inherit;
+  font-size:13px;
+  font-weight:800;
+  cursor:pointer;
+  transition:.18s;
+}
+.quick-login-button:hover { border-style:solid; background:#dbeafe; }
+.quick-login-button:disabled { opacity:.7; cursor:wait; }
+.quick-login-button .button-spinner { border-color:rgba(29,78,216,.25); border-top-color:#1d4ed8; }
+
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (max-width:500px) {
   .login-page{padding:14px}
   .login-card{padding:25px 20px;border-radius:20px}
   .captcha-box{grid-template-columns:84px 1px minmax(0,1fr) 34px;gap:8px;padding:0 7px}
 }
+</style>
+
+<style>
+/* حالت شب صفحهٔ ورود: هم‌رنگ پالت تیرهٔ برنامه */
+body.dark .login-page {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(59, 130, 246, .12), transparent 35%),
+    radial-gradient(circle at 85% 80%, rgba(14, 165, 233, .08), transparent 36%),
+    linear-gradient(145deg, #121316 0%, #16181d 100%);
+}
+body.dark .login-page .decoration-one { background:rgba(37,99,235,.08); }
+body.dark .login-page .decoration-two { background:rgba(14,165,233,.06); }
+body.dark .login-page .login-card {
+  border-color:#2c3038;
+  background:rgba(26,28,34,.94);
+  box-shadow:0 25px 70px rgba(0,0,0,.45);
+}
+body.dark .login-page .login-heading h1 { color:#f1f3f4; }
+body.dark .login-page .login-heading p,
+body.dark .login-page .remember-option { color:#9aa0a6; }
+body.dark .login-page .eyebrow { color:#7fb0ff; }
+body.dark .login-page .login-label { color:#c5cad3; }
+body.dark .login-page .input-wrap input,
+body.dark .login-page .captcha-box {
+  border-color:#3a3f4a !important;
+  background:#22252d !important;
+  color:#e8eaed !important;
+  -webkit-text-fill-color:#e8eaed;
+}
+body.dark .login-page .input-wrap input::placeholder,
+body.dark .login-page .captcha-box input::placeholder { color:#7b818b; -webkit-text-fill-color:#7b818b; }
+body.dark .login-page .input-wrap input:focus,
+body.dark .login-page .captcha-box:focus-within {
+  border-color:#4f8cff !important;
+  background:#262a33 !important;
+  box-shadow:0 0 0 4px rgba(79,140,255,.15);
+}
+body.dark .login-page .input-wrap input:-webkit-autofill {
+  -webkit-box-shadow:0 0 0 40px #22252d inset;
+  -webkit-text-fill-color:#e8eaed;
+}
+body.dark .login-page .captcha-box input {
+  background:transparent !important;
+  border:0 !important;
+  color:#e8eaed !important;
+  -webkit-text-fill-color:#e8eaed;
+}
+body.dark .login-page .captcha-question { color:#7fb0ff; }
+body.dark .login-page .captcha-divider { background:#3a3f4a; }
+body.dark .login-page .captcha-box button,
+body.dark .login-page .password-toggle { color:#7fb0ff; background:transparent; }
+body.dark .login-page .captcha-box button:hover { background:#2a2f3a; }
+body.dark .login-page .captcha-box.invalid { border-color:#7f1d1d !important; background:#2a1a1d !important; }
+body.dark .login-page .captcha-error { color:#fca5a5; }
+body.dark .login-page .login-error { border-color:#6b2c2c; background:#3a1d1d; color:#fca5a5; }
+body.dark .login-page .login-footer { border-top-color:#2c3038; color:#7b818b; }
+body.dark .login-page .quick-login-button { border-color:#2f4a73; background:#1e2a3f; color:#93c5fd; }
+body.dark .login-page .quick-login-button:hover { background:#23324b; }
 </style>
