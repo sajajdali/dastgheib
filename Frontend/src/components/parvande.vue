@@ -4790,7 +4790,9 @@ export default {
 
     async updatePatient() {
       const missingFields = Object.entries(this.patientRequiredFields || {})
-        .filter(([field, required]) => required && !String(this.editPatient[field] ?? '').trim())
+        .filter(([field, required]) => required
+          && (!(field in this.activeProfileFields) || this.activeProfileFields[field])
+          && !String(this.editPatient[field] ?? '').trim())
         .map(([field]) => this.columnLabels[field] || field)
 
       if (missingFields.length) {
@@ -4923,7 +4925,9 @@ export default {
     async submitForm() {
       const requiredFields = { ...this.patientRequiredFields, file_number: true }
       const missingFields = Object.entries(requiredFields)
-        .filter(([field, required]) => required && !String(this.form[field] ?? '').trim())
+        .filter(([field, required]) => required
+          && (!(field in this.activeProfileFields) || this.activeProfileFields[field])
+          && !String(this.form[field] ?? '').trim())
         .map(([field]) => this.columnLabels[field] || field)
       if (missingFields.length) {
         Swal.fire({ icon: 'warning', title: 'اطلاعات ناقص', text: `فیلدهای اجباری را تکمیل کنید: ${missingFields.join('، ')}`, confirmButtonText: 'متوجه شدم' })

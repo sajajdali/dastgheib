@@ -145,12 +145,13 @@
           </div>
           <div class="required-fields-settings">
             <div class="required-fields-head"><strong>اجباری یا اختیاری بودن اطلاعات تشکیل پرونده</strong><small>فیلد اجباری بدون تکمیل قابل ثبت نیست.</small></div>
-            <label v-for="field in patientFieldOptions" :key="field.key">
+            <label v-for="field in visiblePatientFieldOptions" :key="field.key">
               <span>{{ field.label }}</span>
               <select v-model="patientRequiredFields[field.key]">
                 <option :value="false">اختیاری</option><option :value="true">اجباری</option>
               </select>
             </label>
+            <small v-if="!visiblePatientFieldOptions.length" class="required-fields-empty">ابتدا حداقل یک فیلد را در فهرست بالا فعال کنید.</small>
           </div>
         </div>
       </div>
@@ -1298,7 +1299,37 @@ const handleAppointmentFileNumberLockChange = async event => {
 const patientFieldOptions = [
   ['first_name','نام'],['last_name','نام خانوادگی'],['phone','شماره تماس'],['file_number','شماره پرونده'],['gender','جنسیت'],['birth_date','تاریخ تولد'],['area','محدوده سکونت'],['city','شهر'],['financial_status','وضعیت مالی'],['national_id','کد ملی'],['foreign_national_code','کد اتباع'],['father_name','نام پدر'],['marital_status','وضعیت تأهل'],['marriage_date','تاریخ ازدواج'],['education','تحصیلات'],['weight','وزن'],['second_phone','شماره تماس دوم'],['patient_history','تیپ شخصیتی'],['medical_history','سوابق پزشکی'],['address','آدرس']
 ].map(([key,label]) => ({ key,label }));
+const profileToggleFieldKeys = new Set(Object.keys(profileFields.value));
+const alwaysVisiblePatientFieldKeys = new Set(
+  patientFieldOptions.map(field => field.key).filter(key => !profileToggleFieldKeys.has(key))
+);
 const patientRequiredFields = ref(Object.fromEntries(patientFieldOptions.map(field => [field.key, false])));
+const visiblePatientFieldOptions = computed(() => patientFieldOptions.filter(field => (
+  alwaysVisiblePatientFieldKeys.has(field.key) || Boolean(profileFields.value[field.key])
+)));
+const syncRequiredFieldsWithProfile = () => {
+  const next = { ...patientRequiredFields.value };
+  for (const key of profileToggleFieldKeys) {
+    if (profileFields.value[key]) {
+      if (!(key in next)) next[key] = false;
+    } else {
+      next[key] = false;
+    }
+  }
+  patientRequiredFields.value = next;
+};
+watch(profileFields, syncRequiredFieldsWithProfile, { deep: true });
+const patientRequiredFieldsPayload = () => {
+  const payload = {};
+  for (const field of patientFieldOptions) {
+    if (alwaysVisiblePatientFieldKeys.has(field.key) || profileFields.value[field.key]) {
+      payload[field.key] = Boolean(patientRequiredFields.value[field.key]);
+    } else {
+      payload[field.key] = false;
+    }
+  }
+  return payload;
+};
 const customerLevelColumns = [
   { key: "silver", label: "نقره‌ای" },
   { key: "blue", label: "آبی" },
@@ -1997,6 +2028,7 @@ const fetchSettings = async () => {
     followupConsultantPhoneRestricted.value = Boolean(data.followup_consultant_phone_restricted);
     appointmentFileNumberLocked.value = data.appointment_file_number_locked !== false;
     if (data.patient_required_fields) patientRequiredFields.value = { ...patientRequiredFields.value, ...data.patient_required_fields };
+    syncRequiredFieldsWithProfile();
     if (data.customer_levels) customerLevels.value = { ...customerLevels.value, ...data.customer_levels };
     customerLevels.value = customerLevelPayload();
     customerLevelCriteria.value = makeCustomerLevelCriteria();
@@ -2090,7 +2122,7 @@ const saveInternalSettings = async (showMessage = true) => {
       education_options: educationOptions.value.map(option => option.trim()).filter(Boolean),
       followup_consultant_phone_restricted: followupConsultantPhoneRestricted.value,
       appointment_file_number_locked: appointmentFileNumberLocked.value,
-      patient_required_fields: patientRequiredFields.value,
+      patient_required_fields: patientRequiredFieldsPayload(),
       customer_levels: customerLevelPayload(),
       appointment_columns: appointmentColumns.value,
       birthday_sms_automation: {
@@ -2518,7 +2550,7 @@ textarea{ min-height:120px; resize:none; }
 .lead-alert-sms-card{margin-bottom:20px;padding:20px;border:1px solid #bfdbfe;border-radius:18px;background:linear-gradient(135deg,#eff6ff,#f8fafc);box-shadow:0 10px 30px rgba(37,99,235,.08)}.lead-alert-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}.lead-alert-head h3{margin:4px 0;color:#1e3a8a}.lead-alert-head p{margin:0;color:#64748b;font-size:12px}.lead-recipient-field{display:grid;gap:7px;margin-top:18px;color:#334155;font-size:12px;font-weight:900}.lead-recipient-field>div{display:flex;gap:8px}.lead-recipient-field input{flex:1;height:44px;padding:0 13px;border:1px solid #bfdbfe;border-radius:11px;background:#fff;font-family:inherit}.lead-recipient-field button{padding:0 16px;border:0;border-radius:11px;background:#2563eb;color:#fff;font-family:inherit;font-weight:900;cursor:pointer}.lead-recipient-field small{color:#64748b;font-weight:500}.lead-recipient-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.lead-recipient-list>span{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:20px;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:900;direction:ltr}.lead-recipient-list button{width:20px;height:20px;padding:0;border:0;border-radius:50%;background:#fff;color:#dc2626;cursor:pointer}.lead-alert-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.lead-alert-options>label{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #dbeafe;border-radius:13px;background:#fff;cursor:pointer}.lead-alert-options input{width:18px;height:18px;accent-color:#2563eb}.lead-alert-options span{display:grid;gap:3px}.lead-alert-options b{color:#1e293b;font-size:11px}.lead-alert-options small{color:#64748b;font-size:9px}
 .lead-alert-options-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #dbeafe}.lead-alert-options-head>div{display:grid;gap:3px}.lead-alert-options-head strong{color:#1e3a8a;font-size:12px}.lead-alert-options-head small{color:#64748b;font-size:10px}.select-all-leads{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #93c5fd;border-radius:10px;background:#fff;color:#1d4ed8;font-size:10px;font-weight:900;cursor:pointer}.select-all-leads input{width:17px;height:17px;accent-color:#2563eb}
 .lead-alert-template-card{display:grid;gap:10px;padding:12px;border:1px solid #dbeafe;border-radius:13px;background:#fff}.lead-alert-template-card.active{border-color:#93c5fd;background:#f8fbff}.lead-alert-template-card>label{display:flex;align-items:center;gap:10px;cursor:pointer}.lead-alert-template-card>label input{width:18px;height:18px;accent-color:#2563eb}.lead-alert-template-card>label span{display:grid;gap:3px}.lead-alert-template-card>label b{color:#1e293b;font-size:11px}.lead-alert-template-card>label small{color:#64748b;font-size:9px}.lead-alert-template-card>input{width:100%;height:40px;padding:0 10px;border:1px solid #bfdbfe;border-radius:9px;background:#fff;color:#172033;font:800 11px inherit;outline:0}.lead-alert-template-card>input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1)}.lead-alert-template-card ol{display:grid;gap:5px;margin:0;padding:0;list-style:none}.lead-alert-template-card li{display:flex;align-items:center;gap:7px;color:#475569;font-size:10px;font-weight:800}.lead-alert-template-card li b{min-width:62px;padding:4px 5px;border-radius:6px;background:#dbeafe;color:#1d4ed8;font-size:9px;text-align:center}
-.required-fields-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:16px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff}.required-fields-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}.required-fields-head small{color:#64748b}.required-fields-settings label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:800}.required-fields-settings select{height:34px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-family:inherit}@media(max-width:800px){.required-fields-settings{grid-template-columns:1fr}.required-fields-head{align-items:flex-start;flex-direction:column}}
+.required-fields-settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:16px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:#f8fbff}.required-fields-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}.required-fields-head small{color:#64748b}.required-fields-empty{grid-column:1/-1;color:#64748b;font-size:11px;line-height:1.8}.required-fields-settings label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px;border-radius:10px;background:#fff;color:#334155;font-size:11px;font-weight:800}.required-fields-settings select{height:34px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-family:inherit}@media(max-width:800px){.required-fields-settings{grid-template-columns:1fr}.required-fields-head{align-items:flex-start;flex-direction:column}}
 .education-options-settings{flex:1 1 100%;display:grid;gap:12px;padding:14px;border:1px solid #dbeafe;border-radius:15px;background:#f8fbff}.education-options-settings header{display:flex;align-items:center;justify-content:space-between;gap:12px}.education-options-settings header span{display:grid;gap:4px}.education-options-settings header small{color:#64748b;font-size:10px}.education-options-settings header button{border:0;border-radius:9px;padding:8px 12px;background:#dbeafe;color:#1d4ed8;font-family:inherit;font-weight:900;cursor:pointer}.education-options-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.education-options-list label{display:grid;grid-template-columns:minmax(0,1fr) 36px;gap:6px}.education-options-list input{width:100%;height:40px}.education-options-list label button{border:0;border-radius:9px;background:#fee2e2;color:#b91c1c;font-size:20px;cursor:pointer}.education-options-list label button:disabled{opacity:.4;cursor:not-allowed}@media(max-width:800px){.education-options-settings header{align-items:flex-start;flex-direction:column}.education-options-list{grid-template-columns:1fr}}
 
 .sms-provider-card {
