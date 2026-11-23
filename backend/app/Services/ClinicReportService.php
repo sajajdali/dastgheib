@@ -146,7 +146,7 @@ class ClinicReportService
         $rows = $this->otherClinicExpensesQuery($filters)
             ->orderByDesc('occurred_on')
             ->orderByDesc('id')
-            ->get(['id', 'title', 'amount', 'invoice_number', 'occurred_on', 'party', 'category', 'payment_status']);
+            ->get(['id', 'title', 'amount', 'invoice_number', 'occurred_on', 'party', 'category', 'payment_status', 'note']);
 
         $items = $rows->map(fn (Expense $row) => $this->expenseDetailRow($row))->values();
 
@@ -808,7 +808,7 @@ class ClinicReportService
             $rows = $this->otherClinicExpensesQuery($filters)
                 ->orderByDesc('occurred_on')
                 ->orderByDesc('id')
-                ->get(['id', 'title', 'amount', 'invoice_number', 'occurred_on', 'party', 'category', 'payment_status', 'campaign_id']);
+                ->get(['id', 'title', 'amount', 'invoice_number', 'occurred_on', 'party', 'category', 'payment_status', 'note', 'campaign_id']);
             return [
                 'metric' => $metric,
                 'rows' => $rows->map(fn (Expense $row) => [
@@ -1565,6 +1565,7 @@ class ClinicReportService
             'party' => ($party = trim((string) ($row->party ?? ''))) !== '' ? $party : null,
             'category' => trim((string) ($row->category ?? '')) ?: 'بدون دسته‌بندی',
             'payment_status' => (string) ($row->payment_status ?: 'paid'),
+            'note' => ($note = trim((string) ($row->note ?? ''))) !== '' ? $note : null,
         ];
     }
 

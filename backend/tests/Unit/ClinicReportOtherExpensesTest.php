@@ -47,6 +47,7 @@ class ClinicReportOtherExpensesTest extends TestCase
             'party' => '  مالک  ',
             'category' => 'اجاره',
             'payment_status' => 'paid',
+            'note' => '  یادداشت اجاره  ',
         ]);
         $row->id = 9;
 
@@ -59,6 +60,7 @@ class ClinicReportOtherExpensesTest extends TestCase
             'party' => 'مالک',
             'category' => 'اجاره',
             'payment_status' => 'paid',
+            'note' => 'یادداشت اجاره',
         ], $this->invokeReport('expenseDetailRow', $row));
     }
 }

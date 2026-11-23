@@ -298,6 +298,7 @@ Route::get('/reports/widgets/satisfaction', [ReportWidgetController::class, 'sat
 Route::post('/reports/widgets/satisfaction/calculate', [ReportWidgetController::class, 'calculateSatisfaction'])->middleware('permission:reports.view');
 Route::get('/reports/drilldown/{metric}', [ClinicReportController::class, 'drilldown'])->middleware('permission:reports.view');
 Route::get('/reports/export', [ClinicReportController::class, 'export'])->middleware('permission:reports.view');
+Route::get('/expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->middleware('permission:bills.view');
 Route::apiResource('expenses', ExpenseController::class)->middleware('permission:bills.view');
 Route::post('/campaigns/general', [CampaignController::class, 'general'])->middleware('permission:followups.view');
 Route::get('/campaigns/subsections', [CampaignController::class, 'subsections'])->middleware('permission:followups.view');

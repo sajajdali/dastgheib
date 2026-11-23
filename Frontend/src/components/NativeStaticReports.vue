@@ -267,19 +267,20 @@
               </div>
               <div class="report-card-scroll report-list-stack">
                 <p v-if="s.expenseError" role="alert" style="font-size:12px;color:#b91c1c;overflow-wrap:anywhere">{{ s.expenseError }}</p>
-                <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">سایر هزینه‌ای در این بازه ثبت نشده است.</p>
+                <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است</p>
                 <article v-for="b in v.billRows" :key="b.id" class="expense-invoice" :class="{ 'is-open': b.open }">
                   <button type="button" class="expense-invoice__primary" @click="toggleBillRow(b.id)" :aria-expanded="b.open ? 'true' : 'false'">
                     <span class="expense-invoice__name" :title="b.n">{{ b.n }}</span>
                     <span class="expense-money">{{ b.v }}</span>
-                    <span class="expense-invoice__no" :title="b.invoiceLabel">{{ b.invoiceLabel }}</span>
+                    <span class="expense-invoice__no" :title="b.categoryLabel">{{ b.categoryLabel }}</span>
                     <span class="expense-invoice__chevron" aria-hidden="true">{{ b.open ? '▾' : '◂' }}</span>
                   </button>
                   <div v-if="b.open" class="expense-invoice__details">
-                    <span><em>تاریخ فاکتور</em>{{ b.date }}</span>
-                    <span><em>طرف حساب</em>{{ b.party }}</span>
+                    <span><em>تاریخ</em>{{ b.date }}</span>
                     <span><em>دسته‌بندی</em>{{ b.category }}</span>
+                    <span><em>طرف حساب</em>{{ b.party }}</span>
                     <span><em>وضعیت پرداخت</em>{{ b.status }}</span>
+                    <span v-if="b.note"><em>توضیحات</em>{{ b.note }}</span>
                   </div>
                 </article>
               </div>
@@ -889,20 +890,21 @@
                 <button type="button" @click="v.closeOtherExpensesDetail" style="background:#f1f5f9;border:none;border-radius:10px;width:32px;height:32px;font-size:15px;color:#64748b;cursor:pointer;flex-shrink:0" aria-label="بستن">✕</button>
               </div>
               <p v-if="s.expenseError" role="alert" style="font-size:12px;color:#b91c1c;overflow-wrap:anywhere">{{ s.expenseError }}</p>
-              <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">سایر هزینه‌ای در این بازه ثبت نشده است.</p>
+              <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است</p>
               <div v-else class="report-list-stack" style="max-height:52vh;overflow:auto">
                 <article v-for="b in v.billRows" :key="'detail-'+b.id" class="expense-invoice" :class="{ 'is-open': b.open }">
                   <button type="button" class="expense-invoice__primary" @click="toggleBillRow(b.id)" :aria-expanded="b.open ? 'true' : 'false'">
                     <span class="expense-invoice__name" :title="b.n">{{ b.n }}</span>
                     <span class="expense-money">{{ b.v }}</span>
-                    <span class="expense-invoice__no" :title="b.invoiceLabel">{{ b.invoiceLabel }}</span>
+                    <span class="expense-invoice__no" :title="b.categoryLabel">{{ b.categoryLabel }}</span>
                     <span class="expense-invoice__chevron" aria-hidden="true">{{ b.open ? '▾' : '◂' }}</span>
                   </button>
                   <div v-if="b.open" class="expense-invoice__details">
-                    <span><em>تاریخ فاکتور</em>{{ b.date }}</span>
-                    <span><em>طرف حساب</em>{{ b.party }}</span>
+                    <span><em>تاریخ</em>{{ b.date }}</span>
                     <span><em>دسته‌بندی</em>{{ b.category }}</span>
+                    <span><em>طرف حساب</em>{{ b.party }}</span>
                     <span><em>وضعیت پرداخت</em>{{ b.status }}</span>
+                    <span v-if="b.note"><em>توضیحات</em>{{ b.note }}</span>
                   </div>
                 </article>
               </div>
@@ -1220,16 +1222,19 @@ export default {
     };
     const billRows = billItems.map(item => {
       const id = item.id ?? `${item.title || ''}-${item.occurred_on || ''}-${item.amount || 0}`;
-      const invoice = String(item.invoice_number || '').trim();
+      const category = item.category || 'بدون دسته‌بندی';
+      const note = String(item.note || '').trim();
       return {
         id,
         n: item.title || 'بدون عنوان',
         v: billMoney(item.amount),
-        invoiceLabel: invoice ? `ش ${invoice.replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])}` : 'بدون شماره',
+        categoryLabel: category,
+        invoiceLabel: category,
         date: billDateLabel(item.occurred_on),
         party: item.party || '—',
-        category: item.category || 'بدون دسته‌بندی',
+        category,
         status: paymentStatusLabel(item.payment_status),
+        note: note || '',
         open: !!this.billExpandedIds[id],
       };
     });
