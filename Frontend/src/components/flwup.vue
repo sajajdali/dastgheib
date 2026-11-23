@@ -782,7 +782,7 @@
                       </select>
                     </td>
 
-                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" @click.stop="openDescriptionModal(row, true)">{{ truncateFollowupDescription(row) || 'بدون توضیح' }}</button></td>
+                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" :title="latestFollowupDescription(row) || 'بدون توضیح'" @click.stop="openDescriptionModal(row, true)">{{ truncateFollowupDescription(row) || 'بدون توضیح' }}</button></td>
 
                     <td><input v-model="row.reason" disabled /></td>
 
@@ -1358,7 +1358,7 @@
                       </select>
                     </td>
 
-                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" @click.stop="openDescriptionModal(row)">{{ truncateFollowupDescription(row) || 'ثبت توضیحات' }}</button></td>
+                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" :title="latestFollowupDescription(row) || 'ثبت توضیحات'" @click.stop="openDescriptionModal(row)">{{ truncateFollowupDescription(row) || 'ثبت توضیحات' }}</button></td>
 
                     <td>
                       <select v-model="row.reason">
@@ -1741,6 +1741,9 @@ import draggable from "vuedraggable";
 import { avatarInitial, avatarUrl, findResourceByName } from '@/utils/avatar';
 import {
   createFollowupNote,
+  followupLatestDescription,
+  followupNotesSearchText,
+  followupRowHasDescription,
   latestFollowupNoteText,
   normalizeFollowupRowNotes,
   truncateFollowupNote,
@@ -2127,7 +2130,7 @@ export default {
       return this.activeCampaign.rows.filter((r) => {
         const inSearch =
           !term ||
-          [r.fullName, r.phone, r.consultant, r.description]
+          [r.fullName, r.phone, r.consultant, followupNotesSearchText(r)]
             .filter(Boolean)
             .some((f) => String(f).toLowerCase().includes(term));
 
@@ -2201,7 +2204,7 @@ export default {
       return rows.filter((r) => {
         const inSearch =
           !term ||
-          [r.fullName, r.phone, r.consultant, r.description, r.campaignTitle]
+          [r.fullName, r.phone, r.consultant, followupNotesSearchText(r), r.campaignTitle]
             .filter(Boolean)
             .some((f) => String(f).toLowerCase().includes(term));
 
@@ -2510,8 +2513,7 @@ export default {
       return normalizeFollowupRowNotes(clone).notes || [];
     },
     latestFollowupDescription(row) {
-      const notes = this.followupNotesForRow(row);
-      return latestFollowupNoteText(notes) || String(row?.description || '').trim();
+      return followupLatestDescription(row);
     },
     truncateFollowupDescription(row) {
       return truncateFollowupNote(this.latestFollowupDescription(row));
@@ -2669,13 +2671,11 @@ export default {
     },
 
     followupRowMatches(row, terms) {
-      const noteTexts = this.followupNotesForRow(row).map(note => note.text).join(" ");
       const searchable = this.normalizeFollowupLookup([
         row.fullName,
         row.phone,
         row.consultant,
-        row.description,
-        noteTexts,
+        followupNotesSearchText(row),
         row.source,
       ].filter(Boolean).join(" "));
       return terms.some(term => searchable.includes(term));
@@ -3274,7 +3274,8 @@ export default {
       const field = fieldMap[key];
       if (!field) return;
       const rows = this.activeCampaign ? this.activeCampaign.rows : this.reportFilteredRows;
-      const longest = Math.max(String({ campaignTitle:'نام کمپین', fullName:'نام کامل', phone:'شماره تماس', consultant:'مشاور', source:'منبع', subsection:'بخش', status:'وضعیت', description:'توضیحات', reason:'علت' }[key] || '').length, ...(rows || []).map(row => String(row?.[field] || '').length));
+      const cellText = row => key === 'description' ? this.latestFollowupDescription(row) : String(row?.[field] || '');
+      const longest = Math.max(String({ campaignTitle:'نام کمپین', fullName:'نام کامل', phone:'شماره تماس', consultant:'مشاور', source:'منبع', subsection:'بخش', status:'وضعیت', description:'توضیحات', reason:'علت' }[key] || '').length, ...(rows || []).map(row => cellText(row).length));
       const extra = key === 'fullName' ? 54 : 26;
       const minimum = { campaignTitle:120, fullName:145, phone:110, consultant:110, source:95, subsection:110, status:95, description:135, reason:90 }[key] || 80;
       const maximum = { description:240, fullName:220, campaignTitle:220 }[key] || 170;
@@ -3516,7 +3517,7 @@ export default {
         gender: row.gender || '',
         consultant: row.consultant || '',
         source: row.source || campaignSource,
-        description: row.description || '',
+        description: this.latestFollowupDescription(row),
         contactDate: row.contactDate || '',
         contactTime: row.contactTime || '',
         followUpDate: row.followUpDate || '',
@@ -3774,7 +3775,7 @@ export default {
         ['وضعیت', row => row.status],
         ['تمایل', row => interestLabels[String(row.interest ?? '')] || ''],
         ['علت', row => row.reason],
-        ['توضیحات', row => row.description],
+        ['توضیحات', row => this.latestFollowupDescription(row)],
         ['پیامک لندینگ', row => this.landingSmsValues(row).join('، ')],
         ['نوبت', row => (row.appointmentRegistered ? this.appointmentSummary(row) || 'ثبت شده' : '')],
       ];
@@ -4198,8 +4199,9 @@ export default {
     // ردیفی که جز تاریخ/ساعت تماسِ خودکار چیزی ندارد؛ فقط این ردیف‌ها با دکمهٔ «−» حذف می‌شوند.
     isEmptyFollowupRow(row) {
       if (!row || row.appointmentRegistered || row.patient_id) return false;
+      if (followupRowHasDescription(row)) return false;
       return ![
-        row.fullName, row.phone, row.followUpDate, row.gender, row.consultant, row.description,
+        row.fullName, row.phone, row.followUpDate, row.gender, row.consultant,
         row.source, row.status, row.interest, row.reason, row.subsectionId, row.file_number,
       ].some(value => String(value ?? "").trim());
     },
@@ -4406,6 +4408,7 @@ export default {
     },
 
     isMeaningfulLead(row) {
+      if (followupRowHasDescription(row)) return true;
       return [
         row?.fullName,
         row?.phone,
@@ -4413,7 +4416,6 @@ export default {
         row?.followUpDate,
         row?.gender,
         row?.consultant,
-        row?.description,
         row?.source,
         row?.status,
         row?.interest,

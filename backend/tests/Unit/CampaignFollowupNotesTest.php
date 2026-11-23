@@ -67,4 +67,18 @@ class CampaignFollowupNotesTest extends TestCase
         $this->assertSame(['قبلی', 'بعدی'], array_column($row['notes'], 'text'));
         $this->assertSame('بعدی', $row['description']);
     }
+
+    public function test_row_has_description_reads_notes_even_if_description_stale(): void
+    {
+        $this->assertTrue(CampaignFollowupNotes::rowHasDescription([
+            'description' => '',
+            'notes' => [
+                ['id' => 'n1', 'text' => 'فقط در notes', 'created_at' => '2026-11-01T10:00:00+00:00'],
+            ],
+        ]));
+        $this->assertFalse(CampaignFollowupNotes::rowHasDescription([
+            'description' => '',
+            'notes' => [],
+        ]));
+    }
 }

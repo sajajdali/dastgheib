@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\ActivityLog;
 use App\Models\AppointmentFinancialTransaction;
 use App\Models\Campaign;
+use App\Support\CampaignFollowupNotes;
 use App\Models\Channel;
 use App\Models\Expense;
 use App\Models\Inventory;
@@ -938,9 +939,9 @@ class ClinicReportService
 
         return Campaign::query()->where(fn (Builder $query) => $query->whereNull('note')->orWhere('note', '!=', '__system_general_followups__'))->get()->map(function (Campaign $campaign) use ($appointmentCounts, $expenseRows): array {
             $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
-            $rows = collect($payload['rows'] ?? [])->filter(fn ($row) => collect([
+            $rows = collect($payload['rows'] ?? [])->filter(fn ($row) => CampaignFollowupNotes::rowHasDescription($row) || collect([
                 'fullName','phone','contactDate','followUpDate','gender','consultant',
-                'description','source','status','interest','reason',
+                'source','status','interest','reason',
             ])->contains(fn ($key) => trim((string) data_get($row, $key, '')) !== ''));
             $scoredRows = $rows->filter(fn ($row) => filled(data_get($row, 'status')) || filled(data_get($row, 'interest')));
             $score = $scoredRows->sum(function ($row): int {

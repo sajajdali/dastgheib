@@ -3,6 +3,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createFollowupNote,
+  followupLatestDescription,
+  followupNotesSearchText,
+  followupRowHasDescription,
   latestFollowupNoteText,
   normalizeFollowupNotes,
   normalizeFollowupRowNotes,
@@ -66,4 +69,24 @@ test('adding or editing a note persists immediately without a bottom save', () =
   assert.match(editMethod, /this\.persistDescriptionNotes\(\)/)
   assert.doesNotMatch(source, /ثبت یادداشت‌ها/)
   assert.doesNotMatch(source, /saveDescriptionModal\(/)
+})
+
+test('latest note wins for display helpers even when description is stale', () => {
+  const row = {
+    _localId: 'x',
+    description: 'کهنه',
+    notes: [
+      { id: 'n1', text: 'اول', created_at: '2026-11-01T10:00:00.000Z' },
+      { id: 'n2', text: 'آخرین ذخیره', created_at: '2026-11-03T10:00:00.000Z' },
+    ],
+  }
+  assert.equal(followupLatestDescription(row), 'آخرین ذخیره')
+  assert.equal(followupRowHasDescription({ description: '', notes: [{ id: 'n', text: 'فقط notes', created_at: '2026-11-01T10:00:00.000Z' }] }), true)
+  assert.match(followupNotesSearchText(row), /آخرین ذخیره/)
+})
+
+test('campaign table export search and appointment prefill use latest description helpers', () => {
+  assert.match(source, /\['توضیحات', row => this\.latestFollowupDescription\(row\)\]/)
+  assert.match(source, /followupNotesSearchText\(r\)/)
+  assert.match(source, /description: this\.latestFollowupDescription\(row\)/)
 })

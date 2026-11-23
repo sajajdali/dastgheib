@@ -75,6 +75,27 @@ export function normalizeFollowupRowNotes(row, fallbackAuthor = '') {
   return row
 }
 
+/** متن نمایشی/خروجی: همیشه آخرین یادداشت (یا description هم‌تراز). */
+export function followupLatestDescription(row) {
+  if (!row || typeof row !== 'object') return ''
+  const notes = normalizeFollowupNotes(row.notes, row.description, '', String(row._localId || row.rowId || ''))
+  return latestFollowupNoteText(notes) || String(row.description || '').trim()
+}
+
+/** آیا ردیف حداقل یک یادداشت/توضیح دارد (حتی اگر description کهنه باشد). */
+export function followupRowHasDescription(row) {
+  return Boolean(followupLatestDescription(row))
+}
+
+/** متن قابل جست‌وجو از همه یادداشت‌ها + description. */
+export function followupNotesSearchText(row) {
+  if (!row || typeof row !== 'object') return ''
+  const notes = normalizeFollowupNotes(row.notes, row.description, '', String(row._localId || row.rowId || ''))
+  return [latestFollowupNoteText(notes), ...notes.map(note => note.text), row.description]
+    .filter(Boolean)
+    .join(' ')
+}
+
 export function truncateFollowupNote(text, max = 72) {
   const value = String(text || '').replace(/\s+/g, ' ').trim()
   if (!value) return ''

@@ -39,6 +39,8 @@
 </template>
 
 <script>
+import { followupRowHasDescription } from '@/utils/followupNotes'
+
 const API = "/api"
 const INVENTORY_ZERO_NOTIFICATIONS_KEY = "inventory_zero_stock_notifs_v1"
 const NOTIFICATION_HANDLED_KEY = "handled_notifications_v1"
@@ -1112,6 +1114,7 @@ export default {
     },
 
     isMeaningfulLead(row) {
+      if (followupRowHasDescription(row)) return true
       return [
         row?.fullName,
         row?.phone,
@@ -1119,7 +1122,6 @@ export default {
         row?.followUpDate,
         row?.gender,
         row?.consultant,
-        row?.description,
         row?.source,
         row?.status,
         row?.interest,

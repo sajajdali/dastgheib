@@ -75,6 +75,14 @@ class CampaignFollowupNotes
         return trim((string) ($last['text'] ?? ''));
     }
 
+    /** آیا ردیف پیگیری حداقل یک توضیح/یادداشت دارد. */
+    public static function rowHasDescription(mixed $row): bool
+    {
+        if (! is_array($row)) return false;
+
+        return self::latestText(self::normalizeNotes($row['notes'] ?? null, $row['description'] ?? null, null, trim((string) ($row['_localId'] ?? '')))) !== '';
+    }
+
     public static function normalizePayloadRows(mixed $rows, ?string $fallbackAuthor = null): array
     {
         if (! is_array($rows)) return [];
