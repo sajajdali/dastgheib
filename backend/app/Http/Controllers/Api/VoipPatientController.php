@@ -175,22 +175,41 @@ class VoipPatientController extends Controller
         ];
     }
 
-    /** «میزان رضایت‌مندی»: average of every rated answer and the count per score. */
+    /** «میزان رضایت‌مندی»: overall average plus per-question averages for scored answers. */
     private function satisfaction($responses): array
     {
-        $answers = $responses->flatMap(fn ($r) => $r['answers'] ?? []);
-        $scores = $answers->pluck('score')->map(fn ($s) => (int) $s)->filter(fn ($s) => $s > 0);
-        $labels = [5 => 'عالی', 4 => 'خوب', 3 => 'متوسط', 2 => 'بد', 1 => 'ضعیف'];
-        foreach ($answers as $answer) {
-            foreach ($answer['options'] ?? [] as $option) {
-                $score = (int) ($option['score'] ?? 0);
-                if (isset($labels[$score]) && ! empty($option['label']) && ! isset($seen[$score])) { $labels[$score] = $option['label']; $seen[$score] = true; }
-            }
-        }
+        $answers = $responses->flatMap(fn ($r) => collect($r['answers'] ?? []));
+        $scored = $answers->filter(fn ($answer) => (int) ($answer['score'] ?? 0) > 0);
+        $scores = $scored->pluck('score')->map(fn ($score) => (int) $score);
+        $questions = $scored
+            ->groupBy(fn ($answer) => (string) ($answer['question_key'] ?? $answer['question'] ?? ''))
+            ->filter(fn ($rows, $key) => $key !== '')
+            ->map(function ($rows, $key) {
+                $first = $rows->first();
+                $average = round((float) $rows->avg(fn ($answer) => (int) $answer['score']), 1);
+                $options = collect($first['options'] ?? [])
+                    ->filter(fn ($option) => ! empty($option['label']))
+                    ->map(fn ($option) => [
+                        'value' => $option['value'] ?? null,
+                        'label' => $option['label'] ?? null,
+                        'score' => isset($option['score']) ? (int) $option['score'] : null,
+                    ])->values();
+                $matched = $options->first(fn ($option) => (int) ($option['score'] ?? 0) === (int) round($average));
+
+                return [
+                    'key' => $key,
+                    'question' => $first['question'] ?? $key,
+                    'average' => $average,
+                    'count' => $rows->count(),
+                    'option_label' => $matched['label'] ?? null,
+                    'options' => $options,
+                ];
+            })->values();
+
         return [
             'average' => $scores->isNotEmpty() ? round($scores->avg(), 1) : null,
             'responses' => $responses->count(),
-            'levels' => collect([5, 4, 3, 2, 1])->map(fn ($s) => ['score' => $s, 'label' => $labels[$s], 'count' => $scores->filter(fn ($x) => $x === $s)->count()])->values(),
+            'questions' => $questions,
         ];
     }
 

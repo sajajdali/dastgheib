@@ -584,12 +584,17 @@
             <table class="profile-services-table">
               <thead>
                 <tr>
-                  <th v-for="column in appointmentFilterColumns" :key="column.key" :class="{ 'filtered-cell': isAppointmentFiltered(column.key) }">
+                  <th v-for="column in appointmentFilterColumns" :key="column.key" :class="{ 'filtered-cell': column.filterable && isAppointmentFiltered(column.key) }">
                     <div class="profile-filter-head">
                       <span>{{ column.label }}</span>
-                      <button type="button" title="فیلتر" @click.stop="toggleAppointmentFilter(column.key)">⚙</button>
+                      <button
+                        v-if="column.filterable"
+                        type="button"
+                        title="فیلتر"
+                        @click.stop="toggleAppointmentFilter(column.key)"
+                      >⚙</button>
                     </div>
-                    <div v-if="activeAppointmentFilter === column.key" class="profile-filter-menu" @click.stop>
+                    <div v-if="column.filterable && activeAppointmentFilter === column.key" class="profile-filter-menu" @click.stop>
                       <label v-for="value in appointmentFilterValues(column.key)" :key="value">
                         <input
                           type="checkbox"
@@ -695,17 +700,30 @@
             @click="satisfactionExpanded = !satisfactionExpanded"
           >
             <div class="rating-bars">
-              <div v-for="rate in [5, 4, 3, 2, 1]" :key="rate" class="rating-bar-row">
-                <span>{{ satisfactionRatingLabel(rate) }}</span>
-                <div><i :style="{ width: satisfactionRatingWidth(rate) }"></i></div>
-                <b>{{ satisfactionRatingCount(rate) }}</b>
+              <div
+                v-for="question in satisfactionQuestionSummaries"
+                :key="question.key"
+                class="rating-bar-row rating-question-row"
+              >
+                <span :title="question.question">
+                  {{ question.question }}
+                  <small v-if="question.optionLabel">{{ question.optionLabel }}</small>
+                </span>
+                <div><i :style="{ width: question.width }"></i></div>
+                <b>
+                  <em>{{ toPersianDigits(question.average) }} / ۵</em>
+                  <small>{{ toPersianDigits(question.count) }} پاسخ</small>
+                </b>
               </div>
+              <p v-if="!satisfactionQuestionSummaries.length" class="rating-bars-empty">
+                هنوز سؤال امتیازدار ثبت نشده است.
+              </p>
             </div>
             <div class="rating-summary">
               <h3>میزان رضایت‌مندی</h3>
               <strong>{{ satisfactionAverage() }}</strong>
               <div class="rating-stars">★ ★ ★ ★ ★</div>
-              <p>بر اساس {{ satisfactionResponses.length }} نظر ثبت‌شده</p>
+              <p>بر اساس {{ toPersianDigits(satisfactionResponses.length) }} فرم تکمیل‌شده</p>
               <span class="profile-satisfaction-toggle">
                 {{ satisfactionExpanded ? 'بستن جزئیات' : 'مشاهده جزئیات' }}
                 <i>⌄</i>
@@ -2012,17 +2030,13 @@ export default {
       activeAppointmentFilter: null,
       selectedAppointmentFilters: {
         services: [],
-        quantity: [],
+        sections: [],
+        subsections: [],
         doctors: [],
         consultants: [],
-        amount: [],
         payment: [],
         status: [],
-        arrived_at: [],
         done: [],
-        completed_at: [],
-        automatic_sms: [],
-        debt: [],
       },
       profileViewOpen: false,
       activePatientProfile: null,
@@ -2407,27 +2421,69 @@ export default {
 
     appointmentFilterColumns() {
       return [
-        { key: 'date', label: 'تاریخ' },
-        { key: 'services', label: 'خدمات' },
-        { key: 'quantity', label: 'تعداد' },
-        { key: 'sections', label: 'بخش' },
-        { key: 'subsections', label: 'زیربخش' },
-        { key: 'doctors', label: 'پزشک' },
-        { key: 'consultants', label: 'مشاور' },
-        { key: 'amount', label: 'مبلغ' },
-        { key: 'payment', label: 'پرداخت' },
-        { key: 'status', label: 'وضعیت' },
-        { key: 'arrived_at', label: 'زمان آمدن' },
-        { key: 'done', label: 'کار انجام‌شده' },
-        { key: 'completed_at', label: 'زمان انجام' },
-        { key: 'automatic_sms', label: 'پیامک خودکار' },
-        { key: 'debt', label: 'بدهکاری' },
+        { key: 'date', label: 'تاریخ', filterable: false },
+        { key: 'services', label: 'خدمات', filterable: true },
+        { key: 'quantity', label: 'تعداد', filterable: false },
+        { key: 'sections', label: 'بخش', filterable: true },
+        { key: 'subsections', label: 'زیربخش', filterable: true },
+        { key: 'doctors', label: 'پزشک', filterable: true },
+        { key: 'consultants', label: 'مشاور', filterable: true },
+        { key: 'amount', label: 'مبلغ', filterable: false },
+        { key: 'payment', label: 'روش پرداخت', filterable: true },
+        { key: 'status', label: 'وضعیت نوبت', filterable: true },
+        { key: 'arrived_at', label: 'زمان آمدن', filterable: false },
+        { key: 'done', label: 'کار انجام‌شده', filterable: true },
+        { key: 'completed_at', label: 'زمان انجام', filterable: false },
+        { key: 'automatic_sms', label: 'پیامک خودکار', filterable: false },
+        { key: 'debt', label: 'بدهکاری', filterable: false },
       ]
+    },
+
+    appointmentFilterableColumns() {
+      return this.appointmentFilterColumns.filter(column => column.filterable)
+    },
+
+    satisfactionQuestionSummaries() {
+      const groups = new Map()
+      for (const response of this.satisfactionResponses || []) {
+        for (const answer of response.answers || []) {
+          const score = Number(answer.score || 0)
+          if (!(score > 0)) continue
+          const key = String(answer.question_key || answer.question || '')
+          if (!key) continue
+          if (!groups.has(key)) {
+            groups.set(key, {
+              key,
+              question: answer.question || key,
+              scores: [],
+              options: Array.isArray(answer.options) ? answer.options : [],
+            })
+          }
+          const group = groups.get(key)
+          group.scores.push(score)
+          if (answer.question) group.question = answer.question
+          if (Array.isArray(answer.options) && answer.options.length) group.options = answer.options
+        }
+      }
+
+      return [...groups.values()].map(group => {
+        const average = group.scores.reduce((sum, value) => sum + value, 0) / group.scores.length
+        const rounded = Math.round(average)
+        const matchedOption = (group.options || []).find(option => Number(option.score) === rounded)
+        return {
+          key: group.key,
+          question: group.question,
+          average: average.toFixed(1),
+          count: group.scores.length,
+          width: `${Math.max(0, Math.min(100, Math.round((average / 5) * 100)))}%`,
+          optionLabel: matchedOption?.label || '',
+        }
+      })
     },
 
     filteredAppointmentResults() {
       return (this.appointmentResults || []).filter(item => {
-        return this.appointmentFilterColumns.every(column => {
+        return this.appointmentFilterableColumns.every(column => {
           const selected = this.selectedAppointmentFilters[column.key] || []
           if (!selected.length) return true
           return this.appointmentFilterTexts(item, column.key).some(value => selected.includes(value))
@@ -2572,6 +2628,7 @@ export default {
   },
 
   mounted(){
+    this.resetNonFilterableAppointmentFilters()
     this.fetchNextFileNumber()
     this.fetchActiveProfileFields() // لود فیلدهای فعال در بدو ورود به صفحه
   },
@@ -2885,6 +2942,7 @@ export default {
       this.satisfactionExpanded = false
       this.profileAutomaticSmsExpanded = false
       this.profileAutomaticSmsFilter = 'all'
+      this.resetNonFilterableAppointmentFilters()
       this.$nextTick(() => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       })
@@ -3182,31 +3240,7 @@ export default {
         .filter(score => score > 0)
 
       if (!scores.length) return '—'
-      return (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1)
-    },
-
-    satisfactionRatingCount(rate) {
-      return (this.satisfactionResponses || [])
-        .flatMap(response => response.answers || [])
-        .filter(answer => Number(answer.score) === Number(rate)).length
-    },
-
-    satisfactionRatingLabel(rate) {
-      const defaults = { 5: 'عالی', 4: 'خوب', 3: 'متوسط', 2: 'بد', 1: 'ضعیف' }
-      const answers = (this.satisfactionResponses || []).flatMap(response => response.answers || [])
-
-      for (const answer of answers) {
-        const option = (answer.options || []).find(item => Number(item.score) === Number(rate))
-        if (option?.label) return option.label
-      }
-
-      return defaults[rate] || String(rate)
-    },
-
-    satisfactionRatingWidth(rate) {
-      const total = [5, 4, 3, 2, 1]
-        .reduce((sum, item) => sum + this.satisfactionRatingCount(item), 0)
-      return `${total ? Math.round((this.satisfactionRatingCount(rate) / total) * 100) : 0}%`
+      return this.toPersianDigits((scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1))
     },
 
     async fetchPatientSatisfaction(patient = {}) {
@@ -4681,7 +4715,7 @@ export default {
         doctors: this.appointmentDoctors(item),
         consultants: this.appointmentConsultants(item),
         amount: this.formatMoneyValue(item.amount),
-        payment: this.paymentSummary(item),
+        payment: item.payment_method || '-',
         status: item.status || '-',
         arrived_at: this.formatAppointmentTrackingTime(item.arrived_at),
         done: this.formatDoneWork(item),
@@ -4700,10 +4734,14 @@ export default {
     },
 
     toggleAppointmentFilter(key) {
+      const column = this.appointmentFilterColumns.find(item => item.key === key)
+      if (!column?.filterable) return
       this.activeAppointmentFilter = this.activeAppointmentFilter === key ? null : key
     },
 
     toggleAppointmentFilterValue(key, value) {
+      const column = this.appointmentFilterColumns.find(item => item.key === key)
+      if (!column?.filterable) return
       const list = this.selectedAppointmentFilters[key] || []
       const index = list.indexOf(value)
       if (index >= 0) list.splice(index, 1)
@@ -4717,6 +4755,20 @@ export default {
 
     isAppointmentFiltered(key) {
       return Boolean(this.selectedAppointmentFilters[key]?.length)
+    },
+
+    resetNonFilterableAppointmentFilters() {
+      const allowed = new Set(this.appointmentFilterableColumns.map(column => column.key))
+      const next = {}
+      for (const key of allowed) {
+        next[key] = Array.isArray(this.selectedAppointmentFilters[key])
+          ? [...this.selectedAppointmentFilters[key]]
+          : []
+      }
+      this.selectedAppointmentFilters = next
+      if (this.activeAppointmentFilter && !allowed.has(this.activeAppointmentFilter)) {
+        this.activeAppointmentFilter = null
+      }
     },
 
     paymentDetails(item) {
@@ -6662,15 +6714,52 @@ select:focus {
 .profile-satisfaction-overview:hover { background: #fbfdff; }
 .profile-satisfaction-overview.is-open { border-bottom: 1px solid #eef2f7; }
 
-.rating-bars { display: grid; gap: 10px; }
+.rating-bars { display: grid; gap: 12px; }
+
+.rating-bars-empty {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
 
 .rating-bar-row {
   display: grid;
-  grid-template-columns: minmax(72px, 100px) 1fr 32px;
+  grid-template-columns: minmax(120px, 1.1fr) 1fr minmax(72px, auto);
   align-items: center;
   gap: 10px;
   color: #64748b;
   font-size: 12px;
+}
+
+.rating-question-row > span {
+  display: grid;
+  gap: 2px;
+  color: #334155;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.rating-question-row > span small {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.rating-question-row > b {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: #0f172a;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rating-question-row > b em {
+  font-style: normal;
+}
+
+.rating-question-row > b small {
+  color: #94a3b8;
+  font-weight: 600;
 }
 
 .rating-bar-row > div {
@@ -6687,9 +6776,6 @@ select:focus {
   border-radius: inherit;
   transition: width .45s ease;
 }
-
-.rating-bar-row:nth-child(3) i { background: #facc15; }
-.rating-bar-row:nth-child(n+4) i { background: #ef4444; }
 
 .rating-summary {
   text-align: center;
