@@ -90,3 +90,8 @@ test('campaign table export search and appointment prefill use latest descriptio
   assert.match(source, /followupNotesSearchText\(r\)/)
   assert.match(source, /description: this\.latestFollowupDescription\(row\)/)
 })
+
+test('description cell shows a tiny count badge only when notes exceed one', () => {
+  assert.match(source, /followupNotesCount\(row\) > 1/)
+  assert.match(source, /description-notes-count/)
+})

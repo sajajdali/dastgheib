@@ -782,7 +782,12 @@
                       </select>
                     </td>
 
-                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" :title="latestFollowupDescription(row) || 'بدون توضیح'" @click.stop="openDescriptionModal(row, true)">{{ truncateFollowupDescription(row) || 'بدون توضیح' }}</button></td>
+                    <td class="desc-col">
+                      <button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" :title="latestFollowupDescription(row) || 'بدون توضیح'" @click.stop="openDescriptionModal(row, true)">
+                        <span class="description-preview-text">{{ truncateFollowupDescription(row) || 'بدون توضیح' }}</span>
+                        <b v-if="followupNotesCount(row) > 1" class="description-notes-count" :title="`${followupNotesCount(row).toLocaleString('fa-IR')} یادداشت`">{{ followupNotesCount(row).toLocaleString('fa-IR') }}</b>
+                      </button>
+                    </td>
 
                     <td><input v-model="row.reason" disabled /></td>
 
@@ -1358,7 +1363,12 @@
                       </select>
                     </td>
 
-                    <td class="desc-col"><button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" :title="latestFollowupDescription(row) || 'ثبت توضیحات'" @click.stop="openDescriptionModal(row)">{{ truncateFollowupDescription(row) || 'ثبت توضیحات' }}</button></td>
+                    <td class="desc-col">
+                      <button type="button" class="description-preview" :class="{ empty: !latestFollowupDescription(row) }" :title="latestFollowupDescription(row) || 'ثبت توضیحات'" @click.stop="openDescriptionModal(row)">
+                        <span class="description-preview-text">{{ truncateFollowupDescription(row) || 'ثبت توضیحات' }}</span>
+                        <b v-if="followupNotesCount(row) > 1" class="description-notes-count" :title="`${followupNotesCount(row).toLocaleString('fa-IR')} یادداشت`">{{ followupNotesCount(row).toLocaleString('fa-IR') }}</b>
+                      </button>
+                    </td>
 
                     <td>
                       <select v-model="row.reason">
@@ -2517,6 +2527,9 @@ export default {
     },
     truncateFollowupDescription(row) {
       return truncateFollowupNote(this.latestFollowupDescription(row));
+    },
+    followupNotesCount(row) {
+      return this.followupNotesForRow(row).length;
     },
     currentFollowupAuthor() {
       return String(this.currentUser?.name || this.currentUser?.nickname || '').trim();
@@ -6643,7 +6656,7 @@ export default {
 .campaign-table-modal .contacts-table input,.campaign-table-modal .contacts-table select{width:100%;height:36px;min-width:0;margin:0;padding:0 5px;border:1px solid transparent;border-radius:6px;background:transparent;font-size:10px;line-height:34px;text-align:center;text-overflow:ellipsis;white-space:nowrap}
 .campaign-table-modal .contacts-table input:focus,.campaign-table-modal .contacts-table select:focus{border-color:#93c5fd;background:#eff6ff;box-shadow:0 0 0 2px rgba(96,165,250,.12)}
 .campaign-table-modal .contacts-table .vpd-input-group,.campaign-table-modal .contacts-table .vpd-input-group input,.campaign-table-modal .contacts-table .table-date-input{width:100%!important;min-width:0!important;height:36px!important;margin:0!important;padding:0 3px!important;font-size:9px!important}
-.contact-date-time{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:3px;min-width:0;overflow:hidden}.contact-date-time>span,.contact-time-input{display:grid!important;place-items:center;height:36px!important;min-width:0!important;margin:0!important;padding:0 2px!important;border:1px solid transparent!important;border-radius:6px!important;background:#f1f5f9!important;color:#475569!important;font-size:9px!important;font-weight:900!important;direction:ltr;text-align:center!important}.contact-date-time :deep(.vpd-input-group){display:flex!important;width:100%!important;min-width:0!important;max-width:100%!important;overflow:hidden}.contact-date-time :deep(.vpd-input-group input){width:0!important;min-width:0!important;flex:1 1 0!important}.contact-date-time :deep(.vpd-input-group button){flex:0 0 36px!important;width:36px!important}.contact-time-input:focus{border-color:#93c5fd!important;background:#eff6ff!important;outline:0}.description-preview{display:block;width:100%;height:34px;min-width:0;padding:0 7px;border:1px solid transparent;border-radius:7px;background:#f8fafc;color:#334155;font-family:inherit;font-size:10px;font-weight:800;line-height:32px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.description-preview:hover{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.description-preview.empty{color:#94a3b8;font-weight:700}
+.contact-date-time{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:3px;min-width:0;overflow:hidden}.contact-date-time>span,.contact-time-input{display:grid!important;place-items:center;height:36px!important;min-width:0!important;margin:0!important;padding:0 2px!important;border:1px solid transparent!important;border-radius:6px!important;background:#f1f5f9!important;color:#475569!important;font-size:9px!important;font-weight:900!important;direction:ltr;text-align:center!important}.contact-date-time :deep(.vpd-input-group){display:flex!important;width:100%!important;min-width:0!important;max-width:100%!important;overflow:hidden}.contact-date-time :deep(.vpd-input-group input){width:0!important;min-width:0!important;flex:1 1 0!important}.contact-date-time :deep(.vpd-input-group button){flex:0 0 36px!important;width:36px!important}.contact-time-input:focus{border-color:#93c5fd!important;background:#eff6ff!important;outline:0}.description-preview{display:flex;align-items:center;gap:5px;width:100%;height:34px;min-width:0;padding:0 7px;border:1px solid transparent;border-radius:7px;background:#f8fafc;color:#334155;font-family:inherit;font-size:10px;font-weight:800;text-align:right;cursor:pointer}.description-preview-text{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:32px}.description-notes-count{flex:0 0 auto;min-width:14px;height:14px;padding:0 4px;display:inline-grid;place-items:center;border-radius:999px;background:#e2e8f0;color:#64748b;font-size:8px;font-weight:1000;line-height:1}.description-preview:hover{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.description-preview:hover .description-notes-count{background:#dbeafe;color:#2563eb}.description-preview.empty{color:#94a3b8;font-weight:700}
 .campaign-table-modal .contacts-table .th-content{width:100%;min-width:0;gap:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .campaign-table-modal .filter-btn{width:19px;height:19px;flex:0 0 19px;display:grid;place-items:center;padding:0;color:#64748b;font-size:10px}
 .campaign-table-modal .resizer{width:5px}.campaign-table-modal .resizer:hover{background:#60a5fa}
@@ -7737,6 +7750,16 @@ html #app.dark .description-cancel {
   background: #2a2f3a !important;
   border-color: #3a3f4a !important;
   color: #e8eaed !important;
+}
+html body.dark .description-notes-count,
+html #app.dark .description-notes-count {
+  background: #2a2f3a !important;
+  color: #9aa0a6 !important;
+}
+html body.dark .description-preview:hover .description-notes-count,
+html #app.dark .description-preview:hover .description-notes-count {
+  background: #1e3a5f !important;
+  color: #93c5fd !important;
 }
 html body.dark .history-timeline,
 html body.dark .history-card,
