@@ -11,6 +11,7 @@ use App\Models\PatientMedia;
 use App\Models\PatientMediaFolder;
 use App\Services\CustomerLevelService;
 use App\Support\PatientPhoneVisibility;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -133,6 +134,107 @@ class BeautyAnnotationController extends Controller
             ]),
         ]);
     }
+
+    /**
+     * نقاط زیبایار که تاریخ اقدام‌شان گذشته و هنوز «در انتظار» مانده‌اند.
+     * هر نقطه یک ردیف است (یک بیمار می‌تواند چند بار ظاهر شود).
+     */
+    public function overdue(Request $request, CustomerLevelService $levels)
+    {
+        $today = Carbon::today()->toDateString();
+        $baseOverdue = fn () => BeautyAnnotation::query()
+            ->where('status', 'pending')
+            ->whereNotNull('annotation_date')
+            ->whereDate('annotation_date', '<', $today);
+
+        $total = $baseOverdue()->count();
+
+        $creators = $baseOverdue()
+            ->whereNotNull('created_by')
+            ->with('creator:id,name')
+            ->get(['id', 'created_by'])
+            ->pluck('creator')
+            ->filter()
+            ->unique('id')
+            ->values()
+            ->map(fn ($user) => ['id' => $user->id, 'name' => $user->name])
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $query = $baseOverdue()->with([
+            'patient:id,first_name,last_name,gender,phone,file_number,customer_level,profile_photo_path,profile_thumbnail_path',
+            'media:id,patient_id,path,photo_angle_label,comparison_stage,created_at',
+            'creator:id,name',
+        ]);
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('annotation_date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('annotation_date', '<=', $request->date_to);
+        }
+        if ($request->filled('area')) {
+            $query->where('area', $request->area);
+        }
+        if ($request->filled('problem')) {
+            $query->where('problem', $request->problem);
+        }
+        if ($request->filled('created_by')) {
+            $query->where('created_by', (int) $request->created_by);
+        }
+        if ($request->filled('q')) {
+            $term = trim((string) $request->q);
+            $query->whereHas('patient', function ($patientQuery) use ($term) {
+                $patientQuery->where(function ($inner) use ($term) {
+                    $inner->where('first_name', 'like', "%{$term}%")
+                        ->orWhere('last_name', 'like', "%{$term}%")
+                        ->orWhereRaw("CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) like ?", ["%{$term}%"])
+                        ->orWhere('file_number', 'like', "%{$term}%")
+                        ->orWhere('phone', 'like', "%{$term}%")
+                        ->orWhere('second_phone', 'like', "%{$term}%");
+                });
+            });
+        }
+
+        $minDays = $request->filled('overdue_days_min') ? max(1, (int) $request->overdue_days_min) : null;
+        $maxDays = $request->filled('overdue_days_max') ? max(1, (int) $request->overdue_days_max) : null;
+        if ($minDays !== null) {
+            $query->whereDate('annotation_date', '<=', Carbon::today()->subDays($minDays)->toDateString());
+        }
+        if ($maxDays !== null) {
+            $query->whereDate('annotation_date', '>=', Carbon::today()->subDays($maxDays)->toDateString());
+        }
+
+        $annotations = $query
+            ->orderBy('annotation_date')
+            ->orderBy('id')
+            ->limit(500)
+            ->get();
+
+        $levels->decorate($annotations->pluck('patient')->filter()->unique('id')->values());
+        $todayCarbon = Carbon::today();
+
+        return response()->json([
+            'total' => $total,
+            'count' => $annotations->count(),
+            'today' => $today,
+            'creators' => $creators,
+            'annotations' => $annotations->map(function (BeautyAnnotation $annotation) use ($request, $todayCarbon) {
+                $planned = $annotation->annotation_date
+                    ? Carbon::parse($annotation->annotation_date)->startOfDay()
+                    : null;
+                $daysOverdue = $planned ? (int) $planned->diffInDays($todayCarbon) : 0;
+
+                return [
+                    ...$this->formatAnnotation($annotation),
+                    'days_overdue' => $daysOverdue,
+                    'patient' => $this->hidePatientPhones($annotation->patient, $request),
+                    'media' => $annotation->media,
+                ];
+            })->values(),
+        ]);
+    }
+
     public function show(Request $request, Patient $patient, CustomerLevelService $levels)
     {
         // New beauty points are placed only on the patient's profile photo.

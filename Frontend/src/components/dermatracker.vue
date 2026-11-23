@@ -36,38 +36,162 @@
       </div>
 
       <header class="beauty-flow-card-header">
-        <div><h2>پرونده‌های در انتظار</h2></div>
-        <button type="button" class="beauty-flow-light-btn beauty-flow-refresh-btn" :disabled="worklistLoading" @click="loadWorklist">
-          {{ worklistLoading ? 'در حال دریافت...' : 'به‌روزرسانی' }}
+        <div class="beauty-flow-list-tabs" role="tablist" aria-label="فهرست‌های زیبایار">
+          <button
+            type="button"
+            role="tab"
+            class="beauty-flow-list-tab"
+            :class="{ active: listView === 'pending' }"
+            :aria-selected="listView === 'pending'"
+            @click="listView = 'pending'"
+          >
+            <span>پرونده‌های در انتظار</span>
+            <b v-if="worklist.length">{{ worklist.length.toLocaleString('fa-IR') }}</b>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="beauty-flow-list-tab beauty-flow-list-tab-overdue"
+            :class="{ active: listView === 'overdue' }"
+            :aria-selected="listView === 'overdue'"
+            title="نقاط با تاریخ گذشته که هنوز انجام نشده‌اند"
+            @click="listView = 'overdue'"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg>
+            <span>عدم پیگیری</span>
+            <b v-if="overdueCount">{{ overdueCount.toLocaleString('fa-IR') }}</b>
+          </button>
+        </div>
+        <button
+          type="button"
+          class="beauty-flow-light-btn beauty-flow-refresh-btn"
+          :disabled="listView === 'overdue' ? overdueLoading : worklistLoading"
+          @click="listView === 'overdue' ? loadOverdue() : loadWorklist()"
+        >
+          {{ (listView === 'overdue' ? overdueLoading : worklistLoading) ? 'در حال دریافت...' : 'به‌روزرسانی' }}
         </button>
       </header>
 
-      <div class="beauty-flow-worklist-filters">
-        <date-picker v-model="worklistFilters.date_from" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" placeholder="از تاریخ" auto-submit @change="loadWorklist" />
-        <date-picker v-model="worklistFilters.date_to" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" placeholder="تا تاریخ" auto-submit @change="loadWorklist" />
-      </div>
+      <template v-if="listView === 'pending'">
+        <div class="beauty-flow-worklist-filters">
+          <date-picker v-model="worklistFilters.date_from" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" placeholder="از تاریخ" auto-submit @change="loadWorklist" />
+          <date-picker v-model="worklistFilters.date_to" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" placeholder="تا تاریخ" auto-submit @change="loadWorklist" />
+        </div>
 
-      <div class="beauty-flow-table-wrap">
-        <table class="beauty-flow-table beauty-flow-worklist-table">
-          <thead><tr><th>نام</th><th>شماره پرونده</th><th>شماره تماس</th><th>ناحیه / مشکل</th><th>توضیح</th><th>تاریخ</th><th>وضعیت</th><th>پرونده</th></tr></thead>
-          <tbody>
-            <tr v-if="worklistLoading"><td colspan="8" class="beauty-flow-table-empty">در حال دریافت پرونده‌ها...</td></tr>
-            <tr v-else-if="!worklist.length"><td colspan="8" class="beauty-flow-table-empty">پرونده در انتظاری برای این بازه پیدا نشد.</td></tr>
-            <template v-else>
-              <tr v-for="item in worklist" :key="item.patient_id">
-                <td class="bf-cell-name" data-label="نام"><div class="beauty-flow-patient-cell"><span :class="['beauty-flow-avatar', `beauty-flow-avatar-${item.patient?.customer_level || 'silver'}`]"><img v-if="item.patient?.avatar_url" :src="item.patient.avatar_url" alt=""><b v-else>{{ patientInitial(item.patient) }}</b></span><span>{{ patientName(item.patient) }}</span></div></td>
-                <td data-label="شماره پرونده">{{ item.patient?.file_number || '-' }}</td>
-                <td data-label="شماره تماس">{{ displayPatientPhone(item.patient?.phone) || '-' }}</td>
-                <td data-label="ناحیه / مشکل">{{ annotationCategory(item) }}</td>
-                <td data-label="توضیح">{{ annotationNoteSummary(item) }}</td>
-                <td data-label="تاریخ">{{ formatDate(item.annotation_date || item.created_at) }}</td>
-                <td class="bf-cell-status" data-label="وضعیت"><span class="beauty-flow-status beauty-flow-status-pending">در انتظار</span></td>
-                <td class="bf-cell-action"><button type="button" class="beauty-flow-open-btn" @click="openWorklistRecord(item)">باز کردن پرونده</button></td>
+        <div class="beauty-flow-table-wrap">
+          <table class="beauty-flow-table beauty-flow-worklist-table">
+            <thead><tr><th>نام</th><th>شماره پرونده</th><th>شماره تماس</th><th>ناحیه / مشکل</th><th>توضیح</th><th>تاریخ</th><th>وضعیت</th><th>پرونده</th></tr></thead>
+            <tbody>
+              <tr v-if="worklistLoading"><td colspan="8" class="beauty-flow-table-empty">در حال دریافت پرونده‌ها...</td></tr>
+              <tr v-else-if="!worklist.length"><td colspan="8" class="beauty-flow-table-empty">پرونده در انتظاری برای این بازه پیدا نشد.</td></tr>
+              <template v-else>
+                <tr v-for="item in worklist" :key="item.patient_id">
+                  <td class="bf-cell-name" data-label="نام"><div class="beauty-flow-patient-cell"><span :class="['beauty-flow-avatar', `beauty-flow-avatar-${item.patient?.customer_level || 'silver'}`]"><img v-if="item.patient?.avatar_url" :src="item.patient.avatar_url" alt=""><b v-else>{{ patientInitial(item.patient) }}</b></span><span>{{ patientName(item.patient) }}</span></div></td>
+                  <td data-label="شماره پرونده">{{ item.patient?.file_number || '-' }}</td>
+                  <td data-label="شماره تماس">{{ displayPatientPhone(item.patient?.phone) || '-' }}</td>
+                  <td data-label="ناحیه / مشکل">{{ annotationCategory(item) }}</td>
+                  <td data-label="توضیح">{{ annotationNoteSummary(item) }}</td>
+                  <td data-label="تاریخ">{{ formatDate(item.annotation_date || item.created_at) }}</td>
+                  <td class="bf-cell-status" data-label="وضعیت"><span class="beauty-flow-status beauty-flow-status-pending">در انتظار</span></td>
+                  <td class="bf-cell-action"><button type="button" class="beauty-flow-open-btn" @click="openWorklistRecord(item)">باز کردن پرونده</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="beauty-flow-overdue-filters">
+          <input
+            v-model.trim="overdueFilters.q"
+            type="search"
+            placeholder="جستجو نام / شماره پرونده / تماس"
+            @keydown.enter.prevent="loadOverdue"
+          >
+          <date-picker v-model="overdueFilters.date_from" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" placeholder="از تاریخ اقدام" auto-submit @change="loadOverdue" />
+          <date-picker v-model="overdueFilters.date_to" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" placeholder="تا تاریخ اقدام" auto-submit @change="loadOverdue" />
+          <select v-model="overdueFilters.area" @change="loadOverdue">
+            <option value="">همه نواحی</option>
+            <option v-for="area in areas" :key="`od-area-${area}`" :value="area">{{ area }}</option>
+          </select>
+          <select v-model="overdueFilters.problem" @change="loadOverdue">
+            <option value="">همه مشکلات</option>
+            <option v-for="problem in problems" :key="`od-problem-${problem}`" :value="problem">{{ problem }}</option>
+          </select>
+          <input
+            v-model="overdueFilters.overdue_days_min"
+            type="number"
+            min="1"
+            placeholder="حداقل روز تأخیر"
+            @change="loadOverdue"
+          >
+          <input
+            v-model="overdueFilters.overdue_days_max"
+            type="number"
+            min="1"
+            placeholder="حداکثر روز تأخیر"
+            @change="loadOverdue"
+          >
+          <select v-model="overdueFilters.created_by" @change="loadOverdue">
+            <option value="">همه ثبت‌کننده‌ها</option>
+            <option v-for="creator in overdueCreators" :key="`od-creator-${creator.id}`" :value="String(creator.id)">{{ creator.name }}</option>
+          </select>
+          <button type="button" class="beauty-flow-light-btn" @click="loadOverdue">اعمال</button>
+        </div>
+
+        <div class="beauty-flow-table-wrap">
+          <table class="beauty-flow-table beauty-flow-overdue-table">
+            <thead>
+              <tr>
+                <th>بیمار</th>
+                <th>شماره پرونده</th>
+                <th>شماره تماس</th>
+                <th>تاریخ اقدام</th>
+                <th>روز تأخیر</th>
+                <th>ناحیه</th>
+                <th>مشکل</th>
+                <th>توضیح پزشک</th>
+                <th>ویس</th>
+                <th>وضعیت</th>
+                <th>پرونده</th>
               </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              <tr v-if="overdueLoading"><td colspan="11" class="beauty-flow-table-empty">در حال دریافت عدم پیگیری‌ها...</td></tr>
+              <tr v-else-if="!overdueList.length"><td colspan="11" class="beauty-flow-table-empty">نقطه عقب‌افتاده‌ای پیدا نشد.</td></tr>
+              <template v-else>
+                <tr v-for="item in overdueList" :key="`overdue-${item.id}`">
+                  <td class="bf-cell-name" data-label="بیمار">
+                    <div class="beauty-flow-patient-cell">
+                      <span :class="['beauty-flow-avatar', `beauty-flow-avatar-${item.patient?.customer_level || 'silver'}`]">
+                        <img v-if="item.patient?.avatar_url" :src="item.patient.avatar_url" alt="">
+                        <b v-else>{{ patientInitial(item.patient) }}</b>
+                      </span>
+                      <span>{{ patientName(item.patient) }}</span>
+                    </div>
+                  </td>
+                  <td data-label="شماره پرونده">{{ item.patient?.file_number || '-' }}</td>
+                  <td data-label="شماره تماس">{{ displayPatientPhone(item.patient?.phone) || '-' }}</td>
+                  <td data-label="تاریخ اقدام">{{ formatDate(item.annotation_date) }}</td>
+                  <td data-label="روز تأخیر"><span class="beauty-flow-overdue-days">{{ Number(item.days_overdue || 0).toLocaleString('fa-IR') }} روز</span></td>
+                  <td data-label="ناحیه">{{ item.area || '-' }}</td>
+                  <td data-label="مشکل">{{ item.problem || '-' }}</td>
+                  <td class="bf-cell-note" data-label="توضیح پزشک">{{ annotationNoteSummary(item) }}</td>
+                  <td class="bf-cell-voice" data-label="ویس">
+                    <audio v-if="item.voice_url" :src="item.voice_url" controls preload="none"></audio>
+                    <span v-else>-</span>
+                  </td>
+                  <td class="bf-cell-status" data-label="وضعیت"><span :class="['beauty-flow-status', statusClass(item.status)]">{{ statusLabel(item.status) }}</span></td>
+                  <td class="bf-cell-action">
+                    <button type="button" class="beauty-flow-open-btn" @click="openOverdueRecord(item)">باز کردن پرونده زیبایار</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </section>
     <section v-if="false" class="beauty-flow-card">
       <header class="beauty-flow-card-header">
@@ -261,7 +385,15 @@
               <b>ویس:</b>
               <audio :src="selectedAnnotation.voice_url" controls></audio>
             </div>
-            <p><b>تاریخ:</b> {{ formatDate(selectedAnnotation.annotation_date || selectedAnnotation.created_at) }}</p>
+            <label>تاریخ اقدام</label>
+            <date-picker
+              :model-value="selectedAnnotation.annotation_date || ''"
+              format="YYYY-MM-DD"
+              display-format="jYYYY/jMM/jDD"
+              placeholder="انتخاب تاریخ"
+              auto-submit
+              @update:model-value="value => rescheduleAnnotation(selectedAnnotation, value)"
+            />
             <div class="beauty-flow-editor-actions">
               <button type="button" class="beauty-flow-light-btn" @click="selectedAnnotation = null">بستن</button>
               <button v-if="selectedAnnotation.status !== 'done'" type="button" :disabled="savingPoint" @click="markDone(selectedAnnotation)">انجام شد</button>
@@ -331,7 +463,10 @@
                 :key="point.id"
                 type="button"
                 class="beauty-flow-point"
-                :class="{ 'beauty-flow-point-done': point.status === 'done' }"
+                :class="{
+                  'beauty-flow-point-done': point.status === 'done',
+                  'beauty-flow-point-selected': selectedAnnotation?.id === point.id
+                }"
                 :style="{ left: `${point.x_percent}%`, top: `${point.y_percent}%` }"
                 @click.stop="selectedAnnotation = point; draftPoint = null"
               ></button>
@@ -562,6 +697,22 @@ export default {
     worklist: [],
     worklistLoading: false,
     worklistFilters: { date_from: '', date_to: '' },
+    listView: 'pending',
+    overdueList: [],
+    overdueCount: 0,
+    overdueLoading: false,
+    overdueCreators: [],
+    overdueFilters: {
+      q: '',
+      date_from: '',
+      date_to: '',
+      area: '',
+      problem: '',
+      overdue_days_min: '',
+      overdue_days_max: '',
+      created_by: ''
+    },
+    focusAnnotationId: null,
     areas: [],
     problems: [],
     problemsSettingsOpen: false,
@@ -634,6 +785,7 @@ export default {
   mounted() {
     this.loadContext()
     this.loadWorklist()
+    this.loadOverdue()
     if (this.openPatientRequest?.id) this.openRecord(this.openPatientRequest, this.openPatientRequest.mediaId || '')
   },
   beforeUnmount() {
@@ -929,6 +1081,31 @@ export default {
         this.worklistLoading = false
       }
     },
+    async loadOverdue() {
+      this.overdueLoading = true
+      try {
+        const params = new URLSearchParams()
+        Object.entries(this.overdueFilters).forEach(([key, value]) => {
+          if (value !== '' && value !== null && value !== undefined) params.set(key, value)
+        })
+        const res = await fetch(`${API}/beauty/annotations/overdue?${params}`)
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'دریافت لیست عدم پیگیری انجام نشد.')
+        this.overdueList = data.annotations || []
+        this.overdueCount = Number.isFinite(Number(data.total))
+          ? Number(data.total)
+          : (Number.isFinite(Number(data.count)) ? Number(data.count) : this.overdueList.length)
+        this.overdueCreators = Array.isArray(data.creators) ? data.creators : []
+      } catch (error) {
+        this.searchError = error.message || 'دریافت لیست عدم پیگیری انجام نشد.'
+      } finally {
+        this.overdueLoading = false
+      }
+    },
+    refreshLists() {
+      this.loadWorklist()
+      this.loadOverdue()
+    },
     async searchPatients() {
       if (this.searching) return
       if (!this.search.file_number && !this.search.phone && !this.search.q) {
@@ -969,10 +1146,11 @@ export default {
         this.searching = false
       }
     },
-    async openRecord(patient, mediaId = '') {
+    async openRecord(patient, mediaId = '', focusAnnotationId = null) {
       this.activePatient = patient
       this.showCreatePanel = false
       this.selectedPhotoId = mediaId || ''
+      this.focusAnnotationId = focusAnnotationId || null
       this.draftPoint = null
       this.selectedAnnotation = null
       this.clearDraftVoice()
@@ -982,7 +1160,12 @@ export default {
     },
     async openWorklistRecord(item) {
       if (!item?.patient) return
-      await this.openRecord(item.patient, item.patient_media_id || '')
+      await this.openRecord(item.patient, item.patient_media_id || '', item.id || null)
+    },
+    async openOverdueRecord(item) {
+      if (!item?.patient) return
+      const mediaId = item.photo_source === 'media' ? (item.patient_media_id || '') : ''
+      await this.openRecord(item.patient, mediaId, item.id || null)
     },
     async loadServiceHistory() {
       if (!this.activePatient?.id) return
@@ -1047,7 +1230,11 @@ export default {
         const frontIndex = this.photoTimeline.angles.findIndex(angle => angle.key === 'front')
         this.compareAngleIndex = frontIndex >= 0 ? frontIndex : 0
         this.draftPoint = null
-        this.selectedAnnotation = null
+        const focusId = this.focusAnnotationId
+        this.focusAnnotationId = null
+        this.selectedAnnotation = focusId
+          ? (this.annotations.find(item => String(item.id) === String(focusId)) || null)
+          : null
       } catch (error) {
         this.searchError = error.message || 'دریافت پرونده زیبایار انجام نشد.'
       } finally {
@@ -1099,7 +1286,7 @@ export default {
         this.selectedAnnotation = data
         this.draftPoint = null
         this.clearDraftVoice()
-        this.loadWorklist()
+        this.refreshLists()
       } catch (error) {
         this.searchError = error.message || 'ثبت نقطه انجام نشد.'
       } finally {
@@ -1118,7 +1305,7 @@ export default {
         if (!res.ok) throw new Error(data.message || 'ثبت وضعیت انجام نشد.')
         this.annotations = this.annotations.map(item => item.id === point.id ? data : item)
         this.selectedAnnotation = data
-        this.loadWorklist()
+        this.refreshLists()
       } catch (error) {
         this.searchError = error.message || 'ثبت وضعیت انجام نشد.'
       } finally {
@@ -1138,9 +1325,32 @@ export default {
         if (!res.ok) throw new Error(data.message || 'برگرداندن وضعیت نقطه انجام نشد.')
         this.annotations = this.annotations.map(item => item.id === point.id ? data : item)
         this.selectedAnnotation = data
-        this.loadWorklist()
+        this.refreshLists()
       } catch (error) {
         this.searchError = error.message || 'برگرداندن وضعیت نقطه انجام نشد.'
+      } finally {
+        this.savingPoint = false
+      }
+    },
+    async rescheduleAnnotation(point, nextDate) {
+      if (!point?.id || !this.activePatient?.id) return
+      const date = String(nextDate || '').trim()
+      if (!date || date === String(point.annotation_date || '')) return
+
+      this.savingPoint = true
+      try {
+        const res = await fetch(`${API}/patients/${this.activePatient.id}/beauty/annotations/${point.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ annotation_date: date })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.message || 'تغییر تاریخ نقطه انجام نشد.')
+        this.annotations = this.annotations.map(item => item.id === point.id ? data : item)
+        this.selectedAnnotation = data
+        this.refreshLists()
+      } catch (error) {
+        this.searchError = error.message || 'تغییر تاریخ نقطه انجام نشد.'
       } finally {
         this.savingPoint = false
       }
@@ -1170,7 +1380,7 @@ export default {
         if (this.selectedAnnotation && updatedById.has(this.selectedAnnotation.id)) {
           this.selectedAnnotation = updatedById.get(this.selectedAnnotation.id)
         }
-        this.loadWorklist()
+        this.refreshLists()
       } catch (error) {
         this.searchError = error.message || 'ثبت وضعیت نقاط انجام نشد.'
       } finally {
@@ -1192,7 +1402,7 @@ export default {
         if (!res.ok) throw new Error(data.message || 'حذف نقطه انجام نشد.')
         this.annotations = this.annotations.filter(item => item.id !== point.id)
         this.selectedAnnotation = null
-        this.loadWorklist()
+        this.refreshLists()
       } catch (error) {
         this.searchError = error.message || 'حذف نقطه انجام نشد.'
       } finally {
@@ -1266,6 +1476,8 @@ export default {
       this.servicesExpanded = false
       this.draftPoint = null
       this.selectedAnnotation = null
+      this.focusAnnotationId = null
+      this.refreshLists()
     }
   }
 }
@@ -1482,14 +1694,103 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.beauty-flow-list-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.beauty-flow-list-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+}
+.beauty-flow-list-tab svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.beauty-flow-list-tab b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+}
+.beauty-flow-list-tab.active {
+  border-color: #99f6e4;
+  background: #ecfdf5;
+  color: #0f766e;
+}
+.beauty-flow-list-tab.active b {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+.beauty-flow-list-tab-overdue.active {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.beauty-flow-list-tab-overdue.active b,
+.beauty-flow-list-tab-overdue b {
+  background: #fee2e2;
+  color: #b91c1c;
+}
 .beauty-flow-worklist-filters {
   display: grid;
   grid-template-columns: repeat(2, minmax(150px, 190px));
   gap: 10px;
   margin-bottom: 12px;
 }
+.beauty-flow-overdue-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(140px, 170px)) repeat(2, minmax(120px, 150px)) repeat(2, minmax(110px, 130px)) minmax(140px, 170px) 90px;
+  gap: 10px;
+  margin-bottom: 12px;
+  align-items: center;
+}
 .beauty-flow-worklist-table {
   min-width: 1040px;
+}
+.beauty-flow-overdue-table {
+  min-width: 1380px;
+}
+.beauty-flow-overdue-days {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 900;
+}
+.beauty-flow-overdue-table .bf-cell-voice audio {
+  width: min(160px, 100%);
+  height: 32px;
+}
+.beauty-flow-overdue-table .bf-cell-note {
+  white-space: normal;
+  max-width: 220px;
 }
 .beauty-flow-table-empty {
   height: 72px;
@@ -2001,6 +2302,11 @@ export default {
   background: #22c55e !important;
   box-shadow: 0 0 0 2px rgba(34,197,94,.4);
 }
+.beauty-flow-point-selected {
+  border-color: #b91c1c !important;
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, .35), 0 0 0 7px rgba(185, 28, 28, .12);
+  z-index: 4;
+}
 .beauty-flow-point-draft {
   border-color: #0f766e !important;
   background: #99f6e4 !important;
@@ -2109,7 +2415,8 @@ export default {
   .beauty-flow-search-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .beauty-flow-worklist-filters {
+  .beauty-flow-worklist-filters,
+  .beauty-flow-overdue-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .beauty-flow-workspace {
@@ -2123,7 +2430,8 @@ export default {
   .beauty-flow-search-grid {
     grid-template-columns: 1fr;
   }
-  .beauty-flow-worklist-filters {
+  .beauty-flow-worklist-filters,
+  .beauty-flow-overdue-filters {
     grid-template-columns: 1fr;
   }
   .beauty-flow-card-header,
@@ -2131,6 +2439,13 @@ export default {
   .beauty-flow-photo-header {
     align-items: stretch;
     flex-direction: column;
+  }
+  .beauty-flow-list-tabs {
+    width: 100%;
+  }
+  .beauty-flow-list-tab {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 
@@ -2343,11 +2658,14 @@ export default {
   .beauty-flow-point-note span { font-size: 9px; }
   .beauty-flow-point-count span { padding: 5px 9px; font-size: 10.5px; }
 
-  /* پرونده‌های در انتظار: هر ردیف یک کارت */
+  /* پرونده‌های در انتظار / عدم پیگیری: هر ردیف یک کارت */
   .beauty-flow-table-wrap { overflow: visible; border: 0; }
-  .beauty-flow-worklist-table, .beauty-flow-worklist-table tbody { display: block; min-width: 0; width: 100%; }
-  .beauty-flow-worklist-table thead { display: none; }
-  .beauty-flow-worklist-table tbody tr {
+  .beauty-flow-worklist-table, .beauty-flow-worklist-table tbody,
+  .beauty-flow-overdue-table, .beauty-flow-overdue-table tbody { display: block; min-width: 0; width: 100%; }
+  .beauty-flow-worklist-table thead,
+  .beauty-flow-overdue-table thead { display: none; }
+  .beauty-flow-worklist-table tbody tr,
+  .beauty-flow-overdue-table tbody tr {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 8px 12px;
@@ -2358,14 +2676,25 @@ export default {
     background: #fff;
     box-shadow: var(--bf-shadow);
   }
-  .beauty-flow-worklist-table td { display: grid; gap: 2px; padding: 0; border: 0; white-space: normal; font-size: 12.5px; }
-  .beauty-flow-worklist-table td[data-label]::before { content: attr(data-label); color: #94a3b8; font-size: 10px; font-weight: 800; }
-  .beauty-flow-worklist-table td.bf-cell-name { grid-column: 1 / -1; }
-  .beauty-flow-worklist-table td.bf-cell-name::before { display: none; }
-  .beauty-flow-worklist-table td.bf-cell-action { grid-column: 1 / -1; }
-  .beauty-flow-worklist-table td.bf-cell-action button { width: 100%; }
-  .beauty-flow-worklist-table td.beauty-flow-table-empty { display: block; padding: 26px 12px; color: var(--bf-muted); text-align: center; }
-  .beauty-flow-worklist-table tr:has(> .beauty-flow-table-empty) { display: block; border-style: dashed; box-shadow: none; background: #f8fafc; }
+  .beauty-flow-worklist-table td,
+  .beauty-flow-overdue-table td { display: grid; gap: 2px; padding: 0; border: 0; white-space: normal; font-size: 12.5px; }
+  .beauty-flow-worklist-table td[data-label]::before,
+  .beauty-flow-overdue-table td[data-label]::before { content: attr(data-label); color: #94a3b8; font-size: 10px; font-weight: 800; }
+  .beauty-flow-worklist-table td.bf-cell-name,
+  .beauty-flow-overdue-table td.bf-cell-name,
+  .beauty-flow-overdue-table td.bf-cell-note,
+  .beauty-flow-overdue-table td.bf-cell-voice { grid-column: 1 / -1; }
+  .beauty-flow-worklist-table td.bf-cell-name::before,
+  .beauty-flow-overdue-table td.bf-cell-name::before { display: none; }
+  .beauty-flow-worklist-table td.bf-cell-action,
+  .beauty-flow-overdue-table td.bf-cell-action { grid-column: 1 / -1; }
+  .beauty-flow-worklist-table td.bf-cell-action button,
+  .beauty-flow-overdue-table td.bf-cell-action button { width: 100%; }
+  .beauty-flow-overdue-table .bf-cell-voice audio { width: 100%; }
+  .beauty-flow-worklist-table td.beauty-flow-table-empty,
+  .beauty-flow-overdue-table td.beauty-flow-table-empty { display: block; padding: 26px 12px; color: var(--bf-muted); text-align: center; }
+  .beauty-flow-worklist-table tr:has(> .beauty-flow-table-empty),
+  .beauty-flow-overdue-table tr:has(> .beauty-flow-table-empty) { display: block; border-style: dashed; box-shadow: none; background: #f8fafc; }
 
   .beauty-compare, .beauty-folders { padding: 12px; }
   .beauty-folders-grid { grid-template-columns: 1fr; }
@@ -2640,6 +2969,42 @@ html body.dark .beauty-flow .beauty-flow-status-done,
 html #app.dark .beauty-flow .beauty-flow-status-done {
   background: #14352a !important;
   color: #86efac !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab,
+html #app.dark .beauty-flow .beauty-flow-list-tab {
+  background: #22252d !important;
+  border-color: #3a3f4a !important;
+  color: #e8eaed !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab b,
+html #app.dark .beauty-flow .beauty-flow-list-tab b {
+  background: #2a2f3a !important;
+  color: #c5cad3 !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab.active,
+html #app.dark .beauty-flow .beauty-flow-list-tab.active {
+  background: #14352a !important;
+  border-color: #2f6f57 !important;
+  color: #86efac !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab-overdue.active,
+html #app.dark .beauty-flow .beauty-flow-list-tab-overdue.active {
+  background: #3a1d22 !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+html body.dark .beauty-flow .beauty-flow-list-tab-overdue b,
+html body.dark .beauty-flow .beauty-flow-list-tab-overdue.active b,
+html #app.dark .beauty-flow .beauty-flow-list-tab-overdue b,
+html #app.dark .beauty-flow .beauty-flow-list-tab-overdue.active b {
+  background: #4c1d24 !important;
+  color: #fecaca !important;
+}
+html body.dark .beauty-flow .beauty-flow-overdue-days,
+html #app.dark .beauty-flow .beauty-flow-overdue-days {
+  background: #3a1d22 !important;
+  border-color: #7f1d1d !important;
+  color: #fca5a5 !important;
 }
 html body.dark .beauty-flow .beauty-flow-record-header,
 html #app.dark .beauty-flow .beauty-flow-record-header {
