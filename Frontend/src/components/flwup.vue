@@ -167,10 +167,6 @@
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m5 17 4.5-4 3.2 2.7 2.5-2.2L19 17"/></svg>
                   </span>
-                  <select v-model="campaign.campaignStatus" class="campaign-status-select" :class="campaignStatusClass(campaign.campaignStatus)" @click.stop>
-                    <option value="active">فعال</option><option value="paused">متوقف</option>
-                    <option value="finished">پایان‌یافته</option><option value="archived">آرشیو</option>
-                  </select>
 
                   <span
                     v-if="hasTodayFollowups(campaign)"
@@ -257,6 +253,13 @@
                 <div class="stat-title">وقت داده شد</div>
                 <div class="stat-value">
                   {{ getAppointmentCount(campaign) }}
+                </div>
+              </div>
+
+              <div class="stat-card workdone">
+                <div class="stat-title">کار انجام شد</div>
+                <div class="stat-value">
+                  {{ getWorkDoneCount(campaign) }}
                 </div>
               </div>
 
@@ -512,21 +515,11 @@
 
         <section v-if="reportFilterTab === 'campaigns'" class="report-filter-panel">
           <div class="report-filter-group wide"><b>جست‌وجوی کمپین</b><input v-model="reportSearch" placeholder="نام کمپین یا منبع تبلیغ..." /></div>
-          <div class="report-filter-group"><b>وضعیت کمپین</b><div class="report-filter-chips"><label v-for="item in campaignStatusFilterOptions" :key="item.value" :class="{ selected: reportCampaignStatuses.includes(item.value) }"><input v-model="reportCampaignStatuses" type="checkbox" :value="item.value">{{ item.label }}</label></div></div>
           <div class="report-filter-group"><b>منبع کمپین</b><div class="report-filter-chips"><label v-for="source in reportCampaignSourceOptions" :key="source" :class="{ selected: reportCampaignSources.includes(source) }"><input v-model="reportCampaignSources" type="checkbox" :value="source">{{ source }}</label><small v-if="!reportCampaignSourceOptions.length">منبعی ثبت نشده است</small></div></div>
           <div class="report-filter-group"><b>کیفیت تبلیغ</b><div class="report-filter-chips"><label v-for="quality in campaignQualityOptions" :key="quality" :class="{ selected: reportCampaignQualities.includes(quality) }"><input v-model="reportCampaignQualities" type="checkbox" :value="quality">{{ quality }}</label></div></div>
           <div class="report-filter-group report-cost-range"><b>بازه هزینه</b><div><input v-model.number="reportCostMin" type="number" min="0" placeholder="از مبلغ"><input v-model.number="reportCostMax" type="number" min="0" placeholder="تا مبلغ"></div></div>
+          <div class="report-filter-actions"><button type="button" @click="resetAdvancedReportFilters">پاک کردن همه فیلترها</button></div>
         </section>
-
-        <section v-else class="report-filter-panel customer-filters">
-          <div class="report-filter-group wide"><b>جست‌وجوی مشتری</b><input v-model="reportSearch" placeholder="نام، شماره تماس، مشاور یا توضیحات..." /></div>
-          <div class="report-filter-group"><b>نام مشاور</b><div class="report-filter-chips"><label v-for="staff in staffOptions" :key="staff.id" :class="{ selected: selectedReportFilters.consultant.includes(staff.name) }"><input v-model="selectedReportFilters.consultant" type="checkbox" :value="staff.name">{{ staff.name }}</label></div></div>
-          <div class="report-filter-group"><b>وضعیت پاسخ</b><div class="report-filter-chips"><label v-for="status in statusFilterOptions()" :key="status.value" :class="{ selected: selectedReportFilters.status.includes(status.value) }"><input v-model="selectedReportFilters.status" type="checkbox" :value="status.value">{{ status.label }}</label></div></div>
-          <div class="report-filter-group"><b>درجه تمایل</b><div class="report-filter-chips"><label v-for="interest in interestFilterOptions()" :key="interest.value" :class="{ selected: selectedReportFilters.interest.includes(interest.value) }"><input v-model="selectedReportFilters.interest" type="checkbox" :value="interest.value">{{ interest.label }}</label></div></div>
-          <div class="report-filter-group wide"><b>علت عدم تبدیل</b><div class="report-filter-chips"><label v-for="reason in reasonOptions" :key="reason" :class="{ selected: selectedReportFilters.reason.includes(reason) }"><input v-model="selectedReportFilters.reason" type="checkbox" :value="reason">{{ reason }}</label></div></div>
-        </section>
-
-        <div class="report-filter-actions"><button @click="resetAdvancedReportFilters">پاک کردن همه فیلترها</button></div>
 
         <section v-if="reportFilterTab === 'campaigns'" class="filtered-campaign-results">
           <article v-for="campaign in filteredReportCampaigns" :key="campaign.id" @click="showDateReportModal=false; openCampaign(campaign.id)">
@@ -1998,15 +1991,10 @@ export default {
       reportDateFrom: "",
       reportDateTo: "",
       reportSearch: "",
-      reportCampaignStatuses: [],
       reportCampaignSources: [],
       reportCampaignQualities: [],
       reportCostMin: "",
       reportCostMax: "",
-      campaignStatusFilterOptions: [
-        { value: "active", label: "فعال" }, { value: "paused", label: "متوقف" },
-        { value: "finished", label: "پایان‌یافته" }, { value: "archived", label: "آرشیو شده" },
-      ],
       campaignQualityOptions: ["عالی", "خوب", "متوسط", "ضعیف"],
       activeReportFilter: null,
       reportFilterMenuStyle: {},
@@ -2043,6 +2031,7 @@ export default {
       automaticSmsByRow: {},
       // وضعیت «انجام کار» نوبت‌هایی که از ستون «ثبت نوبت» گرفته شده‌اند (کلید: _localId ردیف).
       followupAppointmentStatuses: {},
+      followupAppointmentStatusRequestId: 0,
       automaticSmsLoading: false,
       automaticSmsModalRow: null,
       automaticSmsDraft: [],
@@ -2308,14 +2297,13 @@ export default {
       return this.campaigns.filter(campaign => !this.isGeneralFollowupCampaign(campaign)).filter(campaign => {
         const searchMatch = !term || [campaign.title, campaign.sourceName, campaign.source]
           .filter(Boolean).some(value => String(value).toLowerCase().includes(term));
-        const statusMatch = !this.reportCampaignStatuses.length || this.reportCampaignStatuses.includes(campaign.campaignStatus || 'active');
         const sourceMatch = !this.reportCampaignSources.length || this.reportCampaignSources.includes(campaign.source || campaign.sourceName || '');
         const qualityMatch = !this.reportCampaignQualities.length || this.reportCampaignQualities.includes(this.campaignQualityLabel(campaign));
         const cost = this.moneyToNumber(campaign.cost);
         const costMatch = (this.reportCostMin === '' || cost >= Number(this.reportCostMin)) && (this.reportCostMax === '' || cost <= Number(this.reportCostMax));
         const date = campaign.date || '';
         const dateMatch = (!this.reportDateFrom || date >= this.reportDateFrom) && (!this.reportDateTo || date <= this.reportDateTo);
-        return searchMatch && statusMatch && sourceMatch && qualityMatch && costMatch && dateMatch;
+        return searchMatch && sourceMatch && qualityMatch && costMatch && dateMatch;
       });
     },
 
@@ -2434,7 +2422,6 @@ export default {
           reason: [],
         };
         this.reportFilterTab = "campaigns";
-        this.reportCampaignStatuses = [];
         this.reportCampaignSources = [];
         this.reportCampaignQualities = [];
         this.reportCostMin = "";
@@ -3010,7 +2997,6 @@ export default {
       this.reportDateFrom = '';
       this.reportDateTo = '';
       this.reportSearch = '';
-      this.reportCampaignStatuses = [];
       this.reportCampaignSources = [];
       this.reportCampaignQualities = [];
       this.reportCostMin = '';
@@ -3873,32 +3859,43 @@ export default {
     },
 
     // نوبتی که از پیگیری گرفته شده، وقتی در نوبت‌دهی «انجام شد» بخورد، اینجا تیک می‌گیرد.
+    // برای کارت‌های کمپین همهٔ ردیف‌های ثبت‌نوبت‌شده را می‌گیریم تا KPI «کار انجام شد» هم به‌روز باشد.
     async loadFollowupAppointmentStatuses() {
-      const campaign = this.activeCampaign;
-      if (!campaign || !this.canOpenAppointments) return;
-      const items = (campaign.rows || [])
-        .filter(row => row?._localId && this.hasRegisteredAppointment(row))
-        .map(row => {
-          const date = moment(this.normalizeDateValue(row.appointmentDate), ["YYYY-MM-DD", "YYYY-M-D"], true);
-          return {
-            key: String(row._localId),
-            appointment_id: Number(row.appointmentId) || null,
-            phone: row.phone && !this.isMaskedPhone(row.phone) ? row.phone : null,
-            month: date.isValid() ? date.format("jYYYY-jMM") : null,
-            day_num: date.isValid() ? Number(date.format("jD")) : null,
-            time: row.appointmentTime || null,
-          };
-        })
-        .filter(item => item.appointment_id || (item.phone && item.month));
+      if (!this.canOpenAppointments) return;
+      const requestId = (this.followupAppointmentStatusRequestId =
+        (this.followupAppointmentStatusRequestId || 0) + 1);
+      const items = this.campaigns.flatMap((campaign) =>
+        (campaign.rows || [])
+          .filter((row) => row?._localId && this.hasRegisteredAppointment(row))
+          .map((row) => {
+            const date = moment(this.normalizeDateValue(row.appointmentDate), ["YYYY-MM-DD", "YYYY-M-D"], true);
+            return {
+              key: String(row._localId),
+              appointment_id: Number(row.appointmentId) || null,
+              phone: row.phone && !this.isMaskedPhone(row.phone) ? row.phone : null,
+              month: date.isValid() ? date.format("jYYYY-jMM") : null,
+              day_num: date.isValid() ? Number(date.format("jD")) : null,
+              time: row.appointmentTime || null,
+            };
+          }),
+      ).filter((item) => item.appointment_id || (item.phone && item.month));
       if (!items.length) {
-        this.followupAppointmentStatuses = {};
+        if (requestId === this.followupAppointmentStatusRequestId) {
+          this.followupAppointmentStatuses = {};
+        }
         return;
       }
-      const campaignId = campaign.id;
       try {
-        const { data } = await axios.post("/api/followups/appointment-statuses", { items });
-        if (this.activeCampaign?.id !== campaignId) return;
-        this.followupAppointmentStatuses = data?.statuses || {};
+        const statuses = {};
+        const chunkSize = 2000;
+        for (let index = 0; index < items.length; index += chunkSize) {
+          const { data } = await axios.post("/api/followups/appointment-statuses", {
+            items: items.slice(index, index + chunkSize),
+          });
+          if (requestId !== this.followupAppointmentStatusRequestId) return;
+          Object.assign(statuses, data?.statuses || {});
+        }
+        this.followupAppointmentStatuses = statuses;
       } catch (error) {
         console.warn("وضعیت انجام نوبت‌های پیگیری دریافت نشد.", error);
       }
@@ -4645,7 +4642,13 @@ export default {
     },
 
     getAppointmentCount(campaign) {
+      // مستقل از «کار انجام شد»: با انجام کار کم نمی‌شود.
       return this.getInterestCount(campaign, "ok");
+    },
+
+    getWorkDoneCount(campaign) {
+      // افرادی که از همین کمپین نوبت گرفته‌اند و وضعیت نوبت‌شان «انجام شد» شده است.
+      return this.campaignLeadRows(campaign).filter((row) => this.isFollowupAppointmentDone(row)).length;
     },
 
     calculateCampaignScore(campaign) {
@@ -5509,7 +5512,7 @@ export default {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 7px;
   margin-bottom: 12px;
 }
@@ -5554,6 +5557,12 @@ export default {
   background: #eefdf3;
   border-color: #86efac;
   color: #15803d;
+}
+
+.stat-card.workdone {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+  color: #0e7490;
 }
 
 .chart-card {
@@ -6659,7 +6668,7 @@ export default {
 .campaign-card {
   cursor: grab;
 }
-.report-filter-tabs{display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:6px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.report-filter-tabs button{height:40px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#64748b;font-family:inherit;font-weight:900;cursor:pointer}.report-filter-tabs button.active{background:#2563eb;color:#fff;box-shadow:0 7px 18px rgba(37,99,235,.2)}.report-filter-tabs>span{margin-right:auto;padding:5px 10px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:11px;font-weight:900}.report-filter-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.report-filter-group{min-width:0;display:flex;flex-direction:column;gap:8px}.report-filter-group.wide{grid-column:span 2}.report-filter-group>b{color:#334155;font-size:12px}.report-filter-group>input,.report-cost-range input{height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;outline:none}.report-filter-group>input:focus,.report-cost-range input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.report-filter-chips{display:flex;gap:6px;flex-wrap:wrap}.report-filter-chips label{display:flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #dbe3ed;border-radius:999px;background:#fff;color:#475569;font-size:10px;font-weight:900;cursor:pointer}.report-filter-chips label.selected{border-color:#60a5fa;background:#dbeafe;color:#1d4ed8}.report-filter-chips input{display:none}.report-cost-range>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-filter-actions{display:flex;justify-content:flex-end;padding:8px 0}.report-filter-actions button{padding:8px 13px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7;color:#b91c1c;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.filtered-campaign-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-height:52vh;overflow:auto;padding:5px}.filtered-campaign-results article{padding:15px;border:1px solid #e2e8f0;border-radius:15px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);cursor:pointer;transition:.18s}.filtered-campaign-results article:hover{transform:translateY(-2px);border-color:#93c5fd;box-shadow:0 12px 25px rgba(15,23,42,.1)}.filtered-campaign-results header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.filtered-campaign-results header strong{overflow:hidden;color:#0f172a;text-overflow:ellipsis;white-space:nowrap}.filtered-campaign-results header span{padding:4px 7px;border-radius:999px;font-size:9px;font-weight:900}.filtered-campaign-results article>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filtered-campaign-results article>div span{display:flex;justify-content:space-between;padding:7px;border-radius:8px;background:#f8fafc;color:#64748b;font-size:10px}.filtered-campaign-results article>div b{color:#1e293b}@media(max-width:900px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr 1fr}}@media(max-width:640px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr}.report-filter-group.wide{grid-column:auto}.report-filter-tabs button{padding:0 10px}.report-filter-tabs>span{display:none}}
+.report-filter-tabs{display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:6px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.report-filter-tabs button{height:40px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#64748b;font-family:inherit;font-weight:900;cursor:pointer}.report-filter-tabs button.active{background:#2563eb;color:#fff;box-shadow:0 7px 18px rgba(37,99,235,.2)}.report-filter-tabs>span{margin-right:auto;padding:5px 10px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:11px;font-weight:900}.report-filter-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.report-filter-group{min-width:0;display:flex;flex-direction:column;gap:8px}.report-filter-group.wide{grid-column:span 2}.report-filter-group>b{color:#334155;font-size:12px}.report-filter-group>input,.report-cost-range input{height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;outline:none}.report-filter-group>input:focus,.report-cost-range input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.report-filter-chips{display:flex;gap:6px;flex-wrap:wrap}.report-filter-chips label{display:flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #dbe3ed;border-radius:999px;background:#fff;color:#475569;font-size:10px;font-weight:900;cursor:pointer}.report-filter-chips label.selected{border-color:#60a5fa;background:#dbeafe;color:#1d4ed8}.report-filter-chips input{display:none}.report-cost-range>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-filter-actions{grid-column:1/-1;display:flex;justify-content:flex-end;padding:8px 0}.report-filter-actions button{padding:8px 13px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7;color:#b91c1c;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.filtered-campaign-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-height:52vh;overflow:auto;padding:5px}.filtered-campaign-results article{padding:15px;border:1px solid #e2e8f0;border-radius:15px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);cursor:pointer;transition:.18s}.filtered-campaign-results article:hover{transform:translateY(-2px);border-color:#93c5fd;box-shadow:0 12px 25px rgba(15,23,42,.1)}.filtered-campaign-results header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.filtered-campaign-results header strong{overflow:hidden;color:#0f172a;text-overflow:ellipsis;white-space:nowrap}.filtered-campaign-results header span{padding:4px 7px;border-radius:999px;font-size:9px;font-weight:900}.filtered-campaign-results article>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filtered-campaign-results article>div span{display:flex;justify-content:space-between;padding:7px;border-radius:8px;background:#f8fafc;color:#64748b;font-size:10px}.filtered-campaign-results article>div b{color:#1e293b}@media(max-width:900px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr 1fr}}@media(max-width:640px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr}.report-filter-group.wide{grid-column:auto}.report-filter-tabs button{padding:0 10px}.report-filter-tabs>span{display:none}}
 .subsection-cell{position:relative;overflow:visible!important}.subsection-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#94a3b8;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}.subsection-trigger.active{border-color:#a78bfa;background:#f5f3ff;color:#5b21b6}.subsection-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.subsection-menu-floating{position:fixed!important;z-index:2147483575!important;display:flex;flex-direction:column;gap:6px;max-height:min(330px,calc(100vh - 24px));padding:8px;border:1px solid #ddd6fe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2);direction:rtl;box-sizing:border-box}.subsection-options{display:grid;gap:2px;overflow:auto;max-height:260px}.subsection-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 9px;border:0;border-radius:8px;background:transparent;color:#334155;font-family:inherit;font-size:11px;font-weight:800;text-align:right;cursor:pointer}.subsection-option:hover,.subsection-option.selected{background:#f5f3ff;color:#5b21b6}.subsection-option.clear{color:#b91c1c}.subsection-option.clear:hover{background:#fee2e2}.subsection-option i{color:#16a34a;font-style:normal;font-weight:1000}.subsection-retry{margin-right:4px;border:0;background:none;color:#2563eb;font-family:inherit;font-weight:900;cursor:pointer}.filter-search-input{width:100%;height:32px;margin:0 0 6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#0f172a;font-family:inherit;font-size:11px;box-sizing:border-box}.filter-search-input:focus{outline:none;border-color:#8b5cf6;background:#fff}.filter-empty{padding:9px 6px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}.filter-clear-btn{width:100%;margin-top:6px;padding:7px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-dropdown{min-width:230px!important}.date-filter-title{padding:2px 4px 8px;color:#334155;font-size:11px;font-weight:1000}.date-filter-field{display:grid;grid-template-columns:22px 1fr;align-items:center;gap:6px;margin-bottom:6px;color:#64748b;font-size:11px;font-weight:900}.date-filter-actions{display:flex;gap:6px;margin-top:4px}.date-filter-actions button{flex:1;padding:7px;border:0;border-radius:8px;background:#ede9fe;color:#5b21b6;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-actions button.danger{background:#fee2e2;color:#b91c1c}
 .landing-multi-cell{position:relative;overflow:visible!important}.landing-multi-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer}.landing-multi-trigger.active{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.landing-multi-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.landing-multi-menu{position:absolute;z-index:500;top:calc(100% + 5px);right:4px;width:230px;padding:8px;border:1px solid #dbeafe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2)}.landing-multi-menu-floating{position:fixed!important;z-index:1000005!important;max-height:min(320px,calc(100vh - 24px));overflow:auto}.landing-multi-title{padding:5px 7px 9px;border-bottom:1px solid #eef2f7;color:#334155;font-size:11px;font-weight:1000}.landing-multi-menu label{display:flex;align-items:center;gap:8px;padding:9px 7px;border-radius:8px;color:#475569;font-size:11px;font-weight:800;cursor:pointer}.landing-multi-menu label:hover,.landing-multi-menu label.selected{background:#eff6ff;color:#1d4ed8}.landing-multi-menu input{width:16px!important;height:16px!important;accent-color:#2563eb}.landing-multi-menu label span{flex:1}.landing-multi-menu label i{color:#16a34a;font-style:normal;font-weight:1000}.landing-clear-btn{width:100%;margin-top:5px;padding:8px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
 .landing-multi-empty{padding:13px 7px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}
@@ -7168,6 +7177,12 @@ html #app.dark .flwup-root .stat-card.oktime {
   background: #163528 !important;
   border-color: #15803d !important;
   color: #86efac !important;
+}
+html body.dark .flwup-root .stat-card.workdone,
+html #app.dark .flwup-root .stat-card.workdone {
+  background: #12353b !important;
+  border-color: #0e7490 !important;
+  color: #67e8f9 !important;
 }
 html body.dark .flwup-root .stat-card .stat-title,
 html #app.dark .flwup-root .stat-card .stat-title {
@@ -8061,6 +8076,12 @@ html #app.dark .page-shell .stat-card.oktime {
   background: #1e3a5f !important;
   border-color: #1e40af !important;
   color: #93c5fd !important;
+}
+html body.dark .page-shell .stat-card.workdone,
+html #app.dark .page-shell .stat-card.workdone {
+  background: #12353b !important;
+  border-color: #0e7490 !important;
+  color: #67e8f9 !important;
 }
 html body.dark .campaign-modal-header,
 html body.dark .landing-sms-modal header,
