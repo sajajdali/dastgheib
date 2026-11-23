@@ -13302,10 +13302,14 @@ smsColor(val) {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  height: calc(100dvh - 48px);
-  max-height: calc(100dvh - 48px);
+  /* شل #app/.page-container در حالت جدول padding/margin افقی (و عمودی) صفر است → پر کردن viewport */
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 320px;
-  /* جدول لب‌به‌لب ناحیه محتوا (RTL: راست=شروع، چپ=پایان)؛ فاصلهٔ کناری فقط روی نوار ابزار بماند. */
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  /* جدول لب‌به‌لب viewport (RTL: راست=شروع، چپ=پایان)؛ فاصلهٔ کناری فقط روی نوار ابزار بماند. */
   padding: 0 0 var(--table-shell-bottom-gap);
   overflow: hidden;
 }
@@ -13313,6 +13317,16 @@ smsColor(val) {
 html:has(.time-page.table-view-active),
 body:has(.time-page.table-view-active) {
   overflow-x: hidden;
+}
+
+/* کمربند ایمنی: اگر شل هنوز فاصله داشت، در حالت جدول صفر شود */
+#app.booking-page-active:has(.time-page.table-view-active) {
+  padding: 0 !important;
+}
+
+#app.booking-page-active:has(.time-page.table-view-active) .page-container {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .appointment-patient-name {
@@ -16070,7 +16084,7 @@ td.st-arrived select {
 @media(max-width:600px){
   .section-filter-menu{position:fixed;top:70px;right:12px;left:12px;width:auto;max-height:calc(100vh - 90px)}
   .fixed-bottom-bar{right:8px;bottom:8px;left:8px;transform:none;display:grid;grid-template-columns:auto 38px minmax(0,1fr) 38px;gap:6px;width:auto;max-width:none;padding:7px;border-radius:18px}
-  .time-page.table-view-active{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);--table-shell-bottom-gap:84px}
+  .time-page.table-view-active{height:100dvh;max-height:100dvh;--table-shell-bottom-gap:84px}
   .table-view-active .table-container::-webkit-scrollbar{width:11px;height:13px}
   .schedule-year-picker{padding:0 6px}.schedule-year-picker svg{display:none}.schedule-year-picker select{width:52px;font-size:10px}
   .month-action-btn{width:38px!important;min-width:38px!important;height:38px!important;padding:0!important}

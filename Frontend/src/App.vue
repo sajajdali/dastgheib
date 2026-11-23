@@ -1799,6 +1799,16 @@ body.central-host #app {
 
 }
 
+/* جدول نوبت‌دهی: شل اپ بدون gutter خاکستری — جدول/نوار ابزار لب‌به‌لب عرض viewport */
+#app.booking-page-active:has(.time-page.table-view-active) {
+  padding: 0;
+}
+
+#app.booking-page-active:has(.time-page.table-view-active) .page-container {
+  margin: 0;
+  padding: 0;
+}
+
 /* دکمه دارک مود */
 
 .dark-toggle {
