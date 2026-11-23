@@ -50,20 +50,25 @@ class ClinicReportService
         $materialPrices = $this->materialPrices();
         $materialsTotal = $paidCompleted->sum(fn ($row) => $this->appointmentMaterialCost($row, $materialPrices));
         if ($progress) $progress(22, 'محاسبه درآمد، تخفیف و مراجعین');
-        $expenseQuery = Expense::query()->whereBetween('occurred_on', [$filters['from'], $filters['to']])->where('type', 'expense');
-        // هزینهٔ تبلیغات از هزینه‌ای است که موقع ساخت کمپین وارد می‌شود؛ ردیف‌های دستی «تبلیغات» در
-        // جدول هزینه‌ها جایگزین آن می‌شوند تا دو بار حساب نشوند.
+        // «سایر هزینه‌های کلینیک» فقط فاکتورهای ماژول هزینه‌هاست؛ تبلیغات/پزشک/پرسنل/مواد
+        // شاخص مستقل دارند و اینجا جمع نمی‌شوند تا دوبار حساب نشوند.
+        $otherExpenseQuery = $this->otherClinicExpensesQuery($filters);
+        $expenseTotal = (float) (clone $otherExpenseQuery)->sum('amount');
         $advertisingCosts = $this->campaignAdvertisingCosts($filters);
         $advertisingTotal = (float) $advertisingCosts->sum('amount');
-        $manualAdvertising = (float) $this->advertisingExpenses($filters)->sum('amount');
-        $expenseTotal = (float) (clone $expenseQuery)->sum('amount') - $manualAdvertising + $advertisingTotal;
-        // خرید مواد فقط نمایش داده می‌شود؛ هزینهٔ مواد با مصرف در خدمات از سود کم می‌شود.
-        $materialPurchases = (float) (clone $expenseQuery)->where('category', 'like', '%مواد%')->sum('amount');
-        $expenseItems = $this->withCampaignAdvertising(
-            (clone $expenseQuery)->selectRaw("COALESCE(NULLIF(category, ''), 'بدون دسته‌بندی') AS category, SUM(amount) AS amount")->groupBy('category')->get()
-                ->map(fn ($row) => (object) ['category' => $row->category, 'amount' => (float) $row->amount]),
-            $advertisingTotal
-        );
+        // خرید مواد فقط برای شفافیت نگه داشته می‌شود؛ از سود جداگانه کم نمی‌شود (مواد مصرفی خدمات کم می‌شود).
+        $materialPurchases = (float) Expense::query()
+            ->where('type', 'expense')
+            ->whereBetween('occurred_on', [$filters['from'], $filters['to']])
+            ->where('category', 'like', '%مواد%')
+            ->sum('amount');
+        $expenseItems = (clone $otherExpenseQuery)
+            ->selectRaw("COALESCE(NULLIF(category, ''), 'بدون دسته‌بندی') AS category, SUM(amount) AS amount")
+            ->groupBy('category')
+            ->get()
+            ->map(fn ($row) => (object) ['category' => $row->category, 'amount' => (float) $row->amount])
+            ->sortByDesc('amount')
+            ->values();
         $campaignExpenses = $advertisingCosts;
         if ($progress) $progress(34, 'جمع‌بندی هزینه‌ها و تبلیغات');
         $resourceCosts = $this->resourceCosts($filters);
@@ -90,7 +95,7 @@ class ClinicReportService
         if ($progress) $progress(95, 'نهایی‌سازی شاخص‌های گزارش');
 
         return [
-            'schema_version' => 3,
+            'schema_version' => 4,
             'filters' => $filters,
             'kpis' => [
                 'recognized_revenue' => round($revenue),
@@ -103,7 +108,8 @@ class ClinicReportService
                 'materials_cost' => round($materialsTotal),
                 'discount_total' => round($discountTotal),
                 'visitors_count' => $visitorCount,
-                'net_profit' => round($revenue - ($expenseTotal - $materialPurchases) - $resourceCosts['doctor_total'] - $resourceCosts['staff_total'] - $materialsTotal),
+                // تبلیغات از بودجهٔ کمپین، جدا از «سایر هزینه‌ها»؛ خرید مواد در expenseTotal نیست.
+                'net_profit' => round($revenue - $expenseTotal - $advertisingTotal - $resourceCosts['doctor_total'] - $resourceCosts['staff_total'] - $materialsTotal),
                 'forecast_revenue' => round($forecast['value']),
             ],
             'sales_timeline' => $salesTimeline,
@@ -132,26 +138,15 @@ class ClinicReportService
         return ['photo_quality' => $this->photoQuality($filters)->values()];
     }
 
-    /** فقط فاکتور/هزینه‌های ثبت‌شده در ماژول هزینه‌ها؛ بدون درآمد کلینیک و بدون هزینهٔ کمپین/تبلیغات محاسبه‌شده. */
+    /** سایر هزینه‌های کلینیک: فاکتورهای type=expense ماژول هزینه‌ها، بدون شاخص‌های مستقل. */
     public function expensesReport(array $filters): array
     {
-        $rows = Expense::query()
-            ->where('type', 'expense')
-            ->whereBetween('occurred_on', [$filters['from'], $filters['to']])
+        $rows = $this->otherClinicExpensesQuery($filters)
             ->orderByDesc('occurred_on')
             ->orderByDesc('id')
             ->get(['id', 'title', 'amount', 'invoice_number', 'occurred_on', 'party', 'category', 'payment_status']);
 
-        $items = $rows->map(fn (Expense $row) => [
-            'id' => (int) $row->id,
-            'title' => trim((string) $row->title) ?: 'بدون عنوان',
-            'amount' => round((float) $row->amount),
-            'invoice_number' => ($invoice = trim((string) ($row->invoice_number ?? ''))) !== '' ? $invoice : null,
-            'occurred_on' => (string) $row->occurred_on,
-            'party' => ($party = trim((string) ($row->party ?? ''))) !== '' ? $party : null,
-            'category' => trim((string) ($row->category ?? '')) ?: 'بدون دسته‌بندی',
-            'payment_status' => (string) ($row->payment_status ?: 'paid'),
-        ])->values();
+        $items = $rows->map(fn (Expense $row) => $this->expenseDetailRow($row))->values();
 
         return [
             'from' => $filters['from'],
@@ -771,8 +766,19 @@ class ClinicReportService
             return ['metric'=>$metric, 'rows'=>$rows->map(fn ($row) => ['id'=>$row->id,'date'=>$this->dateOf($row),'patient'=>trim(($row->firstname ?? '').' '.($row->lastname ?? '')),'status'=>$row->status,'done'=>$row->done,'amount'=>round($amount($row))])->values(), 'total'=>round($rows->sum($amount))];
         }
         if ($metric === 'expenses') {
-            $rows = Expense::query()->whereBetween('occurred_on', [$filters['from'], $filters['to']])->where('type', 'expense')->get();
-            return ['metric'=>$metric,'rows'=>$rows->map(fn($row)=>['id'=>$row->id,'date'=>$row->occurred_on,'title'=>$row->title,'category'=>$row->category,'amount'=>(float)$row->amount,'campaign_id'=>$row->campaign_id])->values(),'total'=>round($rows->sum('amount'))];
+            $rows = $this->otherClinicExpensesQuery($filters)
+                ->orderByDesc('occurred_on')
+                ->orderByDesc('id')
+                ->get(['id', 'title', 'amount', 'invoice_number', 'occurred_on', 'party', 'category', 'payment_status', 'campaign_id']);
+            return [
+                'metric' => $metric,
+                'rows' => $rows->map(fn (Expense $row) => [
+                    ...$this->expenseDetailRow($row),
+                    'date' => (string) $row->occurred_on,
+                    'campaign_id' => $row->campaign_id,
+                ])->values(),
+                'total' => round((float) $rows->sum('amount')),
+            ];
         }
         if ($metric === 'cancellation') {
             $rows = $this->appointments($filters)->get()->filter(fn ($row) => in_array(trim((string) $row->status), ['آمد', 'کنسل شد', 'پاسخ نداد'], true));
@@ -1473,6 +1479,47 @@ class ClinicReportService
     }
 
     private const UNASSIGNED_ADVERTISING = 'تبلیغات بدون کمپین';
+
+    /**
+     * فاکتورهای هزینهٔ «سایر» برای KPI و دریل‌داون: type=expense در بازهٔ occurred_on،
+     * بدون درآمد و بدون دسته‌هایی که شاخص مستقل روی داشبورد دارند.
+     */
+    private function otherClinicExpensesQuery(array $filters): Builder
+    {
+        return Expense::query()
+            ->where('type', 'expense')
+            ->whereBetween('occurred_on', [$filters['from'], $filters['to']])
+            ->where(function (Builder $query) {
+                $query->whereNull('category')->orWhere(function (Builder $inner) {
+                    $inner->where('category', 'not like', '%تبلیغ%')
+                        ->whereRaw('LOWER(TRIM(category)) != ?', ['advertising'])
+                        ->where('category', 'not like', '%حقوق%')
+                        ->where('category', 'not like', '%پرسنل%')
+                        ->whereRaw('LOWER(category) not like ?', ['%salary%'])
+                        ->whereRaw('LOWER(category) not like ?', ['%staff%'])
+                        ->where('category', 'not like', '%پزشک%')
+                        ->whereRaw('LOWER(category) not like ?', ['%doctor%'])
+                        ->where('category', 'not like', '%مواد%')
+                        ->where('category', 'not like', '%مصرفی%')
+                        ->whereRaw('LOWER(category) not like ?', ['%material%'])
+                        ->whereRaw('LOWER(category) not like ?', ['%consumable%']);
+                });
+            });
+    }
+
+    private function expenseDetailRow(Expense $row): array
+    {
+        return [
+            'id' => (int) $row->id,
+            'title' => trim((string) $row->title) ?: 'بدون عنوان',
+            'amount' => round((float) $row->amount),
+            'invoice_number' => ($invoice = trim((string) ($row->invoice_number ?? ''))) !== '' ? $invoice : null,
+            'occurred_on' => (string) $row->occurred_on,
+            'party' => ($party = trim((string) ($row->party ?? ''))) !== '' ? $party : null,
+            'category' => trim((string) ($row->category ?? '')) ?: 'بدون دسته‌بندی',
+            'payment_status' => (string) ($row->payment_status ?: 'paid'),
+        ];
+    }
 
     /**
      * هزینهٔ تبلیغات = هزینه‌ای که موقع ساخت کمپین وارد می‌شود (بودجهٔ کمپین)، به تاریخ شروع کمپین.

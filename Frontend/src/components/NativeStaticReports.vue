@@ -73,8 +73,17 @@
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px" data-screen-label="باکس‌های کلی">
             <template v-for="(kp, kpI) in v.kpis" :key="kpI">
-              <div :style="'background:' + (kp.bg) + ';border:1px solid ' + (kp.bd) + ';border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:16px;display:flex;flex-direction:column;gap:8px;justify-content:center;grid-column:' + (kp.sp)">
+              <div
+                :role="kp.open ? 'button' : undefined"
+                :tabindex="kp.open ? 0 : undefined"
+                :aria-label="kp.open ? ('جزئیات ' + kp.t) : undefined"
+                @click="kp.open && kp.open()"
+                @keydown.enter.prevent="kp.open && kp.open()"
+                @keydown.space.prevent="kp.open && kp.open()"
+                :style="'background:' + (kp.bg) + ';border:1px solid ' + (kp.bd) + ';border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:16px;display:flex;flex-direction:column;gap:8px;justify-content:center;grid-column:' + (kp.sp) + (kp.open ? ';cursor:pointer' : '')"
+              >
                 <span :style="'font-size:' + (kp.ts) + ';font-weight:600;color:' + (kp.tc)">{{ kp.t }}</span>
+                <span v-if="kp.sub" class="kpi-card-subtitle">{{ kp.sub }}</span>
                 <span class="rpt-money" :style="'font-size:' + (kp.vs) + ';font-weight:800;color:#0f172a;white-space:nowrap'">{{ kp.v }}</span>
                 <span :style="'align-self:flex-start;background:' + (kp.gb) + ';color:' + (kp.gc) + ';border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800'">{{ kp.g }}</span>
               </div>
@@ -243,18 +252,21 @@
               </transition>
             </div>
   
-            <div :draggable="true" @dragstart="v.dh.bills" @dragover="v.dv.bills" @drop="v.dp.bills" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;overflow:hidden;grid-column:span 2;display:' + (v.dsp.bills) + ';order:' + (v.o.bills)" data-screen-label="هزینه‌های جاری">
+            <div :draggable="true" @dragstart="v.dh.bills" @dragover="v.dv.bills" @drop="v.dp.bills" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;overflow:hidden;grid-column:span 2;display:' + (v.dsp.bills) + ';order:' + (v.o.bills)" data-screen-label="سایر هزینه‌های کلینیک">
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <span data-drag-handle="1" style="cursor:grab;color:#94a3b8;font-size:16px;line-height:1;padding:4px 7px;margin:-4px -7px;border-radius:8px;background:#f8fafc">⠿</span>
-                <span style="font-weight:800;font-size:15px;color:#0f172a;flex:1">هزینه‌ها</span>
+                <div style="flex:1;min-width:140px;display:flex;flex-direction:column;gap:2px">
+                  <span style="font-weight:800;font-size:15px;color:#0f172a">سایر هزینه‌های کلینیک</span>
+                  <small style="font-size:10.5px;color:#64748b;line-height:1.45">هزینه‌های ثبت‌شده در ماژول هزینه‌ها، به‌جز هزینه‌های دارای شاخص مستقل</small>
+                </div>
                 <small v-if="v.billCompletedAt" class="report-calculated-at">محاسبه: {{ v.billCompletedAt }}</small>
                 <button type="button" class="report-open-module-button" title="باز کردن مدیریت فاکتورها" aria-label="باز کردن مدیریت فاکتورها" @click="$emit('open-bills')">مدیریت فاکتورها <span aria-hidden="true">←</span></button>
-                <button type="button" :disabled="s.expenseLoading" @click="calculateExpenses" :title="v.billReady ? 'محاسبه مجدد هزینه‌ها' : 'محاسبه هزینه‌ها'" aria-label="محاسبه هزینه‌ها" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
+                <button type="button" :disabled="s.expenseLoading" @click="calculateExpenses" :title="v.billReady ? 'محاسبه مجدد سایر هزینه‌ها' : 'محاسبه سایر هزینه‌ها'" aria-label="محاسبه سایر هزینه‌های کلینیک" class="report-refresh-button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.34 5.66"></path><path d="M20 4v7h-7"></path></svg></button>
                 <input type="checkbox" :checked="v.ck.bills" @change="v.hide.bills" style="width:16px;height:16px;accent-color:#2563eb;cursor:pointer">
               </div>
               <div class="report-card-scroll report-list-stack">
                 <p v-if="s.expenseError" role="alert" style="font-size:12px;color:#b91c1c;overflow-wrap:anywhere">{{ s.expenseError }}</p>
-                <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">هزینه‌ای در این بازه ثبت نشده است.</p>
+                <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">سایر هزینه‌ای در این بازه ثبت نشده است.</p>
                 <article v-for="b in v.billRows" :key="b.id" class="expense-invoice" :class="{ 'is-open': b.open }">
                   <button type="button" class="expense-invoice__primary" @click="toggleBillRow(b.id)" :aria-expanded="b.open ? 'true' : 'false'">
                     <span class="expense-invoice__name" :title="b.n">{{ b.n }}</span>
@@ -272,11 +284,11 @@
               </div>
               <div class="expense-summary-list">
                 <div class="expense-summary-row" style="background:#fef2f2">
-                  <span style="font-size:11.5px;color:#b91c1c;font-weight:600">جمع هزینه‌ها</span>
+                  <span style="font-size:11.5px;color:#b91c1c;font-weight:600">جمع سایر هزینه‌ها</span>
                   <span class="expense-summary-value" style="color:#991b1b">{{ v.billSumV }}</span>
                 </div>
               </div>
-              <div v-if="s.expenseLoading" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه هزینه‌ها</strong><small>فاکتورهای ثبت‌شده در مدیریت فاکتورها بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
+              <div v-if="s.expenseLoading" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال محاسبه سایر هزینه‌ها</strong><small>فاکتورهای ماژول هزینه‌ها، بدون شاخص‌های مستقل، بررسی می‌شوند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
             </div>
   
             <div :draggable="true" @dragstart="v.dh.staffinc" @dragover="v.dv.staffinc" @drop="v.dp.staffinc" :style="'position:relative;background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,0.06);padding:20px;flex-direction:column;gap:14px;min-width:0;grid-column:span 3;display:' + (v.dsp.staffinc) + ';order:' + (v.o.staffinc)" data-screen-label="درآمد پرسنل">
@@ -863,6 +875,45 @@
           </div>
         </div>
   
+        <template v-if="v.otherExpensesDetailOpen">
+          <div class="other-expenses-modal" style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:110;display:flex;align-items:center;justify-content:center;padding:24px" @click="v.closeOtherExpensesDetail" data-screen-label="جزئیات سایر هزینه‌های کلینیک">
+            <div dir="rtl" class="other-expenses-modal__panel" style="background:#ffffff;border-radius:20px;max-width:820px;width:100%;max-height:85vh;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 64px rgba(15,23,42,0.3)" @click="v.stopProp">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+                <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+                  <span style="font-size:16px;font-weight:800;color:#0f172a">جزئیات سایر هزینه‌های کلینیک</span>
+                  <small style="font-size:11px;color:#64748b;line-height:1.5">هزینه‌های ثبت‌شده در ماژول هزینه‌ها، به‌جز هزینه‌های دارای شاخص مستقل</small>
+                </div>
+                <button type="button" @click="v.closeOtherExpensesDetail" style="background:#f1f5f9;border:none;border-radius:10px;width:32px;height:32px;font-size:15px;color:#64748b;cursor:pointer;flex-shrink:0" aria-label="بستن">✕</button>
+              </div>
+              <p v-if="s.expenseError" role="alert" style="font-size:12px;color:#b91c1c;overflow-wrap:anywhere">{{ s.expenseError }}</p>
+              <p v-else-if="v.billReady && !v.billRows.length" style="font-size:12px;color:#64748b">سایر هزینه‌ای در این بازه ثبت نشده است.</p>
+              <div v-else class="report-list-stack" style="max-height:52vh;overflow:auto">
+                <article v-for="b in v.billRows" :key="'detail-'+b.id" class="expense-invoice" :class="{ 'is-open': b.open }">
+                  <button type="button" class="expense-invoice__primary" @click="toggleBillRow(b.id)" :aria-expanded="b.open ? 'true' : 'false'">
+                    <span class="expense-invoice__name" :title="b.n">{{ b.n }}</span>
+                    <span class="expense-money">{{ b.v }}</span>
+                    <span class="expense-invoice__no" :title="b.invoiceLabel">{{ b.invoiceLabel }}</span>
+                    <span class="expense-invoice__chevron" aria-hidden="true">{{ b.open ? '▾' : '◂' }}</span>
+                  </button>
+                  <div v-if="b.open" class="expense-invoice__details">
+                    <span><em>تاریخ فاکتور</em>{{ b.date }}</span>
+                    <span><em>طرف حساب</em>{{ b.party }}</span>
+                    <span><em>دسته‌بندی</em>{{ b.category }}</span>
+                    <span><em>وضعیت پرداخت</em>{{ b.status }}</span>
+                  </div>
+                </article>
+              </div>
+              <div class="expense-summary-list">
+                <div class="expense-summary-row" style="background:#fef2f2">
+                  <span style="font-size:11.5px;color:#b91c1c;font-weight:600">جمع جزئیات (باید برابر کارت باشد)</span>
+                  <span class="expense-summary-value" style="color:#991b1b">{{ v.billSumV }}</span>
+                </div>
+              </div>
+              <div v-if="s.expenseLoading" class="staff-income-loading" aria-live="polite"><div class="staff-income-loading-card"><div class="staff-income-loading-ring"></div><strong>در حال آماده‌سازی جزئیات</strong><small>فاکتورهای مؤثر در کارت در حال بارگذاری‌اند</small><div class="staff-income-loading-track top-services-loading-track"><div></div></div></div></div>
+            </div>
+          </div>
+        </template>
+
         <template v-if="v.filterOpen">
           <div style="position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px" @click="v.closeFilter" data-screen-label="پنجره فیلترها">
             <div dir="rtl" style="background:#ffffff;border-radius:20px;max-width:760px;width:100%;max-height:85vh;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:18px;box-shadow:0 24px 64px rgba(15,23,42,0.3)" @click="v.stopProp">
@@ -987,7 +1038,7 @@ export default {
     return {
       isDarkUi: false,
       KEYS: ['ctype','staffinc','loyal','cancel','bills','qc','cac','adch','campperf','docs','photo','city','age','topsvc','staffapt','sect','cap','gender','newold','status'],
-      NAMES: {ctype:'دسته‌بندی مشتریان',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'هزینه‌ها',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
+      NAMES: {ctype:'دسته‌بندی مشتریان',loyal:'مشتریان وفادار',cancel:'نرخ کنسلی',bills:'سایر هزینه‌های کلینیک',staffinc:'درآمد پرسنل و سقف',qc:'رضایت‌مندی (QC)',adch:'آمار کانال‌های تبلیغاتی',docs:'پزشکان و تبدیل مشاوره',photo:'آنالیز عکس‌ها',city:'آمار بر اساس شهر',age:'آمار سنی',sect:'درآمد و سود بخش‌ها',topsvc:'پردرآمدترین خدمات',cac:'هزینه جذب هر مشتری',campperf:'بازدهی کمپین‌ها',staffapt:'وقت‌دهی پرسنل',cap:'گنجایش مجموعه',gender:'ترکیب جنسیتی',newold:'مشتریان جدید و قدیم',status:'وضعیت مشتری‌ها'},
       s: {
       tab:'r', filterOpen:false, mngOpen:false,
       filters:{}, bdFrom:'', bdTo:'', hidden:{}, order:KEYS.slice(), ddOpen:null, ddQ:'',
@@ -1003,6 +1054,7 @@ export default {
       ,photoSnapshot: null, photoLoading: false
       ,expenseSnapshot: null
       ,billExpandedIds: {}
+      ,otherExpensesDetailOpen: false
       ,customerAcquisitionSnapshot: null, customerAcquisitionLoading: false
       ,campaignPerformanceSnapshot: null, campaignPerformanceLoading: false
       ,advertisingChannelsSnapshot: null, advertisingChannelsLoading: false
@@ -1119,7 +1171,7 @@ export default {
     const dashboardSnapshot = this.dashboardSnapshot;
     // هنگام محاسبهٔ مجدد، نتیجهٔ قبلی تا رسیدن نتیجهٔ تازه نمایش داده می‌شود و باکس‌های دیگر خالی نمی‌شوند.
     const dashboardReady = (dashboardSnapshot?.status === 'completed' || (['queued','processing'].includes(dashboardSnapshot?.status) && !!S.reportSummary))
-      && Number((dashboardSnapshot?.result || S.reportSummary)?.schema_version || 0) >= 3;
+      && Number((dashboardSnapshot?.result || S.reportSummary)?.schema_version || 0) >= 4;
     const actualRevenue = dashboardReady ? Number(S.reportSummary?.kpis?.recognized_revenue || 0) / 1000000 : null;
     const actualRevenueText = actualRevenue === null ? '—' : toman(S.reportSummary?.kpis?.recognized_revenue || 0);
     const reportMoney = value => toman(Number(value || 0) * 1000000);
@@ -1129,13 +1181,20 @@ export default {
     const kpiMoney = value => dashboardReady ? reportMoney(Number(value || 0) / 1000000) : '--';
     const kpis = [
       {t:'درآمد کل', v:dashboardReady ? actualRevenueText : '--', g:dashboardReady ? `نوبت‌های انجام‌شده · ${String(S.from || '').replaceAll('-', '/')} تا ${String(S.to || '').replaceAll('-', '/')}` : '--', ...gUp, bg:dark?'#1e3a5f':'#eff6ff', bd:dark?'#3b82f6':'#bfdbfe', tc:dark?'#93c5fd':'#1d4ed8', ...lg},
-      {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'درآمد − هزینه‌ها − پزشک و پرسنل − مواد مصرفی' : '--', ...gUp, bg:dark?'#14352a':'#f0fdf4', bd:dark?'#22c55e':'#bbf7d0', tc:dark?'#86efac':'#15803d', ...lg},
+      {t:'سود خالص', v:kpiMoney(netProfit), g:dashboardReady ? 'درآمد − سایر هزینه‌ها − تبلیغات − پزشک و پرسنل − مواد مصرفی' : '--', ...gUp, bg:dark?'#14352a':'#f0fdf4', bd:dark?'#22c55e':'#bbf7d0', tc:dark?'#86efac':'#15803d', ...lg},
       {t:'بدهی بیماران', v:kpiMoney(dashboardKpis.receivables), g:dashboardReady ? 'ماندهٔ نوبت‌های انجام‌شده' : '--', ...gDn, bg:dark?'#3a2e14':'#fefce8', bd:dark?'#eab308':'#fde047', tc:dark?'#fde68a':'#a16207', ...sm},
       {t:'تبلیغات', v:kpiMoney(advertisingCost), g:dashboardReady ? 'هزینه تبلیغات ثبت‌شده' : '--', ...gDn, bg:dark?'#3a2414':'#fff7ed', bd:dark?'#fb923c':'#fed7aa', tc:dark?'#fdba74':'#c2410c', ...sm},
       {t:'هزینه پزشک', v:kpiMoney(dashboardKpis.doctor_cost), g:dashboardReady ? 'حقوق و پورسانت پزشکان' : '--', ...gDn, bg:dark?'#0c4a6e':'#f0f9ff', bd:dark?'#38bdf8':'#bae6fd', tc:dark?'#7dd3fc':'#0369a1', ...sm},
       {t:'حقوق پرسنل', v:kpiMoney(dashboardKpis.staff_cost), g:dashboardReady ? 'حقوق و پورسانت پرسنل' : '--', gb:dark?'#2a2f3a':'#f1f5f9', gc:dark?'#9aa0a6':'#64748b', bg:dark?'#2e1065':'#faf5ff', bd:dark?'#a78bfa':'#e9d5ff', tc:dark?'#c4b5fd':'#7c3aed', ...sm},
       {t:'مواد مصرفی', v:kpiMoney(dashboardKpis.materials_cost), g:dashboardReady ? 'مواد خدمات انجام‌شده (از انبار)' : '--', ...gUp, bg:dark?'#3a2e14':'#fffbeb', bd:dark?'#fbbf24':'#fde68a', tc:dark?'#fcd34d':'#b45309', ...sm},
-      {t:'هزینه‌ها', v:kpiMoney(dashboardKpis.expenses), g:dashboardReady ? (Number(dashboardKpis.material_purchases || 0) > 0 ? `شامل ${kpiMoney(dashboardKpis.material_purchases)} خرید مواد که از سود کم نمی‌شود` : 'جمع هزینه‌های ثبت‌شده در بازه') : '--', ...gDn, bg:dark?'#3a1d1d':'#fff1f2', bd:dark?'#fb7185':'#fecdd3', tc:dark?'#fda4af':'#be123c', ...sm},
+      {
+        t:'سایر هزینه‌های کلینیک',
+        sub: dashboardReady ? 'هزینه‌های ثبت‌شده در ماژول هزینه‌ها، به‌جز هزینه‌های دارای شاخص مستقل' : '',
+        v:kpiMoney(dashboardKpis.expenses),
+        g: dashboardReady ? 'کلیک برای جزئیات فاکتورها' : '--',
+        open: dashboardReady ? () => this.openOtherExpensesDetail() : null,
+        ...gDn, bg:dark?'#3a1d1d':'#fff1f2', bd:dark?'#fb7185':'#fecdd3', tc:dark?'#fda4af':'#be123c', ...sm
+      },
       {t:'میزان تخفیف‌ها', v:kpiMoney(dashboardKpis.discount_total), g:dashboardReady ? 'تخفیف نوبت‌های انجام‌شده' : '--', ...gDn, bg:dark?'#4a044e':'#fdf2f8', bd:dark?'#f472b6':'#fbcfe8', tc:dark?'#f9a8d4':'#be185d', ...sm},
       {t:'تعداد مراجعین', v:dashboardReady ? fa(dashboardKpis.visitors_count || 0)+' نفر' : '--', g:dashboardReady ? 'نوبت‌های انجام‌شده' : '--', ...gUp, bg:dark?'#134e4a':'#f0fdfa', bd:dark?'#2dd4bf':'#99f6e4', tc:dark?'#5eead4':'#0d9488', ...sm}
     ];
@@ -1608,6 +1667,8 @@ export default {
           ? `بازه ${String(S.from || '').replaceAll('-', '/')} تا ${String(S.to || '').replaceAll('-', '/')}${dashboardSnapshot?.completed_at ? ` · ${this.formatSnapshotDate(dashboardSnapshot.completed_at)}` : ''}`
           : 'برای محاسبه داده‌های واقعی، روی آیکن بزنید'),
       billRows, billSumV, billReady: !!expenses, billCompletedAt: this.formatSnapshotDate(this.expenseSnapshot?.completed_at),
+      otherExpensesDetailOpen: this.otherExpensesDetailOpen,
+      closeOtherExpensesDetail: () => { this.otherExpensesDetailOpen = false; },
       // dash maps
       o, dsp, ck, hide, dh, dv, dp,
       // ctype
@@ -2322,6 +2383,14 @@ export default {
       else next[id] = true;
       this.billExpandedIds = next;
     },
+    async openOtherExpensesDetail() {
+      this.otherExpensesDetailOpen = true;
+      const kpiTotal = Math.round(Number(this.s.reportSummary?.kpis?.expenses || 0));
+      const detailTotal = this.expenseSnapshot?.status === 'completed'
+        ? Math.round(Number(this.expenseSnapshot?.result?.total || 0))
+        : null;
+      if (detailTotal !== kpiTotal) await this.calculateExpenses();
+    },
     async calculateExpenses() {
       const requestId = (this._expenseRequestId || 0) + 1;
       this._expenseRequestId = requestId;
@@ -2596,7 +2665,7 @@ export default {
         ['گزارش کلینیک', 'از ' + this.s.from + ' تا ' + this.s.to],
         [],
         ['شاخص', 'مقدار (میلیون تومان)'],
-        ['سود خالص', 486], ['هزینه پزشک', 512], ['حقوق پرسنل', 238], ['مواد مصرفی', 174], ['میزان تخفیف‌ها', 96], ['هزینه‌ها', this.s.reportSummary ? Number(this.s.reportSummary.expenses?.total || 0) / 1000000 : '—'], ['تعداد مراجعین', 512],
+        ['سود خالص', 486], ['هزینه پزشک', 512], ['حقوق پرسنل', 238], ['مواد مصرفی', 174], ['میزان تخفیف‌ها', 96], ['سایر هزینه‌های کلینیک', this.s.reportSummary ? Number(this.s.reportSummary.kpis?.expenses || 0) / 1000000 : '—'], ['تعداد مراجعین', 512],
         [],
         ['کانال تبلیغاتی', 'مراجعین', 'هزینه', 'درآمد'],
         ['اینستاگرام', 210, 45, 168], ['معرفی دوستان', 90, 0, 85], ['گوگل', 60, 18, 52], ['یوتیوب', 25, 12, 20],
@@ -2660,6 +2729,7 @@ input,button,select{font-family:'Vazirmatn',sans-serif}
 .customer-segment-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}
 .customer-segment-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.customer-segment-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#38bdf8);transition:width .45s ease;box-shadow:0 0 9px rgba(37,99,235,.3)}
 @keyframes customer-segment-spin{to{transform:rotate(360deg)}}@keyframes customer-segment-unspin{to{transform:rotate(-360deg)}}
+.kpi-card-subtitle{display:block;font-size:10px;font-weight:600;line-height:1.45;color:#64748b}
 .kpi-summary-section{position:relative;margin-bottom:16px;padding-top:42px}.kpi-summary-toolbar{position:absolute;z-index:3;top:0;right:0;left:0;height:36px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px}.kpi-summary-toolbar>div{display:flex;align-items:center;gap:9px;min-width:0}.kpi-summary-toolbar strong{font-size:13px;color:#1e293b;white-space:nowrap}.kpi-summary-toolbar small{font-size:9.5px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kpi-calculate-button{min-width:35px;height:35px;padding:0 10px;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10.5px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px rgba(37,99,235,.14)}.kpi-calculate-button:disabled{cursor:wait;opacity:.78}
 .kpi-summary-loading{position:absolute;z-index:7;inset:42px 0 0;display:grid;place-items:center;border-radius:16px;background:rgba(248,250,252,.76);backdrop-filter:blur(4px)}.kpi-summary-loading-card{width:min(350px,calc(100% - 32px));padding:20px 22px;border:1px solid #bfdbfe;border-radius:20px;background:linear-gradient(145deg,#fff,#eff6ff);box-shadow:0 18px 42px rgba(30,64,175,.2);display:grid;justify-items:center;gap:10px;text-align:center}.kpi-summary-loading-card strong{color:#172554;font-size:13px}.kpi-summary-loading-card small{min-height:17px;color:#64748b;font-size:10px;font-weight:700}.kpi-summary-loading-ring{width:66px;height:66px;border:5px solid #dbeafe;border-top-color:#2563eb;border-right-color:#14b8a6;border-radius:50%;display:grid;place-items:center;animation:customer-segment-spin .9s linear infinite}.kpi-summary-loading-ring span{color:#1d4ed8;font-size:11px;font-weight:900;animation:customer-segment-unspin .9s linear infinite}.kpi-summary-loading-track{width:100%;height:8px;border-radius:999px;background:#dbeafe;overflow:hidden}.kpi-summary-loading-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#14b8a6);transition:width .45s ease;box-shadow:0 0 9px rgba(37,99,235,.3)}
 .staff-income-calculate-button{min-width:34px;height:34px;padding:0 10px;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;box-shadow:0 2px 7px rgba(37,99,235,.12)}.staff-income-calculate-button:disabled{cursor:wait;opacity:.78}
@@ -2841,11 +2911,13 @@ html #app.dark .nsr .satisfaction-report-row b {
   color: #f1f3f4 !important;
 }
 html body.dark .nsr .kpi-summary-toolbar small,
+html body.dark .nsr .kpi-card-subtitle,
 html body.dark .nsr .report-calculated-at,
 html body.dark .nsr .report-widget-empty,
 html body.dark .nsr .satisfaction-report-empty,
 html body.dark .nsr .cac-campaign-row > small,
 html #app.dark .nsr .kpi-summary-toolbar small,
+html #app.dark .nsr .kpi-card-subtitle,
 html #app.dark .nsr .report-calculated-at,
 html #app.dark .nsr .report-widget-empty,
 html #app.dark .nsr .satisfaction-report-empty,

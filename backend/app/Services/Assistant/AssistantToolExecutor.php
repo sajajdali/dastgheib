@@ -410,11 +410,11 @@ final class AssistantToolExecutor
     {
         $range = $this->dates->resolve($arguments);
         $metric = (string) ($arguments['metric'] ?? 'recognized_revenue');
-        $labels = ['recognized_revenue'=>'درآمد شناسایی‌شده','expenses'=>'هزینه‌ها','net_profit'=>'سود خالص'];
+        $labels = ['recognized_revenue'=>'درآمد شناسایی‌شده','expenses'=>'سایر هزینه‌های کلینیک','net_profit'=>'سود خالص'];
         $definitions = [
             'recognized_revenue'=>'جمع خدمات انجام‌شده و تسویه‌شده طبق گزارش مالی برنامه',
-            'expenses'=>'جمع هزینه‌های ثبت‌شده در بازه',
-            'net_profit'=>'درآمد شناسایی‌شده منهای هزینه‌ها، دستمزد پزشک و پرسنل و مواد مصرفی',
+            'expenses'=>'جمع فاکتورهای هزینه در ماژول هزینه‌ها، به‌جز تبلیغات و حقوق و پزشک و مواد مصرفی',
+            'net_profit'=>'درآمد شناسایی‌شده منهای سایر هزینه‌ها، تبلیغات، دستمزد پزشک و پرسنل و مواد مصرفی',
         ];
         if (! isset($labels[$metric])) throw new InvalidArgumentException('شاخص مالی نامعتبر است.');
         $filters = $this->reports->normalizeFilters($range);
