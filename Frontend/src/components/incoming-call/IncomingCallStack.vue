@@ -1,110 +1,113 @@
 <template>
-  <div class="icp-stack" dir="rtl">
-    <transition name="icp-fade">
-      <div v-if="calls.length > 1" class="icp-head">
-        <span>{{ fa(calls.length) }} تماس ورودی</span>
-        <button class="icp-head-btn" @click="dismissAll">بستن همه</button>
-      </div>
-    </transition>
-
-    <transition-group name="icp-pop" tag="div" class="icp-list">
-      <div v-for="c in viewCalls" :key="c.id" class="icp-card" :class="{ 'is-minimized': minimized.has(c.id) }">
-        <button v-if="minimized.has(c.id)" type="button" class="icp-mini-btn" :aria-label="`باز کردن تماس ${c.patient?.name || c.phone || ''}`" title="باز کردن تماس" @click="restoreCall(c.id)">
-          <span class="icp-mini-time" dir="ltr">{{ c.talk === '—' ? '۰۰:۰۰' : c.talk }}</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
-        </button>
-        <template v-else>
-        <!-- Stage + timers -->
-        <div class="icp-top">
-          <div class="icp-stage" :style="{ color: c.s.color, background: c.s.bg }">
-            <span class="icp-dot" :style="{ background: c.s.color }"></span>
-            {{ c.s.label }}
-          </div>
-          <div class="icp-timers">
-            <div class="icp-timer">
-              <span class="icp-timer-label">مدت انتظار</span>
-              <span class="icp-timer-val" dir="ltr" :style="{ color: c.waiting ? '#d97706' : '#64748b' }">{{ c.wait }}</span>
-            </div>
-            <div class="icp-sep"></div>
-            <div class="icp-timer">
-              <span class="icp-timer-label">مدت مکالمه</span>
-              <span class="icp-timer-val" dir="ltr" :style="{ color: c.talkColor }">{{ c.talk }}</span>
-            </div>
-          </div>
-          <button type="button" class="icp-minimize" :aria-label="`کوچک کردن تماس ${c.patient?.name || c.phone || ''}`" title="کوچک کردن تماس" @click="minimizeCall(c.id)">−</button>
+  <!-- Mount on body so campaign / filter / calendar overlays cannot trap this stack in a lower stacking context. -->
+  <Teleport to="body">
+    <div class="icp-stack" dir="rtl" aria-live="polite">
+      <transition name="icp-fade">
+        <div v-if="calls.length > 1" class="icp-head">
+          <span>{{ fa(calls.length) }} تماس ورودی</span>
+          <button class="icp-head-btn" @click="dismissAll">بستن همه</button>
         </div>
+      </transition>
 
-        <!-- Caller -->
-        <div class="icp-caller">
-          <div class="icp-avatar-wrap">
-            <template v-if="c.waiting">
-              <span class="icp-ring" :style="{ background: c.s.color }"></span>
-              <span class="icp-ring icp-ring2" :style="{ background: c.s.color }"></span>
-            </template>
-            <span v-else class="icp-ring-static" :style="{ borderColor: c.s.color }"></span>
-            <div class="icp-avatar" :class="{ unknown: !c.patient }">
-              <img v-if="avatarSource(c.patient)" :src="avatarSource(c.patient)" :alt="`عکس ${c.patient.name || 'بیمار'}`" @error="failedAvatars.add($event.target.src)">
-              <template v-else>{{ c.patient ? (String(c.patient.name || '').charAt(0) || '؟') : '؟' }}</template>
-            </div>
-          </div>
-          <div class="icp-info">
-            <div class="icp-name">{{ c.patient ? c.patient.name : 'شماره ناشناس' }}</div>
-            <div class="icp-phone" dir="ltr">{{ c.phone ? fa(c.phone) : 'شماره نامشخص' }}</div>
-            <div v-if="!c.patient" class="icp-nofile">پرونده‌ای برای این شماره ثبت نشده</div>
-          </div>
-        </div>
-
-        <!-- File summary -->
-        <div v-if="c.patient" class="icp-file">
-          <div class="icp-file-cell">
-            <span class="icp-k">شماره پرونده</span>
-            <span class="icp-v">{{ fa(c.patient.fileNo) }}</span>
-          </div>
-          <div class="icp-file-cell">
-            <span class="icp-k">نوبت دریافتی</span>
-            <span class="icp-v">{{ fa(c.patient.appointmentsCount) }} نوبت</span>
-          </div>
-          <div class="icp-file-cell grow">
-            <span class="icp-k">نوبت بعدی</span>
-            <span class="icp-v blue">{{ c.patient.nextAppointment ? fa(c.patient.nextAppointment) : '—' }}</span>
-          </div>
-        </div>
-
-        <!-- Call counts -->
-        <div class="icp-counts">
-          <div class="icp-count"><span>تماس امروز</span><b>{{ fa(c.callsToday ?? 1) }}</b></div>
-          <div class="icp-count"><span>کل تماس‌ها</span><b>{{ fa(c.callsTotal ?? 1) }}</b></div>
-        </div>
-
-        <!-- Steps + location -->
-        <div class="icp-progress">
-          <div class="icp-steps">
-            <div v-for="(st, k) in STAGES" :key="st.key" class="icp-step">
-              <div class="icp-bar" :style="{ background: k < c.idx ? c.s.soft : k === c.idx ? c.s.color : '#eef2f7' }"></div>
-              <span :style="{ color: k === c.idx ? c.s.color : k < c.idx ? '#64748b' : '#94a3b8', fontWeight: k === c.idx ? 800 : 600 }">{{ st.label }}</span>
-            </div>
-          </div>
-          <div class="icp-where">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="c.s.color" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span class="icp-where-text">{{ c.where }}</span>
-          </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="icp-actions">
-          <button class="icp-btn ghost" @click="dismissCall(c.id)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            بستن
+      <transition-group name="icp-pop" tag="div" class="icp-list">
+        <div v-for="c in viewCalls" :key="c.id" class="icp-card" :class="{ 'is-minimized': minimized.has(c.id) }">
+          <button v-if="minimized.has(c.id)" type="button" class="icp-mini-btn" :aria-label="`باز کردن تماس ${c.patient?.name || c.phone || ''}`" title="باز کردن تماس" @click="restoreCall(c.id)">
+            <span class="icp-mini-time" dir="ltr">{{ c.talk === '—' ? '۰۰:۰۰' : c.talk }}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
           </button>
-          <button v-if="c.patient || canCreate" class="icp-btn primary" @click="onOpen(c)">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            {{ c.patient ? 'مشاهده پرونده' : 'ایجاد پرونده' }}
-          </button>
+          <template v-else>
+          <!-- Stage + timers -->
+          <div class="icp-top">
+            <div class="icp-stage" :style="{ color: c.s.color, background: c.s.bg }">
+              <span class="icp-dot" :style="{ background: c.s.color }"></span>
+              {{ c.s.label }}
+            </div>
+            <div class="icp-timers">
+              <div class="icp-timer">
+                <span class="icp-timer-label">مدت انتظار</span>
+                <span class="icp-timer-val" dir="ltr" :style="{ color: c.waiting ? '#d97706' : '#64748b' }">{{ c.wait }}</span>
+              </div>
+              <div class="icp-sep"></div>
+              <div class="icp-timer">
+                <span class="icp-timer-label">مدت مکالمه</span>
+                <span class="icp-timer-val" dir="ltr" :style="{ color: c.talkColor }">{{ c.talk }}</span>
+              </div>
+            </div>
+            <button type="button" class="icp-minimize" :aria-label="`کوچک کردن تماس ${c.patient?.name || c.phone || ''}`" title="کوچک کردن تماس" @click="minimizeCall(c.id)">−</button>
+          </div>
+
+          <!-- Caller -->
+          <div class="icp-caller">
+            <div class="icp-avatar-wrap">
+              <template v-if="c.waiting">
+                <span class="icp-ring" :style="{ background: c.s.color }"></span>
+                <span class="icp-ring icp-ring2" :style="{ background: c.s.color }"></span>
+              </template>
+              <span v-else class="icp-ring-static" :style="{ borderColor: c.s.color }"></span>
+              <div class="icp-avatar" :class="{ unknown: !c.patient }">
+                <img v-if="avatarSource(c.patient)" :src="avatarSource(c.patient)" :alt="`عکس ${c.patient.name || 'بیمار'}`" @error="failedAvatars.add($event.target.src)">
+                <template v-else>{{ c.patient ? (String(c.patient.name || '').charAt(0) || '؟') : '؟' }}</template>
+              </div>
+            </div>
+            <div class="icp-info">
+              <div class="icp-name">{{ c.patient ? c.patient.name : 'شماره ناشناس' }}</div>
+              <div class="icp-phone" dir="ltr">{{ c.phone ? fa(c.phone) : 'شماره نامشخص' }}</div>
+              <div v-if="!c.patient" class="icp-nofile">پرونده‌ای برای این شماره ثبت نشده</div>
+            </div>
+          </div>
+
+          <!-- File summary -->
+          <div v-if="c.patient" class="icp-file">
+            <div class="icp-file-cell">
+              <span class="icp-k">شماره پرونده</span>
+              <span class="icp-v">{{ fa(c.patient.fileNo) }}</span>
+            </div>
+            <div class="icp-file-cell">
+              <span class="icp-k">نوبت دریافتی</span>
+              <span class="icp-v">{{ fa(c.patient.appointmentsCount) }} نوبت</span>
+            </div>
+            <div class="icp-file-cell grow">
+              <span class="icp-k">نوبت بعدی</span>
+              <span class="icp-v blue">{{ c.patient.nextAppointment ? fa(c.patient.nextAppointment) : '—' }}</span>
+            </div>
+          </div>
+
+          <!-- Call counts -->
+          <div class="icp-counts">
+            <div class="icp-count"><span>تماس امروز</span><b>{{ fa(c.callsToday ?? 1) }}</b></div>
+            <div class="icp-count"><span>کل تماس‌ها</span><b>{{ fa(c.callsTotal ?? 1) }}</b></div>
+          </div>
+
+          <!-- Steps + location -->
+          <div class="icp-progress">
+            <div class="icp-steps">
+              <div v-for="(st, k) in STAGES" :key="st.key" class="icp-step">
+                <div class="icp-bar" :style="{ background: k < c.idx ? c.s.soft : k === c.idx ? c.s.color : '#eef2f7' }"></div>
+                <span :style="{ color: k === c.idx ? c.s.color : k < c.idx ? '#64748b' : '#94a3b8', fontWeight: k === c.idx ? 800 : 600 }">{{ st.label }}</span>
+              </div>
+            </div>
+            <div class="icp-where">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="c.s.color" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span class="icp-where-text">{{ c.where }}</span>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="icp-actions">
+            <button class="icp-btn ghost" @click="dismissCall(c.id)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              بستن
+            </button>
+            <button v-if="c.patient || canCreate" class="icp-btn primary" @click="onOpen(c)">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              {{ c.patient ? 'مشاهده پرونده' : 'ایجاد پرونده' }}
+            </button>
+          </div>
+          </template>
         </div>
-        </template>
-      </div>
-    </transition-group>
-  </div>
+      </transition-group>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -224,7 +227,10 @@ function onOpen(c) {
 </script>
 
 <style scoped>
-.icp-stack{position:fixed;left:24px;bottom:96px;width:360px;max-width:calc(100vw - 48px);max-height:calc(100vh - 120px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;z-index:2147483010;display:flex;flex-direction:column;gap:10px;font-family:inherit;color:#0f172a}
+/* Above follow-up campaign overlays (2147483500–2147483520), date pickers (2147483600+),
+   filters/calendars/modals, and usual app chrome — display-order only; does not close campaign. */
+.icp-stack{position:fixed;left:24px;bottom:96px;width:360px;max-width:calc(100vw - 48px);max-height:calc(100vh - 120px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;z-index:2147483647;isolation:isolate;pointer-events:none;display:flex;flex-direction:column;gap:10px;font-family:inherit;color:#0f172a}
+.icp-stack > *{pointer-events:auto}
 .icp-stack::-webkit-scrollbar{display:none}
 .icp-list{display:flex;flex-direction:column;gap:10px}
 .icp-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e6ebf3;border-radius:14px;padding:8px 14px 8px 8px;box-shadow:0 8px 20px -8px rgba(15,23,42,.18);font-size:13px;font-weight:700;color:#334155}

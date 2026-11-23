@@ -423,6 +423,7 @@
 
     <AiAssistant :dark="isDark" :user="user" @navigate="openAssistantPage" />
     <GroupChat v-if="user && groupChatModuleEnabled" :dark="isDark" :user="user" />
+    <!-- VoIP stack: kept at app shell; component Teleports to body above campaign/modals. -->
     <IncomingCallStack
       v-if="user?.permissions?.includes('patients.view') && featureEnabledForTenant('patients')"
       :can-create="user?.permissions?.includes('patients.create') && user?.permissions?.includes('patients.view_phone') && !user?.permissions?.includes('patients.hide_phone')"
