@@ -13882,7 +13882,10 @@ body:has(.time-page.table-view-active) {
   border: 0;
   border-radius: 0;
   background: transparent;
-  scrollbar-gutter: stable;
+  /* RTL: scrollbar-gutter:stable reserves ~15px on the LEFT (classic
+     scrollbar side). That empty strip sat left of عملیات and the
+     H-scrollbar track ran under it — do not reintroduce stable here. */
+  scrollbar-gutter: auto;
   scrollbar-width: auto;
   scrollbar-color: #475569 #e2e8f0;
 }
