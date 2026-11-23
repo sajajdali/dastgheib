@@ -53,18 +53,6 @@
       <template v-if="appointmentView === 'table'">
 
       <button 
-        v-if="days.length === 0"
-        class="add-day-btn icon-add-day-btn"
-        type="button"
-        title="افزودن روز"
-        aria-label="افزودن روز"
-        @click.stop="addDay"
-        :disabled="days.length >= 31"
-      >
-        +
-      </button>
-
-      <button 
         class="sms-send-btn icon-sms-btn"
         type="button"
         title="ارسال پیامک"
@@ -548,29 +536,6 @@
               <div class="day-row-content">
 
                 <div class="day-btns-left">
-
-                  <button
-                    class="mini-btn delete-all-day-btn"
-                    title="حذف موقت روز (نوبت‌ها حفظ می‌شوند)"
-                    @click.stop="clearDayRows(day)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 6h18" />
-                      <path d="M8 6V4h8v2" />
-                      <path d="M6 6l1 15h10l1-15" />
-                      <path d="M10 11v6" />
-                      <path d="M14 11v6" />
-                    </svg>
-                  </button>
-
-                  <button
-                    class="mini-btn"
-                    title="افزودن روز بعد"
-                    aria-label="افزودن روز بعد"
-                    @click.stop="addNextDayAfter(day)"
-                  >
-                    +
-                  </button>
 
                   <button
                     class="mini-btn day-chart-trigger"
@@ -1455,17 +1420,6 @@
 
     <div v-if="appointmentView === 'timeline'" class="timeline-actions" @click.stop>
       <button
-        class="add-day-btn icon-add-day-btn"
-        type="button"
-        title="افزودن روز"
-        aria-label="افزودن روز"
-        @click.stop="addDay"
-        :disabled="days.length >= 31"
-      >
-        +
-      </button>
-
-      <button
         class="sms-send-btn icon-sms-btn"
         type="button"
         title="ارسال پیامک"
@@ -1559,8 +1513,12 @@
           <small v-if="isToday(day)">امروز</small>
           <small v-if="isBookingDayCapacityFull(day)" class="day-capacity-full">تکمیل ظرفیت</small>
           <div class="timeline-day-actions">
-            <button type="button" class="timeline-add-next-day-btn" title="افزودن روز بعد" aria-label="افزودن روز بعد" @click.stop="addNextDayAfter(day)">+</button>
-            <button type="button" title="افزودن نوبت" @click.stop="openNewTimelineAppointment(day)">نوبت</button>
+            <button
+              v-if="canCreateBookingOnDay(day)"
+              type="button"
+              title="افزودن نوبت"
+              @click.stop="openNewTimelineAppointment(day)"
+            >نوبت</button>
           </div>
         </aside>
 
@@ -1632,6 +1590,7 @@
           </template>
 
           <article
+            v-if="canCreateBookingOnDay(day)"
             class="timeline-card timeline-add-card is-empty"
             :style="timelineBookingCardStyle()"
             role="button"
@@ -4288,7 +4247,7 @@ export default {
       const dayNumber = Number(date.format("jD"));
       let day = this.days.find(item => Number(item.dayNum) === dayNumber);
       if (day) return day;
-
+      if (!this.isClinicActiveWeekdayDate(date)) return null;
       day = this.createScheduleDay(dayNumber, date);
       day.rows = this.createRowsForAddedDay(date);
       this.sortDayRowsByTime(day);
@@ -4310,6 +4269,7 @@ export default {
       if ((this.months[this.currentMonth] || '') !== today.format('jYYYY-jMM')) return;
 
       const todayDay = this.ensureScheduleDay(today);
+      if (!todayDay) return;
       this.$nextTick(() => {
         window.requestAnimationFrame(() => {
           const element = this.$el?.querySelector(
@@ -5249,6 +5209,15 @@ export default {
     },
 
     openNewTimelineAppointment(day, afterRow = null) {
+      if (!this.canCreateBookingOnDay(day)) {
+        Swal.fire({
+          icon: 'info',
+          title: 'این روز کاری غیرفعال است',
+          text: 'برای نوبت جدید فقط روزهایی که در «تنظیمات داخلی ← برنامه نوبت‌دهی» فعال هستند باز هستند. نوبت‌های قبلی این روز حفظ می‌شوند.',
+          confirmButtonText: 'باشه'
+        });
+        return;
+      }
       const newRow = this.createEmptyAppointmentRow();
       const index = afterRow ? day.rows.findIndex(item => item._rowId === afterRow._rowId) : -1;
       day.rows.splice(index >= 0 ? index + 1 : day.rows.length, 0, newRow);
@@ -6801,12 +6770,15 @@ export default {
       const { year, month } = this.parseJalaliMonth();
       const daysInMonth = moment.jDaysInMonth(year, month - 1);
       const activeDays = new Set(this.clinicSchedule.active_days || []);
+      const todayKey = moment().format('jYYYY-jMM-jDD');
       let changed = false;
 
       for (let i = 1; i <= daysInMonth; i++) {
         const date = moment(`${year}/${month}/${i}`, "jYYYY/jM/jD");
         const dayKey = this.clinicDayKey(date);
+        const dateKey = date.format('jYYYY-jMM-jDD');
 
+        if (dateKey < todayKey) continue;
         if (!activeDays.has(dayKey)) continue;
 
         const slots = this.generateClinicTimeSlots(dayKey);
@@ -6915,6 +6887,7 @@ export default {
             ...(settingsRes.data.clinic_schedule.day_times || {})
           }
         };
+        this.monthDaysCache = {};
       }
     },
 
@@ -6948,21 +6921,11 @@ export default {
       try {
         const previousUnreadKeys = new Set(this.doctorNoteUnreadSnapshot || []);
         let data = this.monthAppointmentsCache[targetMonth];
-        let hiddenDaysData = [];
 
         if (force || !data) {
-          const [appointmentsRes, hiddenDaysRes] = await Promise.all([
-            axios.get("/api/appointments", { params: { month: targetMonth } }),
-            axios.get("/api/appointments/hidden-days", { params: { month: targetMonth } })
-          ]);
+          const appointmentsRes = await axios.get("/api/appointments", { params: { month: targetMonth } });
           data = Array.isArray(appointmentsRes.data) ? appointmentsRes.data : [];
-          hiddenDaysData = Array.isArray(hiddenDaysRes.data) ? hiddenDaysRes.data : [];
           this.monthAppointmentsCache[targetMonth] = data;
-        } else {
-          const hiddenDaysRes = await axios.get("/api/appointments/hidden-days", {
-            params: { month: targetMonth }
-          });
-          hiddenDaysData = Array.isArray(hiddenDaysRes.data) ? hiddenDaysRes.data : [];
         }
 
         // اگر کاربر هنگام دریافت اطلاعات ماه دیگری را انتخاب کرده باشد،
@@ -6973,9 +6936,7 @@ export default {
         }
 
         const month = targetMonth;
-        this.hiddenScheduleDayNumbers = hiddenDaysData.map(Number);
-        const hiddenDays = new Set(this.hiddenScheduleDayNumbers);
-        data = data.filter(item => !hiddenDays.has(Number(item.day_num)));
+        this.hiddenScheduleDayNumbers = [];
 
         this.days = [];
 
@@ -7104,7 +7065,6 @@ export default {
         // Empty time slots are UI schedule, not appointment records. Generate
         // them locally around the small set of persisted, occupied rows.
         this.generateClinicScheduleForCurrentMonth();
-        this.days = this.days.filter(day => !hiddenDays.has(Number(day.dayNum)));
         this.days.forEach(day => this.sortDayRowsByTime(day));
         this.days.sort((a, b) => a.dayNum - b.dayNum);
         this.days.forEach(day => {
@@ -9345,9 +9305,8 @@ this.calculateFinalAmount(row)
     },
 
     addRow(day) {
-
+      if (!this.canCreateBookingOnDay(day)) return;
       day.rows.push(this.createEmptyAppointmentRow());
-
     },
 
     nextTimeForInsertedRow(row) {
@@ -9359,6 +9318,15 @@ this.calculateFinalAmount(row)
     },
 
     insertRowAfter(day, row) {
+      if (!this.canCreateBookingOnDay(day)) {
+        Swal.fire({
+          icon: 'info',
+          title: 'این روز کاری غیرفعال است',
+          text: 'ثبت نوبت جدید برای روزهای غیرفعال در برنامه نوبت‌دهی مجاز نیست. نوبت‌های قبلی حفظ می‌شوند.',
+          confirmButtonText: 'باشه'
+        });
+        return;
+      }
       const index = day.rows.findIndex(item => item._rowId === row._rowId);
       const newRow = this.createEmptyAppointmentRow();
       newRow.time = this.nextTimeForInsertedRow(row);
@@ -9516,78 +9484,25 @@ this.calculateFinalAmount(row)
       });
     },
 
-    async addDay() {
+    scheduleDateForDay(day) {
       const { year, month } = this.parseJalaliMonth();
-      const maxDays = moment.jDaysInMonth(year, month - 1);
-
-      if (this.days.length >= maxDays) return;
-
-      const usedDays = this.days.map(d => Number(d.dayNum));
-      let n = 1;
-
-      while (usedDays.includes(n) && n <= maxDays) {
-        n++;
-      }
-
-      if (n > maxDays) return;
-
-      if (await this.restoreHiddenScheduleDay(n)) return;
-
-      const date = moment(`${year}/${month}/${n}`, "jYYYY/jM/jD");
-      const event = this.holidays[n] || null;
-
-      const day = {
-        id: this._idCounter++,
-        dayNum: n,
-        dateLabel: date.format("dddd jD jMMMM"),
-        holidayTitle: event?.title || "",
-        isHoliday: date.day() === 5 || event?.holiday === true,
-        rows: [],
-        collapsed: this.shouldCollapseScheduleDay(n)
-      };
-
-      day.rows = this.createRowsForAddedDay(date);
-      this.sortDayRowsByTime(day);
-      this.days.push(day);
-      this.days.sort((a, b) => a.dayNum - b.dayNum);
+      const dayNum = Number(day?.dayNum);
+      if (!year || !month || !dayNum) return null;
+      const date = moment(`${year}/${month}/${dayNum}`, 'jYYYY/jM/jD');
+      return date.isValid() ? date : null;
     },
 
-    async addNextDayAfter(day) {
-      const { year, month } = this.parseJalaliMonth();
-      const maxDays = moment.jDaysInMonth(year, month - 1);
-      const nextDayNum = Number(day.dayNum) + 1;
+    isClinicActiveWeekdayDate(date) {
+      if (!date?.isValid?.()) return false;
+      const activeDays = new Set(this.clinicSchedule?.active_days || []);
+      if (!activeDays.size) return false;
+      return activeDays.has(this.clinicDayKey(date));
+    },
 
-      if (nextDayNum > maxDays) {
-        await Swal.fire({
-          icon: "info",
-          title: "روز بعدی در این ماه وجود ندارد",
-          text: "برای ادامه، ماه بعد را از پایین جدول اضافه کنید.",
-          confirmButtonText: "باشه"
-        });
-        return;
-      }
-
-      const nextDate = moment(`${year}/${month}/${nextDayNum}`, "jYYYY/jM/jD");
-      const nextDateLabel = nextDate.format("dddd jD jMMMM");
-      const existingDay = this.days.find(item => Number(item.dayNum) === nextDayNum);
-
-      if (existingDay) {
-        await Swal.fire({
-          icon: "warning",
-          title: "این روز قبلاً اضافه شده",
-          text: `${nextDateLabel} قبلاً در جدول وجود دارد؛ برای ثبت نوبت از همان روز استفاده کنید.`,
-          confirmButtonText: "باشه"
-        });
-        return;
-      }
-
-      if (await this.restoreHiddenScheduleDay(nextDayNum)) return;
-
-      const newDay = this.createScheduleDay(nextDayNum, nextDate);
-      newDay.rows = this.createRowsForAddedDay(nextDate);
-      this.sortDayRowsByTime(newDay);
-      this.days.push(newDay);
-      this.days.sort((a, b) => Number(a.dayNum) - Number(b.dayNum));
+    canCreateBookingOnDay(day) {
+      if (this.isDayReadonly(day)) return false;
+      const date = this.scheduleDateForDay(day);
+      return date ? this.isClinicActiveWeekdayDate(date) : false;
     },
 
     dayRowsKey(day) {
@@ -11029,68 +10944,6 @@ this.calculateFinalAmount(row)
     async removeRow(day) {
       if (!day.rows.length) return;
       await this.deleteAppointmentRow(day, day.rows[day.rows.length - 1]);
-    },
-
-    async clearDayRows(day) {
-      const filledRows = day.rows.filter(row => this.rowHasAppointment(row));
-      if (filledRows.length) {
-        const confirmed = await this.confirmDeleteFilledRows(filledRows.length, true);
-        if (!confirmed) return;
-      }
-
-      const dayIndex = this.days.findIndex(item => item.id === day.id);
-      if (dayIndex === -1) return;
-
-      try {
-        await axios.post('/api/appointments/hide-day', {
-          month: this.months[this.currentMonth],
-          day_num: day.dayNum
-        });
-        this.hiddenScheduleDayNumbers = [...new Set([...this.hiddenScheduleDayNumbers, Number(day.dayNum)])];
-      } catch (error) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'حذف روز انجام نشد',
-          text: error.response?.data?.message || 'ارتباط با سرور برقرار نشد.'
-        });
-        return;
-      }
-
-      this.days.splice(dayIndex, 1);
-      this.activeServicePopup = null;
-      this.highlightedRowId = null;
-    },
-
-    async restoreHiddenScheduleDay(dayNum) {
-      if (!this.hiddenScheduleDayNumbers.includes(Number(dayNum))) return false;
-
-      try {
-        const response = await axios.post('/api/appointments/restore-day', {
-          month: this.months[this.currentMonth],
-          day_num: dayNum
-        });
-        if (!response.data?.restored) return false;
-
-        this.hiddenScheduleDayNumbers = this.hiddenScheduleDayNumbers
-          .filter(item => Number(item) !== Number(dayNum));
-        await this.fetchData();
-        if (!this.days.some(day => Number(day.dayNum) === Number(dayNum))) {
-          const { year, month } = this.parseJalaliMonth();
-          const date = moment(`${year}/${month}/${dayNum}`, 'jYYYY/jM/jD');
-          const day = this.createScheduleDay(dayNum, date);
-          day.rows = this.createRowsForAddedDay(date);
-          this.days.push(day);
-          this.days.sort((a, b) => Number(a.dayNum) - Number(b.dayNum));
-        }
-        return true;
-      } catch (error) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'بازگردانی روز انجام نشد',
-          text: error.response?.data?.message || 'ارتباط با سرور برقرار نشد.'
-        });
-        return true;
-      }
     },
 
     // هم‌تراز با «درآمد کل» گزارش: نوبت‌های «انجام شد»، مبلغ پس از تخفیف + کیف پول.

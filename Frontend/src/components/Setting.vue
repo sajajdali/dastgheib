@@ -323,6 +323,8 @@
             <input v-model.number="clinicSchedule.interval_minutes" class="green-input" type="number" min="1" step="1" />
           </label>
 
+          <p class="schedule-days-hint">فعال یا غیرفعال کردن روز فقط از همین‌جا روی نوبت‌دهی آینده اثر می‌گذارد. نوبت‌های ثبت‌شده (گذشته و آینده) حذف نمی‌شوند؛ برای روز غیرفعال فقط نوبت جدید بسته می‌شود.</p>
+          <p class="schedule-days-hint">فعال یا غیرفعال کردن روز فقط از همین‌جا روی نوبت‌دهی آینده اثر می‌گذارد. نوبت‌های ثبت‌شده (گذشته و آینده) حذف نمی‌شوند؛ برای روز غیرفعال فقط نوبت جدید بسته می‌شود.</p>
           <div class="schedule-days-grid">
             <label
               v-for="day in clinicWeekDays"
@@ -1387,6 +1389,8 @@ const clinicSchedule = ref({
   interval_minutes: 15,
   day_times: defaultDayTimes()
 });
+const savedClinicActiveDays = ref(["saturday", "monday", "wednesday"]);
+const savedClinicActiveDays = ref(["saturday", "monday", "wednesday"]);
 const company = ref({ name: "", about: "", logoFile: null, logoUrl: "", address: "", instagram_url: "", phone: "", location_url: "", latitude: null, longitude: null });
 const clinicMapElement = ref(null);
 let clinicMap = null;
@@ -2050,6 +2054,7 @@ const fetchSettings = async () => {
         ...data.clinic_schedule,
         day_times: { ...defaultDayTimes(), ...(data.clinic_schedule.day_times || {}) }
       };
+      savedClinicActiveDays.value = [...(clinicSchedule.value.active_days || [])];
     }
     if (data.company) {
       company.value.name = data.company.name;
@@ -2106,11 +2111,52 @@ const fetchSettings = async () => {
   }
 };
 
+const warnDisabledWeekdaysWithFutureAppointments = async () => {
+  const previous = new Set(savedClinicActiveDays.value || []);
+  const next = new Set(clinicSchedule.value.active_days || []);
+  const removed = [...previous].filter(day => !next.has(day));
+  if (!removed.length) return true;
+
+  try {
+    const { data } = await axios.post('/api/settings/clinic-schedule/disable-preview', { weekdays: removed });
+    if (!data?.has_future_appointments) return true;
+
+    const dayLines = (data.days || [])
+      .map(item => `${item.label}: ${Number(item.future_appointments || 0).toLocaleString('fa-IR')} نوبت آینده`)
+      .join('<br>');
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'نوبت‌های آینده روی روزهای غیرفعال',
+      html: `${dayLines}<br><br>${data.message || 'نوبت‌های آینده حذف نمی‌شوند؛ فقط نوبت‌دهی جدید از این لحظه بسته می‌شود.'}`,
+      showCancelButton: true,
+      confirmButtonText: 'ذخیره با آگاهی',
+      cancelButtonText: 'انصراف',
+      confirmButtonColor: '#d97706',
+      reverseButtons: true
+    });
+    return result.isConfirmed;
+  } catch (error) {
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'بررسی نوبت‌های آینده انجام نشد',
+      text: error?.response?.data?.message || 'می‌توانید ذخیره را ادامه دهید؛ نوبت‌های آینده حذف نمی‌شوند.',
+      showCancelButton: true,
+      confirmButtonText: 'ادامه ذخیره',
+      cancelButtonText: 'انصراف',
+      reverseButtons: true
+    });
+    return result.isConfirmed;
+  }
+};
+
 // ۲. ذخیره تنظیمات داخلی به لاراول
 const saveInternalSettings = async (showMessage = true) => {
   try {
     if (birthdaySmsAutomation.value.enabled && !birthdaySmsTemplateReady.value) {
       throw new Error("ابتدا الگوی «پیامک تبریک تولد» را در بخش پیامک فعال و نام الگوی SHSMS را ثبت کنید.");
+    }
+    if (!(await warnDisabledWeekdaysWithFutureAppointments())) {
+      return false;
     }
     if (birthdaySmsAutomation.value.enabled && birthdaySmsAutomation.value.timing === "days_before"
       && (!Number.isInteger(Number(birthdaySmsAutomation.value.days_before)) || Number(birthdaySmsAutomation.value.days_before) < 1 || Number(birthdaySmsAutomation.value.days_before) > 30)) {
@@ -2516,7 +2562,7 @@ textarea{ min-height:120px; resize:none; }
 .upload-box{ display:flex; flex-direction:column; gap:10px; background:#f8fbff; padding:16px; border-radius:16px; }
 .schedule-interval-field{ display:flex; flex-direction:column; gap:7px; color:#334155; font-size:12px; font-weight:800; }
 .schedule-interval-field input{ max-width:170px; }
-.schedule-days-grid{ display:grid; gap:10px; }
+.schedule-days-hint{margin:0 0 12px;color:#64748b;font-size:12px;line-height:1.7}.schedule-days-grid{ display:grid; gap:10px; }
 .schedule-day-row{ display:grid; grid-template-columns:120px 1fr 1fr; gap:10px; align-items:center; padding:10px; border:1px solid #e2e8f0; border-radius:14px; background:#f8fbff; }
 .schedule-day-active{ display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:#334155; white-space:nowrap; }
 .schedule-day-active input{ width:auto; padding:0; accent-color:#2563eb; }

@@ -18,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 use App\Services\CustomerLevelService;
 use App\Support\ActivityLogger;
+use App\Support\ClinicSchedule;
 use App\Http\Controllers\Api\SatisfactionController;
 use App\Support\SatisfactionIntegration;
 
@@ -80,36 +81,55 @@ class SettingController extends Controller
 
     private function defaultClinicSchedule(): array
     {
-        $days = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-
-        return [
-            'active_days' => ['saturday', 'monday', 'wednesday'],
-            'interval_minutes' => 15,
-            'day_times' => collect($days)
-                ->mapWithKeys(fn (string $day) => [$day => ['start' => '09:00', 'end' => '17:00']])
-                ->all(),
-        ];
+        return ClinicSchedule::defaults();
     }
 
     private function clinicScheduleSettings(): array
     {
-        $raw = AppSetting::getByKey('clinic_schedule_settings', '{}');
-        $stored = is_string($raw) ? json_decode($raw, true) : $raw;
-        $defaults = $this->defaultClinicSchedule();
-        $isConfigured = is_array($stored)
-            && ! empty($stored['active_days'])
-            && is_array($stored['day_times'] ?? null);
+        return ClinicSchedule::settings();
+    }
 
-        if (! is_array($stored)) {
-            return [...$defaults, 'is_configured' => false];
-        }
+    /**
+     * پیش‌نمایش غیرفعال‌سازی weekday: نوبت‌های آینده حذف نمی‌شوند؛ فقط هشدار می‌دهد.
+     */
+    public function previewClinicScheduleDisable(Request $request)
+    {
+        $data = $request->validate([
+            'weekdays' => ['required', 'array', 'min:1'],
+            'weekdays.*' => ['required', 'string', Rule::in(ClinicSchedule::WEEKDAY_KEYS)],
+        ]);
 
-        return [
-            'active_days' => array_values(array_filter($stored['active_days'] ?? $defaults['active_days'])),
-            'interval_minutes' => max(1, (int) ($stored['interval_minutes'] ?? $defaults['interval_minutes'])),
-            'day_times' => array_replace_recursive($defaults['day_times'], is_array($stored['day_times'] ?? null) ? $stored['day_times'] : []),
-            'is_configured' => $isConfigured,
+        $labels = [
+            'saturday' => 'شنبه',
+            'sunday' => 'یکشنبه',
+            'monday' => 'دوشنبه',
+            'tuesday' => 'سه‌شنبه',
+            'wednesday' => 'چهارشنبه',
+            'thursday' => 'پنجشنبه',
+            'friday' => 'جمعه',
         ];
+
+        $counts = ClinicSchedule::futureAppointmentCountsByWeekday($data['weekdays']);
+        $days = collect($counts)
+            ->filter(fn (int $count) => $count > 0)
+            ->map(fn (int $count, string $key) => [
+                'weekday' => $key,
+                'label' => $labels[$key] ?? $key,
+                'future_appointments' => $count,
+            ])
+            ->values()
+            ->all();
+
+        $total = collect($days)->sum('future_appointments');
+
+        return response()->json([
+            'has_future_appointments' => $total > 0,
+            'total_future_appointments' => $total,
+            'days' => $days,
+            'message' => $total > 0
+                ? 'نوبت‌های آینده این روز(ها) حذف نمی‌شوند؛ فقط نوبت‌دهی جدید از این لحظه بسته می‌شود. پس از جابه‌جایی یا لغو توسط کارکنان، روز از برنامه آینده خارج می‌شود.'
+                : null,
+        ]);
     }
 
     private function walletSettings(): array
@@ -511,8 +531,8 @@ class SettingController extends Controller
 
         if ($request->has('clinic_schedule')) {
             $schedule = $request->input('clinic_schedule', []);
-            $defaults = $this->defaultClinicSchedule();
-            $dayKeys = array_keys($defaults['day_times']);
+            $defaults = ClinicSchedule::defaults();
+            $dayKeys = ClinicSchedule::WEEKDAY_KEYS;
             $dayTimes = [];
 
             foreach ($dayKeys as $day) {
@@ -528,6 +548,7 @@ class SettingController extends Controller
                 'day_times' => $dayTimes,
             ];
 
+            // فقط فلگ‌های weekday ذخیره می‌شود؛ نوبت‌های گذشته/آینده دست نمی‌خورند.
             AppSetting::updateOrCreate(
                 ['key' => 'clinic_schedule_settings'],
                 ['value' => json_encode($payload, JSON_UNESCAPED_UNICODE)]

@@ -131,6 +131,7 @@ Route::get('/patients/{patient}/satisfaction', [SatisfactionController::class, '
 Route::get('/calendar/events', [CalendarController::class, 'index']);
 Route::put('/calendar/overrides/{date}', [CalendarController::class, 'saveOverride'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/internal', [SettingController::class, 'saveInternalSettings'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
+Route::post('/settings/clinic-schedule/disable-preview', [SettingController::class, 'previewClinicScheduleDisable'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/report-targets', [SettingController::class, 'saveReportTargets'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/company-logo', [SettingController::class, 'uploadCompanyLogo'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::post('/settings/attendance-status', [SettingController::class, 'saveAttendanceStatus'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');

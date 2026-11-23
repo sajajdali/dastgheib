@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use App\Support\AppointmentPastAccess;
 use App\Support\AppointmentPhotosRequirement;
+use App\Support\ClinicSchedule;
 use App\Support\ActivityLogger;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -559,6 +560,14 @@ class AppointmentController extends Controller
                 // is entered, so old/bulk clients cannot recreate empty rows.
                 if (! $previous && ! $this->incomingAppointmentHasMeaningfulData($incoming)) {
                     continue;
+                }
+
+                // نوبت جدید فقط روی weekdayهای فعال تنظیمات؛ نوبت‌های قبلی حتی روی روز غیرفعال قابل ویرایش می‌مانند.
+                if (
+                    ! $previous
+                    && ! ClinicSchedule::isActiveWeekday($data['month'], $incoming['day_num'] ?? null)
+                ) {
+                    abort(422, 'این روز کاری در برنامه نوبت‌دهی غیرفعال است؛ ثبت نوبت جدید مجاز نیست. نوبت‌های قبلی حفظ می‌شوند.');
                 }
 
                 $this->assertAppointmentSlotAvailable($incoming, $data['month'], $previous);
@@ -1653,6 +1662,11 @@ class AppointmentController extends Controller
         // شمارهٔ ماسک‌شده (مثلاً لیدی که شماره‌اش برای این کاربر مخفی است) هرگز روی نوبت ذخیره نمی‌شود.
         if (PatientPhoneVisibility::looksMasked($data['phone'] ?? '')) $data['phone'] = null;
         AppointmentPastAccess::assertCanEdit($request->user(), $data['month'], $data['day_num']);
+        if (! ClinicSchedule::isActiveWeekday($data['month'], $data['day_num'])) {
+            return response()->json([
+                'message' => 'این روز کاری در برنامه نوبت‌دهی غیرفعال است؛ ثبت نوبت جدید مجاز نیست. نوبت‌های قبلی حفظ می‌شوند.',
+            ], 422);
+        }
 
         $appointment = $this->withAppointmentSlotLocks([$data], $data['month'], function () use ($data) {
             return DB::transaction(function () use ($data) {
