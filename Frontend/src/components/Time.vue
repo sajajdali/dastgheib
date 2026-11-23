@@ -120,7 +120,12 @@
       </template>
     </div>
 
-    <div v-if="appointmentView === 'table'" class="table-container">
+    <div
+      v-if="appointmentView === 'table'"
+      ref="tableContainer"
+      class="table-container"
+      @scroll.passive="onTableContainerScroll"
+    >
       <table class="main-schedule-table">
 
         <thead>
@@ -2665,16 +2670,6 @@
       </section>
     </div>
 
-    <div
-      v-show="appointmentView === 'table' && tableHScrollNeeded"
-      ref="tableHScrollBar"
-      class="table-hscroll-bar"
-      aria-label="اسکرول افقی جدول نوبت‌دهی"
-      @scroll.passive="onTableHScrollBarScroll"
-    >
-      <div class="table-hscroll-spacer" :style="{ width: tableHScrollWidth + 'px' }"></div>
-    </div>
-
     <div class="fixed-bottom-bar">
 
       <label class="schedule-year-picker" title="انتخاب سال نوبت‌دهی">
@@ -3033,10 +3028,6 @@ export default {
       financialContextLoading: false,
       dailyReportModalOpen: false,
       activeDailyReport: null,
-      tableHScrollWidth: 0,
-      tableHScrollNeeded: false,
-      _tableHScrollSyncing: false,
-      _tableHScrollFrame: null,
       completionSmsOptions: [
         { key: 'treatment_care', icon: '🩺', title: 'توصیه‌های بعد از درمان', description: 'ارسال لینک راهنمای مراقبت و توصیه‌های درمان' },
         { key: 'payment_link', icon: '🔗', title: 'لینک پرداخت', description: 'ارسال لینک و مبلغ پرداخت برای مراجعه‌کننده' },
@@ -3575,9 +3566,7 @@ export default {
 
   async mounted() {
     window.addEventListener('scroll', this.scheduleDayRowsWindowUpdate, { passive: true });
-    window.addEventListener('scroll', this.syncTableHScrollBarFromWindow, { passive: true });
     window.addEventListener('resize', this.scheduleDayRowsWindowUpdate, { passive: true });
-    window.addEventListener('resize', this.refreshTableHScrollMetrics, { passive: true });
     document.addEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges = subscribeAppointmentChanges(this.handleRealtimeAppointmentChange);
@@ -3629,20 +3618,15 @@ export default {
     if (this.dayRowsWindowingActive || Object.keys(this.dayRowsRenderedKeys).length) {
       this.scheduleDayRowsWindowUpdate();
     }
-    this.scheduleTableHScrollRefresh();
   },
 
   beforeUnmount() {
     this.stopServicePopupFit();
     window.removeEventListener('scroll', this.scheduleDayRowsWindowUpdate);
-    window.removeEventListener('scroll', this.syncTableHScrollBarFromWindow);
     window.removeEventListener('resize', this.scheduleDayRowsWindowUpdate);
-    window.removeEventListener('resize', this.refreshTableHScrollMetrics);
     if (this._dayRowsWindowFrame) cancelAnimationFrame(this._dayRowsWindowFrame);
-    if (this._tableHScrollFrame) cancelAnimationFrame(this._tableHScrollFrame);
     clearTimeout(this._dayRowsWindowTimer);
     this._dayRowsWindowFrame = null;
-    this._tableHScrollFrame = null;
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges?.();
@@ -3673,47 +3657,9 @@ export default {
       line.cc = ascii.split(/[.,٫]/, 1)[0].replace(/[^0-9]/g, '')
       this.updateRowAmounts(row)
     },
-    scheduleTableHScrollRefresh() {
-      if (this._tableHScrollFrame) cancelAnimationFrame(this._tableHScrollFrame);
-      this._tableHScrollFrame = requestAnimationFrame(() => {
-        this._tableHScrollFrame = null;
-        this.refreshTableHScrollMetrics();
-      });
-    },
-
-    refreshTableHScrollMetrics() {
-      if (this.appointmentView !== 'table') {
-        this.tableHScrollNeeded = false;
-        return;
-      }
-      const table = this.$el?.querySelector?.('.main-schedule-table');
-      const width = Math.max(
-        Number(table?.scrollWidth || 0),
-        document.documentElement.scrollWidth,
-        document.body.scrollWidth
-      );
-      const view = window.innerWidth || document.documentElement.clientWidth || 0;
-      this.tableHScrollWidth = width;
-      this.tableHScrollNeeded = width > view + 8;
-      this.$nextTick(() => this.syncTableHScrollBarFromWindow());
-    },
-
-    syncTableHScrollBarFromWindow() {
-      if (this._tableHScrollSyncing || this.appointmentView !== 'table') return;
-      const el = this.$refs.tableHScrollBar;
-      if (!el) return;
-      const left = window.scrollX || document.documentElement.scrollLeft || 0;
-      if (Math.abs(el.scrollLeft - left) < 1) return;
-      this._tableHScrollSyncing = true;
-      el.scrollLeft = left;
-      this._tableHScrollSyncing = false;
-    },
-
-    onTableHScrollBarScroll(event) {
-      if (this._tableHScrollSyncing) return;
-      this._tableHScrollSyncing = true;
-      window.scrollTo({ left: event.target.scrollLeft, top: window.scrollY || 0, behavior: 'auto' });
-      this._tableHScrollSyncing = false;
+    onTableContainerScroll() {
+      if (this.appointmentView !== 'table') return;
+      this.scheduleDayRowsWindowUpdate();
     },
 
     async switchAppointmentView(view) {
@@ -3721,7 +3667,6 @@ export default {
 
       if (view === 'timeline') {
         this.appointmentView = 'timeline';
-        this.tableHScrollNeeded = false;
         await this.refreshBookingTimelineSchedule();
         this.focusTodayInTimeline();
         return;
@@ -3735,6 +3680,7 @@ export default {
       );
 
       this.appointmentView = 'table';
+      window.scrollTo({ left: 0, top: window.scrollY || 0, behavior: 'auto' });
       if (!month) return;
 
       // Timeline and table share the same rows, but their cached representation
@@ -9517,7 +9463,11 @@ this.calculateFinalAmount(row)
       const lines = popup.querySelectorAll('.service-line, .service-row, .service-item');
       const target = lines[lines.length - 1] || popup;
       const bottom = target.getBoundingClientRect().bottom;
-      if (bottom > limit - 8) window.scrollBy({ top: bottom - limit + 16, behavior: 'smooth' });
+      if (bottom <= limit - 8) return;
+      const delta = bottom - limit + 16;
+      const tableScroller = this.appointmentView === 'table' ? this.$refs.tableContainer : null;
+      if (tableScroller) tableScroller.scrollBy({ top: delta, behavior: 'smooth' });
+      else window.scrollBy({ top: delta, behavior: 'smooth' });
     },
 
     stopServicePopupFit() {
@@ -13348,11 +13298,20 @@ smsColor(val) {
 }
 
 .time-page.table-view-active {
-  height: auto;
+  --table-shell-bottom-gap: 78px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 48px);
   min-height: 320px;
-  display: block;
-  padding-bottom: 80px;
-  overflow: visible;
+  padding-bottom: var(--table-shell-bottom-gap);
+  overflow: hidden;
+}
+
+html:has(.time-page.table-view-active),
+body:has(.time-page.table-view-active) {
+  overflow-x: hidden;
 }
 
 .appointment-patient-name {
@@ -13622,24 +13581,33 @@ smsColor(val) {
   z-index: 1401;
 }
 
-/* سربرگ ستون‌ها زیر نوار ابزار ثابت بماند تا نام فیلدها هنگام اسکرول دیده شود. */
+/* سربرگ ستون‌ها داخل اسکرولر جدول می‌چسبد (اسکرول عمودی/افقی یکی است). */
 .time-page.table-view-active .main-schedule-table thead {
   position: sticky;
-  top: var(--appointment-toolbar-height);
+  top: 0;
   z-index: 1300;
 }
 
 .time-page.table-view-active .main-schedule-table thead th {
   position: sticky;
-  top: var(--appointment-toolbar-height);
+  top: 0;
   z-index: 1301;
   background: #eef3f9;
   box-shadow: inset 0 -1px 0 #cbd5e1;
 }
 
-.table-view-active .top-actions {
-  position: sticky;
+.time-page.table-view-active .sticky-header {
   top: 0;
+}
+
+.table-view-active .top-actions {
+  position: relative !important;
+  top: auto !important;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  margin-right: 0;
+  margin-left: 0;
   /* هم‌راستا با ابزارهای هر روز در جدول؛ نوار جدول در سمت راست فضای خالی دارد. */
   padding-right: 46px;
   margin-bottom: 0;
@@ -13880,13 +13848,45 @@ smsColor(val) {
   box-shadow: none;
 }
 
+/* یک اسکرولر برای شبکه جدول: افقی و عمودی، با نوار ضخیم قابل‌استفاده */
 .table-view-active .table-container {
-  width: calc(100% + 40px);
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
-  margin: 0 -30px 0 -10px;
-  overflow: visible;
+  margin: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   border: 0;
   background: transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #475569 #e2e8f0;
+}
+
+.table-view-active .table-container::-webkit-scrollbar {
+  width: 12px;
+  height: 14px;
+}
+
+.table-view-active .table-container::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 8px;
+}
+
+.table-view-active .table-container::-webkit-scrollbar-thumb {
+  background: #475569;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.table-view-active .table-container::-webkit-scrollbar-thumb:hover {
+  background: #1e293b;
+}
+
+.table-view-active .table-container::-webkit-scrollbar-corner {
+  background: #e2e8f0;
 }
 
 .icon-add-day-btn {
@@ -14793,72 +14793,6 @@ td.st-waiting-slot {
   width: 28px;
   height: 32px;
   flex: 0 0 28px;
-}
-
-/* اسکرول افقی ضخیم‌تر زیر جدول نوبت‌دهی (بدون گرفتن فضای زیاد از جدول) */
-.table-hscroll-bar {
-  position: fixed;
-  right: 18px;
-  left: 18px;
-  bottom: 64px;
-  z-index: 2147482890;
-  height: 16px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border: 1px solid #94a3b8;
-  border-radius: 999px;
-  background: #e2e8f0;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, .16);
-  scrollbar-width: auto;
-  scrollbar-color: #475569 #e2e8f0;
-}
-
-.table-hscroll-spacer {
-  height: 1px;
-  pointer-events: none;
-}
-
-.table-hscroll-bar::-webkit-scrollbar {
-  height: 14px;
-}
-
-.table-hscroll-bar::-webkit-scrollbar-track {
-  background: #e2e8f0;
-  border-radius: 999px;
-}
-
-.table-hscroll-bar::-webkit-scrollbar-thumb {
-  background: #475569;
-  border: 2px solid #e2e8f0;
-  border-radius: 999px;
-}
-
-.table-hscroll-bar::-webkit-scrollbar-thumb:hover {
-  background: #1e293b;
-}
-
-html:has(.time-page.table-view-active) {
-  scrollbar-width: auto;
-  scrollbar-color: #475569 #cbd5e1;
-}
-
-html:has(.time-page.table-view-active)::-webkit-scrollbar {
-  height: 14px;
-  width: 12px;
-}
-
-html:has(.time-page.table-view-active)::-webkit-scrollbar-track {
-  background: #cbd5e1;
-}
-
-html:has(.time-page.table-view-active)::-webkit-scrollbar-thumb {
-  background: #64748b;
-  border: 2px solid #cbd5e1;
-  border-radius: 8px;
-}
-
-html:has(.time-page.table-view-active)::-webkit-scrollbar-thumb:hover {
-  background: #334155;
 }
 
 /* نوار پایین */
@@ -16128,7 +16062,8 @@ td.st-arrived select {
 @media(max-width:600px){
   .section-filter-menu{position:fixed;top:70px;right:12px;left:12px;width:auto;max-height:calc(100vh - 90px)}
   .fixed-bottom-bar{right:8px;bottom:8px;left:8px;transform:none;display:grid;grid-template-columns:auto 38px minmax(0,1fr) 38px;gap:6px;width:auto;max-width:none;padding:7px;border-radius:18px}
-  .table-hscroll-bar{right:8px;left:8px;bottom:66px;height:15px}
+  .time-page.table-view-active{height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);--table-shell-bottom-gap:84px}
+  .table-view-active .table-container::-webkit-scrollbar{width:11px;height:13px}
   .schedule-year-picker{padding:0 6px}.schedule-year-picker svg{display:none}.schedule-year-picker select{width:52px;font-size:10px}
   .month-action-btn{width:38px!important;min-width:38px!important;height:38px!important;padding:0!important}
   .months-scroll-area{gap:6px;width:100%}.month-pill{min-width:68px;min-height:40px;padding:7px 10px;font-size:12px}
@@ -17803,20 +17738,19 @@ html #app.dark .service-mini-summary {
   color: inherit !important;
 }
 
-/* month bar */
-html body.dark .table-hscroll-bar,
-html #app.dark .table-hscroll-bar {
-  border-color: #3a3f4a !important;
-  background: #1a1c22 !important;
-  box-shadow: 0 8px 22px rgba(0,0,0,.4) !important;
+/* month bar / table scroller */
+html body.dark .table-view-active .table-container,
+html #app.dark .table-view-active .table-container {
   scrollbar-color: #94a3b8 #1a1c22;
 }
-html body.dark .table-hscroll-bar::-webkit-scrollbar-track,
-html #app.dark .table-hscroll-bar::-webkit-scrollbar-track {
+html body.dark .table-view-active .table-container::-webkit-scrollbar-track,
+html #app.dark .table-view-active .table-container::-webkit-scrollbar-track,
+html body.dark .table-view-active .table-container::-webkit-scrollbar-corner,
+html #app.dark .table-view-active .table-container::-webkit-scrollbar-corner {
   background: #1a1c22 !important;
 }
-html body.dark .table-hscroll-bar::-webkit-scrollbar-thumb,
-html #app.dark .table-hscroll-bar::-webkit-scrollbar-thumb {
+html body.dark .table-view-active .table-container::-webkit-scrollbar-thumb,
+html #app.dark .table-view-active .table-container::-webkit-scrollbar-thumb {
   background: #94a3b8 !important;
   border-color: #1a1c22 !important;
 }
