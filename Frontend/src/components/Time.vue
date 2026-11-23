@@ -2314,19 +2314,19 @@
 
         <div v-if="activeDailyReport" class="daily-report-body">
           <div class="daily-report-kpis">
-            <article>
+            <article class="daily-kpi-scheduled" :style="dailyReportKpiStyle('وقت داده شد')">
               <span>وقت داده شده</span>
               <strong>{{ activeDailyReport.stats.scheduledCount }}</strong>
             </article>
-            <article>
+            <article class="daily-kpi-canceled" :style="dailyReportKpiStyle('کنسل شد')">
               <span>کنسل شده</span>
               <strong>{{ activeDailyReport.stats.canceledCount }}</strong>
             </article>
-            <article>
+            <article class="daily-kpi-done" :style="dailyReportDoneKpiStyle('انجام شد')">
               <span>کار انجام شده</span>
               <strong>{{ activeDailyReport.stats.doneCount }}</strong>
             </article>
-            <article>
+            <article class="daily-kpi-total">
               <span>کل ردیف‌های فعال</span>
               <strong>{{ activeDailyReport.stats.totalAppointments }}</strong>
             </article>
@@ -2338,7 +2338,7 @@
               <div class="daily-chart-list">
                 <div v-for="item in activeDailyReport.stats.statusItems" :key="item.label" class="daily-chart-row">
                   <span>{{ item.label }}</span>
-                  <div><i :style="{ width: chartPercent(item.count, activeDailyReport.stats.totalAppointments) + '%' }"></i></div>
+                  <div><i :style="{ width: chartPercent(item.count, activeDailyReport.stats.totalAppointments) + '%', background: item.color }"></i></div>
                   <b>{{ item.count }}</b>
                 </div>
               </div>
@@ -2347,40 +2347,75 @@
             <section class="daily-report-panel">
               <h4>منبع تبلیغاتی</h4>
               <div class="daily-chart-list">
-                <div v-for="item in activeDailyReport.stats.sourceItems" :key="item.label" class="daily-chart-row">
-                  <span>{{ item.label }}</span>
+                <div v-for="item in activeDailyReport.stats.sourceItems" :key="item.label" class="daily-chart-row daily-chart-row-source">
+                  <span class="daily-source-label">
+                    <em class="daily-source-icon" aria-hidden="true">{{ item.icon || '📣' }}</em>
+                    {{ item.label }}
+                  </span>
                   <div><i :style="{ width: chartPercent(item.count, activeDailyReport.stats.maxSourceCount) + '%' }"></i></div>
                   <b>{{ item.count }}</b>
                 </div>
               </div>
             </section>
 
-            <section class="daily-report-panel">
+            <section class="daily-report-panel daily-report-panel-wide">
               <h4>پزشک‌ها</h4>
               <table class="daily-report-table">
-                <thead><tr><th>نام</th><th>تعداد</th><th>مبلغ</th></tr></thead>
+                <thead><tr><th>نام</th><th>تعداد</th><th>مبلغ خدمات</th><th>پورسانت %</th><th>پورسانت</th></tr></thead>
                 <tbody>
                   <tr v-for="item in activeDailyReport.stats.doctorItems" :key="item.label">
                     <td>{{ item.label }}</td>
                     <td>{{ item.count }}</td>
                     <td>{{ formatDisplayMoney(item.amount) }}</td>
+                    <td>{{ item.commissionLabel }}</td>
+                    <td>{{ formatDisplayMoney(item.commissionAmount) }}</td>
                   </tr>
-                  <tr v-if="!activeDailyReport.stats.doctorItems.length"><td colspan="3">موردی ثبت نشده</td></tr>
+                  <tr v-if="!activeDailyReport.stats.doctorItems.length"><td colspan="5">موردی ثبت نشده</td></tr>
                 </tbody>
               </table>
             </section>
 
-            <section class="daily-report-panel">
+            <section class="daily-report-panel daily-report-panel-wide">
               <h4>مشاورها</h4>
               <table class="daily-report-table">
-                <thead><tr><th>نام</th><th>تعداد</th><th>مبلغ</th></tr></thead>
+                <thead><tr><th>نام</th><th>تعداد</th><th>مبلغ خدمات</th><th>پورسانت %</th><th>پورسانت</th></tr></thead>
                 <tbody>
                   <tr v-for="item in activeDailyReport.stats.consultantItems" :key="item.label">
                     <td>{{ item.label }}</td>
                     <td>{{ item.count }}</td>
                     <td>{{ formatDisplayMoney(item.amount) }}</td>
+                    <td>{{ item.commissionLabel }}</td>
+                    <td>{{ formatDisplayMoney(item.commissionAmount) }}</td>
                   </tr>
-                  <tr v-if="!activeDailyReport.stats.consultantItems.length"><td colspan="3">موردی ثبت نشده</td></tr>
+                  <tr v-if="!activeDailyReport.stats.consultantItems.length"><td colspan="5">موردی ثبت نشده</td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="daily-report-panel">
+              <h4>آمار انجام کار</h4>
+              <div class="daily-chart-list">
+                <div v-for="item in activeDailyReport.stats.doneItems" :key="item.label" class="daily-chart-row">
+                  <span>{{ item.label }}</span>
+                  <div><i :style="{ width: chartPercent(item.count, activeDailyReport.stats.maxDoneCount) + '%', background: item.color }"></i></div>
+                  <b>{{ item.count }}</b>
+                </div>
+                <div v-if="!activeDailyReport.stats.doneItems.length" class="daily-chart-empty">موردی ثبت نشده</div>
+              </div>
+            </section>
+
+            <section class="daily-report-panel daily-report-panel-wide">
+              <h4>بخش‌های خدمات</h4>
+              <table class="daily-report-table">
+                <thead><tr><th>بخش</th><th>تعداد انجام‌شده</th><th>درآمد</th><th>سود کلینیک</th></tr></thead>
+                <tbody>
+                  <tr v-for="item in activeDailyReport.stats.sectionItems" :key="item.label">
+                    <td>{{ item.label }}</td>
+                    <td>{{ item.count }}</td>
+                    <td>{{ formatDisplayMoney(item.amount) }}</td>
+                    <td>{{ formatDisplayMoney(item.clinicProfit) }}</td>
+                  </tr>
+                  <tr v-if="!activeDailyReport.stats.sectionItems.length"><td colspan="4">موردی ثبت نشده</td></tr>
                 </tbody>
               </table>
             </section>
@@ -4643,39 +4678,207 @@ export default {
       this.activeDailyReport = null;
     },
 
+    appointmentStatusChartColor(status) {
+      const s = String(status || "").trim();
+      switch (s) {
+        case "وقت داده شد":
+          return "#0c8f3d";
+        case "آمد":
+          return "#b9f6ca";
+        case "کنسل شد":
+          return "#d50000";
+        case "پاسخ نداد":
+          return "#ffcdd2";
+        case "پیگیری":
+          return "#bbdefb";
+        case "انتقال داده شده":
+          return "#7c3aed";
+        default:
+          return "#94a3b8";
+      }
+    },
+
+    appointmentDoneChartColor(done) {
+      const d = String(done || "").trim();
+      switch (d) {
+        case "انجام شد":
+          return "#c8e6c9";
+        case "انجام نشد":
+          return "#ffcdd2";
+        case "ترمیم":
+          return "#e1bee7";
+        case "انتقال":
+          return "#bbdefb";
+        case "مشاوره":
+          return "#eeeeee";
+        default:
+          return "#94a3b8";
+      }
+    },
+
+    dailyReportKpiStyle(status) {
+      const color = this.appointmentStatusChartColor(status);
+      return {
+        borderColor: color,
+        background: color,
+        color: "#fff",
+        "--daily-kpi-bar": color
+      };
+    },
+
+    dailyReportDoneKpiStyle(done) {
+      const color = this.appointmentDoneChartColor(done);
+      return {
+        borderColor: color,
+        background: color,
+        color: "#14532d",
+        "--daily-kpi-bar": color
+      };
+    },
+
+    advertisingSourceIcon(label) {
+      const key = String(label || "").trim().toLocaleLowerCase("fa-IR");
+      const match = (this.sourceOptions || []).find(src =>
+        String(src?.name || "").trim().toLocaleLowerCase("fa-IR") === key
+      );
+      return String(match?.icon || "").trim() || "📣";
+    },
+
+    dailyReportCommissionBucket() {
+      return {
+        label: "",
+        count: 0,
+        amount: 0,
+        commissionAmount: 0,
+        percentSum: 0,
+        percentSamples: 0,
+        fixedOnly: true
+      };
+    },
+
+    accumulateDailyReportCommission(map, label, amount, commissionAmount, percent) {
+      const key = String(label || "").trim() || "نامشخص";
+      const current = map.get(key) || this.dailyReportCommissionBucket();
+      current.label = key;
+      current.count += 1;
+      current.amount += Number(amount || 0);
+      current.commissionAmount += Number(commissionAmount || 0);
+      if (percent === null || percent === undefined || percent === "") {
+        current.fixedOnly = current.fixedOnly && current.percentSamples === 0;
+      } else {
+        current.percentSum += Number(percent) || 0;
+        current.percentSamples += 1;
+        current.fixedOnly = false;
+      }
+      map.set(key, current);
+    },
+
+    formatDailyReportCommissionLabel(item) {
+      if (item.percentSamples > 0) {
+        const avg = item.percentSum / item.percentSamples;
+        return `${avg.toLocaleString("fa-IR", { maximumFractionDigits: 1 })}٪`;
+      }
+      if (item.commissionAmount > 0 && item.amount > 0) {
+        return `${((item.commissionAmount / item.amount) * 100).toLocaleString("fa-IR", { maximumFractionDigits: 1 })}٪`;
+      }
+      return item.commissionAmount > 0 ? "ثابت" : "—";
+    },
+
     buildDailyReportStats(day) {
       const rows = (day?.rows || []).filter(row => !this.isEmptyAppointmentRow(row));
       const statusMap = new Map();
       const sourceMap = new Map();
       const doctorMap = new Map();
       const consultantMap = new Map();
+      const doneMap = new Map();
+      const sectionMap = new Map();
 
-      const increment = (map, label, amount = 0) => {
+      const increment = (map, label, amount = 0, extra = {}) => {
         const key = String(label || "").trim() || "نامشخص";
-        const current = map.get(key) || { label: key, count: 0, amount: 0 };
+        const current = map.get(key) || { label: key, count: 0, amount: 0, ...extra };
         current.count += 1;
         current.amount += amount;
+        Object.keys(extra).forEach(field => {
+          if (typeof extra[field] === "number") current[field] = (current[field] || 0) + extra[field];
+          else if (!(field in current) || current[field] == null) current[field] = extra[field];
+        });
         map.set(key, current);
       };
 
       rows.forEach(row => {
-        increment(statusMap, row.status || "بدون وضعیت");
-        increment(sourceMap, row.source || "بدون منبع");
+        const statusLabel = String(row.status || "").trim() || "بدون وضعیت";
+        increment(statusMap, statusLabel, 0, { color: this.appointmentStatusChartColor(statusLabel) });
 
-        if (this.isCompletedRow(row)) {
-          this.expandedServices(row)
-            .filter(service => service.name)
-            .forEach(service => {
-              const amount = this.serviceLinePrice(service);
-              if (service.doctor) increment(doctorMap, service.doctor, amount);
-              if (service.consultant) increment(consultantMap, service.consultant, amount);
-            });
+        const sourceLabel = String(row.source || "").trim() || "بدون منبع";
+        increment(sourceMap, sourceLabel, 0, { icon: this.advertisingSourceIcon(sourceLabel) });
+
+        const doneLabel = String(row.done || "").trim();
+        if (doneLabel) {
+          increment(doneMap, doneLabel, 0, { color: this.appointmentDoneChartColor(doneLabel) });
         }
+
+        if (!this.isCompletedRow(row)) return;
+
+        this.expandedServices(row)
+          .filter(service => service.name)
+          .forEach(service => {
+            const item = this.getServiceData(service);
+            const cc = Number(service.cc || 0);
+            const amount = this.serviceNetAmount(service, this.serviceLinePrice(service));
+            const materialCost = item ? Number(item.price || 0) * Math.max(cc, 0) : 0;
+            const doctor = this.serviceDoctor(service, row);
+            const consultant = this.serviceConsultant(service, row);
+            const doctorCommission = this.serviceCommission(doctor, "doctor", row, service, item, cc);
+            const staffCommission = this.serviceCommission(consultant, "staff", row, service, item, cc);
+            const clinicProfit = amount - materialCost - doctorCommission - staffCommission;
+
+            if (service.doctor) {
+              this.accumulateDailyReportCommission(
+                doctorMap,
+                service.doctor,
+                amount,
+                doctorCommission,
+                this.resourceCustomerPercent(doctor, row)
+              );
+            }
+            if (service.consultant) {
+              this.accumulateDailyReportCommission(
+                consultantMap,
+                service.consultant,
+                amount,
+                staffCommission,
+                this.resourceCustomerPercent(consultant, row)
+              );
+            }
+
+            const sectionId = String(
+              service.rootSectionId
+              || this.rootSectionIdFor(service.sectionId || service.section_id || this.sectionIdForService(service.name, row))
+              || ""
+            );
+            const section = (this.serviceSections || []).find(entry => String(entry.id) === sectionId);
+            const sectionLabel = section?.name || "بدون بخش";
+            increment(sectionMap, sectionLabel, amount, { clinicProfit });
+          });
       });
 
       const sortByCount = items => [...items.values()].sort((a, b) => b.count - a.count || b.amount - a.amount);
-      const statusItems = sortByCount(statusMap);
-      const sourceItems = sortByCount(sourceMap);
+      const statusItems = sortByCount(statusMap).map(item => ({
+        ...item,
+        color: item.color || this.appointmentStatusChartColor(item.label)
+      }));
+      const sourceItems = sortByCount(sourceMap).map(item => ({
+        ...item,
+        icon: item.icon || this.advertisingSourceIcon(item.label)
+      }));
+      const doneItems = sortByCount(doneMap).map(item => ({
+        ...item,
+        color: item.color || this.appointmentDoneChartColor(item.label)
+      }));
+      const finalizeStaff = items => sortByCount(items).map(item => ({
+        ...item,
+        commissionLabel: this.formatDailyReportCommissionLabel(item)
+      }));
 
       return {
         totalAppointments: rows.length,
@@ -4684,9 +4887,12 @@ export default {
         doneCount: rows.filter(row => this.isCompletedRow(row)).length,
         statusItems,
         sourceItems,
-        doctorItems: sortByCount(doctorMap),
-        consultantItems: sortByCount(consultantMap),
-        maxSourceCount: Math.max(1, ...sourceItems.map(item => item.count))
+        doneItems,
+        doctorItems: finalizeStaff(doctorMap),
+        consultantItems: finalizeStaff(consultantMap),
+        sectionItems: sortByCount(sectionMap),
+        maxSourceCount: Math.max(1, ...sourceItems.map(item => item.count), 1),
+        maxDoneCount: Math.max(1, ...doneItems.map(item => item.count), 1)
       };
     },
 
@@ -14820,7 +15026,33 @@ body.dark .monthly-financial-item em{color:#7b818b}
   position: absolute;
   inset: auto 0 0;
   height: 4px;
-  background: linear-gradient(90deg, #14b8a6, #22c55e);
+  background: var(--daily-kpi-bar, linear-gradient(90deg, #14b8a6, #22c55e));
+}
+
+.daily-report-kpis article.daily-kpi-scheduled,
+.daily-report-kpis article.daily-kpi-canceled {
+  color: #fff;
+}
+
+.daily-report-kpis article.daily-kpi-scheduled span,
+.daily-report-kpis article.daily-kpi-canceled span,
+.daily-report-kpis article.daily-kpi-scheduled strong,
+.daily-report-kpis article.daily-kpi-canceled strong {
+  color: inherit;
+}
+
+.daily-report-kpis article.daily-kpi-done span,
+.daily-report-kpis article.daily-kpi-done strong {
+  color: #14532d;
+}
+
+.daily-report-kpis article.daily-kpi-total {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.daily-report-kpis article.daily-kpi-total::after {
+  background: #64748b;
 }
 
 .daily-report-kpis span {
@@ -14853,6 +15085,10 @@ body.dark .monthly-financial-item em{color:#7b818b}
   box-shadow: 0 8px 22px rgba(15, 23, 42, .05);
 }
 
+.daily-report-panel-wide {
+  grid-column: 1 / -1;
+}
+
 .daily-report-panel h4 {
   margin: 0 0 13px;
   color: #0f172a;
@@ -14875,6 +15111,10 @@ body.dark .monthly-financial-item em{color:#7b818b}
   background: #f8fafc;
 }
 
+.daily-chart-row-source {
+  grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 42px;
+}
+
 .daily-chart-row span {
   overflow: hidden;
   color: #334155;
@@ -14882,6 +15122,26 @@ body.dark .monthly-financial-item em{color:#7b818b}
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.daily-source-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.daily-source-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #eff6ff;
+  font-style: normal;
+  font-size: 13px;
+  line-height: 1;
 }
 
 .daily-chart-row div {
@@ -14895,14 +15155,24 @@ body.dark .monthly-financial-item em{color:#7b818b}
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #14b8a6, #22c55e);
+  background: #64748b;
   box-shadow: 0 0 0 1px rgba(255,255,255,.35) inset;
 }
 
 .daily-chart-row b {
-  color: #047857;
+  color: #334155;
   font-size: 12px;
   text-align: left;
+}
+
+.daily-chart-empty {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .daily-report-table {
@@ -14930,6 +15200,10 @@ body.dark .monthly-financial-item em{color:#7b818b}
   .daily-report-kpis,
   .daily-report-grid {
     grid-template-columns: 1fr;
+  }
+
+  .daily-report-panel-wide {
+    grid-column: auto;
   }
 }
 
