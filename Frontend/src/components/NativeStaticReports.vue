@@ -354,20 +354,15 @@
               <div v-if="!v.qcLoading" class="satisfaction-report-content">
                 <div v-if="v.qcReady" class="satisfaction-report-summary">
                   <div><strong>{{ v.qcPct }}</strong><span>رضایت کلی</span></div>
-                  <div><strong>{{ v.qcAverage }}</strong><span>میانگین از ۵</span></div>
                   <div><strong>{{ v.qcResponses }}</strong><span>شرکت‌کننده</span></div>
                 </div>
                 <div v-if="v.qcReady && v.qcQuestions.length" class="satisfaction-report-questions">
-                  <article v-for="question in v.qcQuestions" :key="question.key" class="satisfaction-report-question">
-                    <header><strong>{{ question.title }}</strong><span>{{ question.average }} از ۵ · {{ question.total }} پاسخ</span></header>
-                    <div v-for="option in question.options" :key="option.value || `${option.score}-${option.label}`" class="satisfaction-report-row">
-                      <span :title="option.label">{{ option.label }}</span>
-                      <div><i :style="{ width: option.width, background: option.color }"></i></div>
-                      <b>{{ option.percentage }}</b><small>{{ option.count }}</small>
-                    </div>
-                  </article>
+                  <div v-for="question in v.qcQuestions" :key="question.key" class="satisfaction-report-row" :title="question.title">
+                    <span>{{ question.title }}</span>
+                    <b>{{ question.percentage }} رضایت</b>
+                  </div>
                 </div>
-                <div v-else-if="v.qcReady" class="satisfaction-report-empty">در این بازه پاسخ چندگزینه‌ای ثبت نشده است.</div>
+                <div v-else-if="v.qcReady" class="satisfaction-report-empty">سؤال فعالی در فرم رضایت‌مندی تعریف نشده است.</div>
                 <div v-else class="satisfaction-report-empty">برای ایجاد گزارش، دکمهٔ محاسبه را بزنید.</div>
               </div>
               <div v-if="v.qcLoading" class="staff-income-loading" aria-live="polite">
@@ -1432,22 +1427,13 @@ export default {
       }
     }
 
-    // satisfaction (multiple-choice questions, separated by question)
+    // satisfaction: one row per active rating question (title + % via avg score / 5 × 100)
     const satisfactionReady = this.satisfactionSnapshot?.status === 'completed';
     const satisfactionResult = satisfactionReady ? (this.satisfactionSnapshot.result || {}) : {};
-    const satisfactionColors = {5:'#16a34a',4:'#4ade80',3:'#f59e0b',2:'#f97316',1:'#dc2626'};
     const qcQuestions = (satisfactionResult.questions || []).map(question => ({
       key:question.key,
       title:question.question,
-      total:fa(Number(question.total || 0)),
-      average:Number(question.average || 0).toLocaleString('fa-IR', {maximumFractionDigits:1}),
-      options:(question.options || []).map(option => ({
-        ...option,
-        count:fa(Number(option.count || 0)),
-        width:`${Number(option.percentage || 0)}%`,
-        percentage:pc(Number(option.percentage || 0)),
-        color:satisfactionColors[Number(option.score)] || '#64748b'
-      }))
+      percentage:pc(Number(question.percentage || 0))
     }));
 
     // ad channels
@@ -1790,7 +1776,6 @@ export default {
       staffIncomeStage: staffIncomeSnapshot?.stage || '',
       // qc
       qcPct: satisfactionReady ? pc(Number(satisfactionResult.percentage || 0)) : '—',
-      qcAverage:satisfactionReady ? Number(satisfactionResult.average || 0).toLocaleString('fa-IR', {maximumFractionDigits:1}) : '—',
       qcResponses:satisfactionReady ? fa(Number(satisfactionResult.responses_count || 0)) : '—',
       qcQuestions,
       qcReady:satisfactionReady,
@@ -2749,7 +2734,7 @@ a:hover{color:#1d4ed8}
 input,button,select{font-family:'Vazirmatn',sans-serif}
 .report-date-input{width:130px!important;height:38px!important;border:1px solid #e2e8f0!important;border-radius:10px!important;padding:8px 12px!important;background:#f8fafc!important;color:#0f172a!important;font-size:13px!important;text-align:center!important;outline:none!important;cursor:pointer!important;box-shadow:none!important}.report-date-input:focus{border-color:#60a5fa!important;box-shadow:0 0 0 3px rgba(37,99,235,.1)!important}
 .report-refresh-button{width:34px;height:34px;min-width:34px;padding:0;border:1px solid #93c5fd;border-radius:10px;background:#eff6ff;color:#1d4ed8;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 7px rgba(37,99,235,.13);transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}.report-refresh-button:hover:not(:disabled){background:#dbeafe;border-color:#60a5fa;box-shadow:0 4px 10px rgba(37,99,235,.18);transform:translateY(-1px)}.report-refresh-button:disabled{cursor:wait;opacity:.65}.report-refresh-button--labeled{width:auto;min-width:34px;padding:0 10px;font-size:10.5px;font-weight:900;white-space:nowrap}.report-calculated-at{color:#64748b;font-size:10px;white-space:nowrap}
-.satisfaction-report-content{display:grid;gap:12px}.satisfaction-report-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.satisfaction-report-summary div{display:grid;gap:2px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.satisfaction-report-summary strong{color:#15803d;font-size:17px}.satisfaction-report-summary span{color:#94a3b8;font-size:9.5px}.satisfaction-report-questions{display:grid;gap:10px;max-height:360px;overflow:auto;padding-left:3px}.satisfaction-report-question{padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#fff}.satisfaction-report-question header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:9px}.satisfaction-report-question header strong{color:#0f172a;font-size:11.5px;line-height:1.7}.satisfaction-report-question header span{flex:0 0 auto;color:#64748b;font-size:9.5px;white-space:nowrap}.satisfaction-report-row{display:grid;grid-template-columns:minmax(52px,78px) 1fr 38px 22px;align-items:center;gap:7px;margin-top:7px;color:#475569;font-size:10px}.satisfaction-report-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.satisfaction-report-row>div{height:6px;overflow:hidden;background:#f1f5f9;border-radius:999px}.satisfaction-report-row i{display:block;height:100%;border-radius:inherit;transition:width .4s ease}.satisfaction-report-row b{color:#0f172a;text-align:left}.satisfaction-report-row small{color:#94a3b8;text-align:left}.satisfaction-report-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:12px;color:#94a3b8;font-size:11px;text-align:center}
+.satisfaction-report-content{display:grid;gap:12px}.satisfaction-report-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.satisfaction-report-summary div{display:grid;gap:2px;padding:10px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;text-align:center}.satisfaction-report-summary strong{color:#15803d;font-size:17px}.satisfaction-report-summary span{color:#94a3b8;font-size:9.5px}.satisfaction-report-questions{display:flex;flex-direction:column;gap:7px;max-height:280px;overflow-y:auto;overscroll-behavior:auto;scrollbar-gutter:stable;padding-left:3px}.satisfaction-report-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;min-width:0;padding:10px 12px;border:1px solid #e2e8f0;border-radius:12px;background:#fff;color:#334155;font-size:11.5px}.satisfaction-report-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#0f172a;line-height:1.7}.satisfaction-report-row b{flex:0 0 auto;color:#15803d;font-size:12px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}.satisfaction-report-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:12px;color:#94a3b8;font-size:11px;text-align:center}
 .report-widget-empty{min-height:82px;display:grid;place-items:center;padding:14px;border:1px dashed #bfdbfe;border-radius:12px;background:#f8fbff;color:#64748b;font-size:11px;font-weight:800;text-align:center;line-height:1.8}
 .report-open-module-button{appearance:none;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#334155;padding:0 10px;height:34px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.report-open-module-button:hover{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}.expense-invoice{min-width:0;border-radius:10px;background:#f8fafc;overflow:hidden}.expense-invoice__primary{width:100%;appearance:none;border:0;background:transparent;padding:9px 12px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,auto) minmax(64px,88px) 14px;align-items:center;gap:8px;cursor:pointer;text-align:right;font:inherit;color:inherit}.expense-invoice__name{min-width:0;font-size:12.5px;font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.expense-invoice__no{min-width:0;font-size:10.5px;font-weight:700;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}.expense-invoice__chevron{color:#94a3b8;font-size:11px;line-height:1}.expense-invoice__details{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;padding:0 12px 10px;border-top:1px solid #e2e8f0}.expense-invoice__details>span{min-width:0;display:grid;gap:1px;font-size:11px;font-weight:700;color:#0f172a;overflow-wrap:anywhere}.expense-invoice__details em{font-style:normal;font-size:9.5px;font-weight:600;color:#94a3b8}.expense-money{min-width:0;max-width:145px;text-align:left;font-weight:800;color:#0f172a;white-space:normal;overflow-wrap:anywhere;line-height:1.5}.expense-summary-list{display:flex;flex-direction:column;gap:7px;min-width:0}.expense-summary-row{min-width:0;min-height:42px;border-radius:10px;padding:8px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.expense-summary-value{min-width:0;max-width:100%;font-size:clamp(11px,1.05vw,15px);font-weight:800;line-height:1.4;white-space:nowrap;text-align:left;direction:rtl;font-variant-numeric:tabular-nums}
 .cac-campaign-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0;padding:8px 10px;border-radius:10px;background:#f8fafc;font-size:11px;color:#334155}.cac-campaign-row>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}.cac-campaign-row>small{color:#64748b;white-space:nowrap}.cac-campaign-row>b{color:#1d4ed8;white-space:nowrap;font-size:11px}
@@ -2952,8 +2937,7 @@ html body.dark .nsr .expense-invoice__name,
 html body.dark .nsr .expense-invoice__details > span,
 html body.dark .nsr .cac-campaign-row > span,
 html body.dark .nsr .cac-campaign-row > b,
-html body.dark .nsr .satisfaction-report-question header strong,
-html body.dark .nsr .satisfaction-report-row b,
+html body.dark .nsr .satisfaction-report-row > span,
 html #app.dark .nsr .kpi-summary-toolbar strong,
 html #app.dark .nsr .rpt-money,
 html #app.dark .nsr .expense-money,
@@ -2962,8 +2946,7 @@ html #app.dark .nsr .expense-invoice__name,
 html #app.dark .nsr .expense-invoice__details > span,
 html #app.dark .nsr .cac-campaign-row > span,
 html #app.dark .nsr .cac-campaign-row > b,
-html #app.dark .nsr .satisfaction-report-question header strong,
-html #app.dark .nsr .satisfaction-report-row b {
+html #app.dark .nsr .satisfaction-report-row > span {
   color: #f1f3f4 !important;
 }
 html body.dark .nsr .kpi-summary-toolbar small,
@@ -2983,12 +2966,12 @@ html #app.dark .nsr .cac-campaign-row > small {
 html body.dark .nsr .expense-invoice,
 html body.dark .nsr .cac-campaign-row,
 html body.dark .nsr .satisfaction-report-summary div,
-html body.dark .nsr .satisfaction-report-question,
+html body.dark .nsr .satisfaction-report-row,
 html body.dark .nsr .report-widget-empty,
 html #app.dark .nsr .expense-invoice,
 html #app.dark .nsr .cac-campaign-row,
 html #app.dark .nsr .satisfaction-report-summary div,
-html #app.dark .nsr .satisfaction-report-question,
+html #app.dark .nsr .satisfaction-report-row,
 html #app.dark .nsr .report-widget-empty {
   background: #22252d !important;
   border-color: #2c3038 !important;

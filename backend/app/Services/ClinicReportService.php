@@ -19,6 +19,7 @@ use App\Models\Patient;
 use App\Models\Doctor;
 use App\Models\Staff;
 use App\Models\AppSetting;
+use App\Http\Controllers\Api\SatisfactionController;
 use App\Reporting\DynamicReports\JalaliMonthWindow;
 use App\Support\AppointmentStatuses;
 use Illuminate\Database\Eloquent\Builder;
@@ -709,11 +710,9 @@ class ClinicReportService
 
     public function satisfactionReport(array $filters): array
     {
-        $settings = AppSetting::getByKey('satisfaction_form_settings', []);
-        if (is_string($settings)) $settings = json_decode($settings, true) ?: [];
-        $configured = collect($settings['questions'] ?? [])
+        $configured = collect(SatisfactionController::form()['questions'] ?? [])
             ->filter(fn ($question) => ($question['type'] ?? null) === 'rating')
-            ->keyBy('id');
+            ->values();
 
         $answers = SatisfactionAnswer::query()
             ->with('response:id,created_at,answered_on')
@@ -727,42 +726,19 @@ class ClinicReportService
                 return $jalali >= $filters['from'] && $jalali <= $filters['to'];
             });
 
-        $questions = $answers->groupBy('question_key')->map(function ($rows, $key) use ($configured) {
-            $question = $configured->get($key, []);
-            $configuredOptions = collect($question['options'] ?? []);
-            $observedOptions = $rows->map(fn ($answer) => [
-                'value'=>(string) ($answer->option_key ?: $answer->answer_value),
-                'label'=>$answer->answer_value ?: (string) $answer->option_key,
-                'score'=>(int) $answer->score,
-                'active'=>true,
-            ])->unique('value');
-            $options = $configuredOptions
-                ->concat($observedOptions)
-                ->unique(fn ($option) => (string) ($option['value'] ?? $option['label'] ?? ''))
-                ->map(function ($option) use ($rows) {
-                    $value = (string) ($option['value'] ?? '');
-                    $score = (int) ($option['score'] ?? 0);
-                    $matching = $rows->filter(fn ($answer) => $value !== ''
-                        ? (string) $answer->option_key === $value
-                        : (int) $answer->score === $score);
-                    $count = $matching->count();
-                    return [
-                        'value'=>$value,
-                        'score'=>$score,
-                        'label'=>$option['label'] ?? $matching->first()?->answer_value ?? $value,
-                        'count'=>$count,
-                        'percentage'=>$rows->count() ? round($count / $rows->count() * 100, 1) : 0,
-                        'active'=>(bool) ($option['active'] ?? true),
-                    ];
-                })
-                ->filter(fn ($option) => $option['active'] || $option['count'] > 0)
-                ->values();
+        $answersByQuestion = $answers->groupBy('question_key');
+        // درصد هر سؤال = میانگین امتیازهای معتبر همان سؤال ÷ ۵ × ۱۰۰ (فرمول اصلی رضایت‌مندی).
+        $questions = $configured->map(function ($question) use ($answersByQuestion) {
+            $key = (string) ($question['id'] ?? '');
+            $rows = $answersByQuestion->get($key, collect());
+            $average = $rows->isEmpty() ? 0 : round((float) $rows->avg('score'), 1);
+
             return [
-                'key'=>$key,
-                'question'=>$question['title'] ?? $rows->first()->question_label,
-                'total'=>$rows->count(),
-                'average'=>round((float) $rows->avg('score'), 1),
-                'options'=>$options,
+                'key' => $key,
+                'question' => $question['title'] ?? $rows->first()?->question_label ?? $key,
+                'total' => $rows->count(),
+                'average' => $average,
+                'percentage' => $rows->isEmpty() ? 0 : round($average / 5 * 100, 1),
             ];
         })->values();
 
