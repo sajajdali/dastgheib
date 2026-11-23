@@ -43,11 +43,22 @@
           <input ref="globalSearchInput" type="text" v-model="searchQuery" @input="scheduleTableSearch" class="global-search-box" :class="{ 'is-assistant-typing': assistantTyping }" placeholder="جستجو در کل جدول..." />
           <button v-if="searchQuery" type="button" class="appointment-search-clear" title="پاک‌کردن جستجو" aria-label="پاک‌کردن جستجو" @click.stop="clearAppointmentSearch">×</button>
         </div>
+        <label class="appointment-year-search-toggle" :class="{ active: searchEntireYear }">
+          <input type="checkbox" v-model="searchEntireYear" @change="onSearchEntireYearChanged" />
+          <span>جست‌وجو در کل سال</span>
+        </label>
+        <label v-if="searchEntireYear" class="appointment-year-search-picker" title="سال جست‌وجو">
+          <select v-model="searchYear" @change="onSearchYearChanged">
+            <option v-for="year in availableSearchYears" :key="year" :value="year">{{ formatScheduleYear(year) }}</option>
+          </select>
+        </label>
         <div v-if="appliedSearchQuery.trim()" class="appointment-search-navigation">
           <button type="button" title="نتیجه قبلی" aria-label="نتیجه قبلی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(-1)">↑</button>
           <span>{{ searchResults.length ? searchResultIndex + 1 : 0 }} از {{ searchResults.length }}</span>
           <button type="button" title="نتیجه بعدی" aria-label="نتیجه بعدی" :disabled="searchResults.length < 2" @click.stop="navigateSearch(1)">↓</button>
+          <small v-if="activeSearchResultDateLabel" class="search-result-date">{{ activeSearchResultDateLabel }}</small>
         </div>
+        <span v-if="yearSearchLoading" class="appointment-year-search-loading">در حال جست‌وجوی سال...</span>
       </div>
 
       <template v-if="appointmentView === 'table'">
@@ -2737,6 +2748,7 @@ import LoadingImage from './LoadingImage.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 import { isBookingDayCapacityFull as bookingDayCapacityFull } from '../utils/bookingDayCapacity';
 import { appointmentPhotosRequired as appointmentNeedsPhotos } from '../utils/appointmentPhotosRequired';
+import { sectionLeafLabel } from '../utils/sectionLeafLabel';
 import {
   appointmentStatusChartColor as sharedAppointmentStatusChartColor,
   appointmentStatusCssClass,
@@ -2820,6 +2832,11 @@ export default {
       searchDebounceTimer: null,
       searchResults: [],
       searchResultIndex: -1,
+      // پیش‌فرض فقط ماه جاری؛ با تیک «جست‌وجو در کل سال» همهٔ ماه‌های سال جلالی انتخابی.
+      searchEntireYear: false,
+      searchYear: "",
+      yearSearchLoading: false,
+      yearSearchRequestId: 0,
       holidays: {},
       monthEventsCache: {},
       monthAppointmentsCache: {},
@@ -3164,7 +3181,8 @@ export default {
     // هر تغییری در فیلترها ارتفاع اندازه‌گیری‌شدهٔ روزهای دور از صفحه را باطل می‌کند.
     dayRowsFilterSignature() {
       return JSON.stringify([
-        this.appliedSearchQuery, this.searchAppointmentId, this.selectedStatuses, this.selectedSources, this.selectedDone,
+        this.appliedSearchQuery, this.searchAppointmentId, this.searchEntireYear, this.searchYear,
+        this.selectedStatuses, this.selectedSources, this.selectedDone,
         this.selectedGenders, this.selectedCustomerLevels, this.selectedAppointmentSms, this.selectedInfoSms,
         this.selectedBeforePhotoStates, this.selectedAfterPhotoStates, this.selectedServiceSections,
         this.selectedServiceDoctors, this.selectedServiceConsultants, this.selectedServiceSubsections,
@@ -3180,6 +3198,23 @@ export default {
     availableScheduleYears() {
       return [...new Set((this.months || []).map(month => String(month).slice(0, 4)).filter(year => /^1[34]\d{2}$/.test(year)))]
         .sort((a, b) => Number(b) - Number(a));
+    },
+    availableSearchYears() {
+      const years = new Set(this.availableScheduleYears);
+      const current = String(this.getCurrentJalaliMonth?.() || moment().format('jYYYY-jMM')).slice(0, 4);
+      if (/^1[34]\d{2}$/.test(current)) years.add(current);
+      if (/^1[34]\d{2}$/.test(String(this.searchYear || ''))) years.add(String(this.searchYear));
+      if (/^1[34]\d{2}$/.test(String(this.selectedScheduleYear || ''))) years.add(String(this.selectedScheduleYear));
+      return [...years].sort((a, b) => Number(b) - Number(a));
+    },
+    activeSearchResultDateLabel() {
+      const result = this.searchResults[this.searchResultIndex];
+      if (!result?.day) return '';
+      const monthKey = result.monthKey || this.months[this.currentMonth] || '';
+      const dayNum = Number(result.day?.dayNum || 0);
+      if (!monthKey || !dayNum) return result.day?.dateLabel || '';
+      const date = moment(`${monthKey}-${String(dayNum).padStart(2, '0')}`, 'jYYYY-jMM-jDD', true);
+      return date.isValid() ? date.format('jD jMMMM jYYYY') : (result.day.dateLabel || monthKey);
     },
     visibleScheduleMonths() {
       return (this.months || []).map((month, index) => ({ month, index }))
@@ -3558,6 +3593,7 @@ export default {
     const realCurrentMonth =
       this.getCurrentJalaliMonth();
     this.selectedScheduleYear = realCurrentMonth.slice(0, 4);
+    this.searchYear = realCurrentMonth.slice(0, 4);
 
     if (!this.months.includes(realCurrentMonth)) {
       this.months.push(realCurrentMonth);
@@ -9910,11 +9946,15 @@ this.calculateFinalAmount(row)
 
     appointmentSearchResultCountForDay(day) {
       if (!this.appliedSearchQuery.trim()) return 0;
-      return this.searchResults.reduce((count, result) =>
-        count + (Number(result.day?.dayNum) === Number(day?.dayNum) ? 1 : 0), 0);
+      const currentMonthKey = this.months[this.currentMonth] || '';
+      return this.searchResults.reduce((count, result) => {
+        const sameDay = Number(result.day?.dayNum) === Number(day?.dayNum);
+        const sameMonth = String(result.monthKey || currentMonthKey) === String(currentMonthKey);
+        return count + (sameDay && sameMonth ? 1 : 0);
+      }, 0);
     },
 
-    showSearchResult(index) {
+    async showSearchResult(index) {
       if (!this.searchResults.length) {
         this.searchResultIndex = -1;
         this.highlightedRowId = null;
@@ -9924,14 +9964,26 @@ this.calculateFinalAmount(row)
       this.searchResultIndex = (index + this.searchResults.length) % this.searchResults.length;
       const result = this.searchResults[this.searchResultIndex];
       clearTimeout(this.highlightedRowTimer);
-      result.day.collapsed = false;
-      this.forceDayRowsRendered(result.day);
+
+      if (result.monthKey) {
+        await this.jumpToScheduleMonth(result.monthKey);
+        const remapped = this.findSearchResultInCurrentDays(result);
+        if (remapped) {
+          result.day = remapped.day;
+          result.row = remapped.row;
+        }
+      }
+
+      if (result.day) {
+        result.day.collapsed = false;
+        this.forceDayRowsRendered(result.day);
+      }
       this.syncAllDaysCollapsedState();
-      this.highlightedRowId = result.row._rowId;
+      this.highlightedRowId = result.row?._rowId || null;
 
       this.$nextTick(() => {
         window.requestAnimationFrame(() => {
-          const el = document.getElementById(`row-${result.row._rowId}`);
+          const el = document.getElementById(`row-${result.row?._rowId}`);
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
         });
       });
@@ -9951,6 +10003,20 @@ this.calculateFinalAmount(row)
       this.searchResults = [];
       this.searchResultIndex = -1;
       this.highlightedRowId = null;
+      this.yearSearchLoading = false;
+      this.yearSearchRequestId += 1;
+    },
+
+    onSearchEntireYearChanged() {
+      if (this.searchEntireYear && !this.searchYear) {
+        this.searchYear = String(this.selectedScheduleYear || this.getCurrentJalaliMonth().slice(0, 4));
+      }
+      this.scheduleTableSearch();
+    },
+
+    onSearchYearChanged() {
+      if (!this.searchEntireYear) return;
+      this.scheduleTableSearch();
     },
 
     scheduleTableSearch() {
@@ -9963,7 +10029,161 @@ this.calculateFinalAmount(row)
       this.searchDebounceTimer = setTimeout(() => this.searchTable(), 250);
     },
 
-    searchTable() {
+    jalaliYearMonthKeys(year) {
+      const y = String(year || '').trim();
+      if (!/^1[34]\d{2}$/.test(y)) return [];
+      return Array.from({ length: 12 }, (_, index) => `${y}-${String(index + 1).padStart(2, '0')}`);
+    },
+
+    async jumpToScheduleMonth(monthKey) {
+      if (!monthKey || monthKey === this.months[this.currentMonth]) return;
+      if (!this.months.includes(monthKey)) {
+        this.months = this.fillMissingMonths([...this.months, monthKey]);
+      }
+      this.selectedScheduleYear = String(monthKey).slice(0, 4);
+      const index = this.months.indexOf(monthKey);
+      if (index < 0) return;
+      if (index === this.currentMonth) return;
+      // جلوگیری از fetch دوباره توسط watcherِ currentMonth؛ خودمان ماه را بار می‌کنیم.
+      this.generatingNewMonth = true;
+      this.currentMonth = index;
+      this.generatingNewMonth = false;
+      await this.fetchMonthEvents();
+      await this.fetchData();
+    },
+
+    findSearchResultInCurrentDays(result) {
+      const appointmentId = Number(result?.row?.appointmentId || 0);
+      const dayNum = Number(result?.day?.dayNum || 0);
+      const time = String(result?.row?.time || '').slice(0, 5);
+      for (const day of this.days || []) {
+        if (dayNum && Number(day.dayNum) !== dayNum) continue;
+        for (const row of day.rows || []) {
+          if (appointmentId && Number(row.appointmentId) === appointmentId) return { day, row };
+          if (!appointmentId && time && String(row.time || '').slice(0, 5) === time
+            && this.normalizeAppointmentSearchText(row.lastname) === this.normalizeAppointmentSearchText(result.row?.lastname)
+            && this.normalizeAppointmentSearchText(row.phone) === this.normalizeAppointmentSearchText(result.row?.phone)) {
+            return { day, row };
+          }
+        }
+      }
+      return null;
+    },
+
+    async ensureYearMonthsCached(year) {
+      const keys = this.jalaliYearMonthKeys(year);
+      const currentKey = this.months[this.currentMonth];
+      if (currentKey && this.days?.length) this.monthDaysCache[currentKey] = this.days;
+
+      await Promise.all(keys.map(async (monthKey) => {
+        if (monthKey === currentKey && this.days?.length) {
+          this.monthDaysCache[monthKey] = this.days;
+          return;
+        }
+        if (Array.isArray(this.monthDaysCache[monthKey]) && this.monthDaysCache[monthKey].length) return;
+
+        let data = this.monthAppointmentsCache[monthKey];
+        if (!data) {
+          try {
+            const response = await axios.get('/api/appointments', { params: { month: monthKey } });
+            data = Array.isArray(response.data) ? response.data : [];
+            this.monthAppointmentsCache[monthKey] = data;
+          } catch (error) {
+            console.error('سال‌جستجو: دریافت ماه انجام نشد', monthKey, error);
+            this.monthDaysCache[monthKey] = [];
+            return;
+          }
+        }
+        this.monthDaysCache[monthKey] = this.buildSearchMonthDays(monthKey, data);
+      }));
+    },
+
+    buildSearchMonthDays(monthKey, appointments) {
+      const [year, month] = String(monthKey).split('-').map(Number);
+      const daysByNum = new Map();
+
+      (appointments || []).forEach(item => {
+        const dayNum = Number(item.day_num);
+        if (!dayNum) return;
+        let day = daysByNum.get(dayNum);
+        if (!day) {
+          const date = moment(`${year}/${month}/${dayNum}`, 'jYYYY/jM/jD');
+          day = {
+            id: `search-${monthKey}-${dayNum}`,
+            dayNum,
+            dateLabel: date.isValid() ? date.format('dddd jD jMMMM') : `${dayNum}`,
+            monthKey,
+            rows: [],
+            collapsed: true,
+          };
+          daysByNum.set(dayNum, day);
+        }
+        day.rows.push(this.mapApiAppointmentToSearchRow(item));
+      });
+
+      return [...daysByNum.values()].sort((a, b) => a.dayNum - b.dayNum);
+    },
+
+    mapApiAppointmentToSearchRow(item) {
+      const services = item.services?.length
+        ? item.services.map((s, serviceIndex) => ({
+            name: s.name || '',
+            inventory_id: this.stableInventoryIdForService(s),
+            sectionId: s.sectionId || s.section_id || this.sectionIdForService(s.name),
+            rootSectionId: s.rootSectionId || s.root_section_id || this.rootSectionIdFor(s.sectionId || s.section_id || this.sectionIdForService(s.name)),
+            tags: Array.isArray(s.tags) ? s.tags : [],
+            cc: s.cc || '',
+            doctor: s.doctor || '',
+            consultant: s.consultant || '',
+            discount: (s.discount || this.legacyServiceDiscount(item, serviceIndex)) ? this.formatDisplayMoney(s.discount || this.legacyServiceDiscount(item, serviceIndex)) : '',
+            addons: (s.addons || []).map((addon, index) => ({
+              name: addon.name || '',
+              cc: addon.cc || '',
+              _key: `search-addon-${index}`,
+            })),
+          }))
+        : [];
+
+      return {
+        _rowId: `search-row-${item.id || `${item.day_num}-${item.time}`}`,
+        appointmentId: item.id || null,
+        lastname: item.lastname || '',
+        gender: item.gender || '',
+        phone: item.phone || '',
+        fileNumber: item.file_number || '',
+        time: item.time || '',
+        status: this.emptyScheduleCellValue(item.status),
+        doctor: item.doctor || '',
+        consultant: item.consultant || '',
+        source: item.source || '',
+        description: item.description || '',
+        doctorNote: item.doctor_note || '',
+        done: this.emptyScheduleCellValue(item.done),
+        amount: item.amount ? this.formatDisplayMoney(item.amount) : '',
+        debt: item.debt ? this.formatDisplayMoney(item.debt) : '',
+        paymentDetails: this.normalizePaymentDetails(item.payment_details || {}),
+        appointmentSms: this.emptyScheduleCellValue(item.appointment_sms),
+        infoSms: this.emptyScheduleCellValue(item.info_sms),
+        beforePhotoTakenAt: item.before_photo_taken_at || '',
+        afterPhotoTakenAt: item.after_photo_taken_at || '',
+        hasPatientFile: !!item.has_patient_file,
+        customerLevel: this.normalizeCustomerLevel(item.customer_level),
+        serviceTypes: this.normalizeServiceSectionIds(item.service_types),
+        services,
+      };
+    },
+
+    collectSearchResultsFromDays(days, search, monthKey = null) {
+      return (days || []).flatMap(day =>
+        (day.rows || [])
+          .filter(row => !this.isEmptyAppointmentRow(row))
+          .filter(row => this.appointmentSearchText(row).includes(search))
+          .filter(row => this.rowMatchesActiveTableFilters(day, row, { forSearch: true }))
+          .map(row => ({ day, row, monthKey: monthKey || day.monthKey || this.months[this.currentMonth] || null }))
+      );
+    },
+
+    async searchTable() {
       clearTimeout(this.searchDebounceTimer);
       this.appliedSearchQuery = this.searchQuery;
       const search = this.normalizeAppointmentSearchText(this.appliedSearchQuery);
@@ -9971,13 +10191,34 @@ this.calculateFinalAmount(row)
       this.highlightedRowId = null;
       this.searchResults = [];
       this.searchResultIndex = -1;
-      if (!search) return;
+      if (!search) {
+        this.yearSearchLoading = false;
+        return;
+      }
 
-      this.searchResults = this.days.flatMap(day =>
-        (day.rows || [])
-          .filter(row => this.appointmentSearchText(row).includes(search))
-          .map(row => ({ day, row }))
-      );
+      const requestId = ++this.yearSearchRequestId;
+
+      if (this.searchEntireYear) {
+        const year = String(this.searchYear || this.selectedScheduleYear || this.getCurrentJalaliMonth().slice(0, 4));
+        this.searchYear = year;
+        this.yearSearchLoading = true;
+        try {
+          await this.ensureYearMonthsCached(year);
+          if (requestId !== this.yearSearchRequestId) return;
+          this.searchResults = this.jalaliYearMonthKeys(year).flatMap(monthKey => {
+            const days = monthKey === this.months[this.currentMonth]
+              ? this.days
+              : (this.monthDaysCache[monthKey] || []);
+            return this.collectSearchResultsFromDays(days, search, monthKey);
+          });
+        } finally {
+          if (requestId === this.yearSearchRequestId) this.yearSearchLoading = false;
+        }
+      } else {
+        this.yearSearchLoading = false;
+        this.searchResults = this.collectSearchResultsFromDays(this.days, search, this.months[this.currentMonth] || null);
+      }
+
       if (this.searchAppointmentId) {
         const only = this.searchResults.filter(result => Number(result.row?.appointmentId) === Number(this.searchAppointmentId));
         // اگر همان نوبت با این متن پیدا نشد، همهٔ نتایج جستجو نمایش داده می‌شود.
@@ -9985,7 +10226,7 @@ this.calculateFinalAmount(row)
         else this.searchAppointmentId = null;
       }
       this.expandMatchingFilteredDays();
-      this.showSearchResult(0);
+      await this.showSearchResult(0);
     },
 
     openSmsPanel() {
@@ -11263,97 +11504,110 @@ this.calculateFinalAmount(row)
       });
     },
 
+    rowMatchesActiveTableFilters(day, row, options = {}) {
+      const forSearch = Boolean(options.forSearch);
+      const statusOk =
+        !this.selectedStatuses.length ||
+        this.selectedStatuses.includes(row.status);
+
+      const sourceOk =
+        !this.selectedSources.length ||
+        this.selectedSources.includes(row.source);
+
+      const doneOk =
+        !this.selectedDone.length ||
+        this.selectedDone.includes(row.done);
+
+      const genderOk = !this.selectedGenders.length || this.selectedGenders.includes(row.gender);
+      // customerLevel روی ردیف همان خروجی decorate در CustomerLevelService است که حلقهٔ آواتار نشان می‌دهد.
+      // اسلات خالی و نوبت بدون پرونده سطح ذخیره‌شده یا پیش‌فرض نقره‌ای دارند و در این فیلتر نمی‌آیند.
+      const customerLevelOk = !this.selectedCustomerLevels.length || (
+        Boolean(row.hasPatientFile) &&
+        this.selectedCustomerLevels.includes(this.normalizeCustomerLevel(row.customerLevel))
+      );
+      const appointmentSmsOk = !this.selectedAppointmentSms.length || this.selectedAppointmentSms.includes(row.appointmentSms || '');
+      const infoSmsOk = !this.selectedInfoSms.length || this.selectedInfoSms.includes(row.infoSms || '');
+      const beforePhotoOk = !this.selectedBeforePhotoStates.length || this.selectedBeforePhotoStates.includes(this.photoStatusState(row, 'before'));
+      const afterPhotoOk = !this.selectedAfterPhotoStates.length || this.selectedAfterPhotoStates.includes(this.photoStatusState(row, 'after'));
+
+      const sectionOk = !this.selectedServiceSections.length ||
+        this.normalizeServiceSectionIds(row.serviceTypes).some(sectionId =>
+          this.selectedServiceSections.map(String).includes(String(sectionId))
+        ) ||
+        (row.services || []).some(service => {
+          const sectionId = service.sectionId || this.sectionIdForService(service.name, row);
+          return this.selectedServiceSections.some(selected =>
+            this.serviceSectionScopeIds([selected]).includes(String(sectionId))
+          );
+        });
+
+      const services = row.services || [];
+      const doctorOk = !this.selectedServiceDoctors.length ||
+        this.selectedServiceDoctors.includes(String(row.doctor || '').trim()) ||
+        services.some(service => this.selectedServiceDoctors.includes(String(service.doctor || '').trim()));
+      const consultantOk = !this.selectedServiceConsultants.length ||
+        this.selectedServiceConsultants.includes(String(row.consultant || '').trim()) ||
+        services.some(service => this.selectedServiceConsultants.includes(String(service.consultant || '').trim()));
+      const subsectionOk = !this.selectedServiceSubsections.length || services.some(service => {
+        const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
+        return this.selectedServiceSubsections.includes(String(sectionId || ''));
+      });
+      const paymentAmount = this.recordedPaymentAmount(row);
+      const minimum = this.moneyToNumber(this.amountFilterMin);
+      const maximum = this.moneyToNumber(this.amountFilterMax);
+      const amountOk = (!minimum || paymentAmount >= minimum) && (!maximum || paymentAmount <= maximum);
+      const cardOk = !this.amountFilterCardOnly || this.normalizePaymentDetails(row?.paymentDetails || {}).card > 0;
+      const debtorOk = !this.amountFilterDebtorsOnly || this.isDebtor(row);
+      const hasAppointment = !this.isEmptyAppointmentRow(row);
+      const keepEmptyBookingSlot = !forSearch && !hasAppointment;
+      const bookingRootSectionOk = !this.bookingRootSectionFilter || keepEmptyBookingSlot || services.some(service => {
+        const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
+        return String(this.rootSectionIdFor(sectionId) || sectionId || '') === String(this.bookingRootSectionFilter);
+      });
+      const bookingBranchIds = this.bookingServiceFilter ? new Set(this.serviceBranchIds(this.bookingServiceFilter).map(String)) : null;
+      const bookingServiceOk = !bookingBranchIds || keepEmptyBookingSlot || services.some(service => {
+        const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
+        return bookingBranchIds.has(String(sectionId || ''));
+      });
+      const bookingResourceOk = !this.bookingResourceFilter || keepEmptyBookingSlot || this.bookingRowMatchesSelectedResource(row);
+      const timelineSlotOk = this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
+      const bookingScheduleOk = !forSearch || !day ? true : this.bookingScheduleAllowsRow(day, row);
+      const bookingCapacityOk = forSearch || !day
+        ? true
+        : (!this.manualDurationSlotIsOccupied(day, row) && !this.bookingSlotIsOccupied(day, row));
+      const rowTime = String(row.time || '').slice(0, 5);
+      const emptyTimeOk = !this.emptyTimeFilterActive || (
+        !String(row.status || '').trim() &&
+        Boolean(rowTime) &&
+        (!this.emptyTimeFilterFrom || rowTime >= this.emptyTimeFilterFrom) &&
+        (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
+      );
+
+      return statusOk && sourceOk && doneOk && genderOk && customerLevelOk && appointmentSmsOk && infoSmsOk && beforePhotoOk && afterPhotoOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingRootSectionOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
+    },
+
     getFilteredRows(day) {
       const appointmentSearch = this.normalizeAppointmentSearchText(this.appliedSearchQuery);
-      if (appointmentSearch) {
-        return (day.rows || [])
-          .filter(row => this.appointmentSearchText(row).includes(appointmentSearch))
-          .filter(row => !this.searchAppointmentId || Number(row.appointmentId) === Number(this.searchAppointmentId))
-          .map((row, index) => ({ row, index }))
-          .sort(this.compareAppointmentRowsByTime)
-          .map((item, index) => {
-            item.row._visibleIndex = index;
-            return item.row;
-          });
-      }
+      const currentMonthKey = this.months[this.currentMonth] || null;
 
-      let rows = day.rows.filter(row => {
-        const statusOk =
-          !this.selectedStatuses.length ||
-          this.selectedStatuses.includes(row.status);
-
-        const sourceOk =
-          !this.selectedSources.length ||
-          this.selectedSources.includes(row.source);
-
-        const doneOk =
-          !this.selectedDone.length ||
-          this.selectedDone.includes(row.done);
-
-        const genderOk = !this.selectedGenders.length || this.selectedGenders.includes(row.gender);
-        // customerLevel روی ردیف همان خروجی decorate در CustomerLevelService است که حلقهٔ آواتار نشان می‌دهد.
-        // اسلات خالی و نوبت بدون پرونده سطح ذخیره‌شده یا پیش‌فرض نقره‌ای دارند و در این فیلتر نمی‌آیند.
-        const customerLevelOk = !this.selectedCustomerLevels.length || (
-          Boolean(row.hasPatientFile) &&
-          this.selectedCustomerLevels.includes(this.normalizeCustomerLevel(row.customerLevel))
-        );
-        const appointmentSmsOk = !this.selectedAppointmentSms.length || this.selectedAppointmentSms.includes(row.appointmentSms || '');
-        const infoSmsOk = !this.selectedInfoSms.length || this.selectedInfoSms.includes(row.infoSms || '');
-        const beforePhotoOk = !this.selectedBeforePhotoStates.length || this.selectedBeforePhotoStates.includes(this.photoStatusState(row, 'before'));
-        const afterPhotoOk = !this.selectedAfterPhotoStates.length || this.selectedAfterPhotoStates.includes(this.photoStatusState(row, 'after'));
-
-        const sectionOk = !this.selectedServiceSections.length ||
-          this.normalizeServiceSectionIds(row.serviceTypes).some(sectionId =>
-            this.selectedServiceSections.map(String).includes(String(sectionId))
-          ) ||
-          (row.services || []).some(service => {
-            const sectionId = service.sectionId || this.sectionIdForService(service.name, row);
-            return this.selectedServiceSections.some(selected =>
-              this.serviceSectionScopeIds([selected]).includes(String(sectionId))
+      let rows = (day.rows || []).filter(row => {
+        if (appointmentSearch) {
+          if (!this.appointmentSearchText(row).includes(appointmentSearch)) return false;
+          if (this.searchAppointmentId && Number(row.appointmentId) !== Number(this.searchAppointmentId)) return false;
+          if (this.searchEntireYear) {
+            const matched = this.searchResults.some(result =>
+              Number(result.day?.dayNum) === Number(day?.dayNum)
+              && String(result.monthKey || currentMonthKey) === String(currentMonthKey)
+              && (
+                (result.row?.appointmentId && Number(result.row.appointmentId) === Number(row.appointmentId))
+                || result.row?._rowId === row._rowId
+              )
             );
-          });
-
-        const services = row.services || [];
-        const doctorOk = !this.selectedServiceDoctors.length ||
-          this.selectedServiceDoctors.includes(String(row.doctor || '').trim()) ||
-          services.some(service => this.selectedServiceDoctors.includes(String(service.doctor || '').trim()));
-        const consultantOk = !this.selectedServiceConsultants.length ||
-          this.selectedServiceConsultants.includes(String(row.consultant || '').trim()) ||
-          services.some(service => this.selectedServiceConsultants.includes(String(service.consultant || '').trim()));
-        const subsectionOk = !this.selectedServiceSubsections.length || services.some(service => {
-          const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
-          return this.selectedServiceSubsections.includes(String(sectionId || ''));
-        });
-        const paymentAmount = this.recordedPaymentAmount(row);
-        const minimum = this.moneyToNumber(this.amountFilterMin);
-        const maximum = this.moneyToNumber(this.amountFilterMax);
-        const amountOk = (!minimum || paymentAmount >= minimum) && (!maximum || paymentAmount <= maximum);
-        const cardOk = !this.amountFilterCardOnly || this.normalizePaymentDetails(row?.paymentDetails || {}).card > 0;
-        const debtorOk = !this.amountFilterDebtorsOnly || this.isDebtor(row);
-        const hasAppointment = !this.isEmptyAppointmentRow(row);
-        const keepEmptyBookingSlot = !hasAppointment;
-        const bookingRootSectionOk = !this.bookingRootSectionFilter || keepEmptyBookingSlot || services.some(service => {
-          const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
-          return String(this.rootSectionIdFor(sectionId) || sectionId || '') === String(this.bookingRootSectionFilter);
-        });
-        const bookingBranchIds = this.bookingServiceFilter ? new Set(this.serviceBranchIds(this.bookingServiceFilter).map(String)) : null;
-        const bookingServiceOk = !bookingBranchIds || keepEmptyBookingSlot || services.some(service => {
-          const sectionId = service.sectionId || service.section_id || this.sectionIdForService(service.name, row);
-          return bookingBranchIds.has(String(sectionId || ''));
-        });
-        const bookingResourceOk = !this.bookingResourceFilter || keepEmptyBookingSlot || this.bookingRowMatchesSelectedResource(row);
-        const timelineSlotOk = this.timelineSlotFilter === 'all' || (this.timelineSlotFilter === 'empty' ? !hasAppointment : hasAppointment);
-        const bookingScheduleOk = this.bookingScheduleAllowsRow(day, row);
-        const bookingCapacityOk = !this.manualDurationSlotIsOccupied(day, row) && !this.bookingSlotIsOccupied(day, row);
-        const rowTime = String(row.time || '').slice(0, 5);
-        const emptyTimeOk = !this.emptyTimeFilterActive || (
-          !String(row.status || '').trim() &&
-          Boolean(rowTime) &&
-          (!this.emptyTimeFilterFrom || rowTime >= this.emptyTimeFilterFrom) &&
-          (!this.emptyTimeFilterTo || rowTime <= this.emptyTimeFilterTo)
-        );
-
-        return statusOk && sourceOk && doneOk && genderOk && customerLevelOk && appointmentSmsOk && infoSmsOk && beforePhotoOk && afterPhotoOk && sectionOk && doctorOk && consultantOk && subsectionOk && amountOk && cardOk && debtorOk && emptyTimeOk && bookingRootSectionOk && bookingServiceOk && bookingResourceOk && timelineSlotOk && bookingScheduleOk && bookingCapacityOk;
+            if (!matched) return false;
+          }
+          return this.rowMatchesActiveTableFilters(day, row, { forSearch: true });
+        }
+        return this.rowMatchesActiveTableFilters(day, row);
       });
 
       rows = rows
@@ -11489,8 +11743,8 @@ smsColor(val) {
       return row.services?.some(s => s.name);
     },
 
-    // در ستون خدمات نام زیربخش انتخاب‌شده نمایش داده می‌شود؛ خدمتی که زیربخش
-    // ندارد (مستقیم زیر بخش اصلی است) با نام خودش نمایش داده می‌شود.
+    // در ستون خدمات فقط عمیق‌ترین زیربخش برگ نمایش داده می‌شود
+    // (مثلاً لیزر←کندلا←بانوان → «بانوان»)؛ والدین تکرار نمی‌شوند.
     serviceButtonLabels(row) {
       const labels = (row?.services || [])
         .map(service => this.serviceSubsectionLabel(service))
@@ -11503,9 +11757,9 @@ smsColor(val) {
       const sectionId = service?.sectionId || this.getServiceData(service)?.section_id || '';
       const rootId = service?.rootSectionId || this.rootSectionIdFor(sectionId);
       if (sectionId && String(sectionId) !== String(rootId || '')) {
-        return String(this.serviceSectionLabel(sectionId) || '').trim() || name;
+        return sectionLeafLabel(this.serviceSectionLabel(sectionId) || name);
       }
-      return name;
+      return sectionLeafLabel(name) || name;
     },
 
     serviceButtonTitle(row) {
@@ -11900,7 +12154,10 @@ smsColor(val) {
     },
 
     tableFilterSignature() {
-      this.$nextTick(() => this.expandMatchingFilteredDays());
+      this.$nextTick(() => {
+        this.expandMatchingFilteredDays();
+        if (this.appliedSearchQuery.trim()) this.searchTable();
+      });
     },
 
     openViewRequest: {
@@ -13428,10 +13685,70 @@ smsColor(val) {
   display: flex;
   align-items: center;
   gap: 7px;
+  flex-wrap: wrap;
 }
 
 .appointment-search-input-wrap { position:relative; display:flex; align-items:center; }
 .appointment-search-input-wrap .global-search-box { padding-left:34px; }
+
+.appointment-year-search-toggle {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #dbe5f1;
+  border-radius: 9px;
+  background: #fff;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, .05);
+  user-select: none;
+}
+.appointment-year-search-toggle input { width: 14px; height: 14px; accent-color: #2563eb; cursor: pointer; }
+.appointment-year-search-toggle.active,
+.appointment-year-search-toggle:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.appointment-year-search-picker {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px 0 8px;
+  border: 1px solid #dbe5f1;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, .05);
+}
+.appointment-year-search-picker select {
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  outline: none;
+}
+.appointment-year-search-loading {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+}
+.search-result-date {
+  margin-right: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 900;
+}
 .appointment-search-clear {
   position:absolute;
   left:9px;

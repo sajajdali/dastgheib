@@ -1009,8 +1009,8 @@
                       <div class="th-content">تاریخ و ساعت تماس <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ تماس" @click.stop="toggleFilterMenu('contactDate', $event)">⚙</button></div>
                       <div v-if="activeFilter === 'contactDate'" class="filter-dropdown date-filter-dropdown" :style="filterMenuStyle" @click.stop>
                         <div class="date-filter-title">فیلتر تاریخ تماس</div>
-                        <div class="date-filter-field"><span>از</span><DatePicker v-model="dateFilters.contactDate.from" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
-                        <div class="date-filter-field"><span>تا</span><DatePicker v-model="dateFilters.contactDate.to" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
+                        <div class="date-filter-field"><span>از</span><DatePicker :model-value="dateFilterModel('contactDate', 'from')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('contactDate', 'from', $event)" /></div>
+                        <div class="date-filter-field"><span>تا</span><DatePicker :model-value="dateFilterModel('contactDate', 'to')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('contactDate', 'to', $event)" /></div>
                         <div class="date-filter-actions">
                           <button type="button" @click="setDateFilterToday('contactDate')">امروز</button>
                           <button v-if="isFiltered('contactDate')" type="button" class="danger" @click="clearDateFilter('contactDate')">پاک کردن</button>
@@ -1024,8 +1024,8 @@
                       <div class="th-content">تاریخ پیگیری <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ پیگیری" @click.stop="toggleFilterMenu('followUpDate', $event)">⚙</button></div>
                       <div v-if="activeFilter === 'followUpDate'" class="filter-dropdown date-filter-dropdown" :style="filterMenuStyle" @click.stop>
                         <div class="date-filter-title">فیلتر تاریخ پیگیری</div>
-                        <div class="date-filter-field"><span>از</span><DatePicker v-model="dateFilters.followUpDate.from" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
-                        <div class="date-filter-field"><span>تا</span><DatePicker v-model="dateFilters.followUpDate.to" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" /></div>
+                        <div class="date-filter-field"><span>از</span><DatePicker :model-value="dateFilterModel('followUpDate', 'from')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('followUpDate', 'from', $event)" /></div>
+                        <div class="date-filter-field"><span>تا</span><DatePicker :model-value="dateFilterModel('followUpDate', 'to')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('followUpDate', 'to', $event)" /></div>
                         <div class="date-filter-actions">
                           <button type="button" @click="setDateFilterToday('followUpDate')">امروز</button>
                           <button v-if="isFiltered('followUpDate')" type="button" class="danger" @click="clearDateFilter('followUpDate')">پاک کردن</button>
@@ -1809,6 +1809,7 @@ import DatePicker from 'vue3-persian-datetime-picker'
 import JalaliDateInput from './JalaliDateInput.vue'
 import draggable from "vuedraggable";
 import { avatarInitial, avatarUrl, findResourceByName } from '@/utils/avatar';
+import { sectionLeafLabel, dateInInclusiveRange } from '@/utils/sectionLeafLabel';
 import {
   createFollowupNote,
   followupLatestDescription,
@@ -2201,7 +2202,7 @@ export default {
       return this.activeCampaign.rows.filter((r) => {
         const inSearch =
           !term ||
-          [r.fullName, r.phone, r.consultant, followupNotesSearchText(r)]
+          [r.fullName, r.phone, r.consultant, followupNotesSearchText(r), this.followupSubsectionLabel(r)]
             .filter(Boolean)
             .some((f) => String(f).toLowerCase().includes(term));
 
@@ -3263,24 +3264,44 @@ export default {
     },
 
     rowMatchesDateFilter(row, key) {
-      const filter = this.dateFilters[key];
-      const from = this.normalizeDateValue(filter?.from);
-      const to = this.normalizeDateValue(filter?.to);
-      if (!from && !to) return true;
+      const filter = this.dateFilters[key] || {};
+      const from = this.normalizeDateValue(filter.from);
+      const to = this.normalizeDateValue(filter.to);
       const value = this.normalizeDateValue(row?.[key]).slice(0, 10);
-      if (!value) return false;
-      if (from && value < from) return false;
-      if (to && value > to) return false;
-      return true;
+      return dateInInclusiveRange(value, from, to);
+    },
+
+    dateFilterModel(key, bound) {
+      return this.normalizeDateValue(this.dateFilters?.[key]?.[bound]);
+    },
+
+    // هر تقویم فقط همان کران را عوض می‌کند تا انتخاب «از» مقدار «تا» را پاک نکند.
+    setDateFilterBound(key, bound, value) {
+      const current = this.dateFilters[key] || { from: "", to: "" };
+      const next = {
+        from: this.normalizeDateValue(current.from),
+        to: this.normalizeDateValue(current.to),
+      };
+      next[bound] = this.normalizeDateValue(value);
+      this.dateFilters = {
+        ...this.dateFilters,
+        [key]: next,
+      };
     },
 
     setDateFilterToday(key) {
       const today = moment().format("YYYY-MM-DD");
-      this.dateFilters[key] = { from: today, to: today };
+      this.dateFilters = {
+        ...this.dateFilters,
+        [key]: { from: today, to: today },
+      };
     },
 
     clearDateFilter(key) {
-      this.dateFilters[key] = { from: "", to: "" };
+      this.dateFilters = {
+        ...this.dateFilters,
+        [key]: { from: "", to: "" },
+      };
     },
 
     normalizeSubsectionSearch(value) {
@@ -3296,9 +3317,9 @@ export default {
       const id = String(row?.subsectionId || "");
       if (id) {
         const option = this.subsectionOptions.find(item => String(item.id) === id);
-        if (option) return option.name;
+        if (option) return sectionLeafLabel(option.name);
       }
-      return String(row?.subsectionName || "").trim();
+      return sectionLeafLabel(row?.subsectionName);
     },
 
     followupSubsectionFilterValue(row) {
@@ -3327,7 +3348,7 @@ export default {
 
     setRowSubsection(row, option) {
       row.subsectionId = option ? Number(option.id) : null;
-      row.subsectionName = option ? option.name : "";
+      row.subsectionName = option ? sectionLeafLabel(option.name) : "";
       this.closeSubsectionMenu();
     },
 
@@ -3343,7 +3364,7 @@ export default {
         const { data } = await axios.get("/api/campaigns/subsections");
         const seen = new Set();
         this.subsectionOptions = (Array.isArray(data) ? data : [])
-          .map(item => ({ id: item?.id, name: String(item?.name || "").trim() }))
+          .map(item => ({ id: item?.id, name: sectionLeafLabel(item?.name) }))
           .filter(item => {
             if (!item.id || !item.name || seen.has(String(item.id))) return false;
             seen.add(String(item.id));
