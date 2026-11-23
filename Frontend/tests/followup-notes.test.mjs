@@ -57,3 +57,13 @@ test('followup description modal uses a chat-like notes thread', () => {
   assert.match(source, /historyLatestNotePreview/)
   assert.match(source, /truncateFollowupDescription\(row\)/)
 })
+
+test('adding or editing a note persists immediately without a bottom save', () => {
+  assert.match(source, /persistDescriptionNotes\(\)/)
+  const addMethod = source.match(/addDescriptionNote\(\) \{[\s\S]*?\n    \},/)?.[0] || ''
+  const editMethod = source.match(/applyEditDescriptionNote\(note\) \{[\s\S]*?\n    \},/)?.[0] || ''
+  assert.match(addMethod, /this\.persistDescriptionNotes\(\)/)
+  assert.match(editMethod, /this\.persistDescriptionNotes\(\)/)
+  assert.doesNotMatch(source, /ثبت یادداشت‌ها/)
+  assert.doesNotMatch(source, /saveDescriptionModal\(/)
+})

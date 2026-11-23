@@ -1644,7 +1644,6 @@
 
         <footer>
           <button type="button" class="description-cancel" @click="closeDescriptionModal">بستن</button>
-          <button v-if="!descriptionModalReadonly" type="button" class="description-save" @click="saveDescriptionModal">ثبت یادداشت‌ها</button>
         </footer>
       </section>
     </div>
@@ -2544,12 +2543,30 @@ export default {
       this.scrollDescriptionNotesToEnd();
     },
     closeDescriptionModal() {
+      if (!this.descriptionModalReadonly) {
+        if (this.descriptionEditingNoteId) {
+          const editing = this.descriptionNotesDraft.find(note => note.id === this.descriptionEditingNoteId);
+          if (editing && String(this.descriptionEditText || '').trim()) this.applyEditDescriptionNote(editing);
+          else this.cancelEditDescriptionNote();
+        }
+        if (String(this.descriptionNewNoteText || '').trim()) this.addDescriptionNote();
+      }
       this.descriptionModalOpen = false;
       this.activeDescriptionRow = null;
       this.descriptionNotesDraft = [];
       this.descriptionEditingNoteId = null;
       this.descriptionEditText = '';
       this.descriptionNewNoteText = '';
+    },
+    persistDescriptionNotes() {
+      if (!this.activeDescriptionRow) return;
+      const notes = this.descriptionNotesDraft
+        .map(note => ({ ...note, text: String(note.text || '').trim() }))
+        .filter(note => note.text);
+      this.descriptionNotesDraft = notes.map(note => ({ ...note }));
+      this.activeDescriptionRow.notes = notes.map(note => ({ ...note }));
+      this.activeDescriptionRow.description = latestFollowupNoteText(notes);
+      this.debouncedSaveLocal?.();
     },
     startEditDescriptionNote(note) {
       this.descriptionEditingNoteId = note.id;
@@ -2569,29 +2586,15 @@ export default {
       note.updated_at = new Date().toISOString();
       if (!note.author) note.author = this.currentFollowupAuthor() || null;
       this.cancelEditDescriptionNote();
+      this.persistDescriptionNotes();
     },
     addDescriptionNote() {
       const text = String(this.descriptionNewNoteText || '').trim();
       if (!text) return;
       this.descriptionNotesDraft.push(createFollowupNote(text, this.currentFollowupAuthor()));
       this.descriptionNewNoteText = '';
+      this.persistDescriptionNotes();
       this.scrollDescriptionNotesToEnd();
-    },
-    saveDescriptionModal() {
-      if (this.descriptionEditingNoteId) {
-        const editing = this.descriptionNotesDraft.find(note => note.id === this.descriptionEditingNoteId);
-        if (editing) this.applyEditDescriptionNote(editing);
-      }
-      if (String(this.descriptionNewNoteText || '').trim()) this.addDescriptionNote();
-      if (this.activeDescriptionRow) {
-        const notes = this.descriptionNotesDraft
-          .map(note => ({ ...note, text: String(note.text || '').trim() }))
-          .filter(note => note.text);
-        this.activeDescriptionRow.notes = notes;
-        this.activeDescriptionRow.description = latestFollowupNoteText(notes);
-        this.debouncedSaveLocal?.();
-      }
-      this.closeDescriptionModal();
     },
 
     applyAppointmentResult(result) {
