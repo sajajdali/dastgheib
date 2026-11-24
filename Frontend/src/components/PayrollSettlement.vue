@@ -114,7 +114,7 @@
                   <th>مبلغ خام</th>
                   <th>تخفیف</th>
                   <th>اضافه مبلغ</th>
-                  <th>مبنای % (پرداخت)</th>
+                  <th>مبنای % (سهم پرداخت)</th>
                   <th>نرخ</th>
                   <th>مبلغ</th>
                   <th>عملیات</th>
@@ -283,7 +283,8 @@
           <article><span>روز نوبت/کارکرد</span><strong>{{ detailLine.day_num ? Number(detailLine.day_num).toLocaleString('fa-IR') : '-' }}</strong></article>
           <article><span>نوبت</span><strong>{{ appointmentTitle(detailLine) }}</strong></article>
           <article><span>خدمات نوبت</span><strong>{{ appointmentServices(detailLine) }}</strong></article>
-          <article v-if="!isAttendanceLine(detailLine)"><span>خالص نوبت (پس از تخفیف/اضافه)</span><strong>{{ appointmentNetTotal(detailLine) }}</strong></article>
+          <article v-if="!isAttendanceLine(detailLine)"><span>مبلغ پرداخت‌شده نوبت</span><strong>{{ money(lineAppointmentPaidTotal(detailLine)) }}</strong></article>
+          <article v-if="!isAttendanceLine(detailLine)"><span>خالص کاتالوگ نوبت</span><strong>{{ appointmentNetTotal(detailLine) }}</strong></article>
           <article v-if="appointmentDiscount(detailLine) > 0" class="adj-discount"><span>تخفیف کل نوبت</span><strong>{{ money(appointmentDiscount(detailLine)) }}</strong></article>
           <article v-if="appointmentSurcharge(detailLine) > 0" class="adj-surcharge"><span>اضافه مبلغ کل نوبت</span><strong>{{ money(appointmentSurcharge(detailLine)) }}</strong></article>
           <article v-if="isAttendanceLine(detailLine)"><span>ورود / خروج</span><strong>{{ attendanceClockText(detailLine) }}</strong></article>
@@ -294,9 +295,10 @@
           <article v-if="!editingLine"><span>مبلغ خام همین خط</span><strong>{{ money(detailLine.gross_amount) }}</strong></article>
           <article v-if="!editingLine" :class="{ 'adj-discount': lineDiscount(detailLine) > 0 }"><span>تخفیف همین خط</span><strong>{{ money(lineDiscount(detailLine)) }}</strong></article>
           <article v-if="!editingLine && lineSurcharge(detailLine) > 0" class="adj-surcharge"><span>اضافه مبلغ همین خط</span><strong>{{ money(lineSurcharge(detailLine)) }}</strong></article>
-          <article v-if="!editingLine"><span>خالص همین خط</span><strong>{{ money(detailLine.net_amount) }}</strong></article>
+          <article v-if="!editingLine"><span>خالص کاتالوگ همین خط</span><strong>{{ money(lineCatalogNet(detailLine)) }}</strong></article>
+          <article v-if="!editingLine"><span>سهم پرداخت همین خط</span><strong>{{ money(linePaidShare(detailLine)) }}</strong></article>
           <article v-if="!editingLine"><span>هزینه مواد</span><strong>{{ money(detailLine.material_cost) }}</strong></article>
-          <article v-if="!editingLine" class="base-highlight"><span>مبنای درصد (از مبلغ پرداخت‌شده)</span><strong>{{ money(detailLine.commission_base) }}</strong></article>
+          <article v-if="!editingLine" class="base-highlight"><span>مبنای درصد (سهم پرداخت)</span><strong>{{ money(detailLine.commission_base) }}</strong></article>
           <article v-if="!editingLine"><span>نرخ/نوع</span><strong>{{ rateText(detailLine) }}</strong></article>
           <article v-if="!editingLine" class="earned"><span>مبلغ بابت این مورد</span><strong>{{ money(detailLine.amount) }}</strong></article>
           <article v-if="!editingLine && detailLine.manually_edited" class="audit"><span>آخرین ویرایش</span><strong>{{ auditText(detailLine, 'edited') }}</strong></article>
@@ -308,9 +310,9 @@
           <label><span>تعداد / ساعت</span><input v-model.number="lineForm.quantity" type="number" step="0.001" @input="recalculateLineAmount"></label>
           <label><span>مبلغ خام همین خط</span><input v-model.number="lineForm.gross_amount" type="number"></label>
           <label><span>تخفیف همین خط</span><input v-model.number="lineForm.discount_amount" type="number"></label>
-          <label><span>خالص همین خط</span><input v-model.number="lineForm.net_amount" type="number"></label>
+          <label><span>سهم پرداخت همین خط</span><input v-model.number="lineForm.net_amount" type="number"></label>
           <label><span>هزینه مواد</span><input v-model.number="lineForm.material_cost" type="number"></label>
-          <label><span>مبنای درصد (از مبلغ پرداخت‌شده)</span><input v-model.number="lineForm.commission_base" type="number" @input="recalculateLineAmount"></label>
+          <label><span>مبنای درصد (سهم پرداخت)</span><input v-model.number="lineForm.commission_base" type="number" @input="recalculateLineAmount"></label>
           <label>
             <span>نوع نرخ</span>
             <select v-model="lineForm.commission_type" @change="recalculateLineAmount">
@@ -398,7 +400,8 @@
                 <th>قیمت / خام</th>
                 <th>تخفیف</th>
                 <th>خالص کاتالوگ</th>
-                <th>مبنای % (پرداخت)</th>
+                <th>سهم پرداخت</th>
+                <th>مبنای % (سهم پرداخت)</th>
                 <th>نرخ</th>
                 <th>پورسانت</th>
               </tr>
@@ -408,13 +411,14 @@
                 <td>{{ service.name }}</td>
                 <td>{{ service.gross_amount == null ? '-' : money(service.gross_amount) }}</td>
                 <td :class="{ 'adj-discount': Number(service.discount_amount || 0) > 0 }">{{ money(service.discount_amount) }}</td>
-                <td>{{ service.net_amount == null ? '-' : money(service.net_amount) }}</td>
+                <td>{{ service.catalog_net == null ? '-' : money(service.catalog_net) }}</td>
+                <td>{{ service.paid_share == null ? '-' : money(service.paid_share) }}</td>
                 <td>{{ service.commission_base == null ? '-' : money(service.commission_base) }}</td>
                 <td>{{ service.rate_text }}</td>
                 <td :class="{ positive: Number(service.amount || 0) > 0 }">{{ money(service.amount) }}</td>
               </tr>
               <tr v-if="!patientDetail.services.length">
-                <td colspan="7">خدمتی برای این نوبت ثبت نشده است.</td>
+                <td colspan="8">خدمتی برای این نوبت ثبت نشده است.</td>
               </tr>
             </tbody>
           </table>
@@ -644,15 +648,18 @@ export default {
           ? this.lineDiscount(line)
           : Math.max(0, Number(service.discount || 0))
         const gross = line ? Number(line.gross_amount || 0) : null
-        const net = line
-          ? Number(line.net_amount || 0)
+        const catalogNet = line
+          ? this.lineCatalogNet(line)
           : (gross == null ? null : Math.max(0, gross - discount))
+        const paidShare = line ? this.linePaidShare(line) : null
         services.push({
           key: `svc-${service.line_id || service.inventory_id || index}`,
           name: service.name || line?.service_name || 'خدمت',
           gross_amount: gross,
           discount_amount: discount,
-          net_amount: net,
+          catalog_net: catalogNet,
+          paid_share: paidShare,
+          net_amount: paidShare,
           commission_base: line ? Number(line.commission_base || 0) : 0,
           rate_text: line ? this.rateText(line) : '۰٪',
           amount: line ? Number(line.amount || 0) : 0,
@@ -667,7 +674,9 @@ export default {
           name: line.service_name || line.inventory_name || 'خدمت',
           gross_amount: Number(line.gross_amount || 0),
           discount_amount: this.lineDiscount(line),
-          net_amount: Number(line.net_amount || 0),
+          catalog_net: this.lineCatalogNet(line),
+          paid_share: this.linePaidShare(line),
+          net_amount: this.linePaidShare(line),
           commission_base: Number(line.commission_base || 0),
           rate_text: this.rateText(line),
           amount: Number(line.amount || 0),
@@ -844,13 +853,39 @@ export default {
     lineDiscount(line) {
       return Math.max(0, Number(line?.discount_amount || 0))
     },
-    // اضافه مبلغ در snapshot جدا ذخیره نمی‌شود؛ از خالص − خام + تخفیف به‌دست می‌آید.
+    // خالص کاتالوگ خط (قیمت×تعداد − تخفیف + اضافه)؛ از snapshot، نه از net_amount که سهم پرداخت است.
+    lineCatalogNet(line) {
+      if (!line || this.isAttendanceLine(line)) return 0
+      const snap = line.calculation_snapshot || {}
+      if (snap.catalog_net != null && snap.catalog_net !== '') {
+        return Math.max(0, Number(snap.catalog_net || 0))
+      }
+      const gross = Number(line.gross_amount || 0)
+      return Math.max(0, gross - this.lineDiscount(line))
+    },
+    // سهم همین خط از مبلغ پرداخت‌شده بیمار.
+    linePaidShare(line) {
+      if (!line || this.isAttendanceLine(line)) return 0
+      const snap = line.calculation_snapshot || {}
+      if (snap.paid_share != null && snap.paid_share !== '') {
+        return Math.max(0, Number(snap.paid_share || 0))
+      }
+      return Math.max(0, Number(line.net_amount || 0))
+    },
+    lineAppointmentPaidTotal(line) {
+      if (!line || this.isAttendanceLine(line)) return 0
+      const snap = line.calculation_snapshot || {}
+      if (snap.appointment_paid_total != null && snap.appointment_paid_total !== '') {
+        return Math.max(0, Number(snap.appointment_paid_total || 0))
+      }
+      return this.appointmentPaidAmount(line.appointment)
+    },
+    // اضافه مبلغ از خالص کاتالوگ − خام + تخفیف؛ نباید از net_amount (سهم پرداخت) حساب شود.
     lineSurcharge(line) {
       if (!line || this.isAttendanceLine(line)) return 0
       const gross = Number(line.gross_amount || 0)
       const discount = this.lineDiscount(line)
-      const net = Number(line.net_amount || 0)
-      return Math.max(0, Math.round(net - gross + discount))
+      return Math.max(0, Math.round(this.lineCatalogNet(line) - gross + discount))
     },
     appointmentDiscount(line) {
       if (this.isAttendanceLine(line)) return 0
