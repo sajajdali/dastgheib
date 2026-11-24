@@ -10,15 +10,60 @@
       </div>
 
       <div class="st-mbody">
-        <div class="fld">مسئولان
-          <div class="assignees">
-            <button v-for="p in state.staff" :key="p.id" type="button" class="asg" :class="{ on: draft.staffIds.some(id => Number(id) === Number(p.id)) }" @click="toggleStaff(p.id)">
-              <span class="av" :style="avStyle(p)">
-                <img v-if="p.avatar_url" :src="p.avatar_url" alt="" />
-                <template v-else>{{ (p.name || '?').charAt(0) }}</template>
-              </span>
-              <span>{{ p.name }}</span>
-            </button>
+        <div class="fld" :class="{ err: err && !draft.staffIds.length }">مسئولان
+          <div class="asg-box" :class="{ err: err && !draft.staffIds.length }">
+            <div v-if="selectedStaff.length" class="asg-selected">
+              <button
+                v-for="p in selectedStaff"
+                :key="'sel-' + p.id"
+                type="button"
+                class="asg-chip"
+                :title="'حذف ' + p.name"
+                @click="toggleStaff(p.id)"
+              >
+                <span class="av xs" :style="avStyle(p)">
+                  <img v-if="p.avatar_url" :src="p.avatar_url" alt="" />
+                  <template v-else>{{ (p.name || '?').charAt(0) }}</template>
+                </span>
+                <span class="asg-chip-name">{{ p.name }}</span>
+                <span class="asg-chip-x" aria-hidden="true">×</span>
+              </button>
+            </div>
+            <p v-else class="asg-empty">هنوز مسئولی انتخاب نشده است</p>
+
+            <div v-if="showStaffSearch" class="asg-search">
+              <input
+                v-model.trim="staffQuery"
+                type="search"
+                class="st-input asg-search-input"
+                placeholder="جستجوی پرسنل…"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="asg-list" role="listbox" aria-multiselectable="true">
+              <button
+                v-for="p in filteredStaff"
+                :key="p.id"
+                type="button"
+                class="asg-row"
+                role="option"
+                :aria-selected="isSelected(p.id)"
+                :class="{ on: isSelected(p.id) }"
+                @click="toggleStaff(p.id)"
+              >
+                <span class="asg-check" aria-hidden="true">
+                  <svg v-if="isSelected(p.id)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 7"/></svg>
+                </span>
+                <span class="av" :style="avStyle(p)">
+                  <img v-if="p.avatar_url" :src="p.avatar_url" alt="" />
+                  <template v-else>{{ (p.name || '?').charAt(0) }}</template>
+                </span>
+                <span class="asg-row-name">{{ p.name }}</span>
+              </button>
+              <p v-if="!filteredStaff.length" class="asg-empty muted">نتیجه‌ای یافت نشد</p>
+            </div>
+            <div class="asg-meta">{{ faCount(draft.staffIds.length) }} نفر انتخاب شده</div>
           </div>
         </div>
 
@@ -152,7 +197,7 @@
 import { reactive, ref, computed, onBeforeUnmount } from 'vue'
 import JalaliDateSelect from './JalaliDateSelect.vue'
 import { useStaffTasks, PALETTE } from './useStaffTasks'
-import { fullDate, todayJdn } from './jalali'
+import { fullDate, todayJdn, fa } from './jalali'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['close', 'save', 'delete'])
@@ -185,6 +230,7 @@ const dayLabel = computed(() => {
 
 const err = ref(false)
 const saving = ref(false)
+const staffQuery = ref('')
 const imageFile = ref(null)
 const imagePreview = ref(null)
 const removeImage = ref(false)
@@ -197,11 +243,31 @@ let mediaRecorder = null
 let chunks = []
 let recStarted = 0
 
+const showStaffSearch = computed(() => (state.staff?.length || 0) > 10)
+const selectedStaff = computed(() =>
+  draft.staffIds
+    .map(id => state.staff.find(p => Number(p.id) === Number(id)))
+    .filter(Boolean)
+)
+const filteredStaff = computed(() => {
+  const q = staffQuery.value.trim().toLowerCase()
+  const list = state.staff || []
+  if (!q) return list
+  return list.filter(p => String(p.name || '').toLowerCase().includes(q))
+})
+
+function isSelected(id) {
+  return draft.staffIds.some(x => Number(x) === Number(id))
+}
 function toggleStaff(id) {
   const nid = Number(id)
   const i = draft.staffIds.findIndex(x => Number(x) === nid)
   if (i >= 0) draft.staffIds.splice(i, 1)
   else draft.staffIds.push(nid)
+  if (draft.staffIds.length) err.value = false
+}
+function faCount(n) {
+  return fa(n)
 }
 function avStyle(p) {
   return p.avatar_url ? {} : { background: '#64748b' }
@@ -361,9 +427,24 @@ onBeforeUnmount(() => {
 .fld{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700;color:var(--st-text-3)}
 .st-input{font-family:inherit;font-size:13px;border:1px solid var(--st-border);border-radius:10px;padding:8px 10px;background:var(--st-surface);color:var(--st-text);outline-color:var(--st-accent);resize:vertical}
 .st-input.err{border-color:var(--st-red)}
-.assignees{display:flex;flex-wrap:wrap;gap:6px}
-.asg{font-family:inherit;border:1px solid var(--st-border);background:var(--st-surface);border-radius:999px;padding:4px 10px 4px 4px;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:var(--st-text-2)}
-.asg.on{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent)}
+.asg-box{border:1px solid var(--st-border);border-radius:12px;background:var(--st-surface-2);padding:8px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.asg-box.err,.fld.err .asg-box{border-color:var(--st-red)}
+.asg-selected{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 6px;border-bottom:1px solid var(--st-line)}
+.asg-chip{font-family:inherit;border:1px solid var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);border-radius:999px;padding:3px 8px 3px 4px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;font-weight:700;max-width:100%}
+.asg-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.asg-chip-x{font-size:14px;line-height:1;opacity:.75}
+.asg-empty{margin:0;padding:6px 4px;font-size:12px;font-weight:600;color:var(--st-muted)}
+.asg-empty.muted{padding:10px 4px;text-align:center}
+.asg-search{min-width:0}
+.asg-search-input{width:100%;box-sizing:border-box}
+.asg-list{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:2px;border-radius:10px;background:var(--st-surface);border:1px solid var(--st-line);min-height:0}
+.asg-row{font-family:inherit;width:100%;border:0;background:transparent;border-radius:8px;padding:7px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;text-align:right;color:var(--st-text-2);font-size:12.5px;font-weight:700}
+.asg-row:hover{background:var(--st-muted-bg)}
+.asg-row.on{background:var(--st-accent-soft);color:var(--st-accent)}
+.asg-check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--st-strong-border);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--st-surface);color:var(--st-accent)}
+.asg-row.on .asg-check{border-color:var(--st-accent);background:var(--st-accent);color:#fff}
+.asg-row-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asg-meta{font-size:10.5px;font-weight:600;color:var(--st-muted);padding:0 2px}
 .av{width:26px;height:26px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;flex-shrink:0;background:#64748b}
 .av.xs{width:20px;height:20px;font-size:9px}
 .av img{width:100%;height:100%;object-fit:cover}
