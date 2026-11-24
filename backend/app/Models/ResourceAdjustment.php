@@ -10,7 +10,7 @@ class ResourceAdjustment extends Model
     use Auditable;
 
     protected $fillable = [
-        'month', 'resource_type', 'resource_id', 'amount', 'reason', 'created_by',
+        'month', 'resource_type', 'resource_id', 'source_task_id', 'amount', 'reason', 'created_by',
         'kind', 'occurred_on', 'title', 'description', 'status', 'created_by_name',
     ];
 

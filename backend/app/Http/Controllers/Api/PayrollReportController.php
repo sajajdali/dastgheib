@@ -81,8 +81,11 @@ class PayrollReportController extends Controller
                 ->when(Schema::hasColumn('resource_adjustments', 'status'), fn ($query) => $query->where('status', 'active'))
                 ->orderBy(Schema::hasColumn('resource_adjustments', 'occurred_on') ? 'occurred_on' : 'id')->orderBy('id')->get()
             : collect();
-        $manualBonus = (float) $adjustments->where('amount', '>', 0)->sum('amount');
-        $manualDeduction = (float) $adjustments->where('amount', '<', 0)->sum('amount');
+        $taskImpacts = $adjustments->filter(fn ($row) => ! empty($row->source_task_id) || ($row->kind ?? '') === 'task_impact' || str_starts_with((string) ($row->title ?: $row->reason), 'تأثیر وظیفه'));
+        $manualOnly = $adjustments->reject(fn ($row) => $taskImpacts->contains('id', $row->id));
+        $manualBonus = (float) $manualOnly->where('amount', '>', 0)->sum('amount') + (float) $taskImpacts->where('amount', '>', 0)->sum('amount');
+        $manualDeduction = (float) $manualOnly->where('amount', '<', 0)->sum('amount') + (float) $taskImpacts->where('amount', '<', 0)->sum('amount');
+        $taskImpactTotal = (float) $taskImpacts->sum('amount');
         $advanceInstallments = Schema::hasTable('salary_advance_installments') && Schema::hasTable('salary_advances')
             ? SalaryAdvanceInstallment::query()->with('advance')
                 ->where('month', $data['month'])
@@ -114,6 +117,7 @@ class PayrollReportController extends Controller
                 'attendance_adjustment' => round($attendanceAdjustment),
                 'manual_bonus' => round($manualBonus),
                 'manual_deduction' => round($manualDeduction),
+                'task_impact_total' => round($taskImpactTotal),
                 'advance_deduction' => round($advanceDeduction),
                 'total_commission' => round($serviceCommission + $inventoryCommission),
                 'total_earned' => round($salary + $serviceCommission + $inventoryCommission + $referralCommission + $salesBonus + $attendanceAdjustment + $manualBonus + $manualDeduction + $advanceDeduction),
@@ -126,6 +130,7 @@ class PayrollReportController extends Controller
             ],
             'lines' => $lines->values(),
             'adjustments' => $adjustments,
+            'task_impacts' => $taskImpacts->values(),
             'advance_installments' => $advanceInstallments,
         ]);
     }

@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\PersonalReportController;
 use App\Http\Controllers\Api\EmployeePortalController;
 use App\Http\Controllers\Api\PayrollReportController;
+use App\Http\Controllers\Api\StaffTaskController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AutomaticSmsScenarioController;
 use App\Http\Controllers\Api\AppointmentAutomaticSmsController;
@@ -309,6 +310,24 @@ Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middlew
 Route::patch('/payroll/lines/{line}', [PayrollReportController::class, 'updateLine'])->middleware('permission:payroll.view');
 Route::post('/payroll/lines/{line}/restore', [PayrollReportController::class, 'restoreLine'])->middleware('permission:payroll.view');
 Route::delete('/payroll/lines/{line}', [PayrollReportController::class, 'destroyLine'])->middleware('permission:payroll.view');
+
+Route::get('/staff-tasks/bootstrap', [StaffTaskController::class, 'bootstrap']);
+Route::get('/staff-tasks/report', [StaffTaskController::class, 'report']);
+Route::post('/staff-tasks/run-expiry', [StaffTaskController::class, 'runExpiry']);
+Route::get('/staff-tasks/statuses', [StaffTaskController::class, 'statuses']);
+Route::post('/staff-tasks/statuses', [StaffTaskController::class, 'storeStatus']);
+Route::patch('/staff-tasks/statuses/{status}', [StaffTaskController::class, 'updateStatusDefinition']);
+Route::delete('/staff-tasks/statuses/{status}', [StaffTaskController::class, 'destroyStatus']);
+Route::patch('/staff-tasks/settings', [StaffTaskController::class, 'updateSettings']);
+Route::get('/staff-tasks', [StaffTaskController::class, 'index']);
+Route::post('/staff-tasks', [StaffTaskController::class, 'store']);
+Route::get('/staff-tasks/{staffTask}', [StaffTaskController::class, 'show']);
+Route::post('/staff-tasks/{staffTask}', [StaffTaskController::class, 'update']); // multipart-friendly update
+Route::patch('/staff-tasks/{staffTask}', [StaffTaskController::class, 'update']);
+Route::patch('/staff-tasks/{staffTask}/status', [StaffTaskController::class, 'updateStatus']);
+Route::delete('/staff-tasks/{staffTask}', [StaffTaskController::class, 'destroy']);
+Route::post('/staff-tasks/{staffTask}/voices', [StaffTaskController::class, 'addVoice']);
+Route::delete('/staff-tasks/{staffTask}/attachments/{attachment}', [StaffTaskController::class, 'destroyAttachment']);
 Route::get('/payment-options', [HumanResourceController::class, 'getPaymentOptions']);
 Route::post('/payment-options', [HumanResourceController::class, 'savePaymentOptions']);
 Route::get('/service-tags', [HumanResourceController::class, 'getServiceTags'])->middleware('permission:resources.view|inventory.view|appointments.view|followups.view');
