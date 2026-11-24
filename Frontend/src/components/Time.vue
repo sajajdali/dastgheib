@@ -13352,20 +13352,19 @@ smsColor(val) {
   overflow: hidden;
 }
 
-html:has(.time-page.table-view-active),
-body:has(.time-page.table-view-active) {
+/* فقط وقتی نوبت‌دهی واقعاً فعال است — Time با v-show در DOM می‌ماند. */
+html:has(#app.booking-page-active .time-page.table-view-active),
+body:has(#app.booking-page-active .time-page.table-view-active) {
   overflow-x: hidden;
 }
 
-/* کمربند ایمنی: padding/margin شل #app در حالت جدول صفر شود
-   (بدون وابستگی اجباری به booking-page-active — آن کلاس روی #app تودرتوی
-   قدیمی mount اعمال نمی‌شد و gutter ۲۰px سمت چپ می‌ماند). */
-#app:has(.time-page.table-view-active),
+/* کمربند ایمنی: padding/margin شل #app فقط روی صفحهٔ فعال نوبت‌دهی صفر شود.
+   Mount دیگر تودرتو نیست (#app-mount)؛ وابستگی به booking-page-active لازم است
+   تا بعد از خروج از نوبت‌دهی منوی صفحات دیگر نشکند. */
 #app.booking-page-active:has(.time-page.table-view-active) {
   padding: 0 !important;
 }
 
-#app:has(.time-page.table-view-active) .page-container,
 #app.booking-page-active:has(.time-page.table-view-active) .page-container {
   margin: 0 !important;
   padding: 0 !important;

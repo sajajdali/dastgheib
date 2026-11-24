@@ -1777,7 +1777,7 @@ export default {
 .subscription-status-alert {
   position: fixed;
   top: 23px;
-  left: 78px;
+  left: 84px;
   z-index: 2147483008;
   box-sizing: border-box;
   display: inline-flex;
@@ -1802,7 +1802,7 @@ export default {
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 #app.has-portal-bell .subscription-status-alert {
-  left: 134px;
+  left: 140px;
 }
 .subscription-status-alert:hover {
   transform: translateY(-1px);
@@ -1817,7 +1817,11 @@ export default {
 .subscription-status-alert__short { display: none; }
 .subscription-status-alert__full { display: inline; overflow: hidden; text-overflow: ellipsis; }
 
-/* فضای اختصاصی تا آیتم‌های منو (پرونده / وقت‌دهی و …) زیر هشدار نروند */
+/* فضای اختصاصی تا آیتم‌های منو زیر همبرگری / زنگوله / هشدار اشتراک نروند */
+#app.has-portal-bell .menu:not(.menu-unpinned) {
+  width: calc(100% - 148px);
+  margin-left: 148px;
+}
 #app.has-subscription-warning .menu:not(.menu-unpinned) {
   width: calc(100% - 300px);
   margin-left: 300px;
@@ -1904,15 +1908,13 @@ body.central-host #app {
 
 }
 
-/* جدول نوبت‌دهی: شل اپ بدون gutter خاکستری — جدول/نوار ابزار لب‌به‌لب عرض viewport.
-   Match on :has(table-view) so a missing booking-page-active class cannot leave
-   the 20px #app padding as a dead strip left/right of the schedule. */
-#app:has(.time-page.table-view-active),
+/* جدول نوبت‌دهی: شل اپ بدون gutter خاکستری — فقط وقتی صفحهٔ نوبت‌دهی فعال است.
+   Time با v-show در DOM می‌ماند؛ :has بدون booking-page-active بعد از خروج
+   padding را صفر نگه می‌داشت و منوی بالای صفحات دیگر می‌شکست. */
 #app.booking-page-active:has(.time-page.table-view-active) {
   padding: 0;
 }
 
-#app:has(.time-page.table-view-active) .page-container,
 #app.booking-page-active:has(.time-page.table-view-active) .page-container {
   margin: 0;
   padding: 0;
@@ -2499,10 +2501,6 @@ html.dark-boot .auth-boot-spinner {
 @keyframes storageAlertPulse { 50% { opacity: .6; transform: scale(.97); } }
 @media (prefers-reduced-motion: reduce) { .storage-status-alert { animation: none; } }
 
-/* در نوبت‌دهی دکمه همبرگری نیز همراه منوی اصلی از صفحه خارج شود. */
-.booking-page-active .utility-menu-toggle {
-  position: absolute;
-}
 .utility-menu-toggle svg {
   width: 24px;
   height: 24px;
@@ -2897,6 +2895,10 @@ html.dark-boot .auth-boot-spinner {
   .utility-menu-toggle { top: 20px; }
   #app .epn { top: 20px; }
   .subscription-status-alert { top: 20px; max-width: min(200px, calc(100vw - 150px)); }
+  #app.has-portal-bell .menu:not(.menu-unpinned) {
+    width: calc(100% - 140px);
+    margin-left: 140px;
+  }
   #app.has-subscription-warning .menu:not(.menu-unpinned) {
     width: calc(100% - 250px);
     margin-left: 250px;
@@ -2961,16 +2963,20 @@ body.dark .epn-bell b { border-color: #1a1c22 !important; }
   .utility-menu-panel { top: 60px; left: 12px; width: min(230px, calc(100vw - 24px)); }
   .subscription-status-alert {
     top: 29px;
-    left: 63px;
+    left: 68px;
     min-height: 42px;
     max-width: min(132px, calc(100vw - 120px));
     padding: 0 10px;
     border-radius: 13px;
     font-size: 10px;
   }
-  #app.has-portal-bell .subscription-status-alert { left: 113px; }
+  #app.has-portal-bell .subscription-status-alert { left: 120px; }
   .subscription-status-alert__full { display: none; }
   .subscription-status-alert__short { display: inline; }
+  #app.has-portal-bell .menu:not(.menu-unpinned) {
+    width: calc(100% - 128px);
+    margin-left: 128px;
+  }
   #app.has-subscription-warning .menu:not(.menu-unpinned) {
     width: calc(100% - 200px);
     margin-left: 200px;
