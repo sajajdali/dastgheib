@@ -2242,17 +2242,15 @@ export default {
     },
 
     subsectionFilterOptions() {
-      const names = new Set(this.subsectionOptions.map(option => option.name));
-      (this.demoFilterExtras?.subsection || []).forEach(name => {
-        if (name) names.add(name);
-      });
-      (this.activeCampaign?.rows || []).forEach(row => {
-        const label = this.followupSubsectionLabel(row);
-        if (label) names.add(label);
-      });
+      // فقط زیربخش‌های برگ از API؛ نام بخش والد/اصلی و برچسب‌های ردیف غیربرگ وارد فیلتر نمی‌شوند.
+      const leafNames = new Set(
+        (this.subsectionOptions || [])
+          .map(option => sectionLeafLabel(option?.name))
+          .filter(Boolean)
+      );
       const options = [
         { value: "__none__", label: "بدون بخش" },
-        ...[...names].sort((a, b) => a.localeCompare(b, "fa")).map(name => ({ value: name, label: name })),
+        ...[...leafNames].sort((a, b) => a.localeCompare(b, "fa")).map(name => ({ value: name, label: name })),
       ];
       const term = this.normalizeSubsectionSearch(this.subsectionFilterSearch);
       if (!term) return options;
@@ -3080,21 +3078,15 @@ export default {
         ...(Array.isArray(this.reasonOptions) ? this.reasonOptions : []),
         ...Array.from({ length: 16 }, (_, i) => `علت دمو ${i + 1}`),
       ];
-      const subsections = this.subsectionOptions.length
-        ? this.subsectionOptions
-        : Array.from({ length: 22 }, (_, i) => ({ id: `demo-sub-${i + 1}`, name: `بخش دمو ${String(i + 1).padStart(2, "0")}` }));
-      if (!this.subsectionOptions.length) this.subsectionOptions = subsections;
-      const subsectionNames = [
-        ...subsections.map(item => item.name).filter(Boolean),
-        ...Array.from({ length: 24 }, (_, i) => `بخش دمو ${String(i + 1).padStart(2, "0")}`),
-      ];
+      // فقط زیربخش برگ واقعی؛ برای دمو نام والد جعلی به فیلتر بخش اضافه نمی‌شود.
+      const subsections = Array.isArray(this.subsectionOptions) ? this.subsectionOptions : [];
 
       this.demoFilterExtras = {
         source: sources,
         consultant: consultants,
         gender: ["زن", "مرد"],
         reason: reasons,
-        subsection: subsectionNames,
+        subsection: [],
       };
 
       const statuses = this.getStatusOptions();
@@ -3102,7 +3094,7 @@ export default {
       const genders = ["زن", "مرد"];
       const today = this.getTodayString();
       const demoRows = sources.map((source, index) => {
-        const subsection = subsections[index % subsections.length];
+        const subsection = subsections.length ? subsections[index % subsections.length] : null;
         return {
           ...this.createEmptyRow(),
           _localId: `demo-filter-${index}-${Date.now()}`,
@@ -3116,7 +3108,7 @@ export default {
           consultant: consultants[index % consultants.length],
           source,
           subsectionId: subsection?.id ?? null,
-          subsectionName: subsection?.name ?? "",
+          subsectionName: subsection ? sectionLeafLabel(subsection.name) : "",
           status: statuses[index % statuses.length],
           interest: interests[index % interests.length],
           reason: reasons[index % reasons.length],
