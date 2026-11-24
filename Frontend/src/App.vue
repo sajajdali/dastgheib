@@ -3300,6 +3300,14 @@ body.dark .day-separator-row.today-day td,
 #app.dark .day-separator-row.today-day td { background: linear-gradient(135deg,#1e3a5f,#16324f) !important; }
 body.dark .day-separator-row.holiday-day td,
 #app.dark .day-separator-row.holiday-day td { background: linear-gradient(135deg,#3a1d28,#2a141c) !important; }
+body.dark .main-schedule-table td.st-given,
+body.dark .main-schedule-table td.st-given select,
+body.dark .st-given,
+body.dark select.st-given,
+#app.dark .main-schedule-table td.st-given,
+#app.dark .main-schedule-table td.st-given select,
+#app.dark .st-given,
+#app.dark select.st-given { background-color:#1e3a5f !important; color:#bfdbfe !important; }
 body.dark .main-schedule-table td.st-arrived,
 body.dark .main-schedule-table td.st-arrived select,
 body.dark .st-arrived,
@@ -3307,7 +3315,7 @@ body.dark select.st-arrived,
 #app.dark .main-schedule-table td.st-arrived,
 #app.dark .main-schedule-table td.st-arrived select,
 #app.dark .st-arrived,
-#app.dark select.st-arrived { background-color:#1e3a5f !important; color:#bfdbfe !important; }
+#app.dark select.st-arrived { background-color:#14532d !important; color:#bbf7d0 !important; }
 body.dark .main-schedule-table td.dn-yes,
 body.dark .main-schedule-table td.dn-yes select,
 body.dark .dn-yes,

@@ -4727,10 +4727,18 @@ export default {
 
     dailyReportKpiStyle(status) {
       const color = this.appointmentStatusChartColor(status);
+      const key = normalizeAppointmentStatusName(status);
+      const lightTextByStatus = {
+        "وقت داده شد": "#1e3a8a",
+        "آمد": "#14532d",
+        "در انتظار وقت": "#713f12",
+        "پاسخ نداد": "#7f1d1d",
+        "پیگیری": "#1e3a8a",
+      };
       return {
         borderColor: color,
         background: color,
-        color: "#fff",
+        color: lightTextByStatus[key] || "#fff",
         "--daily-kpi-bar": color
       };
     },
@@ -5640,10 +5648,10 @@ export default {
           return { backgroundColor: "#facc15" };
 
         case "وقت داده شد":
-          return { backgroundColor: "#1d4ed8", color: "#fff" };
+          return { backgroundColor: "#bfdbfe", color: "#1e3a8a" };
 
         case "آمد":
-          return { backgroundColor: "#bfdbfe", color: "#1e3a8a" };
+          return { backgroundColor: "#bbf7d0", color: "#14532d" };
 
         case "کنسل شد":
           return { backgroundColor: "#d50000", color: "#fff" };
@@ -12593,10 +12601,10 @@ smsColor(val) {
   width: 148px;
   height: 154px;
   scroll-snap-align: start;
-  border: 1px solid #1e40af;
+  border: 1px solid #93c5fd;
   border-radius: 12px;
-  background: #1d4ed8;
-  box-shadow: 0 6px 16px rgba(29, 78, 216, .16);
+  background: #bfdbfe;
+  box-shadow: 0 6px 16px rgba(59, 130, 246, .12);
   cursor: pointer;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
@@ -12636,8 +12644,8 @@ smsColor(val) {
 }
 
 .timeline-card.is-arrived {
-  background: #bfdbfe;
-  border-color: #93c5fd;
+  background: #bbf7d0;
+  border-color: #86efac;
 }
 
 .timeline-card.is-follow {
@@ -12683,11 +12691,11 @@ smsColor(val) {
   justify-content: center;
   padding: 0 10px;
   border-radius: 6px 6px 3px 3px;
-  background: #1e40af;
-  color: #fff;
+  background: #93c5fd;
+  color: #1e3a8a;
   font-size: 11px;
   font-weight: 1000;
-  box-shadow: 0 5px 12px rgba(29, 78, 216, .18);
+  box-shadow: none;
 }
 
 .timeline-card.is-empty .timeline-time-chip {
@@ -12697,8 +12705,8 @@ smsColor(val) {
 }
 
 .timeline-card.is-arrived .timeline-time-chip {
-  background: #93c5fd;
-  color: #1e3a8a;
+  background: #86efac;
+  color: #14532d;
   box-shadow: none;
 }
 
@@ -12735,7 +12743,7 @@ smsColor(val) {
   min-height: 20px;
   max-width: 100%;
   overflow: hidden;
-  color: #fff;
+  color: #1e3a8a;
   font-size: 12px;
   font-weight: 1000;
   line-height: 1.65;
@@ -12751,7 +12759,7 @@ smsColor(val) {
 .timeline-card-body small {
   max-width: 100%;
   overflow: hidden;
-  color: rgba(255, 255, 255, .9);
+  color: #1e40af;
   font-size: 10px;
   font-weight: 800;
   line-height: 1.65;
@@ -12766,7 +12774,7 @@ smsColor(val) {
 .timeline-add-card{flex:0 0 148px!important;width:148px!important;background:#f3f4f6!important;border:1.5px dashed #d1d5db!important;box-shadow:none!important}.timeline-add-card:hover{border-color:#94a3b8!important;background:#e5e7eb!important;box-shadow:none!important}.timeline-add-card .timeline-time-chip{min-width:68px;background:#e2e8f0!important;color:#64748b!important;font-size:9px}.timeline-add-card .timeline-card-empty span{border-color:#d1d5db;background:#fff;color:#64748b;transition:.18s}.timeline-add-card:hover .timeline-card-empty span{transform:scale(1.06);background:#e2e8f0;color:#334155}.timeline-add-card .timeline-card-empty strong{color:#64748b;font-size:12px}.timeline-add-card:hover .timeline-card-empty strong{color:#334155}
 
 .timeline-card-body small {
-  color: rgba(255, 255, 255, .82);
+  color: #1e40af;
   -webkit-line-clamp: 1;
 }
 
@@ -12775,8 +12783,8 @@ smsColor(val) {
   overflow: hidden;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, .2);
-  color: #fff;
+  background: #dbeafe;
+  color: #1e3a8a;
   font-size: 8px;
   font-style: normal;
   font-weight: 1000;
@@ -14621,13 +14629,13 @@ td.row-action-col {
 
 /* رنگ‌بندی وضعیت */
 .st-given {
-  background-color: #1d4ed8 !important;
-  color: white !important;
+  background-color: #bfdbfe !important;
+  color: #1e3a8a !important;
 }
 
 .st-arrived {
-  background-color: #bfdbfe !important;
-  color: #1e3a8a !important;
+  background-color: #bbf7d0 !important;
+  color: #14532d !important;
 }
 
 .st-cancel {
@@ -14684,13 +14692,13 @@ td.row-action-col {
 }
 /* وضعیت روی TD (خیلی مهم برای درست نمایش دادن) */
 .main-schedule-table td.st-given {
-  background-color: #1d4ed8 !important;
-  color: white !important;
+  background-color: #bfdbfe !important;
+  color: #1e3a8a !important;
 }
 
 .main-schedule-table td.st-arrived {
-  background-color: #bfdbfe !important;
-  color: #1e3a8a !important;
+  background-color: #bbf7d0 !important;
+  color: #14532d !important;
 }
 
 .main-schedule-table td.st-cancel {
@@ -14894,14 +14902,14 @@ td.row-action-col {
 
 td.st-given select,
 td.st-given {
-  background: #1d4ed8 !important;
-  color: #fff !important;
+  background: #bfdbfe !important;
+  color: #1e3a8a !important;
 }
 
 td.st-arrived select,
 td.st-arrived {
-  background: #bfdbfe !important;
-  color: #1e3a8a !important;
+  background: #bbf7d0 !important;
+  color: #14532d !important;
 }
 
 td.st-cancel select,
@@ -15957,14 +15965,14 @@ tr.data-row td {
   transition: background-color .28s ease;
 }
 
-/* رنگ نهایی وضعیت «آمد»؛ آبی روشن هم‌تراز با Timeline */
+/* رنگ نهایی وضعیت «آمد»؛ سبز روشن هم‌تراز با Timeline */
 .main-schedule-table td.st-arrived,
 .main-schedule-table td.st-arrived select,
 td.st-arrived,
 td.st-arrived select {
-  background: #bfdbfe !important;
-  color: #1e3a8a !important;
-  border-color: #93c5fd !important;
+  background: #bbf7d0 !important;
+  color: #14532d !important;
+  border-color: #86efac !important;
 }
 
 /* پیامک‌های ارسال‌شده در پنجرهٔ پایان درمان */
@@ -16071,9 +16079,9 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-booked {
-  border-color: #1e40af !important;
-  background: #1d4ed8 !important;
-  box-shadow: inset -4px 0 0 #1e3a8a, 0 5px 14px rgba(29, 78, 216, .22) !important;
+  border-color: #93c5fd !important;
+  background: #bfdbfe !important;
+  box-shadow: none !important;
 }
 
 .appointment-timeline .timeline-card.is-waiting-slot {
@@ -16102,8 +16110,8 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-arrived {
-  border-color: #93c5fd !important;
-  background: #bfdbfe !important;
+  border-color: #86efac !important;
+  background: #bbf7d0 !important;
   box-shadow: none !important;
 }
 
@@ -16139,33 +16147,33 @@ td.st-arrived select {
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-time-chip {
-  border: 1px solid #1e3a8a;
-  background: #1e40af !important;
-  color: #fff !important;
-  box-shadow: 0 5px 12px rgba(29, 78, 216, .22);
+  border: 1px solid #93c5fd;
+  background: #93c5fd !important;
+  color: #1e3a8a !important;
+  box-shadow: none;
 }
-.appointment-timeline .timeline-card.is-arrived .timeline-time-chip { background: #93c5fd !important; color: #1e3a8a !important; }
+.appointment-timeline .timeline-card.is-arrived .timeline-time-chip { background: #86efac !important; color: #14532d !important; }
 .appointment-timeline .timeline-card.is-canceled .timeline-time-chip { background: #b91c1c !important; color: #fff !important; }
 .appointment-timeline .timeline-card.is-empty .timeline-time-chip { background: #e5e7eb !important; color: #64748b !important; }
 
 .appointment-timeline .timeline-card.is-arrived .timeline-card-body strong,
 .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
 .appointment-timeline .timeline-card.is-arrived .timeline-card-body small,
-.appointment-timeline .timeline-card.is-arrived .timeline-status-label { color: #1e3a8a !important; }
+.appointment-timeline .timeline-card.is-arrived .timeline-status-label { color: #14532d !important; }
 
 .appointment-timeline .timeline-card.is-booked .timeline-card-body strong {
-  color: #fff !important;
+  color: #1e3a8a !important;
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-card-body span,
 .appointment-timeline .timeline-card.is-booked .timeline-card-body small {
-  color: rgba(255, 255, 255, .9) !important;
+  color: #1e40af !important;
 }
 
 .appointment-timeline .timeline-card.is-booked .timeline-status-label {
-  border: 1px solid rgba(255, 255, 255, .35);
-  background: rgba(255, 255, 255, .2) !important;
-  color: #fff !important;
+  border: 1px solid #93c5fd;
+  background: #dbeafe !important;
+  color: #1e3a8a !important;
 }
 
 .appointment-timeline .timeline-card.is-canceled .timeline-card-body strong,
@@ -16173,7 +16181,7 @@ td.st-arrived select {
 .appointment-timeline .timeline-card.is-canceled .timeline-card-body small,
 .appointment-timeline .timeline-card.is-canceled .timeline-status-label { color: #fff !important; }
 
-.appointment-timeline .timeline-card.is-arrived .timeline-status-label { background: #dbeafe !important; }
+.appointment-timeline .timeline-card.is-arrived .timeline-status-label { background: #dcfce7 !important; }
 .appointment-timeline .timeline-card.is-canceled .timeline-status-label { background: rgba(255, 255, 255, .2) !important; }
 
 .appointment-timeline .timeline-delete-appointment-btn {
@@ -16797,10 +16805,14 @@ body.dark .dn-cons,
 #app.dark .dn-cons { background-color: #334155 !important; color: #e2e8f0 !important; }
 
 /* وضعیت نوبت */
+body.dark .main-schedule-table td.st-given,
+body.dark .st-given,
+#app.dark .main-schedule-table td.st-given,
+#app.dark .st-given { background-color: #1e3a5f !important; color: #bfdbfe !important; }
 body.dark .main-schedule-table td.st-arrived,
 body.dark .st-arrived,
 #app.dark .main-schedule-table td.st-arrived,
-#app.dark .st-arrived { background-color: #1e3a5f !important; color: #bfdbfe !important; }
+#app.dark .st-arrived { background-color: #14532d !important; color: #bbf7d0 !important; }
 body.dark .main-schedule-table td.st-noans,
 body.dark .st-noans,
 body.dark .sms-wait,
@@ -17218,10 +17230,14 @@ html body.dark .main-schedule-table td.dn-cons,
 html body.dark .dn-cons,
 html #app.dark .main-schedule-table td.dn-cons,
 html #app.dark .dn-cons { background-color: #3a3f4a !important; color: #e8eaed !important; }
+html body.dark .main-schedule-table td.st-given,
+html body.dark .st-given,
+html #app.dark .main-schedule-table td.st-given,
+html #app.dark .st-given { background-color: #1e3a5f !important; color: #bfdbfe !important; }
 html body.dark .main-schedule-table td.st-arrived,
 html body.dark .st-arrived,
 html #app.dark .main-schedule-table td.st-arrived,
-html #app.dark .st-arrived { background-color: #1e3a5f !important; color: #bfdbfe !important; }
+html #app.dark .st-arrived { background-color: #14532d !important; color: #bbf7d0 !important; }
 html body.dark .main-schedule-table td.st-noans,
 html body.dark .st-noans,
 html body.dark .sms-wait,
@@ -17570,7 +17586,7 @@ html body.dark .appointment-timeline .timeline-card.is-booked,
 html #app.dark .appointment-timeline .timeline-card.is-booked {
   background: #1e3a5f !important;
   border-color: #3b82f6 !important;
-  box-shadow: inset -4px 0 0 #4f8cff, 0 5px 14px rgba(0,0,0,.35) !important;
+  box-shadow: none !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body strong,
 html body.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body span,
@@ -17580,13 +17596,13 @@ html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-card-bod
 html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body span,
 html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-card-body small,
 html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-status-label {
-  color: #dbeafe !important;
+  color: #bfdbfe !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-booked .timeline-time-chip,
 html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-time-chip {
-  background: #1e40af !important;
-  border-color: #3b82f6 !important;
-  color: #fff !important;
+  background: #3b82f6 !important;
+  border-color: #60a5fa !important;
+  color: #eff6ff !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-booked .timeline-status-label,
 html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-status-label {
@@ -17595,8 +17611,8 @@ html #app.dark .appointment-timeline .timeline-card.is-booked .timeline-status-l
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived,
 html #app.dark .appointment-timeline .timeline-card.is-arrived {
-  background: #1e3a5f !important;
-  border-color: #60a5fa !important;
+  background: #14532d !important;
+  border-color: #22c55e !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body strong,
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
@@ -17606,16 +17622,16 @@ html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-bo
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body span,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-card-body small,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label {
-  color: #bfdbfe !important;
+  color: #bbf7d0 !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-status-label {
-  background: rgba(96, 165, 250, .22) !important;
+  background: rgba(34, 197, 94, .22) !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-arrived .timeline-time-chip,
 html #app.dark .appointment-timeline .timeline-card.is-arrived .timeline-time-chip {
-  background: #1d4ed8 !important;
-  color: #dbeafe !important;
+  background: #86efac !important;
+  color: #14532d !important;
 }
 html body.dark .appointment-timeline .timeline-card.is-follow,
 html body.dark .appointment-timeline .timeline-card.is-no-answer,
@@ -17978,6 +17994,21 @@ html body.dark .day-separator-row.today-day td,
 html #app.dark .day-separator-row.today-day td {
   background: linear-gradient(135deg,#1e3a5f,#16324f) !important;
 }
+html body.dark .main-schedule-table td.st-given,
+html body.dark .main-schedule-table td.st-given select,
+html body.dark td.st-given,
+html body.dark td.st-given select,
+html body.dark .st-given,
+html body.dark select.st-given,
+html #app.dark .main-schedule-table td.st-given,
+html #app.dark .main-schedule-table td.st-given select,
+html #app.dark td.st-given,
+html #app.dark td.st-given select,
+html #app.dark .st-given,
+html #app.dark select.st-given {
+  background-color: #1e3a5f !important;
+  color: #bfdbfe !important;
+}
 html body.dark .main-schedule-table td.st-arrived,
 html body.dark .main-schedule-table td.st-arrived select,
 html body.dark td.st-arrived,
@@ -17990,8 +18021,8 @@ html #app.dark td.st-arrived,
 html #app.dark td.st-arrived select,
 html #app.dark .st-arrived,
 html #app.dark select.st-arrived {
-  background-color: #1e3a5f !important;
-  color: #bfdbfe !important;
+  background-color: #14532d !important;
+  color: #bbf7d0 !important;
 }
 html body.dark .main-schedule-table td.dn-yes,
 html body.dark .main-schedule-table td.dn-yes select,
