@@ -582,6 +582,15 @@
                 <div class="day-btns-left">
 
                   <button
+                    v-if="canCreateBookingOnDay(day)"
+                    type="button"
+                    class="mini-btn"
+                    title="افزودن نوبت"
+                    aria-label="افزودن نوبت"
+                    @click.stop="addRow(day)"
+                  >+</button>
+
+                  <button
                     class="mini-btn day-chart-trigger"
                     title="گزارش روز"
                     aria-label="گزارش روز"
@@ -1558,6 +1567,16 @@
           <span>{{ timelineDayDate(day) }}</span>
           <small v-if="isToday(day)">امروز</small>
           <small v-if="isBookingDayCapacityFull(day)" class="day-capacity-full">تکمیل ظرفیت</small>
+          <div class="timeline-day-actions">
+            <button
+              v-if="canCreateBookingOnDay(day)"
+              type="button"
+              class="timeline-add-next-day-btn"
+              title="افزودن نوبت"
+              aria-label="افزودن نوبت"
+              @click.stop="openNewTimelineAppointment(day)"
+            >+</button>
+          </div>
         </aside>
 
         <div class="timeline-slots" :aria-label="`نوبت‌های ${day.dateLabel}`">
@@ -5825,7 +5844,7 @@ export default {
 
     activeFollowupDateOptions() {
       const options = {};
-      const activeDays = new Set(this.clinicSchedule?.active_days || []);
+      const activeDays = new Set(this.clinicActiveWeekdayKeys());
       (this.months || []).forEach(month => {
         const parts = String(month).split('-').map(Number), year = parts[0], monthNumber = parts[1];
         if (!year || !monthNumber) return;
@@ -6822,9 +6841,21 @@ export default {
       return slots;
     },
 
+    clinicActiveWeekdayKeys() {
+      const configured = Array.isArray(this.clinicSchedule?.active_days)
+        ? this.clinicSchedule.active_days.filter(Boolean)
+        : [];
+      // Match backend ClinicSchedule::isActiveWeekday — unconfigured / empty
+      // active_days means every weekday is bookable, not "no days".
+      if (!this.clinicSchedule?.is_configured || !configured.length) {
+        return ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+      }
+      return configured;
+    },
+
     createRowsForAddedDay(date) {
       const dayKey = this.clinicDayKey(date);
-      const activeDays = new Set(this.clinicSchedule.active_days || []);
+      const activeDays = new Set(this.clinicActiveWeekdayKeys());
 
       if (!activeDays.has(dayKey)) {
         return [this.createEmptyAppointmentRow()];
@@ -6858,13 +6889,15 @@ export default {
 
     generateClinicScheduleForCurrentMonth() {
       const { year, month } = this.parseJalaliMonth();
+      if (!year || !month) return;
       const daysInMonth = moment.jDaysInMonth(year, month - 1);
-      const activeDays = new Set(this.clinicSchedule.active_days || []);
+      const activeDays = new Set(this.clinicActiveWeekdayKeys());
       const todayKey = moment().format('jYYYY-jMM-jDD');
       let changed = false;
 
       for (let i = 1; i <= daysInMonth; i++) {
         const date = moment(`${year}/${month}/${i}`, "jYYYY/jM/jD");
+        if (!date.isValid()) continue;
         const dayKey = this.clinicDayKey(date);
         const dateKey = date.format('jYYYY-jMM-jDD');
 
@@ -6997,11 +7030,17 @@ export default {
       const targetMonth = this.months[this.currentMonth];
       if (!targetMonth) return;
 
-      if (!force && this.monthDaysCache[targetMonth]) {
+      // [] is truthy — an empty cached month (e.g. future ماه دی before slots
+      // were generated) must not short-circuit and leave the timeline blank.
+      const cachedDays = this.monthDaysCache[targetMonth];
+      if (!force && Array.isArray(cachedDays) && cachedDays.length) {
         this.isFetching = true;
-        this.days = this.monthDaysCache[targetMonth];
+        this.days = cachedDays;
+        this.generateClinicScheduleForCurrentMonth();
+        this.monthDaysCache[targetMonth] = this.days;
         this.restorePendingDraft();
         this.expandMatchingFilteredDays();
+        this.lastPersistedScheduleFingerprint = this.scheduleFingerprint();
         this.isFetching = false;
         this.syncTableHorizontalScrollOrigin();
         return;
@@ -9615,8 +9654,7 @@ this.calculateFinalAmount(row)
 
     isClinicActiveWeekdayDate(date) {
       if (!date?.isValid?.()) return false;
-      const activeDays = new Set(this.clinicSchedule?.active_days || []);
-      if (!activeDays.size) return false;
+      const activeDays = new Set(this.clinicActiveWeekdayKeys());
       return activeDays.has(this.clinicDayKey(date));
     },
 
@@ -12217,8 +12255,19 @@ smsColor(val) {
       if (this.generatingNewMonth) return;
 
       this.isFetching = true;
-      await this.fetchMonthEvents();
-      await this.fetchData();
+      // Drop a blank cached month so future months (e.g. دی) regenerate slots.
+      const nextMonth = this.months[val];
+      if (nextMonth && Array.isArray(this.monthDaysCache[nextMonth]) && !this.monthDaysCache[nextMonth].length) {
+        delete this.monthDaysCache[nextMonth];
+      }
+      try {
+        await this.fetchMonthEvents();
+        await this.fetchData();
+      } catch (error) {
+        console.error('خطا در بارگذاری ماه نوبت‌دهی', error);
+      } finally {
+        this.isFetching = false;
+      }
     }
 
   }
