@@ -29,7 +29,6 @@
                 <span class="asg-chip-x" aria-hidden="true">×</span>
               </button>
             </div>
-            <p v-else class="asg-empty">هنوز مسئولی انتخاب نشده است</p>
 
             <div v-if="showStaffSearch" class="asg-search">
               <input
@@ -61,7 +60,6 @@
               </button>
               <p v-if="!filteredStaff.length" class="asg-empty muted">نتیجه‌ای یافت نشد</p>
             </div>
-            <div class="asg-meta">{{ faCount(draft.staffIds.length) }} نفر انتخاب شده</div>
           </div>
         </div>
 
@@ -195,7 +193,7 @@
 import { reactive, ref, computed, onBeforeUnmount } from 'vue'
 import JalaliDateSelect from './JalaliDateSelect.vue'
 import { useStaffTasks, PALETTE } from './useStaffTasks'
-import { fullDate, todayJdn, fa } from './jalali'
+import { fullDate, todayJdn } from './jalali'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['close', 'save', 'delete'])
@@ -263,9 +261,6 @@ function toggleStaff(id) {
   if (i >= 0) draft.staffIds.splice(i, 1)
   else draft.staffIds.push(nid)
   if (draft.staffIds.length) err.value = false
-}
-function faCount(n) {
-  return fa(n)
 }
 function avStyle(p) {
   return p.avatar_url ? {} : { background: '#64748b' }
@@ -427,21 +422,20 @@ onBeforeUnmount(() => {
 .st-input.err{border-color:var(--st-red)}
 .asg-box{border:1px solid var(--st-border);border-radius:12px;background:var(--st-surface-2);padding:8px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .asg-box.err,.fld.err .asg-box{border-color:var(--st-red)}
-.asg-selected{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 6px;border-bottom:1px solid var(--st-line)}
-.asg-chip{font-family:inherit;border:1px solid var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);border-radius:999px;padding:3px 8px 3px 4px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;font-weight:700;max-width:100%}
+.asg-selected{display:flex;flex-wrap:wrap;gap:8px;padding:2px 2px 8px;border-bottom:1px solid var(--st-line)}
+.asg-chip{font-family:inherit;border:1px solid var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent);border-radius:999px;padding:5px 12px 5px 6px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700;max-width:100%}
 .asg-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
-.asg-chip-x{font-size:14px;line-height:1;opacity:.75}
-.asg-empty{margin:0;padding:6px 4px;font-size:12px;font-weight:600;color:var(--st-muted)}
+.asg-chip-x{font-size:14px;line-height:1;opacity:.75;margin-inline-start:2px}
+.asg-empty{margin:0;padding:10px 4px;font-size:12px;font-weight:600;color:var(--st-muted);text-align:center}
 .asg-empty.muted{padding:10px 4px;text-align:center}
 .asg-search{min-width:0}
 .asg-search-input{width:100%;box-sizing:border-box}
-.asg-list{max-height:180px;overflow-y:auto;display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;padding:8px;border-radius:10px;background:var(--st-surface);border:1px solid var(--st-line);min-height:0}
-.asg-pick{font-family:inherit;border:1px solid var(--st-border);background:var(--st-surface);border-radius:999px;padding:3px 8px 3px 3px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--st-text-2);font-size:12px;font-weight:700;max-width:100%}
+.asg-list{max-height:180px;overflow-y:auto;display:flex;flex-wrap:wrap;align-content:flex-start;gap:8px;padding:10px;border-radius:10px;background:var(--st-surface);border:1px solid var(--st-line);min-height:0}
+.asg-pick{font-family:inherit;border:1px solid var(--st-border);background:var(--st-surface);border-radius:999px;padding:5px 12px 5px 6px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;color:var(--st-text-2);font-size:12px;font-weight:700;max-width:100%}
 .asg-pick:hover{background:var(--st-muted-bg)}
 .asg-pick.on{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent)}
 .asg-pick-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
-.asg-pick-check{font-size:11px;font-weight:900;opacity:.9}
-.asg-meta{font-size:10.5px;font-weight:600;color:var(--st-muted);padding:0 2px}
+.asg-pick-check{font-size:11px;font-weight:900;opacity:.9;margin-inline-start:2px}
 .av{width:26px;height:26px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;flex-shrink:0;background:#64748b}
 .av.xs{width:20px;height:20px;font-size:9px}
 .av img{width:100%;height:100%;object-fit:cover}

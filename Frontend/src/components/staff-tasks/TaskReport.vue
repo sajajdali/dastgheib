@@ -97,6 +97,9 @@
         </div>
       </div>
       <div v-else class="loading">در حال محاسبه…</div>
+      <div class="foot">
+        <button type="button" class="full-btn" @click="$emit('full')">گزارش کامل</button>
+      </div>
     </div>
   </div>
 </template>
@@ -106,7 +109,7 @@ import { ref, computed, onMounted } from 'vue'
 import { fetchReport, PALETTE, taskMatchesStaffFilter } from './useStaffTasks'
 import { fa, isoToJdn, d2j, MONTHS } from './jalali'
 
-defineEmits(['close', 'open', 'edit'])
+defineEmits(['close', 'open', 'edit', 'full'])
 const periods = [
   { key: 'daily', label: 'روزانه' },
   { key: 'weekly', label: 'هفتگی' },
@@ -175,7 +178,7 @@ onMounted(load)
 .seg button{font-family:inherit;border:0;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--st-muted)}
 .seg button.on{background:var(--st-surface);color:var(--st-text);box-shadow:0 1px 3px rgba(15,23,42,.12)}
 .st-x{border:0;background:var(--st-muted-bg);width:32px;height:32px;border-radius:9px;cursor:pointer;color:var(--st-muted);display:flex;align-items:center;justify-content:center}
-.body{overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+.body{overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:14px;flex:1;min-height:0}
 .sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
 .sum-grid article{padding:10px 12px;border-radius:12px;background:var(--st-surface-2);display:flex;flex-direction:column;gap:4px}
 .sum-grid span{font-size:11px;color:var(--st-muted);font-weight:700}.sum-grid b{font-size:18px}
@@ -200,6 +203,9 @@ th{background:var(--st-surface-2);color:var(--st-muted);font-size:11px}
 .kpi{display:grid!important;grid-template-columns:repeat(2,1fr);gap:8px}
 .kpi article{padding:10px;border-radius:10px;background:var(--st-surface);display:flex;flex-direction:column;gap:3px}
 .kpi .best{grid-column:1/-1;background:var(--st-accent-soft)}
-.loading{padding:40px;text-align:center;color:var(--st-muted)}
+.loading{padding:40px;text-align:center;color:var(--st-muted);flex:1}
+.foot{padding:12px 16px;border-top:1px solid var(--st-line);display:flex;justify-content:flex-start;flex-shrink:0;background:var(--st-surface)}
+.full-btn{font-family:inherit;border:1px solid var(--st-accent);background:var(--st-accent-soft,#eff6ff);color:var(--st-accent);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer}
+.full-btn:hover{filter:brightness(.97)}
 @media(max-width:800px){.analytics{grid-template-columns:1fr}}
 </style>

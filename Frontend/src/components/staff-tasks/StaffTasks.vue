@@ -24,7 +24,6 @@
           <button type="button" class="icon-btn" title="گزارش مدیریتی" @click="showReport = true">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M4 19h16M8 15v4M12 11v8M16 7v12"/></svg>
           </button>
-          <button type="button" class="ghost-sm report-full" title="گزارش کامل" @click="showFullReport = true">گزارش کامل</button>
           <button type="button" class="icon-btn" title="خروجی اکسل" @click="exportCsv">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
           </button>
@@ -179,7 +178,13 @@
       <div v-if="editing || details || showSettings || showReport" class="st-layer" dir="rtl">
         <TaskModal v-if="editing" :key="'edit-' + (editing.id || 'new') + '-' + editing.day" :task="editing" @close="closeEdit" @save="onSave" @delete="onDelete" />
         <StatusSettings v-if="showSettings" @close="showSettings = false" />
-        <TaskReport v-if="showReport" @close="showReport = false" @open="id => openDetailsById(id)" @edit="id => openEditById(id)" />
+          <TaskReport
+            v-if="showReport"
+            @close="showReport = false"
+            @open="id => openDetailsById(id)"
+            @edit="id => openEditById(id)"
+            @full="showReport = false; showFullReport = true"
+          />
         <div v-if="details" class="st-overlay detail-overlay" @mousedown.self="details = null">
           <div class="detail-modal">
             <div class="st-mhead">
@@ -704,7 +709,6 @@ function onOpenTaskEvent(e) {
 .icon-btn.primary:hover{background:var(--st-accent-hover);color:#fff}
 .ghost-sm{font-family:inherit;height:34px;border-radius:10px;border:1px solid var(--st-border);background:var(--st-surface);color:var(--st-text-2);font-size:12px;font-weight:700;padding:0 10px;cursor:pointer}
 .ghost-sm.rec{background:var(--st-holiday);color:var(--st-red);border-color:var(--st-red)}
-.ghost-sm.report-full{border-color:var(--st-accent);color:var(--st-accent);background:var(--st-accent-soft);font-weight:800}
 .staff-filter-wrap{position:relative}
 .staff-filter-wrap .icon-btn{position:relative}
 .icon-btn.on{background:var(--st-accent-soft);color:var(--st-accent)}
@@ -713,8 +717,8 @@ function onOpenTaskEvent(e) {
 .sf-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
 .sf-clear{border:0;background:var(--st-muted-bg);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--st-accent)}
 .sf-search{font-family:inherit;border:1px solid var(--st-border);border-radius:8px;padding:6px 8px;font-size:12px;outline-color:var(--st-accent)}
-.sf-list{display:flex;flex-wrap:wrap;gap:6px;max-height:200px;overflow:auto}
-.sf-chip{font-family:inherit;border:1px solid var(--st-border);background:var(--st-surface-2);border-radius:999px;padding:3px 8px 3px 3px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;color:var(--st-text-2)}
+.sf-list{display:flex;flex-wrap:wrap;gap:8px;max-height:200px;overflow:auto}
+.sf-chip{font-family:inherit;border:1px solid var(--st-border);background:var(--st-surface-2);border-radius:999px;padding:5px 12px 5px 6px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;font-weight:700;color:var(--st-text-2)}
 .sf-chip.on{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent)}
 .navs,.zoom{display:flex;gap:2px}
 .nav{width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--st-text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}

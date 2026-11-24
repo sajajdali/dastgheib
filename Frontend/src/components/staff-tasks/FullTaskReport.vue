@@ -2,7 +2,7 @@
   <div class="ftr" dir="rtl">
     <header class="ftr-top">
       <button type="button" class="ftr-back" @click="$emit('back')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+        <svg class="ftr-back-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>
         بازگشت به تقویم
       </button>
       <label class="ftr-search">
@@ -398,6 +398,7 @@ onBeforeUnmount(() => {
 }
 .ftr-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .ftr-back{font-family:inherit;border:1px solid #dbe3ef;background:#fff;border-radius:10px;padding:8px 12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700;color:#475569}
+.ftr-back-ico{flex-shrink:0}
 .ftr-search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:#eef2f7;border-radius:12px;padding:8px 12px;color:#64748b}
 .ftr-search input{flex:1;border:0;background:transparent;outline:0;font-family:inherit;font-size:13px;color:var(--text)}
 .ftr-search kbd{font-size:10px;font-weight:700;background:#fff;border:1px solid #dbe3ef;border-radius:6px;padding:2px 6px;color:#94a3b8}
@@ -408,8 +409,8 @@ onBeforeUnmount(() => {
 .ftr-sf-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;width:280px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.12);padding:10px;display:flex;flex-direction:column;gap:8px}
 .ftr-sf-head{display:flex;justify-content:space-between;align-items:center;font-size:12px}
 .ftr-sf-head button{border:0;background:#f5f3ff;color:#7c3aed;border-radius:8px;padding:4px 8px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer}
-.ftr-sf-list{display:flex;flex-wrap:wrap;gap:6px;max-height:180px;overflow:auto}
-.ftr-sf-chip{font-family:inherit;border:1px solid #e2e8f0;background:#f8fafc;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#475569}
+.ftr-sf-list{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow:auto}
+.ftr-sf-chip{font-family:inherit;border:1px solid #e2e8f0;background:#f8fafc;border-radius:999px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;color:#475569}
 .ftr-sf-chip.on{border-color:#c4b5fd;background:#f5f3ff;color:#7c3aed}
 .ftr-period{display:flex;background:#fff;border:1px solid #dbe3ef;border-radius:10px;padding:2px;gap:2px}
 .ftr-period button{font-family:inherit;border:0;background:transparent;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#64748b}
