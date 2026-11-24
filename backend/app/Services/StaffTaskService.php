@@ -209,7 +209,7 @@ class StaffTaskService
                     ]);
                     $task->refresh()->load(['status', 'assignees']);
                     $this->syncPayrollImpact($task);
-                    $this->notifyAssigned($task, $task->assignees, 'task_status_changed', 'وضعیت وظیفه به‌صورت خودکار تغییر کرد', $task->title.' → '.($task->status?->title ?? ''));
+                    $this->notifyAssigned($task, $task->assignees, 'task_overdue', 'وظیفه عقب‌افتاده', $task->title.' → '.($task->status?->title ?? ''));
                     $count++;
                 }
             });

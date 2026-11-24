@@ -155,6 +155,7 @@
       :current-user-id="Number(user?.id || 0)"
       :initial-tab="personalReportInitialTab"
       @close="myReportOpen = false"
+      @open-staff-task="openStaffTaskFromNotification"
     />
 
     <Menu
@@ -1012,6 +1013,14 @@ export default {
         ? { type: item.resource_type, id: Number(item.resource_id) }
         : null;
       this.changePage('Payroll');
+    },
+
+    openStaffTaskFromNotification({ taskId } = {}) {
+      this.myReportOpen = false;
+      if (taskId) {
+        window.dispatchEvent(new CustomEvent('app:open-staff-task', { detail: { taskId } }));
+      }
+      if (this.isClinicManager) this.changePage('StaffTasks');
     },
 
     async loadMyReport() {

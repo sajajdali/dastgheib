@@ -70,7 +70,30 @@
             <article><span>غیبت</span><strong>{{ money(report.summary.absence) }}</strong></article>
             <article><span>پاداش دستی</span><strong>{{ money(report.summary.manual_bonus) }}</strong></article>
             <article><span>کسورات دستی</span><strong>{{ money(report.summary.manual_deduction) }}</strong></article>
+            <article v-if="Number(report.summary.task_impact_total || 0)"><span>تأثیر وظایف</span><strong :class="{ positive: Number(report.summary.task_impact_total) > 0, negative: Number(report.summary.task_impact_total) < 0 }">{{ money(report.summary.task_impact_total) }}</strong></article>
             <article><span>کسر مساعده</span><strong>{{ money(report.summary.advance_deduction) }}</strong></article>
+          </section>
+
+          <section v-if="(report.task_impacts || []).length" class="payroll-table-wrap" style="margin-bottom:14px">
+            <h3 style="margin:0 0 10px;font-size:14px">تأثیر وظایف</h3>
+            <table class="payroll-table">
+              <thead>
+                <tr>
+                  <th>عنوان</th>
+                  <th>وضعیت</th>
+                  <th>تاریخ ثبت</th>
+                  <th>مبلغ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in report.task_impacts" :key="item.id">
+                  <td>{{ item.title || item.reason }}</td>
+                  <td>{{ item.description || '—' }}</td>
+                  <td>{{ item.occurred_on || item.month }}</td>
+                  <td :class="{ positive: Number(item.amount) > 0, negative: Number(item.amount) < 0 }">{{ money(item.amount) }}</td>
+                </tr>
+              </tbody>
+            </table>
           </section>
 
           <section class="payroll-tabs">

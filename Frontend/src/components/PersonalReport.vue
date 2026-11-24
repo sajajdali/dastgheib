@@ -120,7 +120,7 @@ export default {
     currentUserId: { type: Number, default: null },
     initialTab: { type: String, default: 'summary' },
   },
-  emits: ['close'],
+  emits: ['close', 'open-staff-task'],
   data() { return {
     report: null, loading: true, saving: false, error: '', tab: this.initialTab, preset: 'month', reportMonth: this.currentMonth,
     from: '', to: '', detailLine: null, leaves: [], advances: [], messages: [], notifications: [], unreadCount: 0,
@@ -185,7 +185,19 @@ export default {
     async cancelAdvance(item){ if(!(await this.confirm('درخواست مساعده لغو شود؟')))return;await axios.patch(`/api/employee-portal/advances/${item.id}/cancel`);await this.loadAdvances() },
     async sendMessage(){ this.saving=true;try{const fd=new FormData();if(this.messageText)fd.append('body',this.messageText);if(this.messageImage)fd.append('image',this.messageImage);if(this.messageVoice)fd.append('voice',this.messageVoice);await axios.post('/api/employee-portal/messages',fd);this.messageText='';this.messageImage=null;this.messageVoice=null;if(this.$refs.imageInput)this.$refs.imageInput.value='';if(this.$refs.voiceInput)this.$refs.voiceInput.value='';await this.loadMessages()}catch(e){this.toast(this.err(e,'ارسال پیام ممکن نشد.'),'error')}finally{this.saving=false} },
     async toggleRecording(){ if(this.recording){this.mediaRecorder?.stop();return}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});this.recordedChunks=[];this.mediaRecorder=new MediaRecorder(stream);this.mediaRecorder.ondataavailable=e=>{if(e.data.size)this.recordedChunks.push(e.data)};this.mediaRecorder.onstop=()=>{this.messageVoice=new File([new Blob(this.recordedChunks,{type:'audio/webm'})],`voice-${Date.now()}.webm`,{type:'audio/webm'});stream.getTracks().forEach(t=>t.stop());this.recording=false};this.mediaRecorder.start();this.recording=true}catch{this.toast('دسترسی میکروفن داده نشد.','error')} },
-    async openNotification(item){ if(!item.read_at)await axios.patch(`/api/employee-portal/notifications/${item.id}/read`);this.tab=item.action_tab||'summary';this.notificationOpen=false;await this.loadNotifications();if(this.tab==='messages')this.loadMessages() },
+    async openNotification(item){
+      if(!item.read_at)await axios.patch(`/api/employee-portal/notifications/${item.id}/read`)
+      this.notificationOpen=false
+      await this.loadNotifications()
+      if(item.action_tab==='staff_tasks'){
+        const taskId=item.data?.task_id
+        window.dispatchEvent(new CustomEvent('app:open-staff-task',{detail:{taskId}}))
+        this.$emit('open-staff-task',{taskId})
+        return
+      }
+      this.tab=item.action_tab||'summary'
+      if(this.tab==='messages')this.loadMessages()
+    },
     async readAllNotifications(){ await axios.patch('/api/employee-portal/notifications/read-all');await this.loadNotifications() },
     leaveRange(i){ return i.leave_type==='hourly'?`${i.start_date}، ${String(i.start_time||'').slice(0,5)} تا ${String(i.end_time||'').slice(0,5)}`:`${i.start_date} تا ${i.end_date}` },
     statusLabel(s){ return {pending:'در انتظار',approved:'تأییدشده',rejected:'ردشده',cancelled:'لغوشده',ready:'آماده پرداخت',paid:'پرداخت‌شده',deducted:'کسرشده'}[s]||s },
