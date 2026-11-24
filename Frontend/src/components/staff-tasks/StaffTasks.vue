@@ -72,8 +72,8 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               </button>
             </div>
-            <!-- مناسبت همیشه به‌عنوان زمینه روز دیده می‌شود، حتی بدون وظیفه -->
-            <div v-if="d.occasionTitle" class="occasion" :class="{ closed: d.holiday }" :title="d.occasionTitle">{{ d.occasionTitle }}</div>
+            <!-- مناسبت فقط وقتی روز خالی از وظیفه است -->
+            <div v-if="d.occasionTitle && !d.tasks.length" class="occasion" :class="{ closed: d.holiday }" :title="d.occasionTitle">{{ d.occasionTitle }}</div>
             <div class="wbody">
               <div v-for="t in d.tasks" :key="t.id" class="tcard" :style="cardStyle(t)" @click="openDetails(t)">
                 <div class="tt">{{ t.title }}</div>
@@ -121,7 +121,7 @@
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               </button>
             </div>
-            <span v-if="c.occasionTitle" class="occasion sm" :class="{ closed: c.holiday }" :title="c.occasionTitle">{{ c.occasionTitle }}</span>
+            <span v-if="c.occasionTitle && !c.tasks.length" class="occasion sm" :class="{ closed: c.holiday }" :title="c.occasionTitle">{{ c.occasionTitle }}</span>
             <div v-for="t in c.tasks.slice(0, zoom >= 2 ? 5 : 3)" :key="t.id" class="mtask" :style="cardStyle(t)" @click="openDetails(t)">{{ t.title }}</div>
             <span v-if="c.tasks.length > (zoom >= 2 ? 5 : 3)" class="more">{{ fa(c.tasks.length - (zoom >= 2 ? 5 : 3)) }}+</span>
           </div>
@@ -656,7 +656,7 @@ function onOpenTaskEvent(e) {
 .more{font-size:10px;font-weight:700;color:var(--st-muted)}
 .st-overlay,.detail-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483011;display:flex;align-items:center;justify-content:center;padding:16px}
 .detail-modal{width:520px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;background:var(--st-surface);border-radius:16px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35)}
-/* مناسبت: همیشه روی سلول روز (با/بدون وظیفه)؛ متن شبح کم‌کنتراست */
+/* مناسبت: فقط روزهای بدون وظیفه؛ متن شبح کم‌کنتراست */
 .occasion{flex-shrink:0;margin:0 8px 4px;font-size:10px;font-weight:400;color:var(--st-faint);opacity:.38;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:calc(100% - 16px);letter-spacing:.01em}
 .occasion.sm{margin:0;font-size:9px;opacity:.34;max-width:100%;-webkit-line-clamp:2}
 .occasion.closed{opacity:.3}
