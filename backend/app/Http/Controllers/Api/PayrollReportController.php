@@ -55,7 +55,7 @@ class PayrollReportController extends Controller
             ->first();
 
         $lines = ResourceEarningLine::query()
-            ->with('appointment:id,month,day_num,time,lastname,phone,file_number,services,amount,original_amount,discount')
+            ->with('appointment:id,month,day_num,time,lastname,phone,file_number,services,amount,original_amount,discount,wallet_applied,payment_details')
             ->where('month', $data['month'])
             ->where('resource_type', $data['resource_type'])
             ->where('resource_id', $resource->id)

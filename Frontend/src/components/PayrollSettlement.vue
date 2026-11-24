@@ -508,7 +508,8 @@ export default {
             day_num: line.day_num || appointment?.day_num || null,
             time: appointment?.time || '',
             patient_name: appointment?.lastname || 'بیمار نامشخص',
-            paid_amount: Number(appointment?.amount || 0),
+            // مثل نوبت‌دهی: مبلغ واقعاً دریافت‌شده (دفتر پرداخت + کیف‌پول)، نه amount خالص بعد از تخفیف.
+            paid_amount: this.appointmentPaidAmount(appointment),
             discount_amount: Math.max(0, Number(appointment?.discount || 0)),
             original_amount: Number(appointment?.original_amount || 0),
             appointment_services: Array.isArray(appointment?.services) ? appointment.services : [],
@@ -520,7 +521,7 @@ export default {
         if (!group.day_num && line.day_num) group.day_num = line.day_num
         if (!group.time && appointment?.time) group.time = appointment.time
         if ((!group.paid_amount || !group.discount_amount) && appointment) {
-          group.paid_amount = Number(appointment.amount || 0)
+          group.paid_amount = this.appointmentPaidAmount(appointment)
           group.discount_amount = Math.max(0, Number(appointment.discount || 0))
           group.original_amount = Number(appointment.original_amount || 0)
           group.appointment_services = Array.isArray(appointment.services) ? appointment.services : group.appointment_services
@@ -854,6 +855,30 @@ export default {
     appointmentDiscount(line) {
       if (this.isAttendanceLine(line)) return 0
       return Math.max(0, Number(line?.appointment?.discount || 0))
+    },
+    // مبلغ پرداخت‌شده = ledger_total (یا نقد/کارت/چک) + تسویه بدهی + کیف‌پول؛ هم‌راستا با Time.vue.
+    appointmentPaidAmount(appointment) {
+      if (!appointment) return 0
+      const details = appointment.payment_details && typeof appointment.payment_details === 'object'
+        ? appointment.payment_details
+        : {}
+      const settledDebt = (Array.isArray(details.debt_payments) ? details.debt_payments : [])
+        .reduce((total, payment) => total + Math.max(0, Number(payment?.amount || 0)), 0)
+      let recorded = 0
+      if (details.ledger_total != null && details.ledger_total !== '') {
+        recorded = Number(details.ledger_total || 0)
+      } else {
+        const breakdownTotal = Object.values(details.payment_breakdown || {})
+          .reduce((total, amount) => total + Math.max(0, Number(amount || 0)), 0)
+        recorded = breakdownTotal > 0
+          ? breakdownTotal
+          : Number(details.cash || 0) + Number(details.card || 0) + Number(details.check?.amount || 0)
+      }
+      const wallet = Math.max(0, Number(appointment.wallet_applied || 0))
+      const paid = Math.max(0, recorded) + settledDebt + wallet
+      // نوبت‌های قدیمی بدون دفتر مالی: fallback به amount ذخیره‌شده.
+      if (paid > 0) return paid
+      return Math.max(0, Number(appointment.amount || 0))
     },
     appointmentSurcharge(line) {
       if (this.isAttendanceLine(line)) return 0
