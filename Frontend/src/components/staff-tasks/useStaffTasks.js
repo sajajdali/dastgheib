@@ -15,6 +15,8 @@ const state = reactive({
   /** @type {Map<number, { title: string, holiday: boolean }>} keyed by JDN */
   holidays: new Map(),
   canManage: true,
+  canAdmin: false,
+  currentUserId: null,
   loading: false,
   loaded: false,
   error: '',
@@ -113,6 +115,8 @@ export async function bootstrap() {
     state.statuses = data.statuses || []
     state.expiryDefault = data.settings?.expiry_default_status_id ?? null
     state.canManage = data.can_manage !== false
+    state.canAdmin = !!data.can_admin
+    state.currentUserId = data.current_user_id ?? null
     state.loaded = true
   } catch (e) {
     state.error = e.response?.data?.message || 'بارگذاری وظایف ممکن نشد.'
@@ -170,9 +174,38 @@ export async function changeStatus(taskId, statusId, progress) {
   return upsertTask(data.task)
 }
 
+export function canDeleteTask(task) {
+  if (!task) return false
+  if (task.can_delete != null) return !!task.can_delete
+  if (state.canAdmin) return true
+  return state.currentUserId != null && Number(task.created_by) === Number(state.currentUserId)
+}
+
+export function canDeleteMediaItem(task, item) {
+  if (!task || !item) return false
+  if (item.can_delete != null) return !!item.can_delete
+  if (task.can_delete_media || canDeleteTask(task)) return true
+  return state.currentUserId != null && Number(item.user_id) === Number(state.currentUserId)
+}
+
 export async function deleteTask(id) {
   await axios.delete(`/api/staff-tasks/${id}`)
   state.tasks = state.tasks.filter(t => t.id !== id)
+}
+
+export async function deleteAttachment(taskId, attachmentId) {
+  const { data } = await axios.delete(`/api/staff-tasks/${taskId}/attachments/${attachmentId}`)
+  return upsertTask(data.task)
+}
+
+export async function deleteVoice(taskId, voiceId) {
+  const { data } = await axios.delete(`/api/staff-tasks/${taskId}/voices/${voiceId}`)
+  return upsertTask(data.task)
+}
+
+export async function deleteTaskImage(taskId) {
+  const { data } = await axios.delete(`/api/staff-tasks/${taskId}/image`)
+  return upsertTask(data.task)
 }
 
 export async function addVoice(taskId, file, duration) {
@@ -253,6 +286,11 @@ export function useStaffTasks() {
     saveTask,
     changeStatus,
     deleteTask,
+    deleteAttachment,
+    deleteVoice,
+    deleteTaskImage,
+    canDeleteTask,
+    canDeleteMediaItem,
     addVoice,
     addStatus,
     updateStatus,

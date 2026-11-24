@@ -82,6 +82,7 @@
               <span class="av xs" :style="uploaderStyle(a)"><img v-if="a.uploader_avatar_url" :src="a.uploader_avatar_url" alt="" /><template v-else>{{ (a.uploader_name||'?').charAt(0) }}</template></span>
               {{ a.uploader_name }} · {{ a.original_name || 'پیوست' }}
             </span>
+            <button v-if="canDeleteMediaItem(draft, a)" type="button" class="rm" @click="removeAttachment(a)">حذف</button>
           </div>
         </div>
 
@@ -96,10 +97,13 @@
             </div>
           </div>
           <div v-for="v in (draft.voices || [])" :key="v.id" class="voice-row">
-            <span class="who">
-              <span class="av xs" :style="uploaderStyle(v)"><img v-if="v.uploader_avatar_url" :src="v.uploader_avatar_url" alt="" /><template v-else>{{ (v.uploader_name||'?').charAt(0) }}</template></span>
-              {{ v.uploader_name }}
-            </span>
+            <div class="voice-actions">
+              <span class="who">
+                <span class="av xs" :style="uploaderStyle(v)"><img v-if="v.uploader_avatar_url" :src="v.uploader_avatar_url" alt="" /><template v-else>{{ (v.uploader_name||'?').charAt(0) }}</template></span>
+                {{ v.uploader_name }}
+              </span>
+              <button v-if="canDeleteMediaItem(draft, v)" type="button" class="rm" @click="removeVoice(v)">حذف</button>
+            </div>
             <div class="voice-player" dir="ltr">
               <audio :src="voiceSrc(v)" controls preload="metadata" controlsList="nodownload"></audio>
             </div>
@@ -133,7 +137,7 @@
 
       <div class="st-mfoot">
         <div>
-          <button v-if="draft.id" type="button" class="btn danger" :disabled="saving" @click="$emit('delete', draft.id)">حذف</button>
+          <button v-if="draft.id && canDeleteTask(draft)" type="button" class="btn danger" :disabled="saving" @click="askDelete">حذف</button>
         </div>
         <div class="row">
           <button type="button" class="btn ghost" @click="$emit('close')">انصراف</button>
@@ -152,7 +156,7 @@ import { fullDate, todayJdn } from './jalali'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['close', 'save', 'delete'])
-const { state } = useStaffTasks()
+const { state, canDeleteTask, canDeleteMediaItem, deleteAttachment, deleteVoice } = useStaffTasks()
 
 const src = props.task || {}
 const initialDay = Number(src.day) || todayJdn()
@@ -278,6 +282,31 @@ function clearVoice() {
   if (pendingVoiceUrl.value) URL.revokeObjectURL(pendingVoiceUrl.value)
   pendingVoiceUrl.value = null
   voiceDuration.value = 0
+}
+function askDelete() {
+  if (!draft.id || !canDeleteTask(draft)) return
+  if (!confirm('این وظیفه حذف شود؟')) return
+  emit('delete', draft.id)
+}
+async function removeAttachment(a) {
+  if (!draft.id || !a?.id) return
+  if (!confirm('این پیوست حذف شود؟')) return
+  try {
+    const updated = await deleteAttachment(draft.id, a.id)
+    draft.attachments = updated.attachments || []
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || 'حذف پیوست ممکن نشد.')
+  }
+}
+async function removeVoice(v) {
+  if (!draft.id || !v?.id) return
+  if (!confirm('این پیام صوتی حذف شود؟')) return
+  try {
+    const updated = await deleteVoice(draft.id, v.id)
+    draft.voices = updated.voices || []
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || 'حذف پیام صوتی ممکن نشد.')
+  }
 }
 function formatTime(v) {
   return v ? new Date(v).toLocaleString('fa-IR') : ''

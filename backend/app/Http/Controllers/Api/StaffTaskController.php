@@ -40,13 +40,17 @@ class StaffTaskController extends Controller
         $staff = Staff::query()->orderBy('name')->get()
             ->map(fn (Staff $s) => $this->tasks->serializeStaff($s));
 
+        $user = $request->user();
+
         return response()->json([
             'statuses' => $statuses,
             'settings' => [
                 'expiry_default_status_id' => $settings->expiry_default_status_id,
             ],
             'staff' => $staff,
-            'can_manage' => $this->tasks->canManage($request->user()),
+            'can_manage' => $this->tasks->canManage($user),
+            'can_admin' => $this->tasks->isClinicAdmin($user),
+            'current_user_id' => $user?->id,
         ]);
     }
 
@@ -215,7 +219,7 @@ class StaffTaskController extends Controller
 
     public function destroy(Request $request, StaffTask $staffTask): JsonResponse
     {
-        $this->assertManage($request);
+        abort_unless($this->tasks->canDeleteTask($request->user(), $staffTask), 403, 'فقط ایجادکننده وظیفه یا مدیر کل می‌تواند آن را حذف کند.');
         $this->tasks->clearPayrollImpact($staffTask);
         if ($staffTask->image_path) Storage::disk('public')->delete($staffTask->image_path);
         foreach ($staffTask->attachments as $attachment) {
@@ -246,23 +250,59 @@ class StaffTaskController extends Controller
             'duration' => $request->integer('duration') ?: null,
         ]);
 
-        return response()->json(['voice' => [
+        $serialized = $this->tasks->serialize($staffTask->fresh(), $request->user());
+        $voicePayload = collect($serialized['voices'])->firstWhere('id', $voice->id) ?: [
             'id' => $voice->id,
             'url' => $voice->url,
             'duration' => $voice->duration,
+            'user_id' => $voice->user_id,
             'uploader_name' => $voice->uploader_name,
             'uploader_avatar_url' => $staff?->avatar_url,
             'created_at' => optional($voice->created_at)?->toIso8601String(),
-        ], 'task' => $this->tasks->serialize($staffTask->fresh())], 201);
+            'can_delete' => true,
+        ];
+
+        return response()->json(['voice' => $voicePayload, 'task' => $serialized], 201);
     }
 
     public function destroyAttachment(Request $request, StaffTask $staffTask, StaffTaskAttachment $attachment): JsonResponse
     {
-        $this->assertManage($request);
         abort_unless((int) $attachment->staff_task_id === (int) $staffTask->id, 404);
+        abort_unless(
+            $this->tasks->canDeleteAttachment($request->user(), $staffTask, $attachment),
+            403,
+            'اجازه حذف این پیوست را ندارید.'
+        );
         Storage::disk('public')->delete($attachment->path);
         $attachment->delete();
-        return response()->json(['task' => $this->tasks->serialize($staffTask->fresh())]);
+        return response()->json(['task' => $this->tasks->serialize($staffTask->fresh(), $request->user())]);
+    }
+
+    public function destroyVoice(Request $request, StaffTask $staffTask, StaffTaskVoice $voice): JsonResponse
+    {
+        abort_unless((int) $voice->staff_task_id === (int) $staffTask->id, 404);
+        abort_unless(
+            $this->tasks->canDeleteVoice($request->user(), $staffTask, $voice),
+            403,
+            'اجازه حذف این پیام صوتی را ندارید.'
+        );
+        Storage::disk('public')->delete($voice->path);
+        $voice->delete();
+        return response()->json(['task' => $this->tasks->serialize($staffTask->fresh(), $request->user())]);
+    }
+
+    public function destroyImage(Request $request, StaffTask $staffTask): JsonResponse
+    {
+        abort_unless(
+            $this->tasks->canDeleteTaskMedia($request->user(), $staffTask),
+            403,
+            'اجازه حذف تصویر این وظیفه را ندارید.'
+        );
+        if ($staffTask->image_path) {
+            Storage::disk('public')->delete($staffTask->image_path);
+            $staffTask->update(['image_path' => null]);
+        }
+        return response()->json(['task' => $this->tasks->serialize($staffTask->fresh(), $request->user())]);
     }
 
     public function statuses(Request $request): JsonResponse

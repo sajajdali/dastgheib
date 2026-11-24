@@ -96,9 +96,14 @@
                       </button>
                     </div>
                   </div>
-                  <button type="button" class="edit-ico" title="ویرایش" @pointerdown.stop @click.stop="openEdit(t)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
-                  </button>
+                  <div class="card-acts" @click.stop>
+                    <button type="button" class="edit-ico" title="ویرایش" @pointerdown.stop @click.stop="openEdit(t)">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                    </button>
+                    <button v-if="canDeleteTask(t)" type="button" class="edit-ico danger" title="حذف" @pointerdown.stop @click.stop="confirmDelete(t)">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="tdead">ثبت‌شده در تاریخ {{ registeredLabel(t) }}</div>
                 <div v-if="t.voices?.length" class="voice-player voice-mini" dir="ltr" @click.stop @pointerdown.stop>
@@ -140,6 +145,7 @@
               <div class="col"><span class="h">{{ details.title }}</span><span class="sub">ثبت‌شده در تاریخ {{ registeredLabel(details) }}</span></div>
               <div class="row">
                 <button type="button" class="icon-btn" title="ویرایش" @click="openEdit(details)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                <button v-if="canDeleteTask(details)" type="button" class="icon-btn danger" title="حذف وظیفه" @click="confirmDelete(details)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>
                 <button type="button" class="st-x" @click="details = null"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
               </div>
             </div>
@@ -160,7 +166,16 @@
                 </div>
               </div>
               <div v-if="details.expiry?.enabled" class="meta">مهلت: {{ shortDate(details.expiry.day) }} · {{ fa(details.expiry.time) }}</div>
-              <img v-if="details.image_url" class="dimg" :src="details.image_url" alt="" />
+              <div v-if="details.image_url" class="dimg-wrap">
+                <img class="dimg" :src="details.image_url" alt="" />
+                <button v-if="details.can_delete_media || canDeleteTask(details)" type="button" class="rm-media" @click="onDeleteImage(details)">حذف تصویر</button>
+              </div>
+              <div v-if="(details.attachments || []).length" class="att-list detail-atts">
+                <div v-for="a in details.attachments" :key="a.id" class="att">
+                  <a :href="a.url" target="_blank" rel="noopener">{{ a.original_name || 'پیوست' }}</a>
+                  <button v-if="canDeleteMediaItem(details, a)" type="button" class="rm-media" title="حذف" @click="onDeleteAttachment(details, a)">حذف</button>
+                </div>
+              </div>
               <div class="voice-thread">
                 <div v-for="v in (details.voices || [])" :key="v.id" class="vmsg">
                   <span class="av sm" :style="uploaderAv(v)"><img v-if="v.uploader_avatar_url" :src="v.uploader_avatar_url" alt="" /><template v-else>{{ (v.uploader_name||'?').charAt(0) }}</template></span>
@@ -168,6 +183,7 @@
                     <div class="vmsg-meta">
                       <b>{{ v.uploader_name }}</b>
                       <small>{{ formatTime(v.created_at) }}</small>
+                      <button v-if="canDeleteMediaItem(details, v)" type="button" class="rm-media" @click="onDeleteVoice(details, v)">حذف</button>
                     </div>
                     <div class="voice-player" dir="ltr">
                       <audio :src="voiceSrc(v)" controls preload="metadata" controlsList="nodownload"></audio>
@@ -196,7 +212,8 @@ import { d2j, j2d, monthLength, weekday, weekStart, todayJdn, WEEKDAYS, MONTHS, 
 
 const {
   state, openTaskId, bootstrap, loadTasks, loadHolidaysForRange, holidayInfo,
-  saveTask, changeStatus, deleteTask, addVoice, statusById,
+  saveTask, changeStatus, deleteTask, deleteAttachment, deleteVoice, deleteTaskImage,
+  addVoice, statusById, canDeleteTask, canDeleteMediaItem,
 } = useStaffTasks()
 
 const today = todayJdn()
@@ -452,6 +469,44 @@ async function onDelete(id) {
     alert(e.response?.data?.message || e.message || 'حذف وظیفه ممکن نشد.')
   }
 }
+function confirmDelete(t) {
+  if (!t?.id || !canDeleteTask(t)) return
+  if (!confirm('این وظیفه حذف شود؟')) return
+  onDelete(t.id)
+}
+async function onDeleteAttachment(task, att) {
+  if (!task?.id || !att?.id) return
+  if (!confirm('این پیوست حذف شود؟')) return
+  try {
+    const updated = await deleteAttachment(task.id, att.id)
+    if (details.value?.id === task.id) details.value = updated
+    if (editing.value?.id === task.id) editing.value = { ...editing.value, attachments: updated.attachments }
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || 'حذف پیوست ممکن نشد.')
+  }
+}
+async function onDeleteVoice(task, voice) {
+  if (!task?.id || !voice?.id) return
+  if (!confirm('این پیام صوتی حذف شود؟')) return
+  try {
+    const updated = await deleteVoice(task.id, voice.id)
+    if (details.value?.id === task.id) details.value = updated
+    if (editing.value?.id === task.id) editing.value = { ...editing.value, voices: updated.voices }
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || 'حذف پیام صوتی ممکن نشد.')
+  }
+}
+async function onDeleteImage(task) {
+  if (!task?.id) return
+  if (!confirm('تصویر وظیفه حذف شود؟')) return
+  try {
+    const updated = await deleteTaskImage(task.id)
+    if (details.value?.id === task.id) details.value = updated
+    if (editing.value?.id === task.id) editing.value = { ...editing.value, image_url: updated.image_url }
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || 'حذف تصویر ممکن نشد.')
+  }
+}
 
 async function toggleDetailRec() {
   if (!details.value) return
@@ -634,8 +689,15 @@ function onOpenTaskEvent(e) {
 .status-menu button{font-family:inherit;border:0;background:transparent;text-align:right;padding:6px 8px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;color:var(--st-text-2);display:flex;align-items:center;gap:6px}
 .status-menu button:hover{background:var(--st-muted-bg)}
 .status-menu i{width:8px;height:8px;border-radius:2px}
+.card-acts{display:flex;align-items:center;gap:2px}
 .edit-ico{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--st-muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .edit-ico:hover{background:var(--st-muted-bg);color:var(--st-accent)}
+.edit-ico.danger:hover,.icon-btn.danger:hover{background:var(--st-holiday);color:var(--st-red)}
+.icon-btn.danger{color:var(--st-red)}
+.dimg-wrap{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.detail-atts{display:flex;flex-direction:column;gap:6px}
+.detail-atts .att{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:10px;background:var(--st-surface-2);font-size:12px}
+.rm-media{border:0;background:transparent;color:var(--st-red);cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;padding:2px 4px}
 .tdead{font-size:10.5px;font-weight:600;color:var(--st-muted)}
 .voice-player{width:100%;min-width:0;max-width:100%;box-sizing:border-box;margin-top:2px}
 .voice-player audio{display:block;width:100%;min-width:0;height:36px;max-height:40px;border-radius:8px;color-scheme:light}

@@ -22,9 +22,12 @@ class StaffTaskService
         $this->jalali = new JalaliMonthWindow();
     }
 
-    public function serialize(StaffTask $task): array
+    public function serialize(StaffTask $task, ?User $viewer = null): array
     {
         $task->loadMissing(['status', 'expiryStatus', 'assignees', 'attachments.staff', 'voices.staff']);
+        $viewer = $viewer ?? auth()->user();
+        $canDeleteTask = $viewer ? $this->canDeleteTask($viewer, $task) : false;
+        $canDeleteMedia = $viewer ? $this->canDeleteTaskMedia($viewer, $task) : false;
 
         return [
             'id' => $task->id,
@@ -55,18 +58,24 @@ class StaffTaskService
                 'original_name' => $a->original_name,
                 'mime' => $a->mime,
                 'size' => $a->size,
+                'user_id' => $a->user_id,
                 'uploader_name' => $a->uploader_name,
                 'uploader_avatar_url' => $a->uploader_avatar_url,
                 'created_at' => optional($a->created_at)?->toIso8601String(),
+                'can_delete' => $viewer && $this->canDeleteAttachment($viewer, $task, $a),
             ])->values(),
             'voices' => $task->voices->map(fn ($v) => [
                 'id' => $v->id,
                 'url' => $v->url,
                 'duration' => $v->duration,
+                'user_id' => $v->user_id,
                 'uploader_name' => $v->uploader_name,
                 'uploader_avatar_url' => $v->uploader_avatar_url,
                 'created_at' => optional($v->created_at)?->toIso8601String(),
+                'can_delete' => $viewer && $this->canDeleteVoice($viewer, $task, $v),
             ])->values(),
+            'can_delete' => $canDeleteTask,
+            'can_delete_media' => $canDeleteMedia,
             'is_overdue' => $this->isOverdue($task),
             'payroll_effect' => $task->status?->signedAmount() ?? 0,
         ];
@@ -105,6 +114,47 @@ class StaffTaskService
     {
         return $user->can('staff_tasks.manage')
             || collect($user->getRoleNames())->intersect(['مدیر کل', 'مدیر سیستم', 'مدیر مجموعه', 'super admin', 'super-admin'])->isNotEmpty();
+    }
+
+    /** مدیر کل / super-admin — can delete any task or media. */
+    public function isClinicAdmin(User $user): bool
+    {
+        return collect($user->getRoleNames())
+            ->intersect(['مدیر کل', 'مدیر سیستم', 'super admin', 'super-admin'])
+            ->isNotEmpty();
+    }
+
+    public function canDeleteTask(User $user, StaffTask $task): bool
+    {
+        if ($this->isClinicAdmin($user)) {
+            return true;
+        }
+
+        return (int) $task->created_by === (int) $user->id;
+    }
+
+    /** Task creator or clinic admin may remove any media on the task. */
+    public function canDeleteTaskMedia(User $user, StaffTask $task): bool
+    {
+        return $this->canDeleteTask($user, $task);
+    }
+
+    public function canDeleteAttachment(User $user, StaffTask $task, $attachment): bool
+    {
+        if ($this->canDeleteTaskMedia($user, $task)) {
+            return true;
+        }
+
+        return (int) ($attachment->user_id ?? 0) === (int) $user->id;
+    }
+
+    public function canDeleteVoice(User $user, StaffTask $task, $voice): bool
+    {
+        if ($this->canDeleteTaskMedia($user, $task)) {
+            return true;
+        }
+
+        return (int) ($voice->user_id ?? 0) === (int) $user->id;
     }
 
     public function canAccessTask(User $user, StaffTask $task): bool
