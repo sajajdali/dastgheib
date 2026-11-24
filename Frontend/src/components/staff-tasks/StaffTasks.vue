@@ -606,9 +606,9 @@ function onOpenTaskEvent(e) {
 .st-overlay,.detail-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483011;display:flex;align-items:center;justify-content:center;padding:16px}
 .detail-modal{width:520px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;background:var(--st-surface);border-radius:16px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35)}
 /* مناسبت: متن شبح‌مانند کم‌کنتراست؛ تعطیل بودن روز با رنگ قرمز عدد/سلول مشخص می‌شود */
-.occasion{margin:0 8px 4px;font-size:10px;font-weight:500;color:var(--st-faint);opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px);letter-spacing:.01em}
-.occasion.sm{margin:0;font-size:9px;opacity:.5;max-width:100%}
-.occasion.closed{opacity:.45}
+.occasion{margin:0 8px 4px;font-size:10px;font-weight:400;color:var(--st-faint);opacity:.38;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px);letter-spacing:.01em}
+.occasion.sm{margin:0;font-size:9px;opacity:.34;max-width:100%}
+.occasion.closed{opacity:.3}
 .wcol.holiday .wname,.wcol.holiday .wnum,.mcell.holiday .mnum{color:var(--st-red)}
 .wcol.holiday .wnum.today,.mcell.holiday .mnum.today{background:var(--st-red);color:#fff !important}
 .st-mhead{padding:12px 16px;border-bottom:1px solid var(--st-line);display:flex;align-items:center;justify-content:space-between;gap:8px}
