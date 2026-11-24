@@ -982,7 +982,7 @@
               </button>
             </div>
 
-            <div class="table-scroll" @scroll="closeAllFilters">
+            <div class="table-scroll" @scroll="onFilterAnchorSync">
               <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: ((isGeneralFollowupCampaign(activeCampaign) ? 1530 : 1410) + rowNumberColWidth) + 'px' }">
                 <thead>
                   <tr>
@@ -1007,30 +1007,12 @@
                     <!-- تاریخ پیگیری -->
                     <th class="center resizable" :class="{ filterable: isGeneralFollowupCampaign(activeCampaign), 'filtered-cell': isFiltered('contactDate') }" :style="{ width: colWidths.contactDate + 'px' }">
                       <div class="th-content">تاریخ و ساعت تماس <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ تماس" @click.stop="toggleFilterMenu('contactDate', $event)">⚙</button></div>
-                      <div v-if="activeFilter === 'contactDate'" class="filter-dropdown date-filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <div class="date-filter-title">فیلتر تاریخ تماس</div>
-                        <div class="date-filter-field"><span>از</span><DatePicker :model-value="dateFilterModel('contactDate', 'from')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('contactDate', 'from', $event)" /></div>
-                        <div class="date-filter-field"><span>تا</span><DatePicker :model-value="dateFilterModel('contactDate', 'to')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('contactDate', 'to', $event)" /></div>
-                        <div class="date-filter-actions">
-                          <button type="button" @click="setDateFilterToday('contactDate')">امروز</button>
-                          <button v-if="isFiltered('contactDate')" type="button" class="danger" @click="clearDateFilter('contactDate')">پاک کردن</button>
-                        </div>
-                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'contactDate')" @dblclick.stop="autoFitFollowupColumn('contactDate')"></div>
                     </th>
 
                     <!-- تاریخ پیگیری -->
                     <th class="center resizable" :class="{ filterable: isGeneralFollowupCampaign(activeCampaign), 'filtered-cell': isFiltered('followUpDate') }" :style="{ width: colWidths.followUpDate + 'px' }">
                       <div class="th-content">تاریخ پیگیری <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ پیگیری" @click.stop="toggleFilterMenu('followUpDate', $event)">⚙</button></div>
-                      <div v-if="activeFilter === 'followUpDate'" class="filter-dropdown date-filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <div class="date-filter-title">فیلتر تاریخ پیگیری</div>
-                        <div class="date-filter-field"><span>از</span><DatePicker :model-value="dateFilterModel('followUpDate', 'from')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('followUpDate', 'from', $event)" /></div>
-                        <div class="date-filter-field"><span>تا</span><DatePicker :model-value="dateFilterModel('followUpDate', 'to')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('followUpDate', 'to', $event)" /></div>
-                        <div class="date-filter-actions">
-                          <button type="button" @click="setDateFilterToday('followUpDate')">امروز</button>
-                          <button v-if="isFiltered('followUpDate')" type="button" class="danger" @click="clearDateFilter('followUpDate')">پاک کردن</button>
-                        </div>
-                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'followUpDate')" @dblclick.stop="autoFitFollowupColumn('followUpDate')"></div>
                     </th>
 
@@ -1045,16 +1027,6 @@
                         <button class="filter-btn" @click.stop="toggleFilterMenu('gender', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'gender'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <label v-for="val in getUniqueValues('gender')" :key="val" class="filter-option">
-                          <input
-                            type="checkbox"
-                            :checked="selectedFilters.gender.includes(val)"
-                            @change="toggleValue('gender', val)"
-                          />
-                          <span>{{ val }}</span>
-                        </label>
-                      </div>
 
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'gender')" @dblclick.stop="autoFitFollowupColumn('gender')"></div>
                     </th>
@@ -1070,16 +1042,6 @@
                         <button class="filter-btn" @click.stop="toggleFilterMenu('consultant', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'consultant'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <label v-for="val in getUniqueValues('consultant')" :key="val" class="filter-option">
-                          <input
-                            type="checkbox"
-                            :checked="selectedFilters.consultant.includes(val)"
-                            @change="toggleValue('consultant', val)"
-                          />
-                          <span>{{ val }}</span>
-                        </label>
-                      </div>
 
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'consultant')" @dblclick.stop="autoFitFollowupColumn('consultant')"></div>
                     </th>
@@ -1090,9 +1052,6 @@
                       :style="{ width: colWidths.source + 'px' }"
                     >
                       <div class="th-content">منبع <button class="filter-btn" @click.stop="toggleFilterMenu('source', $event)">⚙</button></div>
-                      <div v-if="activeFilter === 'source'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <label v-for="val in getUniqueValues('source')" :key="val" class="filter-option"><input type="checkbox" :checked="selectedFilters.source.includes(val)" @change="toggleValue('source', val)" /><span>{{ val }}</span></label>
-                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'source')" @dblclick.stop="autoFitFollowupColumn('source')"></div>
                     </th>
                     <!-- بخش (فقط زیربخش آخر) -->
@@ -1103,15 +1062,6 @@
                       :style="{ width: colWidths.subsection + 'px' }"
                     >
                       <div class="th-content">بخش <button class="filter-btn" title="فیلتر بخش" @click.stop="toggleFilterMenu('subsection', $event)">⚙</button></div>
-                      <div v-if="activeFilter === 'subsection'" class="filter-dropdown subsection-filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <input v-model="subsectionFilterSearch" class="filter-search-input" type="search" placeholder="جست‌وجوی بخش..." @keydown.stop />
-                        <label v-for="option in subsectionFilterOptions" :key="option.value" class="filter-option">
-                          <input type="checkbox" :checked="selectedFilters.subsection.includes(option.value)" @change="toggleValue('subsection', option.value)" />
-                          <span>{{ option.label }}</span>
-                        </label>
-                        <div v-if="!subsectionFilterOptions.length" class="filter-empty">بخشی پیدا نشد.</div>
-                        <button v-if="isFiltered('subsection')" type="button" class="filter-clear-btn" @click="selectedFilters.subsection = []">پاک کردن فیلتر</button>
-                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'subsection')" @dblclick.stop="autoFitFollowupColumn('subsection')"></div>
                     </th>
                     <!-- وضعیت -->
@@ -1125,16 +1075,6 @@
                         <button class="filter-btn" @click.stop="toggleFilterMenu('status', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'status'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <label v-for="val in statusFilterOptions()" :key="val.value" class="filter-option">
-                          <input
-                            type="checkbox"
-                            :checked="selectedFilters.status.includes(val.value)"
-                            @change="toggleValue('status', val.value)"
-                          />
-                          <span>{{ val.label }}</span>
-                        </label>
-                      </div>
 
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'status')" @dblclick.stop="autoFitFollowupColumn('status')"></div>
                     </th>
@@ -1147,9 +1087,6 @@
 
                     <th class="center filterable resizable" :class="{ 'filtered-cell': isFiltered('reason') }" :style="{ width: colWidths.reason + 'px' }">
                       <div class="th-content">علت <button class="filter-btn" @click.stop="toggleFilterMenu('reason', $event)">⚙</button></div>
-                      <div v-if="activeFilter === 'reason'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <label v-for="val in reasonFilterOptions(activeCampaign?.rows)" :key="val" class="filter-option"><input type="checkbox" :checked="selectedFilters.reason.includes(val)" @change="toggleValue('reason', val)"><span>{{ val }}</span></label>
-                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'reason')" @dblclick.stop="autoFitFollowupColumn('reason')"></div>
                     </th>
 
@@ -1181,16 +1118,6 @@
                         <button class="filter-btn" @click.stop="toggleFilterMenu('interest', $event)">⚙</button>
                       </div>
 
-                      <div v-if="activeFilter === 'interest'" class="filter-dropdown" :style="filterMenuStyle" @click.stop>
-                        <label v-for="val in interestFilterOptions()" :key="val.value" class="filter-option">
-                          <input
-                            type="checkbox"
-                            :checked="selectedFilters.interest.includes(val.value)"
-                            @change="toggleValue('interest', val.value)"
-                          />
-                          <span>{{ val.label }}</span>
-                        </label>
-                      </div>
 
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'interest')" @dblclick.stop="autoFitFollowupColumn('interest')"></div>
                     </th>
@@ -1530,6 +1457,80 @@
 
       </div>
     </div>
+
+
+    <!-- FOLLOWUP_FILTER_TELEPORT -->
+    <Teleport to="body">
+      <div
+        v-if="activeFilter"
+        class="followup-filter-popover"
+        :class="{ 'is-date': activeFilter === 'contactDate' || activeFilter === 'followUpDate' }"
+        :style="filterMenuStyle"
+        @click.stop
+      >
+        <template v-if="activeFilter === 'contactDate'">
+          <div class="date-filter-title">فیلتر تاریخ تماس</div>
+          <div class="date-filter-field"><span>از</span><DatePicker :model-value="dateFilterModel('contactDate', 'from')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('contactDate', 'from', $event)" /></div>
+          <div class="date-filter-field"><span>تا</span><DatePicker :model-value="dateFilterModel('contactDate', 'to')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('contactDate', 'to', $event)" /></div>
+          <div class="date-filter-actions">
+            <button type="button" @click="setDateFilterToday('contactDate')">امروز</button>
+            <button v-if="isFiltered('contactDate')" type="button" class="danger" @click="clearDateFilter('contactDate')">پاک کردن</button>
+          </div>
+        </template>
+        <template v-else-if="activeFilter === 'followUpDate'">
+          <div class="date-filter-title">فیلتر تاریخ پیگیری</div>
+          <div class="date-filter-field"><span>از</span><DatePicker :model-value="dateFilterModel('followUpDate', 'from')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="از تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('followUpDate', 'from', $event)" /></div>
+          <div class="date-filter-field"><span>تا</span><DatePicker :model-value="dateFilterModel('followUpDate', 'to')" format="YYYY-MM-DD" display-format="jYYYY/jMM/jDD" input-class="table-date-input" placeholder="تا تاریخ" clearable append-to="body" @open="raiseFollowupTableDatePicker" @update:model-value="setDateFilterBound('followUpDate', 'to', $event)" /></div>
+          <div class="date-filter-actions">
+            <button type="button" @click="setDateFilterToday('followUpDate')">امروز</button>
+            <button v-if="isFiltered('followUpDate')" type="button" class="danger" @click="clearDateFilter('followUpDate')">پاک کردن</button>
+          </div>
+        </template>
+        <template v-else-if="activeFilter === 'subsection'">
+          <input v-model="subsectionFilterSearch" class="filter-search-input" type="search" placeholder="جست‌وجوی بخش..." @keydown.stop />
+          <div class="followup-filter-options">
+            <label v-for="option in subsectionFilterOptions" :key="option.value" class="filter-option">
+              <input type="checkbox" :checked="selectedFilters.subsection.includes(option.value)" @change="toggleValue('subsection', option.value)" />
+              <span>{{ option.label }}</span>
+            </label>
+            <div v-if="!subsectionFilterOptions.length" class="filter-empty">بخشی پیدا نشد.</div>
+          </div>
+          <button v-if="isFiltered('subsection')" type="button" class="filter-clear-btn" @click="selectedFilters.subsection = []">پاک کردن فیلتر</button>
+        </template>
+        <template v-else-if="activeFilter === 'status'">
+          <div class="followup-filter-options">
+            <label v-for="val in statusFilterOptions()" :key="val.value" class="filter-option">
+              <input type="checkbox" :checked="selectedFilters.status.includes(val.value)" @change="toggleValue('status', val.value)" />
+              <span>{{ val.label }}</span>
+            </label>
+          </div>
+        </template>
+        <template v-else-if="activeFilter === 'interest'">
+          <div class="followup-filter-options">
+            <label v-for="val in interestFilterOptions()" :key="val.value" class="filter-option">
+              <input type="checkbox" :checked="selectedFilters.interest.includes(val.value)" @change="toggleValue('interest', val.value)" />
+              <span>{{ val.label }}</span>
+            </label>
+          </div>
+        </template>
+        <template v-else-if="activeFilter === 'reason'">
+          <div class="followup-filter-options">
+            <label v-for="val in reasonFilterOptions(activeCampaign?.rows)" :key="val" class="filter-option">
+              <input type="checkbox" :checked="selectedFilters.reason.includes(val)" @change="toggleValue('reason', val)" />
+              <span>{{ val }}</span>
+            </label>
+          </div>
+        </template>
+        <template v-else>
+          <div class="followup-filter-options">
+            <label v-for="val in getUniqueValues(activeFilter)" :key="val" class="filter-option">
+              <input type="checkbox" :checked="selectedFilters[activeFilter]?.includes(val)" @change="toggleValue(activeFilter, val)" />
+              <span>{{ val }}</span>
+            </label>
+          </div>
+        </template>
+      </div>
+    </Teleport>
 
     <div v-if="automaticSmsModalRow" class="landing-sms-modal-overlay" @click.self="automaticSmsModalRow = null">
       <section class="landing-sms-modal" role="dialog" aria-modal="true">
@@ -2025,6 +2026,14 @@ export default {
       rowNumberColWidth: 42,
       activeFilter: null,
       filterMenuStyle: {},
+      filterAnchorEl: null,
+      demoFilterExtras: {
+        source: [],
+        consultant: [],
+        gender: [],
+        reason: [],
+        subsection: [],
+      },
       activeLandingRowId: null,
       landingMenuStyle: {},
       landingSmsModalOpen: false,
@@ -2234,6 +2243,9 @@ export default {
 
     subsectionFilterOptions() {
       const names = new Set(this.subsectionOptions.map(option => option.name));
+      (this.demoFilterExtras?.subsection || []).forEach(name => {
+        if (name) names.add(name);
+      });
       (this.activeCampaign?.rows || []).forEach(row => {
         const label = this.followupSubsectionLabel(row);
         if (label) names.add(label);
@@ -2377,8 +2389,8 @@ export default {
     this.applyAppointmentResult(this.appointmentResult);
     if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
     window.addEventListener("beforeunload", this.handleBeforeUnload);
-    window.addEventListener("scroll", this.closeAllFilters, true);
-    window.addEventListener("resize", this.closeAllFilters);
+    window.addEventListener("scroll", this.onFilterAnchorSync, true);
+    window.addEventListener("resize", this.onFilterAnchorSync);
     window.addEventListener("focus", this.loadFollowupAppointmentStatuses);
     window.addEventListener("focus", this.loadWaitingSlotAppointments);
     document.addEventListener("click", this.closeAutoAssignPanel);
@@ -2389,8 +2401,8 @@ export default {
     clearTimeout(this.followupPatientSearchTimer);
     Object.values(this.patientLookupTimers).forEach(timer => clearTimeout(timer));
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
-    window.removeEventListener("scroll", this.closeAllFilters, true);
-    window.removeEventListener("resize", this.closeAllFilters);
+    window.removeEventListener("scroll", this.onFilterAnchorSync, true);
+    window.removeEventListener("resize", this.onFilterAnchorSync);
     window.removeEventListener("focus", this.loadFollowupAppointmentStatuses);
     window.removeEventListener("focus", this.loadWaitingSlotAppointments);
     document.removeEventListener("click", this.closeAutoAssignPanel);
@@ -2734,6 +2746,8 @@ export default {
       this.activeCampaignId = campaign.id;
       this.campaignSearch = "";
       this.activeFilter = null;
+      this.filterAnchorEl = null;
+      this.filterMenuStyle = {};
       this.saveCampaignsToLocal();
       this.debouncedSaveLocal?.();
     },
@@ -3046,8 +3060,75 @@ export default {
         }
       }
 
+      this.seedDemoFilterFixtures(campaign);
       this.openCampaign(campaign.id);
     },
+
+    isDemoFollowupHost() {
+      const host = String(window.location.hostname || "");
+      return /^(localhost|127\.0\.0\.1|demo\.localhost)$/i.test(host);
+    },
+
+    seedDemoFilterFixtures(campaign) {
+      if (!this.isDemoFollowupHost() || !campaign || !this.isGeneralFollowupCampaign(campaign)) return;
+      if (campaign._demoFilterSeeded) return;
+      campaign._demoFilterSeeded = true;
+
+      const sources = Array.from({ length: 48 }, (_, i) => `منبع دمو ${String(i + 1).padStart(2, "0")}`);
+      const consultants = Array.from({ length: 18 }, (_, i) => `مشاور دمو ${String(i + 1).padStart(2, "0")}`);
+      const reasons = [
+        ...(Array.isArray(this.reasonOptions) ? this.reasonOptions : []),
+        ...Array.from({ length: 16 }, (_, i) => `علت دمو ${i + 1}`),
+      ];
+      const subsections = this.subsectionOptions.length
+        ? this.subsectionOptions
+        : Array.from({ length: 22 }, (_, i) => ({ id: `demo-sub-${i + 1}`, name: `بخش دمو ${String(i + 1).padStart(2, "0")}` }));
+      if (!this.subsectionOptions.length) this.subsectionOptions = subsections;
+      const subsectionNames = [
+        ...subsections.map(item => item.name).filter(Boolean),
+        ...Array.from({ length: 24 }, (_, i) => `بخش دمو ${String(i + 1).padStart(2, "0")}`),
+      ];
+
+      this.demoFilterExtras = {
+        source: sources,
+        consultant: consultants,
+        gender: ["زن", "مرد"],
+        reason: reasons,
+        subsection: subsectionNames,
+      };
+
+      const statuses = this.getStatusOptions();
+      const interests = ["1", "2", "3", "ok"];
+      const genders = ["زن", "مرد"];
+      const today = this.getTodayString();
+      const demoRows = sources.map((source, index) => {
+        const subsection = subsections[index % subsections.length];
+        return {
+          ...this.createEmptyRow(),
+          _localId: `demo-filter-${index}-${Date.now()}`,
+          _localDemo: true,
+          fullName: `مخاطب دمو ${index + 1}`,
+          phone: `0912${String(1000000 + index).slice(-7)}`,
+          contactDate: today,
+          contactTime: `${String(9 + (index % 8)).padStart(2, "0")}:${String((index * 7) % 60).padStart(2, "0")}`,
+          followUpDate: today,
+          gender: genders[index % genders.length],
+          consultant: consultants[index % consultants.length],
+          source,
+          subsectionId: subsection?.id ?? null,
+          subsectionName: subsection?.name ?? "",
+          status: statuses[index % statuses.length],
+          interest: interests[index % interests.length],
+          reason: reasons[index % reasons.length],
+        };
+      });
+
+      const wasLoading = this.campaignsLoadingFromServer;
+      this.campaignsLoadingFromServer = true;
+      campaign.rows = [...demoRows, ...(Array.isArray(campaign.rows) ? campaign.rows : [])];
+      this.campaignsLoadingFromServer = wasLoading;
+    },
+
     toggleArchivedView() {
       this.showArchived = !this.showArchived;
       this.showMissedFollowups = false;
@@ -3163,13 +3244,25 @@ export default {
 
     closeAllFilters(event = null) {
       if (event?.type === 'scroll' && event.target?.closest?.('.followup-patient-results')) return;
+      if (event?.type === 'scroll' && event.target?.closest?.('.followup-filter-popover')) return;
       this.activeFilter = null;
       this.activeReportFilter = null;
       this.filterMenuStyle = {};
+      this.filterAnchorEl = null;
       this.reportFilterMenuStyle = {};
       this.closeLandingMenu();
       this.closeSubsectionMenu();
       this.closeFollowupPatientSearch();
+    },
+
+    onFilterAnchorSync(event = null) {
+      if (event?.type === 'scroll' && event.target?.closest?.('.followup-patient-results')) return;
+      if (event?.type === 'scroll' && event.target?.closest?.('.followup-filter-popover')) return;
+      if (this.activeFilter) this.repositionActiveFilterMenu();
+      if (this.activeReportFilter) {
+        this.activeReportFilter = null;
+        this.reportFilterMenuStyle = {};
+      }
     },
 
     async hydrateFollowupPatientProfiles() {
@@ -3209,27 +3302,78 @@ export default {
       this.landingMenuStyle = {};
     },
 
-    floatingFilterMenuStyle(event) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      const width = 220;
+    floatingFilterMenuStyle(event, key = null) {
+      const anchor = event?.currentTarget || event?.target || this.filterAnchorEl;
+      return this.floatingFilterMenuStyleFromAnchor(anchor, key || this.activeFilter);
+    },
+
+    floatingFilterMenuStyleFromAnchor(anchorEl, key = null) {
+      if (!anchorEl || typeof anchorEl.getBoundingClientRect !== "function") return {};
+      if (anchorEl.isConnected === false) return null;
+      const rect = anchorEl.getBoundingClientRect();
+      const isDate = key === "contactDate" || key === "followUpDate";
+      const width = isDate ? 268 : 248;
       const gap = 6;
-      const left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width));
+      const maxPanelHeight = Math.min(isDate ? 260 : 360, Math.floor(window.innerHeight * 0.55));
+      let top = rect.bottom + gap;
+      if (top + Math.min(180, maxPanelHeight) > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - gap - maxPanelHeight);
+      }
+      // Keep the panel under the column control: prefer right-align to the gear,
+      // but if that would leave the viewport, shift just enough and stay near the anchor.
+      let left = rect.right - width;
+      const minLeft = 8;
+      const maxLeft = Math.max(minLeft, window.innerWidth - width - 8);
+      if (left < minLeft) left = Math.min(maxLeft, Math.max(minLeft, rect.left));
+      else if (left > maxLeft) left = maxLeft;
       return {
         position: "fixed",
-        top: `${Math.min(window.innerHeight - 12, rect.bottom + gap)}px`,
+        top: `${top}px`,
         left: `${left}px`,
         right: "auto",
         width: `${width}px`,
+        maxHeight: `${maxPanelHeight}px`,
+        zIndex: 2147483640,
       };
     },
+
+    repositionActiveFilterMenu() {
+      if (!this.activeFilter) return;
+      const anchor = this.filterAnchorEl;
+      if (!anchor || anchor.isConnected === false) {
+        this.activeFilter = null;
+        this.filterMenuStyle = {};
+        this.filterAnchorEl = null;
+        return;
+      }
+      const rect = anchor.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+        this.activeFilter = null;
+        this.filterMenuStyle = {};
+        this.filterAnchorEl = null;
+        return;
+      }
+      const style = this.floatingFilterMenuStyleFromAnchor(anchor, this.activeFilter);
+      if (!style) {
+        this.activeFilter = null;
+        this.filterMenuStyle = {};
+        this.filterAnchorEl = null;
+        return;
+      }
+      this.filterMenuStyle = style;
+    },
+
     toggleFilterMenu(key, event) {
       if (this.activeFilter === key) {
         this.activeFilter = null;
         this.filterMenuStyle = {};
+        this.filterAnchorEl = null;
         return;
       }
-      this.filterMenuStyle = this.floatingFilterMenuStyle(event);
+      this.filterAnchorEl = event?.currentTarget || null;
       this.activeFilter = key;
+      this.filterMenuStyle = this.floatingFilterMenuStyleFromAnchor(this.filterAnchorEl, key) || {};
+      this.$nextTick(() => this.repositionActiveFilterMenu());
     },
     toggleReportFilterMenu(key, event) {
       if (this.activeReportFilter === key) {
@@ -3237,7 +3381,7 @@ export default {
         this.reportFilterMenuStyle = {};
         return;
       }
-      this.reportFilterMenuStyle = this.floatingFilterMenuStyle(event);
+      this.reportFilterMenuStyle = this.floatingFilterMenuStyle(event, key);
       this.activeReportFilter = key;
     },
 
@@ -3332,6 +3476,8 @@ export default {
         return;
       }
       this.activeFilter = null;
+      this.filterAnchorEl = null;
+      this.filterMenuStyle = {};
       this.closeLandingMenu();
       this.subsectionMenuStyle = { ...this.floatingFilterMenuStyle(event), width: "230px" };
       this.subsectionSearch = "";
@@ -3550,6 +3696,8 @@ export default {
       this.appointmentTimelineDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       this.campaignSearch = "";
       this.activeFilter = null;
+      this.filterAnchorEl = null;
+      this.filterMenuStyle = {};
       this.closeSubsectionMenu();
       this.subsectionFilterSearch = "";
       this.selectedFilters = {
@@ -3574,6 +3722,8 @@ export default {
       this.activeCampaignId = null;
       this.campaignSearch = "";
       this.activeFilter = null;
+      this.filterAnchorEl = null;
+      this.filterMenuStyle = {};
     },
 
     openAppointmentsTimeline() {
@@ -4454,7 +4604,8 @@ export default {
       if (key === 'consultant') {
         vals.push(...this.staffOptions.map(item => item?.name).filter(Boolean));
       }
-      return [...new Set(vals)].sort();
+      if (Array.isArray(this.demoFilterExtras?.[key])) vals.push(...this.demoFilterExtras[key]);
+      return [...new Set(vals)].sort((a, b) => String(a).localeCompare(String(b), "fa"));
     },
 
     getReportUniqueValues(key) {
@@ -4488,6 +4639,7 @@ export default {
     reasonFilterOptions(rows = []) {
       return [...new Set([
         ...this.reasonOptions,
+        ...(Array.isArray(this.demoFilterExtras?.reason) ? this.demoFilterExtras.reason : []),
         ...(Array.isArray(rows) ? rows : []).map(row => String(row?.reason || '').trim()),
       ].filter(Boolean))];
     },
@@ -4855,8 +5007,15 @@ export default {
     campaignApiPayload(campaign) {
       const uiPayload = JSON.parse(JSON.stringify(campaign));
       delete uiPayload._serverPersisted;
+      delete uiPayload._demoFilterSeeded;
       if (Array.isArray(uiPayload.rows)) {
-        uiPayload.rows = uiPayload.rows.map(row => normalizeFollowupRowNotes({ ...row }));
+        uiPayload.rows = uiPayload.rows
+          .filter(row => !row?._localDemo)
+          .map(row => {
+            const next = normalizeFollowupRowNotes({ ...row });
+            delete next._localDemo;
+            return next;
+          });
       }
       const normalizedDate = this.normalizeDateValue(campaign.date);
       const serverDate = normalizedDate && moment(normalizedDate, 'YYYY-MM-DD', true).isValid()
@@ -6531,6 +6690,118 @@ export default {
   overflow-y: auto;
   border-radius: 10px;
   padding: 6px 0;
+}
+
+.followup-filter-popover {
+  position: fixed;
+  z-index: 2147483640;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.24);
+  direction: rtl;
+  color: #334155;
+}
+.followup-filter-popover .followup-filter-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  max-height: min(300px, calc(55vh - 48px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+.followup-filter-popover.is-date {
+  gap: 8px;
+  max-height: none;
+  overflow: visible;
+}
+.followup-filter-popover .filter-option {
+  min-height: 34px;
+  gap: 9px;
+  padding: 7px 9px;
+  overflow: visible;
+  white-space: normal;
+  color: #334155;
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: right;
+  direction: rtl;
+}
+.followup-filter-popover .filter-option span {
+  min-width: 0;
+  flex: 1;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+.followup-filter-popover .filter-option input[type="checkbox"] {
+  width: 16px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0;
+  accent-color: #2563eb;
+}
+.followup-filter-popover .filter-search-input {
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 11px;
+}
+.followup-filter-popover .filter-empty,
+.followup-filter-popover .date-filter-title {
+  padding: 4px 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.followup-filter-popover .date-filter-field {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.followup-filter-popover .date-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.followup-filter-popover .date-filter-actions button,
+.followup-filter-popover .filter-clear-btn {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: #334155;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.followup-filter-popover .date-filter-actions button.danger,
+.followup-filter-popover .filter-clear-btn {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .filter-option {
