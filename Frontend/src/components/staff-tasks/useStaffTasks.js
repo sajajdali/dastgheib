@@ -1,6 +1,6 @@
 import { reactive, ref } from 'vue'
 import axios from 'axios'
-import { isoToJdn, jdnToIso, todayJdn, deadlineTs } from './jalali'
+import { isoToJdn, jdnToIso, todayJdn, deadlineTs, j2d, d2j } from './jalali'
 
 export const PALETTE = [
   { c: '#15803d', fg: '#fff' }, { c: '#eab308', fg: '#422006' }, { c: '#7c3aed', fg: '#fff' }, { c: '#b91c1c', fg: '#fff' },
@@ -12,30 +12,82 @@ const state = reactive({
   statuses: [],
   expiryDefault: null,
   tasks: [],
-  holidays: new Set(),
+  /** @type {Map<number, { title: string, holiday: boolean }>} keyed by JDN */
+  holidays: new Map(),
   canManage: true,
   loading: false,
   loaded: false,
   error: '',
 })
 
+const holidayMonthCache = new Map()
 const openTaskId = ref(null)
+
+/** Same source as Time.vue booking: GET /api/calendar/events?year=&month= (Jalali). */
+export async function loadHolidayMonth(jy, jm) {
+  const key = `${jy}-${String(jm).padStart(2, '0')}`
+  if (holidayMonthCache.has(key)) {
+    const cached = holidayMonthCache.get(key)
+    cached.forEach((info, jdn) => state.holidays.set(jdn, info))
+    return cached
+  }
+  try {
+    const { data } = await axios.get('/api/calendar/events', { params: { year: jy, month: jm } })
+    const map = new Map()
+    ;(data.events || []).forEach((item) => {
+      const day = Number(item.day)
+      if (!day) return
+      const jdn = j2d(jy, jm, day)
+      const info = { title: item.title || '', holiday: item.holiday === true }
+      map.set(jdn, info)
+      state.holidays.set(jdn, info)
+    })
+    holidayMonthCache.set(key, map)
+    return map
+  } catch {
+    const empty = new Map()
+    holidayMonthCache.set(key, empty)
+    return empty
+  }
+}
+
+/** Load holiday months covering a JDN range (and neighbors). */
+export async function loadHolidaysForRange(fromJdn, toJdn) {
+  const months = new Set()
+  for (let d = fromJdn; d <= toJdn; d += 1) {
+    const [y, m] = d2j(d)
+    months.add(`${y}-${m}`)
+  }
+  // Also load adjacent months so week view edges stay correct.
+  const [y0, m0] = d2j(fromJdn - 7)
+  const [y1, m1] = d2j(toJdn + 7)
+  months.add(`${y0}-${m0}`)
+  months.add(`${y1}-${m1}`)
+  await Promise.all([...months].map((key) => {
+    const [y, m] = key.split('-').map(Number)
+    return loadHolidayMonth(y, m)
+  }))
+}
+
+export function holidayInfo(jdn) {
+  return state.holidays.get(jdn) || null
+}
 
 function normalizeTask(raw) {
   if (!raw) return null
-  const day = raw.task_date ? isoToJdn(raw.task_date) : todayJdn()
-  const expiryDay = raw.expiry?.date ? isoToJdn(raw.expiry.date) : day
+  const day = raw.task_date ? isoToJdn(raw.task_date) : (raw.day || todayJdn())
+  const expiryDay = raw.expiry?.date ? isoToJdn(raw.expiry.date) : (raw.expiry?.day || day)
   return {
     ...raw,
     day,
-    staffIds: (raw.assignee_ids || raw.assignees?.map(a => a.id) || []).map(Number),
-    statusId: raw.status_id ?? null,
-    auto: !!raw.auto_expired,
+    staffIds: (raw.assignee_ids || raw.assignees?.map(a => a.id) || raw.staffIds || []).map(Number),
+    statusId: raw.status_id ?? raw.statusId ?? null,
+    auto: !!raw.auto_expired || !!raw.auto,
     expiry: {
       enabled: !!raw.expiry?.enabled,
       day: expiryDay,
       time: raw.expiry?.time || '18:00',
-      statusId: raw.expiry?.status_id ?? state.expiryDefault,
+      statusId: raw.expiry?.status_id ?? raw.expiry?.statusId ?? state.expiryDefault,
     },
   }
 }
@@ -195,6 +247,9 @@ export function useStaffTasks() {
     openTaskId,
     bootstrap,
     loadTasks,
+    loadHolidayMonth,
+    loadHolidaysForRange,
+    holidayInfo,
     saveTask,
     changeStatus,
     deleteTask,

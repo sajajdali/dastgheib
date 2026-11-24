@@ -1,6 +1,6 @@
 <template>
-  <div class="st-overlay" @click.self="close">
-    <div class="st-modal">
+  <div class="st-overlay" @mousedown.self="close">
+    <div class="st-modal" @mousedown.stop>
       <div class="head">
         <div class="col">
           <span class="h">وضعیت‌ها</span>
@@ -83,8 +83,13 @@ const close = () => emit('close')
 </script>
 
 <style scoped>
-.st-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483010;display:flex;align-items:center;justify-content:center;padding:20px}
-.st-modal{width:820px;max-width:100%;max-height:calc(100vh - 40px);background:var(--st-surface-2);border-radius:18px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35);display:flex;flex-direction:column;overflow:hidden}
+.st-overlay{
+  --st-surface:#fff;--st-surface-2:#f8fafc;--st-muted-bg:#f1f5f9;--st-border:#e2e8f0;--st-strong-border:#cbd5e1;--st-line:#eef2f7;
+  --st-text:#0f172a;--st-muted:#64748b;--st-accent:#2563eb;--st-accent-hover:#1d4ed8;--st-accent-soft:#eff4ff;
+  --st-red:#dc2626;--st-holiday:#fef2f2;--st-pos:#15803d;--st-neg:#b91c1c;--st-overlay:rgba(15,23,42,.45);
+  position:fixed;inset:0;background:var(--st-overlay);z-index:2147483012;display:flex;align-items:center;justify-content:center;padding:20px
+}
+.st-modal{width:820px;max-width:100%;max-height:calc(100vh - 40px);background:var(--st-surface-2);color:var(--st-text);border-radius:18px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35);display:flex;flex-direction:column;overflow:hidden}
 .head{padding:14px 18px;background:var(--st-surface);border-bottom:1px solid var(--st-line);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .col{display:flex;flex-direction:column;gap:2px}
 .h{font-size:15px;font-weight:800}

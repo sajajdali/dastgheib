@@ -1,10 +1,10 @@
 <template>
-  <div class="st-overlay" @click.self="$emit('close')">
-    <div class="st-modal">
+  <div class="st-overlay" @mousedown.self="$emit('close')">
+    <div class="st-modal" @mousedown.stop>
       <div class="st-mhead">
         <div class="col">
           <span class="h">{{ draft.id ? 'ویرایش وظیفه' : 'وظیفه جدید' }}</span>
-          <span class="sub">{{ fullDate(draft.day) }}</span>
+          <span class="sub">{{ dayLabel }}</span>
         </div>
         <button class="st-x" type="button" @click="$emit('close')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
@@ -12,7 +12,7 @@
       <div class="st-mbody">
         <div class="fld">مسئولان
           <div class="assignees">
-            <button v-for="p in state.staff" :key="p.id" type="button" class="asg" :class="{ on: draft.staffIds.includes(p.id) }" @click="toggleStaff(p.id)">
+            <button v-for="p in state.staff" :key="p.id" type="button" class="asg" :class="{ on: draft.staffIds.some(id => Number(id) === Number(p.id)) }" @click="toggleStaff(p.id)">
               <span class="av" :style="avStyle(p)">
                 <img v-if="p.avatar_url" :src="p.avatar_url" alt="" />
                 <template v-else>{{ (p.name || '?').charAt(0) }}</template>
@@ -139,34 +139,38 @@
 </template>
 
 <script setup>
-import { reactive, ref, onBeforeUnmount } from 'vue'
+import { reactive, ref, computed, onBeforeUnmount } from 'vue'
 import JalaliDateSelect from './JalaliDateSelect.vue'
 import { useStaffTasks, PALETTE } from './useStaffTasks'
-import { fullDate } from './jalali'
+import { fullDate, todayJdn } from './jalali'
 
 const props = defineProps({ task: { type: Object, required: true } })
 const emit = defineEmits(['close', 'save', 'delete'])
 const { state } = useStaffTasks()
 
-const src = props.task
+const src = props.task || {}
+const initialDay = Number(src.day) || todayJdn()
 const draft = reactive({
   id: src.id || null,
   title: src.title || '',
   note: src.note || '',
-  day: src.day,
+  day: initialDay,
   priority: src.priority || 'normal',
   progress: src.progress || 0,
-  staffIds: [...(src.staffIds || (src.staffId ? [src.staffId] : []))],
+  staffIds: [...(src.staffIds || (src.staffId ? [src.staffId] : []))].map(Number),
   statusId: src.statusId ?? null,
   expiry: {
     enabled: !!src.expiry?.enabled,
-    day: src.expiry?.day || src.day,
+    day: Number(src.expiry?.day) || initialDay,
     time: src.expiry?.time || '18:00',
     statusId: src.expiry?.statusId ?? state.expiryDefault,
   },
   image_url: src.image_url || null,
   attachments: src.attachments || [],
   voices: src.voices || [],
+})
+const dayLabel = computed(() => {
+  try { return fullDate(draft.day) } catch { return '' }
 })
 
 const err = ref(false)
@@ -184,9 +188,10 @@ let chunks = []
 let recStarted = 0
 
 function toggleStaff(id) {
-  const i = draft.staffIds.indexOf(id)
+  const nid = Number(id)
+  const i = draft.staffIds.findIndex(x => Number(x) === nid)
   if (i >= 0) draft.staffIds.splice(i, 1)
-  else draft.staffIds.push(id)
+  else draft.staffIds.push(nid)
 }
 function avStyle(p) {
   return p.avatar_url ? {} : { background: '#64748b' }
@@ -274,8 +279,20 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.st-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483010;display:flex;align-items:center;justify-content:center;padding:16px;animation:stFade .2s}
-.st-modal{width:560px;max-width:100%;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--st-surface);border-radius:18px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35);display:flex;flex-direction:column}
+.st-overlay{
+  --st-surface:#fff;--st-surface-2:#f8fafc;--st-muted-bg:#f1f5f9;--st-border:#e2e8f0;--st-strong-border:#cbd5e1;--st-line:#eef2f7;
+  --st-text:#0f172a;--st-text-2:#334155;--st-text-3:#475569;--st-muted:#64748b;
+  --st-accent:#2563eb;--st-accent-hover:#1d4ed8;--st-accent-soft:#eff4ff;--st-red:#dc2626;--st-holiday:#fef2f2;
+  --st-pos:#15803d;--st-neg:#b91c1c;--st-overlay:rgba(15,23,42,.45);
+  position:fixed;inset:0;background:var(--st-overlay);z-index:2147483012;display:flex;align-items:center;justify-content:center;padding:16px;animation:stFade .2s
+}
+.dark .st-overlay,#app.dark .st-overlay{
+  --st-surface:#172033;--st-surface-2:#111a2b;--st-muted-bg:#1e293b;--st-border:#334155;--st-strong-border:#475569;--st-line:#243044;
+  --st-text:#f8fafc;--st-text-2:#e2e8f0;--st-text-3:#cbd5e1;--st-muted:#94a3b8;
+  --st-accent:#3b82f6;--st-accent-hover:#2563eb;--st-accent-soft:rgba(59,130,246,.14);--st-red:#f87171;--st-holiday:rgba(220,38,38,.10);
+  --st-overlay:rgba(2,6,23,.65)
+}
+.st-modal{width:560px;max-width:100%;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--st-surface);color:var(--st-text);border-radius:18px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35);display:flex;flex-direction:column}
 .st-mhead{padding:14px 18px;border-bottom:1px solid var(--st-line);display:flex;align-items:center;justify-content:space-between;gap:10px}
 .col{display:flex;flex-direction:column;gap:2px}
 .h{font-size:15px;font-weight:800}

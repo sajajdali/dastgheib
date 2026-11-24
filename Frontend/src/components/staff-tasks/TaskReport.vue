@@ -1,6 +1,6 @@
 <template>
-  <div class="st-overlay" @click.self="$emit('close')">
-    <div class="st-modal report">
+  <div class="st-overlay" @mousedown.self="$emit('close')">
+    <div class="st-modal report" @mousedown.stop>
       <div class="head">
         <div class="col">
           <span class="h">گزارش مدیریتی وظایف</span>
@@ -160,8 +160,12 @@ onMounted(load)
 </script>
 
 <style scoped>
-.st-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483010;display:flex;align-items:center;justify-content:center;padding:16px}
-.st-modal.report{width:min(1100px,100%);max-height:calc(100vh - 32px);background:var(--st-surface);border-radius:18px;overflow:hidden;display:flex;flex-direction:column}
+.st-overlay{
+  --st-surface:#fff;--st-surface-2:#f8fafc;--st-muted-bg:#f1f5f9;--st-border:#e2e8f0;--st-line:#eef2f7;
+  --st-text:#0f172a;--st-muted:#64748b;--st-accent:#2563eb;--st-overlay:rgba(15,23,42,.45);
+  position:fixed;inset:0;background:var(--st-overlay);z-index:2147483012;display:flex;align-items:center;justify-content:center;padding:16px
+}
+.st-modal.report{width:min(1100px,100%);max-height:calc(100vh - 32px);background:var(--st-surface);color:var(--st-text);border-radius:18px;overflow:hidden;display:flex;flex-direction:column}
 .head{padding:12px 16px;border-bottom:1px solid var(--st-line);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .col{display:flex;flex-direction:column;gap:2px}.h{font-size:15px;font-weight:800}.sub{font-size:11px;color:var(--st-muted)}
 .row{display:flex;align-items:center;gap:8px}

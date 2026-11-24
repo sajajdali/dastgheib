@@ -7,7 +7,7 @@
       <!-- نوار باریک یک‌ردیفه -->
       <div class="panel toolbar">
         <div class="tb">
-          <button type="button" class="icon-btn primary" title="افزودن وظیفه" @click="openNew(today)">
+          <button type="button" class="icon-btn primary" title="افزودن وظیفه" @pointerdown.stop @click.stop="openNew(today)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           </button>
           <button type="button" class="icon-btn" title="وضعیت‌ها" @click="showSettings = true">
@@ -68,10 +68,11 @@
             <div class="whead">
               <span class="wname" :class="{ today: d.today }">{{ WEEKDAYS[weekday(d.day)] }}</span>
               <span class="wnum" :class="{ today: d.today }">{{ fa(d.jd) }}</span>
-              <button type="button" class="add-ico" title="افزودن" @click="openNew(d.day)">
+              <button type="button" class="add-ico" title="افزودن" @pointerdown.stop @click.stop="openNew(d.day)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               </button>
             </div>
+            <div v-if="d.occasionTitle" class="occasion" :class="{ closed: d.holiday }" :title="d.occasionTitle">{{ d.occasionTitle }}</div>
             <div class="wbody">
               <div v-for="t in d.tasks" :key="t.id" class="tcard" :style="cardStyle(t)" @click="openDetails(t)">
                 <div class="tt">{{ t.title }}</div>
@@ -94,7 +95,7 @@
                       </button>
                     </div>
                   </div>
-                  <button type="button" class="edit-ico" title="ویرایش" @click.stop="openEdit(t)">
+                  <button type="button" class="edit-ico" title="ویرایش" @pointerdown.stop @click.stop="openEdit(t)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
                   </button>
                 </div>
@@ -115,10 +116,11 @@
           <div v-for="c in monthCells" :key="c.day" class="mcell" :class="{ holiday: c.holiday, out: !c.inMonth }">
             <div class="mc-top">
               <span class="mnum" :class="{ today: c.today }">{{ fa(c.jd) }}</span>
-              <button type="button" class="add-ico sm" title="افزودن" @click="openNew(c.day)">
+              <button type="button" class="add-ico sm" title="افزودن" @pointerdown.stop @click.stop="openNew(c.day)">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               </button>
             </div>
+            <span v-if="c.occasionTitle" class="occasion sm" :class="{ closed: c.holiday }" :title="c.occasionTitle">{{ c.occasionTitle }}</span>
             <div v-for="t in c.tasks.slice(0, zoom >= 2 ? 5 : 3)" :key="t.id" class="mtask" :style="cardStyle(t)" @click="openDetails(t)">{{ t.title }}</div>
             <span v-if="c.tasks.length > (zoom >= 2 ? 5 : 3)" class="more">{{ fa(c.tasks.length - (zoom >= 2 ? 5 : 3)) }}+</span>
           </div>
@@ -128,15 +130,15 @@
 
     <Teleport to="body">
       <div v-if="editing || details || showSettings || showReport" class="st-layer" dir="rtl">
-        <TaskModal v-if="editing" :task="editing" @close="editing = null" @save="onSave" @delete="onDelete" />
+        <TaskModal v-if="editing" :key="'edit-' + (editing.id || 'new') + '-' + editing.day" :task="editing" @close="closeEdit" @save="onSave" @delete="onDelete" />
         <StatusSettings v-if="showSettings" @close="showSettings = false" />
         <TaskReport v-if="showReport" @close="showReport = false" @open="id => openDetailsById(id)" @edit="id => openEditById(id)" />
-        <div v-if="details" class="st-overlay" @click.self="details = null">
+        <div v-if="details" class="st-overlay detail-overlay" @mousedown.self="details = null">
           <div class="detail-modal">
             <div class="st-mhead">
               <div class="col"><span class="h">{{ details.title }}</span><span class="sub">ثبت‌شده در تاریخ {{ registeredLabel(details) }}</span></div>
               <div class="row">
-                <button type="button" class="icon-btn" title="ویرایش" @click="openEdit(details); details = null"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+                <button type="button" class="icon-btn" title="ویرایش" @click="openEdit(details)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
                 <button type="button" class="st-x" @click="details = null"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
               </div>
             </div>
@@ -180,7 +182,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import TaskModal from './TaskModal.vue'
 import StatusSettings from './StatusSettings.vue'
 import TaskReport from './TaskReport.vue'
@@ -188,8 +190,8 @@ import { useStaffTasks, PALETTE } from './useStaffTasks'
 import { d2j, j2d, monthLength, weekday, weekStart, todayJdn, WEEKDAYS, MONTHS, fa, jdnToIso } from './jalali'
 
 const {
-  state, openTaskId, bootstrap, loadTasks, saveTask, changeStatus, deleteTask, addVoice,
-  statusById,
+  state, openTaskId, bootstrap, loadTasks, loadHolidaysForRange, holidayInfo,
+  saveTask, changeStatus, deleteTask, addVoice, statusById,
 } = useStaffTasks()
 
 const today = todayJdn()
@@ -219,7 +221,11 @@ const visibleDays = computed(() => {
   return 7
 })
 
-const isHoliday = d => weekday(d) === 5 || state.holidays.has(d)
+const isHoliday = (d) => {
+  if (weekday(d) === 5) return true
+  const info = holidayInfo(d)
+  return !!(info && info.holiday)
+}
 const filteredTasks = computed(() => state.tasks.filter(t => {
   if (statusFilter.value == null) return true
   return t.statusId === statusFilter.value
@@ -232,7 +238,17 @@ const byDay = computed(() => {
   })
   return map
 })
-const dayInfo = day => { const [, jm, jd] = d2j(day); return { day, jm, jd, today: day === today, holiday: isHoliday(day), tasks: byDay.value[day] || [] } }
+const dayInfo = day => {
+  const [, jm, jd] = d2j(day)
+  const info = holidayInfo(day)
+  return {
+    day, jm, jd, today: day === today,
+    holiday: isHoliday(day),
+    // مناسبت از تقویم مرکزی؛ ظاهر کم‌رنگ جدا از قرمزِ تعطیل
+    occasionTitle: (info?.title || '').trim(),
+    tasks: byDay.value[day] || [],
+  }
+}
 const weekDays = computed(() => {
   const n = visibleDays.value
   const start = n === 7 ? ws.value : (n < 7 ? ws.value + 1 : ws.value - 1)
@@ -298,8 +314,13 @@ function goToday() { anchor.value = today; refresh() }
 function zoomIn() { zoom.value = Math.min(2, zoom.value + 1) }
 function zoomOut() { zoom.value = Math.max(0, zoom.value - 1) }
 
+function isInteractiveTarget(el) {
+  return !!el?.closest?.('button, a, input, select, textarea, audio, .tcard, .mtask, .status-menu, .add-ico, .edit-ico, .pill')
+}
 function onSwipeStart(e) {
   if (e.pointerType === 'mouse' && e.button !== 0) return
+  // Don't capture pointer from buttons/cards — that was swallowing + / edit clicks.
+  if (isInteractiveTarget(e.target)) { swipe = null; return }
   swipe = { x: e.clientX, id: e.pointerId, moved: false }
   e.currentTarget.setPointerCapture?.(e.pointerId)
 }
@@ -310,22 +331,54 @@ function onSwipeMove(e) {
 function onSwipeEnd(e) {
   if (!swipe || swipe.id !== e.pointerId) return
   const dx = e.clientX - swipe.x
+  const moved = swipe.moved
   swipe = null
-  if (Math.abs(dx) < 60) return
+  if (!moved || Math.abs(dx) < 60) return
   // RTL: drag right (positive dx) → previous week; left → next
   move(dx > 0 ? -1 : 1)
 }
 
-function openNew(day) {
-  editing.value = {
-    id: null, title: '', note: '', day, priority: 'normal', progress: 0,
+function blankTask(day) {
+  const d = Number(day) || today
+  return {
+    id: null, title: '', note: '', day: d, priority: 'normal', progress: 0,
     staffIds: [], statusId: null, auto: false,
-    expiry: { enabled: false, day, time: '18:00', statusId: state.expiryDefault },
-    attachments: [], voices: [],
+    expiry: { enabled: false, day: d, time: '18:00', statusId: state.expiryDefault },
+    attachments: [], voices: [], image_url: null,
   }
 }
-const openEdit = t => { editing.value = { ...t, staffIds: [...(t.staffIds || [])], expiry: { ...t.expiry } } }
-function openDetails(t) { details.value = t; statusMenu.value = null }
+async function openNew(day) {
+  statusMenu.value = null
+  details.value = null
+  editing.value = blankTask(day)
+  await nextTick()
+}
+async function openEdit(t) {
+  if (!t) return
+  statusMenu.value = null
+  details.value = null
+  const day = Number(t.day) || today
+  editing.value = {
+    ...t,
+    day,
+    staffIds: [...(t.staffIds || [])].map(Number),
+    expiry: {
+      enabled: !!t.expiry?.enabled,
+      day: Number(t.expiry?.day) || day,
+      time: t.expiry?.time || '18:00',
+      statusId: t.expiry?.statusId ?? state.expiryDefault,
+    },
+    attachments: t.attachments || [],
+    voices: t.voices || [],
+  }
+  await nextTick()
+}
+function openDetails(t) {
+  if (!t) return
+  statusMenu.value = null
+  editing.value = null
+  details.value = t
+}
 async function fetchTask(id) {
   let t = state.tasks.find(x => x.id === id)
   if (t) return t
@@ -350,17 +403,25 @@ async function setStatus(t, statusId) {
   if (details.value?.id === t.id) details.value = updated
 }
 async function onSave({ draft, image, attachments, voice, voiceDuration, removeImage }) {
-  const saved = await saveTask(draft, { image, attachments, voice, voiceDuration, removeImage })
-  if (draft.statusId !== undefined && draft.id && draft.statusId !== saved.statusId) {
-    await changeStatus(saved.id, draft.statusId)
+  try {
+    const saved = await saveTask(draft, { image, attachments, voice, voiceDuration, removeImage })
+    if (draft.statusId !== undefined && draft.id && draft.statusId !== saved.statusId) {
+      await changeStatus(saved.id, draft.statusId)
+    }
+    editing.value = null
+    await refresh()
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || 'ذخیره وظیفه ممکن نشد.')
   }
-  editing.value = null
-  await refresh()
 }
 async function onDelete(id) {
-  await deleteTask(id)
-  editing.value = null
-  if (details.value?.id === id) details.value = null
+  try {
+    await deleteTask(id)
+    editing.value = null
+    if (details.value?.id === id) details.value = null
+  } catch (e) {
+    alert(e.response?.data?.message || e.message || 'حذف وظیفه ممکن نشد.')
+  }
 }
 
 async function toggleDetailRec() {
@@ -407,10 +468,15 @@ function exportCsv() {
   a.click()
 }
 
+function closeEdit() { editing.value = null }
+
 async function refresh() {
   const from = view.value === 'week' ? ws.value - 2 : weekStart(monthStart.value)
   const to = view.value === 'week' ? ws.value + 14 : monthEnd.value + 7
-  await loadTasks({ from, to })
+  await Promise.all([
+    loadTasks({ from, to }),
+    loadHolidaysForRange(from, to),
+  ])
 }
 
 async function init() {
@@ -430,14 +496,15 @@ async function init() {
   }
 }
 
-watch(statusFilter, () => { /* client-side filter already */ })
-
 let timer
 let onDocClick
 onMounted(() => {
   init()
   timer = setInterval(() => refresh(), 60000)
-  onDocClick = () => { statusMenu.value = null }
+  onDocClick = (e) => {
+    if (e.target?.closest?.('.status-wrap')) return
+    statusMenu.value = null
+  }
   document.addEventListener('click', onDocClick)
   window.addEventListener('app:open-staff-task', onOpenTaskEvent)
 })
@@ -461,7 +528,8 @@ function onOpenTaskEvent(e) {
   --st-red:#dc2626;--st-holiday:#fef2f2;--st-holiday-badge:#fee2e2;--st-pos:#15803d;--st-neg:#b91c1c;
   --st-overlay:rgba(15,23,42,.35);--st-shadow:0 2px 10px rgba(15,23,42,.05)
 }
-.st-layer{color:var(--st-text);font-family:inherit}
+.st-layer{position:fixed;inset:0;z-index:2147483010;color:var(--st-text);font-family:inherit;pointer-events:none}
+.st-layer > *{pointer-events:auto}
 .stc{display:flex;flex-direction:column;gap:10px;color:var(--st-text);font-family:inherit}
 .dark .stc,.dark .st-layer{
   --st-surface:#172033;--st-surface-2:#111a2b;--st-muted-bg:#1e293b;--st-border:#334155;--st-strong-border:#475569;--st-line:#243044;
@@ -498,7 +566,6 @@ function onOpenTaskEvent(e) {
 .whead{padding:8px 10px;border-bottom:1px solid var(--st-line);display:flex;align-items:center;justify-content:space-between;gap:6px}
 .wname{font-size:12px;font-weight:700;color:var(--st-muted)}
 .wname.today{color:var(--st-accent)}
-.holiday .wname,.holiday .wnum{color:var(--st-red)}
 .wnum{min-width:28px;height:28px;border-radius:8px;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center}
 .wnum.today{background:var(--st-accent);color:#fff !important}
 .add-ico{width:26px;height:26px;border:0;border-radius:8px;background:transparent;color:var(--st-muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -536,8 +603,14 @@ function onOpenTaskEvent(e) {
 .mnum.today{background:var(--st-accent);color:#fff !important}
 .mtask{border:1px solid;border-radius:6px;padding:2px 5px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .more{font-size:10px;font-weight:700;color:var(--st-muted)}
-.st-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483010;display:flex;align-items:center;justify-content:center;padding:16px}
+.st-overlay,.detail-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483011;display:flex;align-items:center;justify-content:center;padding:16px}
 .detail-modal{width:520px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;background:var(--st-surface);border-radius:16px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35)}
+/* مناسبت: متن شبح‌مانند کم‌کنتراست؛ تعطیل بودن روز با رنگ قرمز عدد/سلول مشخص می‌شود */
+.occasion{margin:0 8px 4px;font-size:10px;font-weight:500;color:var(--st-faint);opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px);letter-spacing:.01em}
+.occasion.sm{margin:0;font-size:9px;opacity:.5;max-width:100%}
+.occasion.closed{opacity:.45}
+.wcol.holiday .wname,.wcol.holiday .wnum,.mcell.holiday .mnum{color:var(--st-red)}
+.wcol.holiday .wnum.today,.mcell.holiday .mnum.today{background:var(--st-red);color:#fff !important}
 .st-mhead{padding:12px 16px;border-bottom:1px solid var(--st-line);display:flex;align-items:center;justify-content:space-between;gap:8px}
 .col{display:flex;flex-direction:column;gap:2px}.h{font-size:15px;font-weight:800}.sub{font-size:11px;color:var(--st-muted);font-weight:600}
 .st-x{border:0;background:var(--st-muted-bg);width:32px;height:32px;border-radius:9px;cursor:pointer;color:var(--st-muted);display:flex;align-items:center;justify-content:center}
