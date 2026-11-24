@@ -52,7 +52,7 @@
 
         <div class="media-row">
           <label class="media-btn">
-            <input type="file" accept="image/*" hidden @change="onImage" />
+            <input type="file" accept="image/*,.heic,.heif,image/heic,image/heif" hidden @change="onImage" />
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
             تصویر
           </label>
@@ -87,16 +87,22 @@
 
         <div v-if="pendingVoice || (draft.voices || []).length" class="voice-box">
           <div v-if="pendingVoice" class="voice-row">
-            <audio :src="pendingVoiceUrl" controls></audio>
-            <span class="who">آماده ارسال</span>
-            <button type="button" class="rm" @click="clearVoice">حذف</button>
+            <div class="voice-player" dir="ltr">
+              <audio :src="pendingVoiceUrl" controls preload="metadata" controlsList="nodownload"></audio>
+            </div>
+            <div class="voice-actions">
+              <span class="who">آماده ارسال</span>
+              <button type="button" class="rm" @click="clearVoice">حذف</button>
+            </div>
           </div>
           <div v-for="v in (draft.voices || [])" :key="v.id" class="voice-row">
             <span class="who">
               <span class="av xs" :style="uploaderStyle(v)"><img v-if="v.uploader_avatar_url" :src="v.uploader_avatar_url" alt="" /><template v-else>{{ (v.uploader_name||'?').charAt(0) }}</template></span>
               {{ v.uploader_name }}
             </span>
-            <audio :src="v.url" controls></audio>
+            <div class="voice-player" dir="ltr">
+              <audio :src="voiceSrc(v)" controls preload="metadata" controlsList="nodownload"></audio>
+            </div>
             <small>{{ formatTime(v.created_at) }}</small>
           </div>
         </div>
@@ -199,6 +205,18 @@ function avStyle(p) {
 function uploaderStyle(a) {
   return a.uploader_avatar_url ? {} : { background: '#64748b' }
 }
+function voiceSrc(v) {
+  const url = typeof v === 'string' ? v : (v?.url || '')
+  if (!url) return ''
+  try {
+    if (url.startsWith('/')) return url
+    const u = new URL(url, window.location.origin)
+    if (u.pathname.startsWith('/storage/')) return u.pathname + u.search
+    return url
+  } catch {
+    return url
+  }
+}
 function chipStyle(s) {
   const on = (draft.statusId || null) === (s ? s.id : null)
   const p = s ? PALETTE[s.color] : { c: '#475569', fg: '#fff' }
@@ -207,9 +225,18 @@ function chipStyle(s) {
 function onImage(e) {
   const f = e.target.files?.[0]
   if (!f) return
+  const name = String(f.name || '')
+  const type = String(f.type || '')
+  const ok = type.startsWith('image/') || /\.(heic|heif)$/i.test(name)
+  if (!ok) {
+    e.target.value = ''
+    return
+  }
   imageFile.value = f
   removeImage.value = false
+  // HEIC often has empty/odd mime; object URL may not preview in every browser — upload still works.
   imagePreview.value = URL.createObjectURL(f)
+  e.target.value = ''
 }
 function clearImage() {
   imageFile.value = null
@@ -319,7 +346,11 @@ onBeforeUnmount(() => {
 .preview{display:flex;align-items:center;gap:10px}
 .preview img{width:72px;height:72px;object-fit:cover;border-radius:10px}
 .att-list,.voice-box{display:flex;flex-direction:column;gap:6px}
-.att,.voice-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--st-surface-2);font-size:12px}
+.att{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:10px;background:var(--st-surface-2);font-size:12px}
+.voice-row{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:10px;background:var(--st-surface-2);font-size:12px;min-width:0}
+.voice-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.voice-player{width:100%;min-width:0}
+.voice-player audio{display:block;width:100%;height:36px;border-radius:8px;color-scheme:light}
 .who{display:flex;align-items:center;gap:6px;font-weight:700;color:var(--st-text-2)}
 .rm{border:0;background:transparent;color:var(--st-red);cursor:pointer;font-size:12px;font-weight:700}
 .exp-box{border:1px solid var(--st-line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:10px}

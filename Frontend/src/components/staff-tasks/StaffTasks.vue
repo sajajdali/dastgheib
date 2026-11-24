@@ -72,6 +72,7 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
               </button>
             </div>
+            <!-- مناسبت همیشه به‌عنوان زمینه روز دیده می‌شود، حتی بدون وظیفه -->
             <div v-if="d.occasionTitle" class="occasion" :class="{ closed: d.holiday }" :title="d.occasionTitle">{{ d.occasionTitle }}</div>
             <div class="wbody">
               <div v-for="t in d.tasks" :key="t.id" class="tcard" :style="cardStyle(t)" @click="openDetails(t)">
@@ -100,8 +101,8 @@
                   </button>
                 </div>
                 <div class="tdead">ثبت‌شده در تاریخ {{ registeredLabel(t) }}</div>
-                <div v-if="t.voices?.length" class="voice-mini" @click.stop>
-                  <audio :src="t.voices[t.voices.length - 1].url" controls preload="none"></audio>
+                <div v-if="t.voices?.length" class="voice-player voice-mini" dir="ltr" @click.stop @pointerdown.stop>
+                  <audio :src="voiceSrc(t.voices[t.voices.length - 1])" controls preload="metadata" controlsList="nodownload"></audio>
                 </div>
               </div>
             </div>
@@ -163,10 +164,14 @@
               <div class="voice-thread">
                 <div v-for="v in (details.voices || [])" :key="v.id" class="vmsg">
                   <span class="av sm" :style="uploaderAv(v)"><img v-if="v.uploader_avatar_url" :src="v.uploader_avatar_url" alt="" /><template v-else>{{ (v.uploader_name||'?').charAt(0) }}</template></span>
-                  <div>
-                    <b>{{ v.uploader_name }}</b>
-                    <small>{{ formatTime(v.created_at) }}</small>
-                    <audio :src="v.url" controls preload="none"></audio>
+                  <div class="vmsg-body">
+                    <div class="vmsg-meta">
+                      <b>{{ v.uploader_name }}</b>
+                      <small>{{ formatTime(v.created_at) }}</small>
+                    </div>
+                    <div class="voice-player" dir="ltr">
+                      <audio :src="voiceSrc(v)" controls preload="metadata" controlsList="nodownload"></audio>
+                    </div>
                   </div>
                 </div>
                 <div class="rec-row">
@@ -187,7 +192,7 @@ import TaskModal from './TaskModal.vue'
 import StatusSettings from './StatusSettings.vue'
 import TaskReport from './TaskReport.vue'
 import { useStaffTasks, PALETTE } from './useStaffTasks'
-import { d2j, j2d, monthLength, weekday, weekStart, todayJdn, WEEKDAYS, MONTHS, fa, jdnToIso } from './jalali'
+import { d2j, j2d, monthLength, weekday, weekStart, todayJdn, WEEKDAYS, MONTHS, fa } from './jalali'
 
 const {
   state, openTaskId, bootstrap, loadTasks, loadHolidaysForRange, holidayInfo,
@@ -302,6 +307,27 @@ function registeredLabel(t) {
 }
 function formatTime(v) { return v ? new Date(v).toLocaleString('fa-IR') : '' }
 
+/** Prefer relative /storage URL so Vite proxy serves it; fall back to absolute. */
+function voiceSrc(v) {
+  const url = typeof v === 'string' ? v : (v?.url || '')
+  if (!url) return ''
+  try {
+    if (url.startsWith('/')) return url
+    const u = new URL(url, window.location.origin)
+    if (u.pathname.startsWith('/storage/')) return u.pathname + u.search
+    return url
+  } catch {
+    return url
+  }
+}
+
+/** Keep the calendar parked on the day the user is creating/saving for. */
+function focusDay(day) {
+  const d = Number(day)
+  if (!Number.isFinite(d) || d <= 0) return
+  anchor.value = d
+}
+
 function move(k) {
   if (view.value === 'week') { anchor.value += visibleDays.value * k; refresh(); return }
   let y = vy.value, m = vm.value + k
@@ -350,7 +376,9 @@ function blankTask(day) {
 async function openNew(day) {
   statusMenu.value = null
   details.value = null
-  editing.value = blankTask(day)
+  const d = Number(day) || today
+  focusDay(d)
+  editing.value = blankTask(d)
   await nextTick()
 }
 async function openEdit(t) {
@@ -409,6 +437,7 @@ async function onSave({ draft, image, attachments, voice, voiceDuration, removeI
       await changeStatus(saved.id, draft.statusId)
     }
     editing.value = null
+    focusDay(saved.day || draft.day)
     await refresh()
   } catch (e) {
     alert(e.response?.data?.message || e.message || 'ذخیره وظیفه ممکن نشد.')
@@ -434,13 +463,26 @@ async function toggleDetailRec() {
     mediaRecorder = new MediaRecorder(stream)
     mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data) }
     mediaRecorder.onstop = async () => {
-      const file = new File([new Blob(chunks, { type: 'audio/webm' })], `voice-${Date.now()}.webm`, { type: 'audio/webm' })
-      const updated = await addVoice(details.value.id, file, Math.round((Date.now() - started) / 1000))
-      // addVoice upserts task; refresh details
-      details.value = state.tasks.find(t => t.id === details.value.id) || details.value
-      stream.getTracks().forEach(t => t.stop())
-      recording.value = false
-      void updated
+      const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (chunks[0]?.type || 'audio/mp4')
+      const ext = mime.includes('mp4') || mime.includes('m4a') ? 'm4a' : 'webm'
+      const file = new File([new Blob(chunks, { type: mime })], `voice-${Date.now()}.${ext}`, { type: mime })
+      try {
+        const voice = await addVoice(details.value.id, file, Math.round((Date.now() - started) / 1000))
+        const task = state.tasks.find(t => t.id === details.value.id)
+        if (task) {
+          details.value = { ...task, voices: [...(task.voices || [])] }
+        } else if (voice) {
+          details.value = {
+            ...details.value,
+            voices: [...(details.value.voices || []).filter(v => v.id !== voice.id), voice],
+          }
+        }
+      } catch (e) {
+        alert(e.response?.data?.message || e.message || 'ارسال پیام صوتی ممکن نشد.')
+      } finally {
+        stream.getTracks().forEach(t => t.stop())
+        recording.value = false
+      }
     }
     mediaRecorder.start()
     recording.value = true
@@ -449,13 +491,19 @@ async function toggleDetailRec() {
   }
 }
 
+/** Shamsi YYYY/MM/DD for Excel (Persian digits). */
+function jalaliYmd(day) {
+  const [y, m, dd] = d2j(Number(day) || today)
+  return `${fa(y)}/${fa(String(m).padStart(2, '0'))}/${fa(String(dd).padStart(2, '0'))}`
+}
+
 function exportCsv() {
   const rows = [['عنوان', 'مسئولان', 'تاریخ', 'وضعیت', 'اولویت']]
   filteredTasks.value.forEach(t => {
     rows.push([
       t.title,
       assigneesOf(t).map(a => a.name).join('، '),
-      jdnToIso(t.day),
+      jalaliYmd(t.day),
       statusById(t.statusId)?.title || '',
       t.priority || '',
     ])
@@ -464,7 +512,7 @@ function exportCsv() {
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = `staff-tasks-${jdnToIso(today)}.csv`
+  a.download = `staff-tasks-${jalaliYmd(today)}.csv`
   a.click()
 }
 
@@ -589,7 +637,10 @@ function onOpenTaskEvent(e) {
 .edit-ico{width:26px;height:26px;border:0;border-radius:7px;background:transparent;color:var(--st-muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
 .edit-ico:hover{background:var(--st-muted-bg);color:var(--st-accent)}
 .tdead{font-size:10.5px;font-weight:600;color:var(--st-muted)}
-.voice-mini audio{width:100%;height:28px}
+.voice-player{width:100%;min-width:0;max-width:100%;box-sizing:border-box;margin-top:2px}
+.voice-player audio{display:block;width:100%;min-width:0;height:36px;max-height:40px;border-radius:8px;color-scheme:light}
+:root.dark .voice-player audio,.stc.dark .voice-player audio{color-scheme:dark}
+.voice-mini{margin-top:4px}
 .month{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr))}
 .mh{padding:8px 10px;font-size:11px;font-weight:700;color:var(--st-muted);border-bottom:1px solid var(--st-line);border-left:1px solid var(--st-line)}
 .mh.red{color:var(--st-red)}
@@ -605,9 +656,9 @@ function onOpenTaskEvent(e) {
 .more{font-size:10px;font-weight:700;color:var(--st-muted)}
 .st-overlay,.detail-overlay{position:fixed;inset:0;background:var(--st-overlay);z-index:2147483011;display:flex;align-items:center;justify-content:center;padding:16px}
 .detail-modal{width:520px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;background:var(--st-surface);border-radius:16px;box-shadow:0 30px 60px -15px rgba(15,23,42,.35)}
-/* مناسبت: متن شبح‌مانند کم‌کنتراست؛ تعطیل بودن روز با رنگ قرمز عدد/سلول مشخص می‌شود */
-.occasion{margin:0 8px 4px;font-size:10px;font-weight:400;color:var(--st-faint);opacity:.38;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px);letter-spacing:.01em}
-.occasion.sm{margin:0;font-size:9px;opacity:.34;max-width:100%}
+/* مناسبت: همیشه روی سلول روز (با/بدون وظیفه)؛ متن شبح کم‌کنتراست */
+.occasion{flex-shrink:0;margin:0 8px 4px;font-size:10px;font-weight:400;color:var(--st-faint);opacity:.38;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:calc(100% - 16px);letter-spacing:.01em}
+.occasion.sm{margin:0;font-size:9px;opacity:.34;max-width:100%;-webkit-line-clamp:2}
 .occasion.closed{opacity:.3}
 .wcol.holiday .wname,.wcol.holiday .wnum,.mcell.holiday .mnum{color:var(--st-red)}
 .wcol.holiday .wnum.today,.mcell.holiday .mnum.today{background:var(--st-red);color:#fff !important}
@@ -618,9 +669,10 @@ function onOpenTaskEvent(e) {
 .meta{font-size:12px;color:var(--st-muted);font-weight:600}
 .dimg{max-width:100%;border-radius:10px}
 .voice-thread{display:flex;flex-direction:column;gap:8px}
-.vmsg{display:flex;gap:8px;align-items:flex-start;padding:8px;border-radius:10px;background:var(--st-surface-2)}
-.vmsg b{font-size:12px;display:block}.vmsg small{font-size:10px;color:var(--st-muted)}
-.vmsg audio{width:min(280px,100%);margin-top:4px}
+.vmsg{display:flex;gap:8px;align-items:flex-start;padding:10px;border-radius:10px;background:var(--st-surface-2);min-width:0}
+.vmsg-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.vmsg-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}
+.vmsg-meta b{font-size:12px}.vmsg-meta small{font-size:10px;color:var(--st-muted)}
 .rec-row{display:flex;gap:6px}
 .err-banner,.loading{padding:12px;border-radius:12px;background:var(--st-holiday);color:var(--st-red);font-weight:700}
 .loading{background:var(--st-accent-soft);color:var(--st-accent)}

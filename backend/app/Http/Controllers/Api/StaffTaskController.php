@@ -9,17 +9,25 @@ use App\Models\StaffTaskAttachment;
 use App\Models\StaffTaskSetting;
 use App\Models\StaffTaskStatus;
 use App\Models\StaffTaskVoice;
+use App\Services\PatientImageOptimizer;
+use App\Services\PatientPhotoSettings;
 use App\Services\StaffTaskService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class StaffTaskController extends Controller
 {
-    public function __construct(private readonly StaffTaskService $tasks) {}
+    public function __construct(
+        private readonly StaffTaskService $tasks,
+        private readonly PatientImageOptimizer $imageOptimizer,
+        private readonly PatientPhotoSettings $photoSettings,
+    ) {}
 
     public function bootstrap(Request $request): JsonResponse
     {
@@ -113,7 +121,7 @@ class StaffTaskController extends Controller
             ]);
 
             if ($request->hasFile('image')) {
-                $task->update(['image_path' => $request->file('image')->store('staff-tasks/images', 'public')]);
+                $task->update(['image_path' => $this->storeTaskImage($request->file('image'))]);
             }
 
             $this->tasks->syncAssignees($task, $data['assignee_ids'] ?? []);
@@ -158,7 +166,7 @@ class StaffTaskController extends Controller
             }
             if ($request->hasFile('image')) {
                 if ($staffTask->image_path) Storage::disk('public')->delete($staffTask->image_path);
-                $staffTask->update(['image_path' => $request->file('image')->store('staff-tasks/images', 'public')]);
+                $staffTask->update(['image_path' => $this->storeTaskImage($request->file('image'))]);
             }
 
             if (array_key_exists('assignee_ids', $data)) {
@@ -385,13 +393,49 @@ class StaffTaskController extends Controller
             'expiry.date' => ['nullable', 'date'],
             'expiry.time' => ['nullable', 'date_format:H:i'],
             'expiry.status_id' => ['nullable', 'integer', 'exists:staff_task_statuses,id'],
-            'image' => ['nullable', 'image', 'max:10240'],
+            // Use file+mimes (not Laravel "image") so HEIC/HEIF from Apple Photos pass validation.
+            'image' => ['nullable', 'file', 'max:51200', 'mimes:jpg,jpeg,png,webp,gif,heic,heif'],
             'attachments' => ['nullable', 'array'],
-            'attachments.*' => ['file', 'max:20480'],
+            'attachments.*' => ['file', 'max:51200'],
             'voice' => ['nullable', 'file', 'max:20480'],
             'voice_duration' => ['nullable', 'integer', 'min:0', 'max:3600'],
             'remove_image' => ['nullable', 'boolean'],
+        ], [
+            'image.uploaded' => 'آپلود تصویر انجام نشد. اگر عکس HEIC است، معمولاً به‌خاطر سقف حجم PHP است.',
+            'image.file' => 'فایل تصویر معتبر نیست.',
+            'image.max' => 'حجم تصویر بیشتر از ۵۰ مگابایت است.',
+            'image.mimes' => 'فرمت تصویر مجاز نیست. از JPG، PNG، WEBP، GIF یا HEIC استفاده کنید.',
         ]);
+    }
+
+    /** Same HEIC→WebP + compression pipeline as clinic patient media / تنظیمات photo settings. */
+    private function storeTaskImage(UploadedFile $file): string
+    {
+        try {
+            $stored = $this->imageOptimizer->store(
+                $file,
+                'staff-tasks/images',
+                $this->photoSettings->current()
+            );
+        } catch (ValidationException $e) {
+            $messages = $e->errors();
+            if (isset($messages['file'])) {
+                throw ValidationException::withMessages(['image' => $messages['file']]);
+            }
+            throw $e;
+        }
+
+        return $stored['path'];
+    }
+
+    private function isImageUpload(UploadedFile $file): bool
+    {
+        $mime = strtolower((string) ($file->getMimeType() ?: $file->getClientMimeType()));
+        if (str_starts_with($mime, 'image/')) {
+            return true;
+        }
+
+        return (bool) preg_match('/\.(jpe?g|png|gif|webp|heic|heif)$/i', (string) $file->getClientOriginalName());
     }
 
     private function storeUploadedAttachments(Request $request, StaffTask $task): void
@@ -399,17 +443,40 @@ class StaffTaskController extends Controller
         if (! $request->hasFile('attachments')) return;
         $staff = $this->tasks->staffForUser($request->user());
         foreach ($request->file('attachments') as $file) {
-            $mime = (string) $file->getMimeType();
+            $isImage = $this->isImageUpload($file);
+            if ($isImage) {
+                try {
+                    $stored = $this->imageOptimizer->store(
+                        $file,
+                        'staff-tasks/files',
+                        $this->photoSettings->current()
+                    );
+                    $path = $stored['path'];
+                    $mime = $stored['mime_type'];
+                    $size = $stored['size'];
+                } catch (ValidationException $e) {
+                    $messages = $e->errors();
+                    if (isset($messages['file'])) {
+                        throw ValidationException::withMessages(['attachments' => $messages['file']]);
+                    }
+                    throw $e;
+                }
+            } else {
+                $path = $file->store('staff-tasks/files', 'public');
+                $mime = (string) $file->getMimeType();
+                $size = $file->getSize();
+            }
+
             StaffTaskAttachment::query()->create([
                 'staff_task_id' => $task->id,
                 'user_id' => $request->user()->id,
                 'staff_id' => $staff?->id,
                 'uploader_name' => $request->user()->name,
-                'kind' => str_starts_with($mime, 'image/') ? 'image' : 'file',
-                'path' => $file->store('staff-tasks/files', 'public'),
+                'kind' => $isImage ? 'image' : 'file',
+                'path' => $path,
                 'original_name' => $file->getClientOriginalName(),
                 'mime' => $mime,
-                'size' => $file->getSize(),
+                'size' => $size,
             ]);
         }
     }
