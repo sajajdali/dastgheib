@@ -76,7 +76,7 @@
             <div v-if="d.occasionTitle && !d.tasks.length" class="occasion" :class="{ closed: d.holiday }" :title="d.occasionTitle">{{ d.occasionTitle }}</div>
             <div class="wbody">
               <div v-for="t in d.tasks" :key="t.id" class="tcard" :style="cardStyle(t)" @click="openDetails(t)">
-                <div class="tt">{{ t.title }}</div>
+                <div class="tt prewrap">{{ t.title }}</div>
                 <div class="avs">
                   <span v-for="a in assigneesOf(t)" :key="a.id" class="av sm" :title="a.name" :style="avStyle(a)">
                     <img v-if="a.avatar_url" :src="a.avatar_url" alt="" />
@@ -142,7 +142,7 @@
         <div v-if="details" class="st-overlay detail-overlay" @mousedown.self="details = null">
           <div class="detail-modal">
             <div class="st-mhead">
-              <div class="col"><span class="h">{{ details.title }}</span><span class="sub">ثبت‌شده در تاریخ {{ registeredLabel(details) }}</span></div>
+              <div class="col"><span class="h prewrap">{{ details.title }}</span><span class="sub">ثبت‌شده در تاریخ {{ registeredLabel(details) }}</span></div>
               <div class="row">
                 <button type="button" class="icon-btn" title="ویرایش" @click="openEdit(details)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
                 <button v-if="canDeleteTask(details)" type="button" class="icon-btn danger" title="حذف وظیفه" @click="confirmDelete(details)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>
@@ -150,7 +150,7 @@
               </div>
             </div>
             <div class="detail-body">
-              <p v-if="details.note">{{ details.note }}</p>
+              <p v-if="details.note" class="note prewrap">{{ details.note }}</p>
               <div class="avs">
                 <span v-for="a in assigneesOf(details)" :key="a.id" class="av" :style="avStyle(a)" :title="a.name">
                   <img v-if="a.avatar_url" :src="a.avatar_url" alt="" /><template v-else>{{ a.name.charAt(0) }}</template>
@@ -678,6 +678,8 @@ function onOpenTaskEvent(e) {
 .tcard{cursor:pointer;border:1px solid;border-radius:9px;padding:7px 8px;display:flex;flex-direction:column;gap:5px}
 .tcard:hover{box-shadow:0 4px 12px rgba(15,23,42,.1)}
 .tt{font-size:12.5px;font-weight:700;line-height:1.45}
+.prewrap{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.note{margin:0;font-size:13px;line-height:1.6;color:var(--st-text-2)}
 .avs{display:flex;gap:3px;flex-wrap:wrap}
 .av{width:28px;height:28px;border-radius:50%;overflow:hidden;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#64748b}
 .av.sm{width:18px;height:18px;font-size:9px}
@@ -725,7 +727,7 @@ function onOpenTaskEvent(e) {
 .wcol.holiday .wname,.wcol.holiday .wnum,.mcell.holiday .mnum{color:var(--st-red)}
 .wcol.holiday .wnum.today,.mcell.holiday .mnum.today{background:var(--st-red);color:#fff !important}
 .st-mhead{padding:12px 16px;border-bottom:1px solid var(--st-line);display:flex;align-items:center;justify-content:space-between;gap:8px}
-.col{display:flex;flex-direction:column;gap:2px}.h{font-size:15px;font-weight:800}.sub{font-size:11px;color:var(--st-muted);font-weight:600}
+.col{display:flex;flex-direction:column;gap:2px}.h{font-size:15px;font-weight:800}.h.prewrap{line-height:1.45}.sub{font-size:11px;color:var(--st-muted);font-weight:600}
 .st-x{border:0;background:var(--st-muted-bg);width:32px;height:32px;border-radius:9px;cursor:pointer;color:var(--st-muted);display:flex;align-items:center;justify-content:center}
 .detail-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .meta{font-size:12px;color:var(--st-muted);font-weight:600}
