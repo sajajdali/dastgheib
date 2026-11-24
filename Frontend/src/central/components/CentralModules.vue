@@ -4,13 +4,20 @@
       <div class="central-panel-head">
         <div>
           <div class="central-section-title">امکانات سیستم</div>
-          <div class="central-section-subtitle">امکاناتی که برای سایت‌های جدید قابل انتخاب و قیمت‌گذاری هستند</div>
+          <div class="central-section-subtitle">قیمت‌ها در دیتابیس مرکزی ذخیره می‌شوند و در همه فروشگاه‌ها اعمال می‌گردند</div>
         </div>
-        <label class="central-check">
-          <input :checked="allEnabled" type="checkbox" @change="toggleAll" />
-          فعال‌سازی همه
-        </label>
+        <div class="central-module-head-actions">
+          <label class="central-check">
+            <input :checked="allEnabled" type="checkbox" @change="toggleAll" />
+            فعال‌سازی همه
+          </label>
+          <button class="central-button" type="button" :disabled="saving" @click="emitSave">
+            {{ saving ? "در حال ذخیره..." : "ذخیره در دیتابیس مرکزی" }}
+          </button>
+        </div>
       </div>
+      <p v-if="message" class="central-success">{{ message }}</p>
+      <p v-if="error" class="central-error">{{ error }}</p>
 
       <form class="central-feature-form" @submit.prevent="saveModule">
         <label class="central-form-label">
@@ -57,7 +64,7 @@
             <button class="central-button secondary compact" type="button" @click="editModule(module)">ویرایش</button>
             <button class="central-button danger compact" type="button" @click="removeModule(module)">حذف</button>
             <label class="central-switch" title="فعال/غیرفعال">
-              <input v-model="module.enabled" type="checkbox" />
+              <input v-model="module.enabled" type="checkbox" @change="emitSave" />
               <span></span>
             </label>
           </div>
@@ -71,6 +78,12 @@
 import { computed, reactive, ref } from "vue";
 import { CENTRAL_MODULES } from "../data/modules";
 
+defineProps({
+  saving: { type: Boolean, default: false },
+  message: { type: String, default: "" },
+  error: { type: String, default: "" },
+});
+const emit = defineEmits(["save"]);
 const modules = defineModel({ type: Array, required: true });
 const editingModuleId = ref("");
 const periodOptions = [
@@ -99,8 +112,13 @@ function defaultPeriods() {
   return Object.fromEntries(periodOptions.map((period) => [period.key, { enabled: period.key === "one_time", price: 0 }]));
 }
 
+function emitSave() {
+  emit("save", visibleModules.value.map((module) => ({ ...module })));
+}
+
 function toggleAll(event) {
   modules.value = visibleModules.value.map((module) => ({ ...module, enabled: event.target.checked }));
+  emitSave();
 }
 
 function saveModule() {
@@ -127,6 +145,7 @@ function saveModule() {
   }
 
   resetForm();
+  emitSave();
 }
 
 function editModule(module) {
@@ -139,6 +158,7 @@ function removeModule(module) {
   if (!window.confirm(`امکان ${module.name} حذف شود؟`)) return;
   modules.value = modules.value.filter((item) => item.id !== module.id);
   if (editingModuleId.value === module.id) resetForm();
+  emitSave();
 }
 
 function resetForm() {
@@ -199,5 +219,5 @@ function formatMoney(value) {
 </script>
 
 <style scoped>
-.central-module-period-editor{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.central-period-price{display:grid;gap:7px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#64748b;font-size:12px;font-weight:900}.central-period-price.active{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.central-period-price span{display:flex;align-items:center;gap:7px}.central-period-price input[type="checkbox"]{width:16px;height:16px;accent-color:#2563eb}.central-period-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.central-period-list span{padding:5px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:1000}@media(max-width:900px){.central-module-period-editor{grid-template-columns:1fr 1fr}}@media(max-width:560px){.central-module-period-editor{grid-template-columns:1fr}}
+.central-module-head-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.central-module-period-editor{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.central-period-price{display:grid;gap:7px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#64748b;font-size:12px;font-weight:900}.central-period-price.active{border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8}.central-period-price span{display:flex;align-items:center;gap:7px}.central-period-price input[type="checkbox"]{width:16px;height:16px;accent-color:#2563eb}.central-period-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.central-period-list span{padding:5px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:10px;font-weight:1000}@media(max-width:900px){.central-module-period-editor{grid-template-columns:1fr 1fr}}@media(max-width:560px){.central-module-period-editor{grid-template-columns:1fr}}
 </style>

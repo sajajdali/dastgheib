@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CentralStoreTerm;
 use App\Models\CentralStoreTermAcceptance;
 use App\Models\Tenant;
+use App\Services\ModuleCatalogService;
 use App\Services\ModuleSubscriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,14 +13,23 @@ use Illuminate\Validation\ValidationException;
 
 class StoreCheckoutController extends Controller
 {
-    public function __construct(private readonly ModuleSubscriptionService $subscriptions)
-    {
+    public function __construct(
+        private readonly ModuleSubscriptionService $subscriptions,
+        private readonly ModuleCatalogService $catalog,
+    ) {
     }
 
     public function terms(): JsonResponse
     {
         return response()->json([
             'terms' => $this->activeTermsData(),
+        ]);
+    }
+
+    public function modules(): JsonResponse
+    {
+        return response()->json([
+            'modules' => $this->catalog->listForStore(),
         ]);
     }
 
@@ -51,15 +61,10 @@ class StoreCheckoutController extends Controller
         $now = now();
         $tenant = tenant();
         $user = $request->user();
-        $items = collect($data['items'])
-            ->map(fn (array $item) => [
-                'key' => $item['key'],
-                'title' => $item['title'],
-                'price' => (int) $item['price'],
-                'billing_period' => $item['billing_period'],
-            ])
-            ->values()
-            ->all();
+        $items = $this->catalog->validateCheckoutItems($data['items']);
+        $subtotal = collect($items)->sum('price');
+        $discountAmount = (int) ($data['discount_amount'] ?? 0);
+        $payableTotal = max(0, $subtotal - $discountAmount);
 
         $acceptance = tenancy()->central(fn () => CentralStoreTermAcceptance::create([
             'central_store_term_id' => $term->id,
@@ -69,9 +74,9 @@ class StoreCheckoutController extends Controller
             'buyer_name' => $user?->name,
             'buyer_email' => $user?->email,
             'items' => $items,
-            'subtotal' => $data['subtotal'],
-            'discount_amount' => $data['discount_amount'] ?? 0,
-            'payable_total' => $data['payable_total'],
+            'subtotal' => $subtotal,
+            'discount_amount' => $discountAmount,
+            'payable_total' => $payableTotal,
             'accepted_at' => $now,
             'paid_at' => $now,
             'status' => 'paid',

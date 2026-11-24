@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CentralAuthController;
 use App\Http\Controllers\CentralBillingController;
+use App\Http\Controllers\CentralModuleCatalogController;
 use App\Http\Controllers\CentralServiceTicketController;
 use App\Http\Controllers\CentralTenantController;
 use App\Http\Controllers\CentralCalendarController;
@@ -27,6 +28,8 @@ foreach (config('tenancy.central_domains', ['localhost']) as $centralDomain) {
                 Route::delete('/billing/discounts/{discount}', [CentralBillingController::class, 'destroyDiscount']);
                 Route::get('/store-terms', [CentralBillingController::class, 'storeTerms']);
                 Route::patch('/store-terms', [CentralBillingController::class, 'updateStoreTerms']);
+                Route::get('/modules', [CentralModuleCatalogController::class, 'index']);
+                Route::put('/modules', [CentralModuleCatalogController::class, 'sync']);
 
                 Route::get('/tenants', [CentralTenantController::class, 'index']);
                 Route::post('/tenants', [CentralTenantController::class, 'store']);

@@ -44,6 +44,10 @@
     <CentralModules
       v-else-if="activeTab === 'modules'"
       v-model="modules"
+      :saving="modulesSaving"
+      :message="modulesMessage"
+      :error="modulesError"
+      @save="saveModulesCatalog"
     />
 
     <CentralStorage
@@ -103,7 +107,7 @@
 
 <script setup>
 import axios from "axios";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import CentralDashboard from "../central/components/CentralDashboard.vue";
 import CentralLayout from "../central/components/CentralLayout.vue";
 import CentralLogin from "../central/components/CentralLogin.vue";
@@ -131,7 +135,10 @@ const userPricing = ref({ included_users: 1, extra_user_price: 0 });
 const discountCodes = ref([]);
 const storeTerms = ref(null);
 const serviceTickets = ref([]);
-const modules = ref(loadModules());
+const modules = ref(CENTRAL_MODULES.map((module) => normalizeModule({ ...module, enabled: module.enabled !== false })));
+const modulesSaving = ref(false);
+const modulesMessage = ref("");
+const modulesError = ref("");
 const activeTab = ref("dashboard");
 const serviceTicketsResetKey = ref(0);
 const loading = ref(false);
@@ -147,21 +154,6 @@ const openServiceQuestionCount = computed(() => serviceTickets.value.filter((tic
 function changeCentralTab(tab) {
   if (tab === "serviceTickets") serviceTicketsResetKey.value += 1;
   activeTab.value = tab;
-}
-
-function loadModules() {
-  const defaults = CENTRAL_MODULES.map((module) => ({ ...module, enabled: module.enabled !== false }));
-  try {
-    const stored = JSON.parse(localStorage.getItem("central-system-features") || "[]");
-    if (Array.isArray(stored) && stored.length) {
-      const storedById = new Map(stored.map(normalizeModule).map((module) => [module.id, module]));
-      return defaults.map((module) => normalizeModule({ ...module, ...(storedById.get(module.id) || {}) }));
-    }
-  } catch {
-    //
-  }
-
-  return defaults.map(normalizeModule);
 }
 
 function normalizeModule(module) {
@@ -255,7 +247,45 @@ async function logout() {
 }
 
 async function refreshAll() {
-  await Promise.allSettled([loadBilling(), loadStoreTerms(), loadTenants(), loadServiceTickets(), loadStorage()]);
+  await Promise.allSettled([loadBilling(), loadStoreTerms(), loadModulesCatalog(), loadTenants(), loadServiceTickets(), loadStorage()]);
+}
+
+async function loadModulesCatalog() {
+  modulesError.value = "";
+  try {
+    const { data } = await axios.get("/central-api/modules");
+    const next = Array.isArray(data.modules) ? data.modules.map(normalizeModule) : [];
+    modules.value = next.length ? uniqueModules(next) : CENTRAL_MODULES.map((module) => normalizeModule({ ...module, enabled: module.enabled !== false }));
+    try {
+      localStorage.removeItem("central-system-features");
+    } catch {
+      //
+    }
+  } catch (requestError) {
+    if (requestError.response?.status === 401) admin.value = null;
+    modulesError.value = responseMessage(requestError, "دریافت قیمت امکانات انجام نشد.");
+  }
+}
+
+async function saveModulesCatalog(nextModules) {
+  modulesSaving.value = true;
+  modulesError.value = "";
+  modulesMessage.value = "";
+  const payload = uniqueModules((Array.isArray(nextModules) ? nextModules : modules.value).map(normalizeModule));
+  try {
+    const { data } = await axios.put("/central-api/modules", { modules: payload });
+    modules.value = Array.isArray(data.modules) ? data.modules.map(normalizeModule) : payload;
+    modulesMessage.value = data.message || "قیمت امکانات ذخیره شد.";
+    try {
+      localStorage.removeItem("central-system-features");
+    } catch {
+      //
+    }
+  } catch (requestError) {
+    modulesError.value = responseMessage(requestError, "ذخیره قیمت امکانات انجام نشد.");
+  } finally {
+    modulesSaving.value = false;
+  }
 }
 
 async function loadStorage() {
@@ -595,12 +625,4 @@ function replaceTenant(nextTenant) {
 }
 
 onMounted(checkAuth);
-
-watch(
-  modules,
-  (nextModules) => {
-    localStorage.setItem("central-system-features", JSON.stringify(nextModules.map(normalizeModule)));
-  },
-  { deep: true },
-);
 </script>

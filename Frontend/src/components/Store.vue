@@ -376,6 +376,17 @@ import { STORE_MODULES } from "../central/data/store-modules";
 
 const CART_KEY = "clinic_store_cart_v1"
 const PURCHASED_KEY = "clinic_store_purchased_v1"
+const REFERENCE_IMAGE_MODULES = new Set(STORE_MODULES.map(module => module.key))
+
+function withStoreImages(modules) {
+  return (Array.isArray(modules) ? modules : []).map(module => ({
+    ...module,
+    image: module.image
+      || (REFERENCE_IMAGE_MODULES.has(module.key) ? `/store/modules/${module.key}.png` : null)
+      || STORE_MODULES.find(item => item.key === module.key)?.image
+      || null
+  }))
+}
 
 export default {
   name: "Store",
@@ -394,6 +405,8 @@ export default {
       activeCategory: "all",
       step: "catalog",
       paying: false,
+      catalogLoading: false,
+      catalogFromApi: false,
       search: "",
       selectedKeys: [],
       selectedPeriods: {},
@@ -418,7 +431,7 @@ export default {
         { value: "finance", label: "مالی" },
         { value: "insight", label: "تحلیل" }
       ],
-      items: STORE_MODULES
+      items: withStoreImages(STORE_MODULES)
     }
   },
   computed: {
@@ -473,7 +486,7 @@ export default {
       return new Intl.DateTimeFormat("fa-IR-u-ca-persian", { year: "numeric", month: "long", day: "numeric" }).format(new Date())
     }
   },
-  mounted() {
+  async mounted() {
     try {
       const saved = JSON.parse(localStorage.getItem(CART_KEY) || "[]")
       this.selectedKeys = Array.isArray(saved) ? saved : []
@@ -492,6 +505,7 @@ export default {
     } catch {
       this.localPurchasedKeys = []
     }
+    await this.loadCatalog()
     this.addInitialModuleToCart()
   },
   watch: {
@@ -500,6 +514,27 @@ export default {
     }
   },
   methods: {
+    async loadCatalog() {
+      this.catalogLoading = true
+      try {
+        const response = await fetch("/api/store/modules")
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.message || "دریافت کاتالوگ انجام نشد.")
+        const modules = withStoreImages(data.modules || [])
+        if (modules.length) {
+          this.items = modules
+          this.catalogFromApi = true
+        } else {
+          this.items = withStoreImages(STORE_MODULES)
+          this.catalogFromApi = false
+        }
+      } catch {
+        this.items = withStoreImages(STORE_MODULES)
+        this.catalogFromApi = false
+      } finally {
+        this.catalogLoading = false
+      }
+    },
     addInitialModuleToCart() {
       const key = String(this.initialModuleKey || "")
       const item = this.items.find(module => module.key === key)

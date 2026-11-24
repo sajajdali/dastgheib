@@ -112,6 +112,7 @@ Route::delete('/auth/user/photo', [AuthController::class, 'deleteUserPhoto']);
 Route::get('/subscription', [TenantSubscriptionController::class, 'show']);
 Route::post('/subscription/renew', [TenantSubscriptionController::class, 'renew'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
 Route::get('/store/terms', [StoreCheckoutController::class, 'terms']);
+Route::get('/store/modules', [StoreCheckoutController::class, 'modules']);
 Route::post('/store/checkout', [StoreCheckoutController::class, 'checkout']);
 Route::get('/service-tickets', [CentralServiceTicketController::class, 'tenantIndex']);
 Route::post('/service-tickets', [CentralServiceTicketController::class, 'tenantStore'])->middleware('role:مدیر سیستم|مدیر کل|super admin|super-admin');
