@@ -3,6 +3,14 @@
     <div v-if="state.error" class="err-banner">{{ state.error }} <button type="button" @click="init">تلاش دوباره</button></div>
     <div v-if="state.loading && !state.loaded" class="loading">در حال بارگذاری…</div>
 
+    <template v-else-if="showFullReport">
+      <FullTaskReport
+        @back="showFullReport = false"
+        @open="id => openDetailsById(id)"
+        @edit="id => openEditById(id)"
+      />
+    </template>
+
     <template v-else>
       <!-- نوار باریک یک‌ردیفه -->
       <div class="panel toolbar">
@@ -16,6 +24,7 @@
           <button type="button" class="icon-btn" title="گزارش مدیریتی" @click="showReport = true">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M4 19h16M8 15v4M12 11v8M16 7v12"/></svg>
           </button>
+          <button type="button" class="ghost-sm report-full" title="گزارش کامل" @click="showFullReport = true">گزارش کامل</button>
           <button type="button" class="icon-btn" title="خروجی اکسل" @click="exportCsv">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
           </button>
@@ -207,6 +216,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import TaskModal from './TaskModal.vue'
 import StatusSettings from './StatusSettings.vue'
 import TaskReport from './TaskReport.vue'
+import FullTaskReport from './FullTaskReport.vue'
 import { useStaffTasks, PALETTE } from './useStaffTasks'
 import { d2j, j2d, monthLength, weekday, weekStart, todayJdn, WEEKDAYS, MONTHS, fa } from './jalali'
 
@@ -225,6 +235,7 @@ const editing = ref(null)
 const details = ref(null)
 const showSettings = ref(false)
 const showReport = ref(false)
+const showFullReport = ref(false)
 const statusMenu = ref(null)
 const recording = ref(false)
 let mediaRecorder = null
@@ -650,6 +661,7 @@ function onOpenTaskEvent(e) {
 .icon-btn.primary:hover{background:var(--st-accent-hover);color:#fff}
 .ghost-sm{font-family:inherit;height:34px;border-radius:10px;border:1px solid var(--st-border);background:var(--st-surface);color:var(--st-text-2);font-size:12px;font-weight:700;padding:0 10px;cursor:pointer}
 .ghost-sm.rec{background:var(--st-holiday);color:var(--st-red);border-color:var(--st-red)}
+.ghost-sm.report-full{border-color:var(--st-accent);color:var(--st-accent);background:var(--st-accent-soft);font-weight:800}
 .navs,.zoom{display:flex;gap:2px}
 .nav{width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--st-text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
 .nav:hover{background:var(--st-muted-bg)}

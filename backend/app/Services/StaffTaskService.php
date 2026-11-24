@@ -320,8 +320,11 @@ class StaffTaskService
             $q->where('effect', 'minus')->orWhere('title', 'like', '%انجام نشد%')->orWhere('title', 'like', '%تکمیل نشد%');
         })->pluck('id');
 
-        $mine = $tasks->filter(fn (StaffTask $t) => $staffId && $t->assignees->contains('id', $staffId));
-        $assignedByMe = $tasks->filter(fn (StaffTask $t) => $user && (int) $t->created_by === (int) $user->id);
+        // «واگذار شده به من» = assignee; «تسک‌های من» = created by me
+        $assignedToMe = $tasks->filter(fn (StaffTask $t) => $staffId && $t->assignees->contains('id', $staffId));
+        $createdByMe = $tasks->filter(fn (StaffTask $t) => $user && (int) $t->created_by === (int) $user->id);
+        $mine = $assignedToMe; // backward-compat alias
+        $assignedByMe = $createdByMe; // backward-compat alias
         $inProgress = $tasks->filter(fn (StaffTask $t) => $t->status_id && ! $doneIds->contains($t->status_id) && ! $notDoneIds->contains($t->status_id));
         $done = $tasks->filter(fn (StaffTask $t) => $doneIds->contains($t->status_id));
         $notDone = $tasks->filter(fn (StaffTask $t) => $notDoneIds->contains($t->status_id));
@@ -367,6 +370,8 @@ class StaffTaskService
             'summary' => [
                 'all' => $tasks->count(),
                 'mine' => $mine->count(),
+                'assigned_to_me' => $assignedToMe->count(),
+                'created_by_me' => $createdByMe->count(),
                 'assigned_by_me' => $assignedByMe->count(),
                 'in_progress' => $inProgress->count(),
                 'done' => $done->count(),
@@ -376,6 +381,12 @@ class StaffTaskService
             ],
             'tasks' => $serialized,
             'status_chart' => $statusChart,
+            'donut_chart' => [
+                ['key' => 'done', 'title' => 'انجام شد', 'count' => $done->count(), 'color' => '#22c55e'],
+                ['key' => 'in_progress', 'title' => 'در حال انجام', 'count' => $inProgress->count(), 'color' => '#3b82f6'],
+                ['key' => 'not_done', 'title' => 'انجام نشده', 'count' => $notDone->count(), 'color' => '#94a3b8'],
+                ['key' => 'overdue', 'title' => 'عقب افتاده', 'count' => $overdue->count(), 'color' => '#ef4444'],
+            ],
             'overdue_tasks' => $overdue->map(fn (StaffTask $t) => $this->serialize($t))->values(),
             'per_staff' => $perStaff,
             'best_performer' => $best,
@@ -383,6 +394,13 @@ class StaffTaskService
                 'done' => $done->count(),
                 'not_done' => $notDone->count(),
                 'overdue' => $overdue->count(),
+                'in_progress' => $inProgress->count(),
+            ],
+            'task_ids' => [
+                'all' => $tasks->pluck('id')->values(),
+                'created_by_me' => $createdByMe->pluck('id')->values(),
+                'assigned_to_me' => $assignedToMe->pluck('id')->values(),
+                'overdue' => $overdue->pluck('id')->values(),
             ],
         ];
     }
