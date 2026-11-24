@@ -51,12 +51,14 @@ class PayrollCalculationTest extends TestCase
         $this->staff = Staff::query()->create(['name' => 'مشاور تست', 'new_customer_bonus' => 5, 'existing_customer_bonus' => 5]);
     }
 
-    private function visit(array $service, ?string $done = 'انجام شد', string $month = '1405-08', bool $paid = true): Appointment
+    private function visit(array $service, ?string $done = 'انجام شد', string $month = '1405-08', bool $paid = true, ?int $ledgerTotal = null): Appointment
     {
+        $ledger = $ledgerTotal ?? 1000000;
+
         return Appointment::query()->create([
             'month' => $month, 'day_num' => 3, 'done' => $done,
             'doctor' => $this->doctor->name, 'consultant' => $this->staff->name,
-            'payment_details' => $paid ? ['ledger_total' => 1000000, 'cash' => 1000000] : ['ledger_total' => 0, 'cash' => 0, 'card' => 0],
+            'payment_details' => $paid ? ['ledger_total' => $ledger, 'cash' => $ledger] : ['ledger_total' => 0, 'cash' => 0, 'card' => 0],
             'services' => [['cc' => 1, 'doctor' => $this->doctor->name, 'consultant' => $this->staff->name, ...$service]],
         ]);
     }
@@ -100,9 +102,10 @@ class PayrollCalculationTest extends TestCase
     public function test_surcharge_is_not_treated_as_discount(): void
     {
         Inventory::query()->create(['name' => 'لیزر', 'amount' => 1000000]);
-        $withoutFlag = $this->visit(['name' => 'لیزر', 'adjustment_mode' => 'surcharge', 'discount' => 200000]);
-        $withFlag = $this->visit(['name' => 'لیزر', 'adjustment_mode' => 'surcharge', 'discount' => 200000, 'surcharge_for_doctor_commission' => true]);
-        $discounted = $this->visit(['name' => 'لیزر', 'adjustment_mode' => 'discount', 'discount' => 200000]);
+        // ledger = مبلغ واقعاً پرداخت‌شده (خالص کاتالوگ پس از تخفیف/اضافه‌مبلغ)
+        $withoutFlag = $this->visit(['name' => 'لیزر', 'adjustment_mode' => 'surcharge', 'discount' => 200000], ledgerTotal: 1200000);
+        $withFlag = $this->visit(['name' => 'لیزر', 'adjustment_mode' => 'surcharge', 'discount' => 200000, 'surcharge_for_doctor_commission' => true], ledgerTotal: 1200000);
+        $discounted = $this->visit(['name' => 'لیزر', 'adjustment_mode' => 'discount', 'discount' => 200000], ledgerTotal: 800000);
 
         $this->resync();
 
@@ -112,11 +115,43 @@ class PayrollCalculationTest extends TestCase
         $this->assertSame(60000.0, $this->commission($withoutFlag, 'staff'));
     }
 
+    public function test_percent_commission_uses_actual_paid_not_catalog_net(): void
+    {
+        Inventory::query()->create(['name' => 'لوناژل', 'amount' => 27000000]);
+        Inventory::query()->create(['name' => 'لوسنترا', 'amount' => 5300000]);
+        // خالص کاتالوگ ۲۷٫۷M (۲۴٫۷+۳) ولی بیمار ۳۰M پرداخته — مثل نوبت نفیسه.
+        $visit = Appointment::query()->create([
+            'month' => '1405-08', 'day_num' => 5, 'done' => 'انجام شد',
+            'doctor' => $this->doctor->name, 'consultant' => $this->staff->name,
+            'new_customer' => true,
+            'amount' => 27700000, 'original_amount' => 32300000, 'discount' => 4600000,
+            'payment_details' => ['ledger_total' => 30000000, 'card' => 30000000],
+            'services' => [
+                ['name' => 'لوناژل', 'cc' => 1, 'discount' => 2300000, 'adjustment_mode' => 'discount', 'doctor' => $this->doctor->name, 'consultant' => $this->staff->name],
+                ['name' => 'لوسنترا', 'cc' => 1, 'discount' => 2300000, 'adjustment_mode' => 'discount', 'doctor' => $this->doctor->name, 'consultant' => $this->staff->name],
+            ],
+        ]);
+        $this->staff->update(['new_customer_bonus' => 2, 'existing_customer_bonus' => 0]);
+
+        $this->resync();
+
+        $staffTotal = $this->commission($visit, 'staff');
+        $this->assertSame(600000.0, $staffTotal, '۲٪ از ۳۰M پرداخت‌شده، نه از ۲۷٫۷M کاتالوگ');
+        $bases = ResourceEarningLine::query()->where('appointment_id', $visit->id)->where('resource_type', 'staff')
+            ->orderBy('service_line_index')->pluck('commission_base')->map(fn ($v) => (float) $v)->all();
+        $this->assertCount(2, $bases);
+        $this->assertSame(30000000.0, array_sum($bases));
+        // سهم‌ها از خالص کاتالوگ (۲۴٫۷M و ۳M) بزرگ‌ترند چون پرداخت ۳۰M است.
+        $this->assertGreaterThan(24700000.0, $bases[0]);
+        $this->assertGreaterThan(3000000.0, $bases[1]);
+        $this->assertNotEquals(24700000.0, $bases[0]);
+    }
+
     public function test_only_done_appointments_with_quantity_earn_commission(): void
     {
         Inventory::query()->create(['name' => 'ویزیت', 'amount' => 500000]);
-        $pending = $this->visit(['name' => 'ویزیت'], null);
-        $zeroQuantity = $this->visit(['name' => 'ویزیت', 'cc' => 0]);
+        $pending = $this->visit(['name' => 'ویزیت'], null, ledgerTotal: 500000);
+        $zeroQuantity = $this->visit(['name' => 'ویزیت', 'cc' => 0], ledgerTotal: 500000);
 
         $this->resync();
         $this->assertSame(0.0, $this->commission($pending));
@@ -178,7 +213,7 @@ class PayrollCalculationTest extends TestCase
         Inventory::query()->create(['name' => 'میکرونیدلینگ', 'amount' => 1000000, 'section_id' => $sub->id]);
         Inventory::query()->create(['name' => 'فیلر لب', 'amount' => 1000000, 'section_id' => InventorySection::query()->create(['name' => 'لب', 'parent_id' => $root->id, 'level' => 2])->id]);
         Inventory::query()->create(['name' => 'پیلینگ', 'amount' => 1000000]);
-        $exception = $this->visit(['name' => 'استایلج', 'cc' => 2]);
+        $exception = $this->visit(['name' => 'استایلج', 'cc' => 2], ledgerTotal: 2000000);
         $subsection = $this->visit(['name' => 'میکرونیدلینگ']);
         $section = $this->visit(['name' => 'فیلر لب']);
         $resource = $this->visit(['name' => 'پیلینگ']);
@@ -268,12 +303,12 @@ class PayrollCalculationTest extends TestCase
     {
         Inventory::query()->create(['name' => 'بوتاکس', 'amount' => 1000000]);
         Inventory::query()->create(['name' => 'فیلر', 'amount' => 1000000]);
-        $legacy = $this->visit(['name' => 'بوتاکس']);
+        $legacy = $this->visit(['name' => 'بوتاکس'], ledgerTotal: 1900000);
         $legacy->update(['discount' => 100000, 'services' => [
             ['name' => 'بوتاکس', 'cc' => 1, 'discount' => 0, 'doctor' => $this->doctor->name],
             ['name' => 'فیلر', 'cc' => 1, 'doctor' => $this->doctor->name],
         ]]);
-        $lineDiscount = $this->visit(['name' => 'فیلر']);
+        $lineDiscount = $this->visit(['name' => 'فیلر'], ledgerTotal: 1800000);
         $lineDiscount->update(['discount' => 200000, 'services' => [
             ['name' => 'بوتاکس', 'cc' => 1, 'doctor' => $this->doctor->name],
             ['name' => 'فیلر', 'cc' => 1, 'discount' => '200,000', 'doctor' => $this->doctor->name],
@@ -295,7 +330,7 @@ class PayrollCalculationTest extends TestCase
         InventoryCommission::query()->create(['inventory_id' => $filler->id, 'recipient_type' => 'doctor', 'recipient_id' => $this->doctor->id, 'recipient_name' => $this->doctor->name, 'commission_type' => 'fixed', 'commission_value' => 0]);
         Inventory::query()->create(['name' => 'لیزر', 'amount' => 1000000, 'price' => 100000]);
         $this->visit(['name' => 'فیلر']);
-        $this->visit(['name' => 'لیزر', 'discount' => 100000]);
+        $this->visit(['name' => 'لیزر', 'discount' => 100000], ledgerTotal: 900000);
         $this->visit(['name' => 'لیزر'], null);
 
         $this->resync();

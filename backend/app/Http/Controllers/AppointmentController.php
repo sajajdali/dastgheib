@@ -2870,6 +2870,16 @@ class AppointmentController extends Controller
 
         $names = collect($lines)->pluck('name')->filter()->unique()->values();
         $inventories = Inventory::with(['commissions', 'section.parent'])->whereIn('name', $names)->get()->keyBy('name');
+        // پورسانت درصدی روی مبلغ واقعاً پرداخت‌شده است؛ سهم هر خط به نسبت خالص کاتالوگ تخصیص می‌یابد.
+        $paidTotal = $this->appointmentCommissionPaidAmount($appointment);
+        $paidShares = $this->allocatePaidAcrossServiceLines($paidTotal, $lines, $inventories);
+        $lines = array_map(function (array $line, int $index) use ($paidShares, $paidTotal) {
+            $line['paid_share'] = (float) ($paidShares[$index] ?? 0);
+            $line['paid_total'] = $paidTotal;
+
+            return $line;
+        }, $lines, array_keys($lines));
+
         $doctors = Doctor::query()->get()->keyBy(fn (Doctor $doctor) => $this->resourceKey($doctor->name));
         $staff = Staff::query()->get()->keyBy(fn (Staff $item) => $this->resourceKey($item->name));
         $doctorCommissionEnabled = (bool) ($appointment->doctor_commission_enabled ?? true);
@@ -2912,6 +2922,113 @@ class AppointmentController extends Controller
         array_push($payloads, ...$this->referralCommissionPayloads($appointment, $lines, $inventories));
 
         return $payloads;
+    }
+
+    /**
+     * مبلغ پرداخت‌شده نوبت برای مبنای پورسانت — هم‌منطق Time.vue / PayrollSettlement:
+     * ledger_total (یا نقد/کارت/چک) + تسویه بدهی + کیف‌پول؛ اگر دفتر خالی بود fallback به amount.
+     */
+    private function appointmentCommissionPaidAmount(Appointment $appointment): float
+    {
+        $details = is_array($appointment->payment_details) ? $appointment->payment_details : [];
+        $settledDebt = (float) collect($details['debt_payments'] ?? [])
+            ->sum(fn ($payment) => max(0, $this->earningMoney(is_array($payment) ? ($payment['amount'] ?? 0) : 0)));
+
+        $recorded = 0.0;
+        if (array_key_exists('ledger_total', $details) && $details['ledger_total'] !== null && $details['ledger_total'] !== '') {
+            $recorded = max(0, $this->earningMoney($details['ledger_total']));
+        } else {
+            $breakdown = is_array($details['payment_breakdown'] ?? null) ? $details['payment_breakdown'] : [];
+            $breakdownTotal = (float) collect($breakdown)->sum(fn ($amount) => max(0, $this->earningMoney($amount)));
+            $recorded = $breakdownTotal > 0
+                ? $breakdownTotal
+                : max(0, $this->earningMoney($details['cash'] ?? 0)
+                    + $this->earningMoney($details['card'] ?? 0)
+                    + $this->earningMoney(data_get($details, 'check.amount', 0)));
+        }
+
+        $wallet = max(0, $this->earningMoney($appointment->wallet_applied ?? 0));
+        $paid = $recorded + $settledDebt + $wallet;
+
+        return $paid > 0 ? $paid : max(0, $this->earningMoney($appointment->amount ?? 0));
+    }
+
+    /**
+     * تخصیص مبلغ پرداخت‌شده بین خطوط خدمت به نسبت خالص کاتالوگ هر خط (قیمت×تعداد − تخفیف + اضافه‌مبلغ).
+     * خطوط با خالص صفر سهم ندارند؛ اگر همه صفر باشند ولی پرداخت مثبت باشد، سهم مساوی بین خطوط با تعداد > ۰.
+     * باقیماندهٔ گرد کردن ریالی به بزرگ‌ترین وزن داده می‌شود تا جمع سهم‌ها دقیقاً برابر پرداخت شود.
+     *
+     * @return array<int, float> index => paid share
+     */
+    private function allocatePaidAcrossServiceLines(float $paid, array $lines, $inventories): array
+    {
+        $paid = max(0, round($paid));
+        $addonIds = collect($lines)->pluck('addon_definition_id')->filter()->unique()->values();
+        $addons = $addonIds->isEmpty()
+            ? collect()
+            : InventoryAddonDefinition::query()->whereIn('id', $addonIds)->get()->keyBy('id');
+
+        $weights = [];
+        foreach ($lines as $index => $line) {
+            if (($line['quantity'] ?? 0) <= 0) {
+                $weights[$index] = 0.0;
+                continue;
+            }
+            $unit = ! empty($line['addon_definition_id'])
+                ? (float) ($addons->get($line['addon_definition_id'])?->amount ?? 0)
+                : (float) ($inventories->get($line['name'])?->amount ?? 0);
+            $gross = $unit * (float) $line['quantity'];
+            $discount = min((float) ($line['discount'] ?? 0), $gross);
+            $weights[$index] = max(0, $gross + (float) ($line['surcharge'] ?? 0) - $discount);
+        }
+
+        $totalWeight = array_sum($weights);
+        $shares = array_fill_keys(array_keys($lines), 0.0);
+        if ($paid <= 0 || $lines === []) {
+            return $shares;
+        }
+
+        if ($totalWeight <= 0) {
+            $eligible = collect($lines)->filter(fn ($line) => ($line['quantity'] ?? 0) > 0)->keys()->all();
+            if ($eligible === []) {
+                return $shares;
+            }
+            $each = intdiv((int) $paid, count($eligible));
+            $remainder = (int) $paid - ($each * count($eligible));
+            foreach ($eligible as $i => $index) {
+                $shares[$index] = $each + ($i === 0 ? $remainder : 0);
+            }
+
+            return $shares;
+        }
+
+        $raw = [];
+        $floored = [];
+        $assigned = 0;
+        foreach ($weights as $index => $weight) {
+            $exact = $paid * $weight / $totalWeight;
+            $raw[$index] = $exact;
+            $floored[$index] = (int) floor($exact);
+            $assigned += $floored[$index];
+        }
+        $remainder = (int) $paid - $assigned;
+        arsort($raw);
+        foreach (array_keys($raw) as $index) {
+            if ($remainder <= 0) {
+                break;
+            }
+            if (($weights[$index] ?? 0) <= 0) {
+                continue;
+            }
+            $floored[$index]++;
+            $remainder--;
+        }
+
+        foreach ($floored as $index => $share) {
+            $shares[$index] = (float) $share;
+        }
+
+        return $shares;
     }
 
     /**
@@ -3227,7 +3344,7 @@ class AppointmentController extends Controller
             ->whereIn('id', $addonDefinitionIds)->get()->keyBy('id');
         $gross = 0.0;
         $discount = 0.0;
-        $net = 0.0;
+        $catalogNet = 0.0;
         foreach ($lines as $line) {
             if ($line['quantity'] <= 0) continue;
             $price = $line['addon_definition_id']
@@ -3237,9 +3354,14 @@ class AppointmentController extends Controller
             $lineDiscount = min($line['discount'], $lineGross);
             $gross += $lineGross;
             $discount += $lineDiscount;
-            $net += max(0, $lineGross + $line['surcharge'] - $lineDiscount);
+            $catalogNet += max(0, $lineGross + $line['surcharge'] - $lineDiscount);
         }
-        $amount = $type === 'fixed' ? $value : $net * $value / 100;
+        // پورسانت معرفی درصدی هم از مبلغ پرداخت‌شده است (نه خالص کاتالوگ).
+        $paidTotal = array_key_exists('paid_total', $lines[0] ?? [])
+            ? (float) $lines[0]['paid_total']
+            : $this->appointmentCommissionPaidAmount($appointment);
+        $commissionBase = $type === 'fixed' ? 0.0 : $paidTotal;
+        $amount = $type === 'fixed' ? $value : $paidTotal * $value / 100;
         if ($amount <= 0) return [];
 
         $resourceType = $appointment->referrer_type === 'doctor' ? 'doctor' : 'staff';
@@ -3262,9 +3384,9 @@ class AppointmentController extends Controller
             'quantity' => 1,
             'gross_amount' => $gross,
             'discount_amount' => $discount,
-            'net_amount' => $net,
+            'net_amount' => $paidTotal,
             'material_cost' => 0,
-            'commission_base' => $type === 'fixed' ? 0 : $net,
+            'commission_base' => $commissionBase,
             'commission_type' => $type,
             'commission_value' => $value,
             'amount' => round($amount),
@@ -3274,6 +3396,10 @@ class AppointmentController extends Controller
             'calculation_snapshot' => [
                 'calculation_source' => 'referral',
                 'calculation_source_label' => 'پورسانت معرفی مشتری',
+                'commission_basis' => 'paid_amount',
+                'commission_basis_label' => 'مبلغ پرداخت‌شده بیمار',
+                'appointment_paid_total' => $paidTotal,
+                'catalog_net' => $catalogNet,
                 'referrer_type' => $resourceType,
                 'referred_name' => $appointment->lastname,
                 'settings_snapshot' => $matchesSnapshot ? $snapshot : null,
@@ -3536,6 +3662,11 @@ class AppointmentController extends Controller
             'calculation_snapshot' => array_merge([
                 'calculation_source' => $calculationSource,
                 'calculation_source_label' => $calculationSourceLabel,
+                'commission_basis' => 'paid_amount',
+                'commission_basis_label' => 'مبلغ پرداخت‌شده بیمار',
+                'appointment_paid_total' => array_key_exists('paid_total', $line) ? (float) $line['paid_total'] : null,
+                'paid_share' => $amounts['paid_share'] ?? ($line['paid_share'] ?? null),
+                'catalog_net' => $amounts['catalog_net'] ?? null,
                 'resource_bonus' => (float) ($resource->customerCommissionPercent((bool) $appointment->new_customer) ?? 0),
                 'resource_new_customer_bonus' => $resource->customerCommissionPercent(true),
                 'resource_existing_customer_bonus' => $resource->customerCommissionPercent(false),
@@ -3671,9 +3802,10 @@ class AppointmentController extends Controller
 
     /**
      * پورسانت یک ردیف خدمت با درنظرگرفتن منبع تخفیف.
-     * پرسنل (مشاور): مثل قبل از مبلغ بعد از تخفیف.
-     * پزشک: «کلینیک» = از مبلغ قبل از تخفیف؛ «پزشک» = پورسانت قبل از تخفیف منهای کل تخفیف (حداقل صفر)؛
-     * «مشترک» = تخفیف به نسبت سهم بین پزشک و کلینیک تقسیم می‌شود (همان محاسبهٔ قبلی).
+     * مبنا: سهم خط از مبلغ پرداخت‌شده بیمار (نه خالص کاتالوگ).
+     * پرسنل (مشاور): درصد از سهم پرداخت.
+     * پزشک: «کلینیک» = از سهم پرداخت مقیاس‌شده به قبل از تخفیف؛ «پزشک» = همان منهای کل تخفیف؛
+     * «مشترک» = درصد از سهم پرداخت.
      *
      * @return array{0: float, 1: array}
      */
@@ -3688,7 +3820,16 @@ class AppointmentController extends Controller
         }
 
         $source = self::normalizeDiscountSource($line['discount_source'] ?? null);
-        $full = $this->earningAmounts([...$line, 'discount' => 0], $inventory, $afterMaterials, $includeSurcharge);
+        // «قبل از تخفیف» را از روی سهم پرداخت و نسبت ناخالص/خالص کاتالوگ برمی‌گردانیم تا با مبلغ واقعی دریافتی هم‌خوان بماند.
+        $preDiscountLine = [...$line, 'discount' => 0];
+        if (array_key_exists('paid_share', $line)) {
+            $catalogNet = (float) ($amounts['catalog_net'] ?? 0);
+            $grossForScale = (float) ($amounts['gross'] ?? 0) + ($includeSurcharge ? (float) ($line['surcharge'] ?? 0) : 0);
+            $preDiscountLine['paid_share'] = $catalogNet > 0
+                ? max(0, (float) $line['paid_share'] * $grossForScale / $catalogNet)
+                : (float) $line['paid_share'];
+        }
+        $full = $this->earningAmounts($preDiscountLine, $inventory, $afterMaterials, $includeSurcharge);
         $beforeDiscount = $this->calculateCommissionAmount($commissionType, $value, $full['base'], $line['quantity']);
         $amount = match ($source) {
             'clinic' => $beforeDiscount,
@@ -3708,15 +3849,41 @@ class AppointmentController extends Controller
         ]];
     }
 
+    /**
+     * مبالغ خط خدمت برای پورسانت.
+     * gross/discount/catalog_net از کاتالوگ‌اند (نمایش و وزن تخصیص)؛
+     * net و base از سهم پرداخت‌شدهٔ همان خط می‌آیند (مبلغ واقعی دریافتی).
+     * اگر اضافه‌مبلغ برای پزشک در پورسانت نباشد، سهم پرداخت به نسبت خالص بدون اضافه‌مبلغ کوچک می‌شود.
+     */
     private function earningAmounts(array $line, Inventory $inventory, bool $afterMaterials, bool $includeSurcharge = true): array
     {
         $gross = (float) ($inventory->amount ?? 0) * $line['quantity'];
         $discount = min($line['discount'], $gross);
-        $net = max(0, $gross + ($includeSurcharge ? $line['surcharge'] : 0) - $discount);
+        $surcharge = (float) ($line['surcharge'] ?? 0);
+        $catalogNetFull = max(0, $gross + $surcharge - $discount);
+        $catalogNet = max(0, $gross + ($includeSurcharge ? $surcharge : 0) - $discount);
+        $paidShare = array_key_exists('paid_share', $line) ? max(0, (float) $line['paid_share']) : null;
+        if ($paidShare !== null) {
+            // تخصیص پرداخت با وزن شامل اضافه‌مبلغ است؛ برای پزشک بدون تیک، سهم اضافه‌مبلغ حذف می‌شود.
+            $net = (! $includeSurcharge && $catalogNetFull > 0)
+                ? max(0, $paidShare * $catalogNet / $catalogNetFull)
+                : $paidShare;
+        } else {
+            // بدون سهم پرداخت (مثلاً محاسبهٔ فروش ماهانه) همان خالص کاتالوگ می‌ماند.
+            $net = $catalogNet;
+        }
         $materials = (float) ($inventory->price ?? 0) * $line['quantity'];
         $base = $afterMaterials ? max(0, $net - $materials) : $net;
 
-        return compact('gross', 'discount', 'net', 'materials', 'base');
+        return [
+            'gross' => $gross,
+            'discount' => $discount,
+            'net' => $net,
+            'catalog_net' => $catalogNet,
+            'materials' => $materials,
+            'base' => $base,
+            'paid_share' => $paidShare,
+        ];
     }
 
     private function calculateCommissionAmount(string $type, float $value, float $base, float $quantity): float

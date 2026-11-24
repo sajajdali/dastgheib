@@ -54,12 +54,21 @@ class AppointmentServiceRulesTest extends TestCase
         Inventory::query()->create(['name' => 'لیزر', 'amount' => 1000000]);
     }
 
-    private function visit(array $service = [], array $attributes = []): Appointment
+    private function visit(array $service = [], array $attributes = [], ?int $ledgerTotal = null): Appointment
     {
+        $discount = max(0, (int) ($service['discount'] ?? 0));
+        $isSurcharge = ($service['adjustment_mode'] ?? '') === 'surcharge';
+        $catalogNet = $isSurcharge ? 1000000 + $discount : max(0, 1000000 - $discount);
+        $ledger = $ledgerTotal ?? $catalogNet;
+        $payment = array_key_exists('payment_details', $attributes)
+            ? $attributes['payment_details']
+            : ['ledger_total' => $ledger, 'cash' => $ledger];
+        unset($attributes['payment_details']);
+
         return Appointment::query()->create([
             'month' => '1405-08', 'day_num' => 3, 'done' => 'انجام شد', 'lastname' => 'بیمار',
             'doctor' => $this->doctor->name, 'consultant' => $this->staff->name,
-            'payment_details' => ['ledger_total' => 1000000, 'cash' => 1000000],
+            'payment_details' => $payment,
             'services' => [['name' => 'لیزر', 'cc' => 1, 'doctor' => $this->doctor->name, 'consultant' => $this->staff->name, ...$service]],
             ...$attributes,
         ]);

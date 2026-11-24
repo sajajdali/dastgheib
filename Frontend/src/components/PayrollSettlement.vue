@@ -114,7 +114,7 @@
                   <th>مبلغ خام</th>
                   <th>تخفیف</th>
                   <th>اضافه مبلغ</th>
-                  <th>مبنای %</th>
+                  <th>مبنای % (پرداخت)</th>
                   <th>نرخ</th>
                   <th>مبلغ</th>
                   <th>عملیات</th>
@@ -244,7 +244,7 @@
             </article>
             <article>
               <span>مبنای پورسانت</span>
-              <strong>{{ report.resource.commission_after_materials ? 'پس از کسر مواد' : 'مبلغ خالص خدمت' }}</strong>
+              <strong>{{ report.resource.commission_after_materials ? 'مبلغ پرداخت‌شده پس از کسر مواد' : 'مبلغ پرداخت‌شده بیمار' }}</strong>
             </article>
             <article>
               <span>نرخ اضافه‌کاری</span>
@@ -296,7 +296,7 @@
           <article v-if="!editingLine && lineSurcharge(detailLine) > 0" class="adj-surcharge"><span>اضافه مبلغ همین خط</span><strong>{{ money(lineSurcharge(detailLine)) }}</strong></article>
           <article v-if="!editingLine"><span>خالص همین خط</span><strong>{{ money(detailLine.net_amount) }}</strong></article>
           <article v-if="!editingLine"><span>هزینه مواد</span><strong>{{ money(detailLine.material_cost) }}</strong></article>
-          <article v-if="!editingLine" class="base-highlight"><span>مبنای درصد پورسانت</span><strong>{{ money(detailLine.commission_base) }}</strong></article>
+          <article v-if="!editingLine" class="base-highlight"><span>مبنای درصد (از مبلغ پرداخت‌شده)</span><strong>{{ money(detailLine.commission_base) }}</strong></article>
           <article v-if="!editingLine"><span>نرخ/نوع</span><strong>{{ rateText(detailLine) }}</strong></article>
           <article v-if="!editingLine" class="earned"><span>مبلغ بابت این مورد</span><strong>{{ money(detailLine.amount) }}</strong></article>
           <article v-if="!editingLine && detailLine.manually_edited" class="audit"><span>آخرین ویرایش</span><strong>{{ auditText(detailLine, 'edited') }}</strong></article>
@@ -310,7 +310,7 @@
           <label><span>تخفیف همین خط</span><input v-model.number="lineForm.discount_amount" type="number"></label>
           <label><span>خالص همین خط</span><input v-model.number="lineForm.net_amount" type="number"></label>
           <label><span>هزینه مواد</span><input v-model.number="lineForm.material_cost" type="number"></label>
-          <label><span>مبنای درصد پورسانت</span><input v-model.number="lineForm.commission_base" type="number" @input="recalculateLineAmount"></label>
+          <label><span>مبنای درصد (از مبلغ پرداخت‌شده)</span><input v-model.number="lineForm.commission_base" type="number" @input="recalculateLineAmount"></label>
           <label>
             <span>نوع نرخ</span>
             <select v-model="lineForm.commission_type" @change="recalculateLineAmount">
@@ -386,7 +386,7 @@
           <article><span>مبلغ پرداخت‌شده</span><strong>{{ money(patientDetail.paid_amount) }}</strong></article>
           <article :class="{ 'adj-discount': patientDetail.discount_amount > 0 }"><span>تخفیف کل نوبت</span><strong>{{ money(patientDetail.discount_amount) }}</strong></article>
           <article><span>تعداد خدمات</span><strong>{{ Number(patientDetail.service_count).toLocaleString('fa-IR') }}</strong></article>
-          <article class="base-highlight"><span>جمع مبنای %</span><strong>{{ money(patientDetail.commission_base_total) }}</strong></article>
+          <article class="base-highlight"><span>جمع مبنای پرداخت</span><strong>{{ money(patientDetail.commission_base_total) }}</strong></article>
           <article><span>نرخ کلی</span><strong>{{ patientOverallRate(patientDetail) }}</strong></article>
           <article class="earned"><span>پورسانت این نیرو</span><strong>{{ money(patientDetail.commission_total) }}</strong></article>
         </div>
@@ -397,8 +397,8 @@
                 <th>خدمت</th>
                 <th>قیمت / خام</th>
                 <th>تخفیف</th>
-                <th>خالص</th>
-                <th>مبنای %</th>
+                <th>خالص کاتالوگ</th>
+                <th>مبنای % (پرداخت)</th>
                 <th>نرخ</th>
                 <th>پورسانت</th>
               </tr>

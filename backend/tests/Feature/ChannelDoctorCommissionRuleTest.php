@@ -102,8 +102,9 @@ class ChannelDoctorCommissionRuleTest extends TestCase
 
         $controller = app(AppointmentController::class);
         $controller->resyncResourceEarningsForSources(['تبلیغات ویژه']);
+        // ۱۰٪ پزشک و ۵٪ مشاور از ۹۵۰ پرداخت‌شده (نه از ۱۰۰۰ کاتالوگ)
         $this->assertDatabaseHas('resource_earning_lines', [
-            'appointment_id' => $appointment->id, 'resource_type' => 'doctor', 'earning_type' => 'base_commission', 'amount' => 100,
+            'appointment_id' => $appointment->id, 'resource_type' => 'doctor', 'earning_type' => 'base_commission', 'amount' => 95,
         ]);
 
         app(ChannelController::class)->store(Request::create('/api/channels', 'POST', [[
@@ -115,9 +116,9 @@ class ChannelDoctorCommissionRuleTest extends TestCase
             'exclude_referral_reward' => true,
         ]]));
 
-        $this->assertDatabaseHas('resource_earning_lines', ['appointment_id' => $appointment->id, 'resource_type' => 'doctor', 'amount' => 100]);
+        $this->assertDatabaseHas('resource_earning_lines', ['appointment_id' => $appointment->id, 'resource_type' => 'doctor', 'amount' => 95]);
         $this->assertDatabaseHas('resource_earning_lines', [
-            'appointment_id' => $appointment->id, 'resource_type' => 'staff', 'earning_type' => 'base_commission', 'amount' => 50,
+            'appointment_id' => $appointment->id, 'resource_type' => 'staff', 'earning_type' => 'base_commission', 'amount' => 48,
         ]);
         $this->assertSame(950.0, (float) $appointment->fresh()->amount);
         $this->assertSame('خدمت تست', $appointment->fresh()->services[0]['name']);
@@ -139,7 +140,7 @@ class ChannelDoctorCommissionRuleTest extends TestCase
         $blocked->update(['source' => 'تبلیغات ویژه']);
         $controller->resyncResourceEarningsForSources(['تبلیغات ویژه']);
         $this->assertDatabaseMissing('resource_earning_lines', ['appointment_id' => $blocked->id]);
-        $this->assertDatabaseHas('resource_earning_lines', ['appointment_id' => $appointment->id, 'resource_type' => 'doctor', 'amount' => 100]);
+        $this->assertDatabaseHas('resource_earning_lines', ['appointment_id' => $appointment->id, 'resource_type' => 'doctor', 'amount' => 95]);
 
         app(ChannelController::class)->store(Request::create('/api/channels', 'POST', [[
             'id' => $channel->id,
@@ -157,7 +158,7 @@ class ChannelDoctorCommissionRuleTest extends TestCase
         $this->assertTrue($restored->staff_commission_enabled);
         $this->assertTrue($restored->referral_reward_enabled);
         $this->assertDatabaseMissing('resource_earning_lines', ['appointment_id' => $blocked->id]);
-        $this->assertDatabaseHas('resource_earning_lines', ['appointment_id' => $restored->id, 'resource_type' => 'doctor', 'amount' => 100]);
+        $this->assertDatabaseHas('resource_earning_lines', ['appointment_id' => $restored->id, 'resource_type' => 'doctor', 'amount' => 95]);
         $this->assertSame(1, ResourceEarningLine::query()->where('resource_type', 'doctor')->where('earning_type', 'sales_bonus')->count());
         $this->assertSame(1, ResourceEarningLine::query()->where('appointment_id', $restored->id)->where('resource_type', 'staff')->count());
     }
