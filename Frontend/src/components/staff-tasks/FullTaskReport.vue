@@ -16,6 +16,25 @@
         />
         <kbd>Ctrl + /</kbd>
       </label>
+      <div v-if="state.canManage" class="ftr-sf" @click.stop>
+        <button type="button" class="ftr-sf-btn" :class="{ on: state.staffFilterIds.length }" title="فیلتر پرسنل" @click="showStaffFilter = !showStaffFilter">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span v-if="state.staffFilterIds.length">{{ fa(state.staffFilterIds.length) }}</span>
+        </button>
+        <div v-if="showStaffFilter" class="ftr-sf-pop">
+          <div class="ftr-sf-head"><b>نمایش وظایف</b><button type="button" @click="clearStaffFilter()">همه</button></div>
+          <div class="ftr-sf-list">
+            <button
+              v-for="p in state.staff"
+              :key="p.id"
+              type="button"
+              class="ftr-sf-chip"
+              :class="{ on: state.staffFilterIds.some(id => Number(id) === Number(p.id)) }"
+              @click="toggleStaffFilterId(p.id)"
+            >{{ p.name }}</button>
+          </div>
+        </div>
+      </div>
       <div class="ftr-period">
         <button
           v-for="p in periods"
@@ -180,10 +199,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
-import { fetchReport, PALETTE } from './useStaffTasks'
+import { useStaffTasks, fetchReport, PALETTE, taskMatchesStaffFilter, toggleStaffFilterId, clearStaffFilter } from './useStaffTasks'
 import { fa, isoToJdn, d2j } from './jalali'
 
 defineEmits(['back', 'open', 'edit'])
+const { state } = useStaffTasks()
+const showStaffFilter = ref(false)
 
 const periods = [
   { key: 'daily', label: 'روزانه', short: 'امروز' },
@@ -228,7 +249,7 @@ const idSet = computed(() => {
 })
 
 const filteredTasks = computed(() => {
-  let list = data.value?.tasks || []
+  let list = (data.value?.tasks || []).filter(t => taskMatchesStaffFilter(t))
   const set = idSet.value[filter.value]
   if (set && filter.value !== 'all') list = list.filter(t => set.has(Number(t.id)))
   const q = query.value.trim().toLowerCase()
@@ -244,6 +265,8 @@ const filteredTasks = computed(() => {
   return list
 })
 
+const overduePreview = computed(() => (data.value?.overdue_tasks || []).filter(t => taskMatchesStaffFilter(t)).slice(0, 5))
+
 const pageCount = computed(() => Math.max(1, Math.ceil(filteredTasks.value.length / pageSize)))
 const pageFrom = computed(() => (filteredTasks.value.length ? (page.value - 1) * pageSize + 1 : 0))
 const pageTo = computed(() => Math.min(filteredTasks.value.length, page.value * pageSize))
@@ -255,8 +278,6 @@ const pageButtons = computed(() => {
   const set = new Set([1, total, cur, cur - 1, cur + 1].filter(n => n >= 1 && n <= total))
   return [...set].sort((a, b) => a - b)
 })
-
-const overduePreview = computed(() => (data.value?.overdue_tasks || []).slice(0, 5))
 
 const donutSource = computed(() => chartData.value?.donut_chart || data.value?.donut_chart || [])
 const donutTotal = computed(() => donutSource.value.reduce((s, r) => s + (r.count || 0), 0) || (chartData.value?.summary?.all ?? data.value?.summary?.all ?? 0))
@@ -355,12 +376,19 @@ function onHotkey(e) {
     searchEl.value?.focus()
   }
 }
+function onDocClick(e) {
+  if (!e.target?.closest?.('.ftr-sf')) showStaffFilter.value = false
+}
 
 onMounted(async () => {
   document.addEventListener('keydown', onHotkey)
+  document.addEventListener('click', onDocClick)
   await Promise.all([loadMain(), loadChart(), loadPerf()])
 })
-onBeforeUnmount(() => document.removeEventListener('keydown', onHotkey))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onHotkey)
+  document.removeEventListener('click', onDocClick)
+})
 </script>
 
 <style scoped>
@@ -373,6 +401,16 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onHotkey))
 .ftr-search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:#eef2f7;border-radius:12px;padding:8px 12px;color:#64748b}
 .ftr-search input{flex:1;border:0;background:transparent;outline:0;font-family:inherit;font-size:13px;color:var(--text)}
 .ftr-search kbd{font-size:10px;font-weight:700;background:#fff;border:1px solid #dbe3ef;border-radius:6px;padding:2px 6px;color:#94a3b8}
+.ftr-sf{position:relative}
+.ftr-sf-btn{font-family:inherit;border:1px solid #dbe3ef;background:#fff;border-radius:10px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:#64748b;position:relative}
+.ftr-sf-btn.on{background:#f5f3ff;color:#7c3aed;border-color:#c4b5fd}
+.ftr-sf-btn span{position:absolute;top:2px;left:2px;min-width:14px;height:14px;border-radius:999px;background:#7c3aed;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ftr-sf-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;width:280px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.12);padding:10px;display:flex;flex-direction:column;gap:8px}
+.ftr-sf-head{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.ftr-sf-head button{border:0;background:#f5f3ff;color:#7c3aed;border-radius:8px;padding:4px 8px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.ftr-sf-list{display:flex;flex-wrap:wrap;gap:6px;max-height:180px;overflow:auto}
+.ftr-sf-chip{font-family:inherit;border:1px solid #e2e8f0;background:#f8fafc;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#475569}
+.ftr-sf-chip.on{border-color:#c4b5fd;background:#f5f3ff;color:#7c3aed}
 .ftr-period{display:flex;background:#fff;border:1px solid #dbe3ef;border-radius:10px;padding:2px;gap:2px}
 .ftr-period button{font-family:inherit;border:0;background:transparent;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#64748b}
 .ftr-period button.on{background:var(--purple-soft);color:var(--purple)}

@@ -27,7 +27,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="t in data.tasks" :key="t.id">
+              <tr v-for="t in visibleTasks" :key="t.id">
                 <td>{{ t.title }}</td>
                 <td>
                   <span class="who" v-for="a in t.assignees" :key="a.id">
@@ -44,7 +44,7 @@
                   <button type="button" class="ib" title="ویرایش" @click="$emit('edit', t.id)">✎</button>
                 </td>
               </tr>
-              <tr v-if="!data.tasks?.length"><td colspan="8">در این بازه وظیفه‌ای نیست.</td></tr>
+              <tr v-if="!visibleTasks.length"><td colspan="8">در این بازه وظیفه‌ای نیست.</td></tr>
             </tbody>
           </table>
         </div>
@@ -64,8 +64,8 @@
           <section>
             <h3>عقب‌افتاده</h3>
             <ul>
-              <li v-for="t in data.overdue_tasks" :key="t.id">{{ t.title }} · {{ (t.assignees||[]).map(a=>a.name).join('، ') }}</li>
-              <li v-if="!data.overdue_tasks?.length">موردی نیست.</li>
+              <li v-for="t in visibleOverdue" :key="t.id">{{ t.title }} · {{ (t.assignees||[]).map(a=>a.name).join('، ') }}</li>
+              <li v-if="!visibleOverdue.length">موردی نیست.</li>
             </ul>
           </section>
 
@@ -103,7 +103,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { fetchReport, PALETTE } from './useStaffTasks'
+import { fetchReport, PALETTE, taskMatchesStaffFilter } from './useStaffTasks'
 import { fa, isoToJdn, d2j, MONTHS } from './jalali'
 
 defineEmits(['close', 'open', 'edit'])
@@ -115,6 +115,8 @@ const periods = [
 ]
 const period = ref('monthly')
 const data = ref(null)
+const visibleTasks = computed(() => (data.value?.tasks || []).filter(t => taskMatchesStaffFilter(t)))
+const visibleOverdue = computed(() => (data.value?.overdue_tasks || []).filter(t => taskMatchesStaffFilter(t)))
 
 const summaryCards = computed(() => {
   const s = data.value?.summary || {}

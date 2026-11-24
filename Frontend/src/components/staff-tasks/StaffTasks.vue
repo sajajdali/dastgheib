@@ -28,6 +28,38 @@
           <button type="button" class="icon-btn" title="خروجی اکسل" @click="exportCsv">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>
           </button>
+          <div v-if="state.canManage" class="staff-filter-wrap">
+            <button
+              type="button"
+              class="icon-btn"
+              :class="{ on: state.staffFilterIds.length }"
+              title="فیلتر پرسنل"
+              @click.stop="showStaffFilter = !showStaffFilter"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <i v-if="state.staffFilterIds.length" class="sf-badge">{{ fa(state.staffFilterIds.length) }}</i>
+            </button>
+            <div v-if="showStaffFilter" class="staff-filter-pop" @click.stop>
+              <div class="sf-head">
+                <b>نمایش وظایف</b>
+                <button type="button" class="sf-clear" @click="clearStaffFilter()">همه</button>
+              </div>
+              <input v-if="state.staff.length > 10" v-model.trim="staffFilterQuery" type="search" class="sf-search" placeholder="جستجو…" />
+              <div class="sf-list">
+                <button
+                  v-for="p in staffFilterOptions"
+                  :key="p.id"
+                  type="button"
+                  class="sf-chip"
+                  :class="{ on: state.staffFilterIds.some(id => Number(id) === Number(p.id)) }"
+                  @click="toggleStaffFilterId(p.id)"
+                >
+                  <span class="av xs" :style="avStyle(p)"><img v-if="p.avatar_url" :src="p.avatar_url" alt="" /><template v-else>{{ (p.name||'?').charAt(0) }}</template></span>
+                  {{ p.name }}
+                </button>
+              </div>
+            </div>
+          </div>
 
           <button type="button" class="ghost-sm" @click="goToday">امروز</button>
 
@@ -224,6 +256,7 @@ const {
   state, openTaskId, bootstrap, loadTasks, loadHolidaysForRange, holidayInfo,
   saveTask, changeStatus, deleteTask, deleteAttachment, deleteVoice, deleteTaskImage,
   addVoice, statusById, canDeleteTask, canDeleteMediaItem,
+  taskMatchesStaffFilter, toggleStaffFilterId, clearStaffFilter,
 } = useStaffTasks()
 
 const today = todayJdn()
@@ -236,6 +269,14 @@ const details = ref(null)
 const showSettings = ref(false)
 const showReport = ref(false)
 const showFullReport = ref(false)
+const showStaffFilter = ref(false)
+const staffFilterQuery = ref('')
+const staffFilterOptions = computed(() => {
+  const q = staffFilterQuery.value.trim().toLowerCase()
+  const list = state.staff || []
+  if (!q) return list
+  return list.filter(p => String(p.name || '').toLowerCase().includes(q))
+})
 const statusMenu = ref(null)
 const recording = ref(false)
 let mediaRecorder = null
@@ -260,6 +301,7 @@ const isHoliday = (d) => {
   return !!(info && info.holiday)
 }
 const filteredTasks = computed(() => state.tasks.filter(t => {
+  if (!taskMatchesStaffFilter(t)) return false
   if (statusFilter.value == null) return true
   return t.statusId === statusFilter.value
 }))
@@ -617,6 +659,7 @@ onMounted(() => {
   timer = setInterval(() => refresh(), 60000)
   onDocClick = (e) => {
     if (e.target?.closest?.('.status-wrap')) return
+    if (!e.target?.closest?.('.staff-filter-wrap')) showStaffFilter.value = false
     statusMenu.value = null
   }
   document.addEventListener('click', onDocClick)
@@ -662,6 +705,17 @@ function onOpenTaskEvent(e) {
 .ghost-sm{font-family:inherit;height:34px;border-radius:10px;border:1px solid var(--st-border);background:var(--st-surface);color:var(--st-text-2);font-size:12px;font-weight:700;padding:0 10px;cursor:pointer}
 .ghost-sm.rec{background:var(--st-holiday);color:var(--st-red);border-color:var(--st-red)}
 .ghost-sm.report-full{border-color:var(--st-accent);color:var(--st-accent);background:var(--st-accent-soft);font-weight:800}
+.staff-filter-wrap{position:relative}
+.staff-filter-wrap .icon-btn{position:relative}
+.icon-btn.on{background:var(--st-accent-soft);color:var(--st-accent)}
+.sf-badge{position:absolute;top:2px;left:2px;min-width:14px;height:14px;border-radius:999px;background:var(--st-accent);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px;pointer-events:none}
+.staff-filter-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:40;width:min(320px,80vw);background:var(--st-surface);border:1px solid var(--st-border);border-radius:12px;box-shadow:var(--st-shadow);padding:10px;display:flex;flex-direction:column;gap:8px}
+.sf-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+.sf-clear{border:0;background:var(--st-muted-bg);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;color:var(--st-accent)}
+.sf-search{font-family:inherit;border:1px solid var(--st-border);border-radius:8px;padding:6px 8px;font-size:12px;outline-color:var(--st-accent)}
+.sf-list{display:flex;flex-wrap:wrap;gap:6px;max-height:200px;overflow:auto}
+.sf-chip{font-family:inherit;border:1px solid var(--st-border);background:var(--st-surface-2);border-radius:999px;padding:3px 8px 3px 3px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:700;color:var(--st-text-2)}
+.sf-chip.on{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent)}
 .navs,.zoom{display:flex;gap:2px}
 .nav{width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--st-text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
 .nav:hover{background:var(--st-muted-bg)}
@@ -694,7 +748,7 @@ function onOpenTaskEvent(e) {
 .note{margin:0;font-size:13px;line-height:1.6;color:var(--st-text-2)}
 .avs{display:flex;gap:3px;flex-wrap:wrap}
 .av{width:28px;height:28px;border-radius:50%;overflow:hidden;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#64748b}
-.av.sm{width:18px;height:18px;font-size:9px}
+.av.sm,.av.xs{width:18px;height:18px;font-size:9px}
 .av img{width:100%;height:100%;object-fit:cover}
 .trow{display:flex;align-items:center;justify-content:space-between;gap:4px}
 .status-wrap{position:relative}

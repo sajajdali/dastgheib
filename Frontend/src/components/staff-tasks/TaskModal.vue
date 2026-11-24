@@ -46,20 +46,18 @@
                 v-for="p in filteredStaff"
                 :key="p.id"
                 type="button"
-                class="asg-row"
+                class="asg-pick"
                 role="option"
                 :aria-selected="isSelected(p.id)"
                 :class="{ on: isSelected(p.id) }"
                 @click="toggleStaff(p.id)"
               >
-                <span class="asg-check" aria-hidden="true">
-                  <svg v-if="isSelected(p.id)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="m5 12 5 5L20 7"/></svg>
-                </span>
-                <span class="av" :style="avStyle(p)">
+                <span class="av xs" :style="avStyle(p)">
                   <img v-if="p.avatar_url" :src="p.avatar_url" alt="" />
                   <template v-else>{{ (p.name || '?').charAt(0) }}</template>
                 </span>
-                <span class="asg-row-name">{{ p.name }}</span>
+                <span class="asg-pick-name">{{ p.name }}</span>
+                <span v-if="isSelected(p.id)" class="asg-pick-check" aria-hidden="true">✓</span>
               </button>
               <p v-if="!filteredStaff.length" class="asg-empty muted">نتیجه‌ای یافت نشد</p>
             </div>
@@ -437,13 +435,12 @@ onBeforeUnmount(() => {
 .asg-empty.muted{padding:10px 4px;text-align:center}
 .asg-search{min-width:0}
 .asg-search-input{width:100%;box-sizing:border-box}
-.asg-list{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding:2px;border-radius:10px;background:var(--st-surface);border:1px solid var(--st-line);min-height:0}
-.asg-row{font-family:inherit;width:100%;border:0;background:transparent;border-radius:8px;padding:7px 8px;display:flex;align-items:center;gap:8px;cursor:pointer;text-align:right;color:var(--st-text-2);font-size:12.5px;font-weight:700}
-.asg-row:hover{background:var(--st-muted-bg)}
-.asg-row.on{background:var(--st-accent-soft);color:var(--st-accent)}
-.asg-check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--st-strong-border);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--st-surface);color:var(--st-accent)}
-.asg-row.on .asg-check{border-color:var(--st-accent);background:var(--st-accent);color:#fff}
-.asg-row-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asg-list{max-height:180px;overflow-y:auto;display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;padding:8px;border-radius:10px;background:var(--st-surface);border:1px solid var(--st-line);min-height:0}
+.asg-pick{font-family:inherit;border:1px solid var(--st-border);background:var(--st-surface);border-radius:999px;padding:3px 8px 3px 3px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--st-text-2);font-size:12px;font-weight:700;max-width:100%}
+.asg-pick:hover{background:var(--st-muted-bg)}
+.asg-pick.on{border-color:var(--st-accent);background:var(--st-accent-soft);color:var(--st-accent)}
+.asg-pick-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+.asg-pick-check{font-size:11px;font-weight:900;opacity:.9}
 .asg-meta{font-size:10.5px;font-weight:600;color:var(--st-muted);padding:0 2px}
 .av{width:26px;height:26px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;flex-shrink:0;background:#64748b}
 .av.xs{width:20px;height:20px;font-size:9px}

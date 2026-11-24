@@ -17,10 +17,29 @@ const state = reactive({
   canManage: true,
   canAdmin: false,
   currentUserId: null,
+  /** Manager-only: empty = all staff; otherwise show tasks assigned to any selected staff id. */
+  staffFilterIds: [],
   loading: false,
   loaded: false,
   error: '',
 })
+
+export function taskMatchesStaffFilter(task, staffFilterIds = state.staffFilterIds) {
+  if (!staffFilterIds?.length) return true
+  const ids = (task.staffIds || task.assignee_ids || task.assignees?.map(a => a.id) || []).map(Number)
+  return ids.some(id => staffFilterIds.map(Number).includes(id))
+}
+
+export function toggleStaffFilterId(id) {
+  const nid = Number(id)
+  const i = state.staffFilterIds.findIndex(x => Number(x) === nid)
+  if (i >= 0) state.staffFilterIds.splice(i, 1)
+  else state.staffFilterIds.push(nid)
+}
+
+export function clearStaffFilter() {
+  state.staffFilterIds.splice(0, state.staffFilterIds.length)
+}
 
 const holidayMonthCache = new Map()
 const openTaskId = ref(null)
@@ -291,6 +310,9 @@ export function useStaffTasks() {
     deleteTaskImage,
     canDeleteTask,
     canDeleteMediaItem,
+    taskMatchesStaffFilter,
+    toggleStaffFilterId,
+    clearStaffFilter,
     addVoice,
     addStatus,
     updateStatus,
