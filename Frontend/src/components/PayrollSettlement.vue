@@ -98,6 +98,7 @@
 
           <section class="payroll-tabs">
             <button type="button" :class="{ active: activeTab === 'lines' }" @click="activeTab = 'lines'">ریز محاسبات</button>
+            <button type="button" :class="{ active: activeTab === 'patients' }" @click="activeTab = 'patients'">مشاهده بر اساس کاربر</button>
             <button type="button" :class="{ active: activeTab === 'attendance' }" @click="activeTab = 'attendance'">حضور و غیاب</button>
             <button type="button" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">تنظیمات ذخیره‌شده</button>
           </section>
@@ -110,7 +111,10 @@
                   <th>نوع</th>
                   <th>شرح</th>
                   <th>خدمت/آیتم</th>
-                  <th>مبنا</th>
+                  <th>مبلغ خام</th>
+                  <th>تخفیف</th>
+                  <th>اضافه مبلغ</th>
+                  <th>مبنای %</th>
                   <th>نرخ</th>
                   <th>مبلغ</th>
                   <th>عملیات</th>
@@ -126,6 +130,9 @@
                     <small v-else-if="line.manually_edited" class="line-status edited">ویرایش‌شده</small>
                   </td>
                   <td>{{ line.service_name || line.inventory_name || '-' }}</td>
+                  <td>{{ isCommissionMoneyLine(line) ? money(line.gross_amount) : '-' }}</td>
+                  <td :class="{ 'adj-discount': lineDiscount(line) > 0 }">{{ isCommissionMoneyLine(line) ? money(lineDiscount(line)) : '-' }}</td>
+                  <td :class="{ 'adj-surcharge': lineSurcharge(line) > 0 }">{{ isCommissionMoneyLine(line) ? money(lineSurcharge(line)) : '-' }}</td>
                   <td>{{ money(line.commission_base) }}</td>
                   <td>{{ rateText(line) }}</td>
                   <td :class="{ positive: Number(line.amount) > 0, negative: Number(line.amount) < 0 }">{{ money(line.amount) }}</td>
@@ -137,7 +144,49 @@
                   </td>
                 </tr>
                 <tr v-if="!report.lines.length">
-                  <td colspan="8">برای این ماه ریزمحاسبه‌ای ثبت نشده است.</td>
+                  <td colspan="11">برای این ماه ریزمحاسبه‌ای ثبت نشده است.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section v-else-if="activeTab === 'patients'" class="payroll-table-wrap">
+            <table class="payroll-table patient-view-table">
+              <thead>
+                <tr>
+                  <th>ردیف</th>
+                  <th>روز</th>
+                  <th>نام بیمار</th>
+                  <th>مبلغ پرداخت‌شده</th>
+                  <th>تخفیف</th>
+                  <th>تعداد خدمات</th>
+                  <th>پورسانت این نیرو</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, index) in patientRows" :key="row.key">
+                  <td>{{ Number(index + 1).toLocaleString('fa-IR') }}</td>
+                  <td>{{ row.day_num ? Number(row.day_num).toLocaleString('fa-IR') : '-' }}</td>
+                  <td>
+                    <strong>{{ row.patient_name }}</strong>
+                    <small v-if="row.time" class="patient-row-meta">{{ row.time }}</small>
+                  </td>
+                  <td>{{ money(row.paid_amount) }}</td>
+                  <td :class="{ 'adj-discount': row.discount_amount > 0 }">{{ money(row.discount_amount) }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="service-count-btn"
+                      :title="`مشاهده ${Number(row.service_count).toLocaleString('fa-IR')} خدمت`"
+                      @click="openPatientDetail(row)"
+                    >
+                      {{ Number(row.service_count).toLocaleString('fa-IR') }}
+                    </button>
+                  </td>
+                  <td class="positive">{{ money(row.commission_total) }}</td>
+                </tr>
+                <tr v-if="!patientRows.length">
+                  <td colspan="7">برای این ماه بیماری با پورسانت خدمات ثبت نشده است.</td>
                 </tr>
               </tbody>
             </table>
@@ -234,17 +283,20 @@
           <article><span>روز نوبت/کارکرد</span><strong>{{ detailLine.day_num ? Number(detailLine.day_num).toLocaleString('fa-IR') : '-' }}</strong></article>
           <article><span>نوبت</span><strong>{{ appointmentTitle(detailLine) }}</strong></article>
           <article><span>خدمات نوبت</span><strong>{{ appointmentServices(detailLine) }}</strong></article>
-          <article><span>کل پول خدمات نوبت</span><strong>{{ appointmentTotal(detailLine) }}</strong></article>
+          <article v-if="!isAttendanceLine(detailLine)"><span>خالص نوبت (پس از تخفیف/اضافه)</span><strong>{{ appointmentNetTotal(detailLine) }}</strong></article>
+          <article v-if="appointmentDiscount(detailLine) > 0" class="adj-discount"><span>تخفیف کل نوبت</span><strong>{{ money(appointmentDiscount(detailLine)) }}</strong></article>
+          <article v-if="appointmentSurcharge(detailLine) > 0" class="adj-surcharge"><span>اضافه مبلغ کل نوبت</span><strong>{{ money(appointmentSurcharge(detailLine)) }}</strong></article>
           <article v-if="isAttendanceLine(detailLine)"><span>ورود / خروج</span><strong>{{ attendanceClockText(detailLine) }}</strong></article>
           <article v-if="isAttendanceLine(detailLine)"><span>ساعت کارکرد</span><strong>{{ Number(detailLine.calculation_snapshot?.worked_hours || 0).toLocaleString('fa-IR') }}</strong></article>
           <article v-if="isAttendanceLine(detailLine)"><span>اختلاف ساعت</span><strong>{{ Number(detailLine.calculation_snapshot?.diff_hours || 0).toLocaleString('fa-IR') }}</strong></article>
           <article v-if="!editingLine"><span>منبع قانون</span><strong>{{ lineSourceLabel(detailLine) }}</strong></article>
           <article v-if="!editingLine"><span>خدمت/آیتم موثر</span><strong>{{ detailLine.service_name || detailLine.inventory_name || '-' }}</strong></article>
           <article v-if="!editingLine"><span>مبلغ خام همین خط</span><strong>{{ money(detailLine.gross_amount) }}</strong></article>
-          <article v-if="!editingLine"><span>تخفیف همین خط</span><strong>{{ money(detailLine.discount_amount) }}</strong></article>
+          <article v-if="!editingLine" :class="{ 'adj-discount': lineDiscount(detailLine) > 0 }"><span>تخفیف همین خط</span><strong>{{ money(lineDiscount(detailLine)) }}</strong></article>
+          <article v-if="!editingLine && lineSurcharge(detailLine) > 0" class="adj-surcharge"><span>اضافه مبلغ همین خط</span><strong>{{ money(lineSurcharge(detailLine)) }}</strong></article>
           <article v-if="!editingLine"><span>خالص همین خط</span><strong>{{ money(detailLine.net_amount) }}</strong></article>
           <article v-if="!editingLine"><span>هزینه مواد</span><strong>{{ money(detailLine.material_cost) }}</strong></article>
-          <article v-if="!editingLine"><span>مبنای محاسبه</span><strong>{{ money(detailLine.commission_base) }}</strong></article>
+          <article v-if="!editingLine" class="base-highlight"><span>مبنای درصد پورسانت</span><strong>{{ money(detailLine.commission_base) }}</strong></article>
           <article v-if="!editingLine"><span>نرخ/نوع</span><strong>{{ rateText(detailLine) }}</strong></article>
           <article v-if="!editingLine" class="earned"><span>مبلغ بابت این مورد</span><strong>{{ money(detailLine.amount) }}</strong></article>
           <article v-if="!editingLine && detailLine.manually_edited" class="audit"><span>آخرین ویرایش</span><strong>{{ auditText(detailLine, 'edited') }}</strong></article>
@@ -258,7 +310,7 @@
           <label><span>تخفیف همین خط</span><input v-model.number="lineForm.discount_amount" type="number"></label>
           <label><span>خالص همین خط</span><input v-model.number="lineForm.net_amount" type="number"></label>
           <label><span>هزینه مواد</span><input v-model.number="lineForm.material_cost" type="number"></label>
-          <label><span>مبنای محاسبه</span><input v-model.number="lineForm.commission_base" type="number" @input="recalculateLineAmount"></label>
+          <label><span>مبنای درصد پورسانت</span><input v-model.number="lineForm.commission_base" type="number" @input="recalculateLineAmount"></label>
           <label>
             <span>نوع نرخ</span>
             <select v-model="lineForm.commission_type" @change="recalculateLineAmount">
@@ -318,6 +370,60 @@
         </section>
       </section>
     </div>
+
+    <div v-if="patientDetail" class="line-detail-overlay" @click.self="closePatientDetail">
+      <section class="line-detail-modal patient-detail-modal">
+        <header>
+          <div>
+            <small>مشاهده بر اساس کاربر</small>
+            <h2>{{ patientDetail.patient_name }}</h2>
+          </div>
+          <button type="button" @click="closePatientDetail">×</button>
+        </header>
+        <div class="line-detail-grid">
+          <article><span>روز</span><strong>{{ patientDetail.day_num ? Number(patientDetail.day_num).toLocaleString('fa-IR') : '-' }}</strong></article>
+          <article><span>ساعت نوبت</span><strong>{{ patientDetail.time || '-' }}</strong></article>
+          <article><span>مبلغ پرداخت‌شده</span><strong>{{ money(patientDetail.paid_amount) }}</strong></article>
+          <article :class="{ 'adj-discount': patientDetail.discount_amount > 0 }"><span>تخفیف کل نوبت</span><strong>{{ money(patientDetail.discount_amount) }}</strong></article>
+          <article><span>تعداد خدمات</span><strong>{{ Number(patientDetail.service_count).toLocaleString('fa-IR') }}</strong></article>
+          <article class="base-highlight"><span>جمع مبنای %</span><strong>{{ money(patientDetail.commission_base_total) }}</strong></article>
+          <article><span>نرخ کلی</span><strong>{{ patientOverallRate(patientDetail) }}</strong></article>
+          <article class="earned"><span>پورسانت این نیرو</span><strong>{{ money(patientDetail.commission_total) }}</strong></article>
+        </div>
+        <div class="audit-table-wrap patient-services-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>خدمت</th>
+                <th>قیمت / خام</th>
+                <th>تخفیف</th>
+                <th>خالص</th>
+                <th>مبنای %</th>
+                <th>نرخ</th>
+                <th>پورسانت</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="service in patientDetail.services" :key="service.key">
+                <td>{{ service.name }}</td>
+                <td>{{ service.gross_amount == null ? '-' : money(service.gross_amount) }}</td>
+                <td :class="{ 'adj-discount': Number(service.discount_amount || 0) > 0 }">{{ money(service.discount_amount) }}</td>
+                <td>{{ service.net_amount == null ? '-' : money(service.net_amount) }}</td>
+                <td>{{ service.commission_base == null ? '-' : money(service.commission_base) }}</td>
+                <td>{{ service.rate_text }}</td>
+                <td :class="{ positive: Number(service.amount || 0) > 0 }">{{ money(service.amount) }}</td>
+              </tr>
+              <tr v-if="!patientDetail.services.length">
+                <td colspan="7">خدمتی برای این نوبت ثبت نشده است.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="line-detail-actions">
+          <button type="button" class="cancel-line-btn" @click="closePatientDetail">بستن</button>
+        </footer>
+      </section>
+    </div>
   </section>
 </template>
 
@@ -344,6 +450,7 @@ export default {
       error: '',
       activeTab: 'lines',
       detailLine: null,
+      patientDetail: null,
       lineForm: {},
       editingLine: false,
       deletingLineId: null,
@@ -382,6 +489,60 @@ export default {
       return Array.isArray(this.report?.lines)
         ? this.report.lines.filter(line => types.includes(line.earning_type))
         : []
+    },
+    // گروه‌بندی ریزپورسانت‌ها بر اساس نوبت/بیمار — مثل وضوح نوبت‌دهی برای مبلغ و تخفیف.
+    patientRows() {
+      const lines = Array.isArray(this.report?.lines) ? this.report.lines : []
+      const groups = new Map()
+      lines.forEach(line => {
+        if (line.status === 'deleted' || this.isAttendanceLine(line) || !this.isCommissionMoneyLine(line)) return
+        const appointment = line.appointment || null
+        const appointmentId = appointment?.id || line.appointment_id || null
+        const key = appointmentId
+          ? `apt-${appointmentId}`
+          : `line-${line.id}`
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            appointment_id: appointmentId,
+            day_num: line.day_num || appointment?.day_num || null,
+            time: appointment?.time || '',
+            patient_name: appointment?.lastname || 'بیمار نامشخص',
+            paid_amount: Number(appointment?.amount || 0),
+            discount_amount: Math.max(0, Number(appointment?.discount || 0)),
+            original_amount: Number(appointment?.original_amount || 0),
+            appointment_services: Array.isArray(appointment?.services) ? appointment.services : [],
+            lines: []
+          })
+        }
+        const group = groups.get(key)
+        group.lines.push(line)
+        if (!group.day_num && line.day_num) group.day_num = line.day_num
+        if (!group.time && appointment?.time) group.time = appointment.time
+        if ((!group.paid_amount || !group.discount_amount) && appointment) {
+          group.paid_amount = Number(appointment.amount || 0)
+          group.discount_amount = Math.max(0, Number(appointment.discount || 0))
+          group.original_amount = Number(appointment.original_amount || 0)
+          group.appointment_services = Array.isArray(appointment.services) ? appointment.services : group.appointment_services
+        }
+      })
+      return Array.from(groups.values())
+        .map(group => {
+          const services = this.buildPatientServices(group)
+          return {
+            ...group,
+            services,
+            service_count: services.length,
+            commission_total: group.lines.reduce((sum, line) => sum + Number(line.amount || 0), 0),
+            commission_base_total: group.lines.reduce((sum, line) => sum + Number(line.commission_base || 0), 0)
+          }
+        })
+        .sort((a, b) => {
+          const dayA = Number(a.day_num || 99)
+          const dayB = Number(b.day_num || 99)
+          if (dayA !== dayB) return dayA - dayB
+          return String(a.patient_name).localeCompare(String(b.patient_name), 'fa')
+        })
     }
   },
   async mounted() {
@@ -404,6 +565,7 @@ export default {
       if (!this.selected) return
       this.loading = true
       this.error = ''
+      this.closePatientDetail()
       try {
         const params = new URLSearchParams({
           resource_type: this.selected.type,
@@ -423,9 +585,11 @@ export default {
     selectResource(resource) {
       this.selected = resource
       this.activeTab = 'lines'
+      this.closePatientDetail()
       this.loadReport()
     },
     openLineDetail(line) {
+      this.closePatientDetail()
       this.detailLine = line
       this.editingLine = false
       this.lineForm = {
@@ -442,6 +606,86 @@ export default {
         commission_value: Number(line.commission_value || 0),
         amount: Number(line.amount || 0)
       }
+    },
+    openPatientDetail(row) {
+      this.closeLineDetail()
+      this.patientDetail = row
+    },
+    closePatientDetail() {
+      this.patientDetail = null
+    },
+    // خدمت‌های نوبت + ردیف‌های پورسانت؛ خدمت بدون خط پورسانت (مثل تخفیف کامل) هم دیده می‌شود.
+    buildPatientServices(group) {
+      const lines = Array.isArray(group.lines) ? [...group.lines] : []
+      const used = new Set()
+      const appointmentServices = Array.isArray(group.appointment_services) ? group.appointment_services : []
+      const services = []
+
+      const matchLine = (service) => {
+        const inventoryId = service?.inventory_id != null ? String(service.inventory_id) : ''
+        const name = String(service?.name || '').trim()
+        const index = lines.findIndex((line, i) => {
+          if (used.has(i)) return false
+          const lineInventory = line.inventory_id != null
+            ? String(line.inventory_id)
+            : String(line.calculation_snapshot?.inventory_id || '')
+          if (inventoryId && lineInventory && lineInventory === inventoryId) return true
+          return name && String(line.service_name || line.inventory_name || '').trim() === name
+        })
+        if (index < 0) return null
+        used.add(index)
+        return lines[index]
+      }
+
+      appointmentServices.forEach((service, index) => {
+        const line = matchLine(service)
+        const discount = line
+          ? this.lineDiscount(line)
+          : Math.max(0, Number(service.discount || 0))
+        const gross = line ? Number(line.gross_amount || 0) : null
+        const net = line
+          ? Number(line.net_amount || 0)
+          : (gross == null ? null : Math.max(0, gross - discount))
+        services.push({
+          key: `svc-${service.line_id || service.inventory_id || index}`,
+          name: service.name || line?.service_name || 'خدمت',
+          gross_amount: gross,
+          discount_amount: discount,
+          net_amount: net,
+          commission_base: line ? Number(line.commission_base || 0) : 0,
+          rate_text: line ? this.rateText(line) : '۰٪',
+          amount: line ? Number(line.amount || 0) : 0,
+          line
+        })
+      })
+
+      lines.forEach((line, index) => {
+        if (used.has(index)) return
+        services.push({
+          key: `earn-${line.id}`,
+          name: line.service_name || line.inventory_name || 'خدمت',
+          gross_amount: Number(line.gross_amount || 0),
+          discount_amount: this.lineDiscount(line),
+          net_amount: Number(line.net_amount || 0),
+          commission_base: Number(line.commission_base || 0),
+          rate_text: this.rateText(line),
+          amount: Number(line.amount || 0),
+          line
+        })
+      })
+
+      return services
+    },
+    patientOverallRate(row) {
+      if (!row) return '-'
+      const lines = Array.isArray(row.lines) ? row.lines.filter(line => line.commission_type === 'percent') : []
+      if (!lines.length) {
+        const any = Array.isArray(row.lines) ? row.lines[0] : null
+        return any ? this.rateText(any) : '-'
+      }
+      const values = [...new Set(lines.map(line => Number(line.commission_value || 0)))]
+      if (values.length === 1) return `${values[0].toLocaleString('fa-IR')}٪`
+      return values.map(value => `${value.toLocaleString('fa-IR')}٪`).join(' / ')
     },
     // همان فرمول سمت سرور برای پورسانت درصدی و ثابت؛ مبلغ نهایی بعد از آن هنوز دستی قابل تغییر است.
     recalculateLineAmount() {
@@ -588,13 +832,49 @@ export default {
         return [service.name, ...addons].filter(Boolean).join(' + ')
       }).filter(Boolean).join('، ') || '-'
     },
-    appointmentTotal(line) {
-      if (this.isAttendanceLine(line)) return '-'
-      const appointment = line.appointment
-      if (!appointment) return '-'
+    isCommissionMoneyLine(line) {
+      if (!line || this.isAttendanceLine(line)) return false
+      return ['base_commission', 'inventory_commission', 'inventory_default_commission', 'section_commission', 'referral_commission', 'sales_bonus']
+        .includes(line.earning_type)
+        || Number(line.gross_amount || 0) > 0
+        || Number(line.discount_amount || 0) > 0
+        || Number(line.net_amount || 0) > 0
+    },
+    lineDiscount(line) {
+      return Math.max(0, Number(line?.discount_amount || 0))
+    },
+    // اضافه مبلغ در snapshot جدا ذخیره نمی‌شود؛ از خالص − خام + تخفیف به‌دست می‌آید.
+    lineSurcharge(line) {
+      if (!line || this.isAttendanceLine(line)) return 0
+      const gross = Number(line.gross_amount || 0)
+      const discount = this.lineDiscount(line)
+      const net = Number(line.net_amount || 0)
+      return Math.max(0, Math.round(net - gross + discount))
+    },
+    appointmentDiscount(line) {
+      if (this.isAttendanceLine(line)) return 0
+      return Math.max(0, Number(line?.appointment?.discount || 0))
+    },
+    appointmentSurcharge(line) {
+      if (this.isAttendanceLine(line)) return 0
+      const appointment = line?.appointment
+      if (!appointment) return 0
       const original = Number(appointment.original_amount || 0)
       const amount = Number(appointment.amount || 0)
-      return this.money(original || amount)
+      const discount = Number(appointment.discount || 0)
+      if (!original && !amount) return 0
+      return Math.max(0, Math.round(amount - original + discount))
+    },
+    // خالص قابل‌پرداخت نوبت؛ دیگر مبلغ کاتالوگ قبل از تخفیف نشان داده نمی‌شود تا با مبنای پورسانت اشتباه نشود.
+    appointmentNetTotal(line) {
+      if (this.isAttendanceLine(line)) return '-'
+      const appointment = line?.appointment
+      if (!appointment) return '-'
+      const amount = Number(appointment.amount || 0)
+      const original = Number(appointment.original_amount || 0)
+      const discount = Number(appointment.discount || 0)
+      const net = amount || Math.max(0, original - discount)
+      return this.money(net)
     },
     auditEvents(line) {
       return Array.isArray(line?.audit_events) ? line.audit_events : []
@@ -650,8 +930,12 @@ export default {
 .payroll-state{min-height:420px;display:flex;align-items:center;justify-content:center;gap:10px;color:#64748b}.payroll-state.error{color:#b91c1c}.payroll-state i{width:24px;height:24px;border:3px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}
 .payroll-person{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.payroll-person small{font-weight:900;color:#2563eb}.payroll-person h2{margin:3px 0 0;font-size:21px}.payroll-person>strong{padding:8px 12px;border-radius:8px;background:#f1f5f9}
 .payroll-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.payroll-summary article{display:grid;gap:6px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}.payroll-summary .total{grid-column:span 2;background:#ecfdf5;border-color:#bbf7d0}.payroll-summary span{font-size:11px;font-weight:900;color:#64748b}.payroll-summary strong{font-size:19px;color:#0f172a}.payroll-summary .total strong{font-size:26px;color:#047857}
-.payroll-tabs{display:flex;gap:8px;margin:16px 0}.payroll-tabs button{padding:0 16px}
-.payroll-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:8px}.payroll-table{width:100%;border-collapse:collapse;min-width:850px}.payroll-table th,.payroll-table td{padding:11px;border-bottom:1px solid #edf2f7;text-align:right;font-size:12px}.payroll-table th{background:#f8fafc;color:#64748b;font-weight:900}.payroll-table td.positive{color:#047857;font-weight:900}.payroll-table td.negative{color:#b91c1c;font-weight:900}
+.payroll-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.payroll-tabs button{padding:0 16px}
+.payroll-table-wrap{overflow:auto;border:1px solid #e2e8f0;border-radius:8px}.payroll-table{width:100%;border-collapse:collapse;min-width:1100px}.payroll-table.patient-view-table{min-width:760px}.payroll-table th,.payroll-table td{padding:11px;border-bottom:1px solid #edf2f7;text-align:right;font-size:12px}.payroll-table th{background:#f8fafc;color:#64748b;font-weight:900}.payroll-table td.positive{color:#047857;font-weight:900}.payroll-table td.negative{color:#b91c1c;font-weight:900}.payroll-table td.adj-discount,.line-detail-grid article.adj-discount{color:#b45309;font-weight:900}.line-detail-grid article.adj-discount{background:#fff7ed;border-color:#fed7aa}.payroll-table td.adj-surcharge,.line-detail-grid article.adj-surcharge{color:#0369a1;font-weight:900}.line-detail-grid article.adj-surcharge{background:#f0f9ff;border-color:#bae6fd}.line-detail-grid article.base-highlight{background:#eff6ff;border-color:#bfdbfe}.line-detail-grid article.base-highlight strong{color:#1d4ed8;font-size:15px}
+.patient-row-meta{display:block;margin-top:3px;color:#64748b;font-size:11px;font-weight:700}
+.service-count-btn{min-width:42px;height:32px;padding:0 12px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:900;cursor:pointer}
+.service-count-btn:hover{background:#dbeafe}
+.patient-detail-modal{width:min(980px,96vw)}.patient-services-wrap{margin-top:4px}.patient-services-wrap table{width:100%;min-width:720px;border-collapse:collapse}.patient-services-wrap th,.patient-services-wrap td{padding:10px;border-bottom:1px solid #edf2f7;text-align:right;font-size:12px}.patient-services-wrap th{background:#f8fafc;color:#64748b;font-weight:900}
 .payroll-table tr.edited td{background:#fffbeb}.payroll-table tr.deleted td{background:#f8fafc;color:#94a3b8;text-decoration:line-through}.line-status{display:inline-block;margin-right:7px;padding:2px 6px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:900;text-decoration:none}.line-status.edited{background:#fef3c7;color:#b45309}
 .line-actions{display:flex;align-items:center;gap:6px;min-width:66px}.line-actions button{width:28px;height:28px;border-radius:8px;cursor:pointer;font-weight:900}.info-btn{border:1px solid #bfdbfe;background:#eff6ff;color:#2563eb}.delete-line-btn{border:1px solid #fecaca;background:#fff1f2;color:#dc2626;font-size:18px;line-height:1}.restore-line-btn{border:1px solid #bbf7d0;background:#ecfdf5;color:#047857}.delete-line-btn:disabled,.restore-line-btn:disabled{opacity:.45;cursor:not-allowed}.delete-line-btn.wide,.restore-line-btn.wide{width:auto;height:40px;padding:0 16px;font-size:13px}
 .payroll-attendance{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.payroll-attendance article{display:grid;gap:5px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}.payroll-attendance article.overtime{background:#ecfdf5}.payroll-attendance article.shortage,.payroll-attendance article.absent{background:#fef2f2}.payroll-attendance b{color:#2563eb}.payroll-attendance span,.payroll-attendance small{color:#64748b;font-size:11px}
@@ -686,6 +970,12 @@ body.dark .line-detail-modal,#app.dark .line-detail-modal{background:#172033;col
 body.dark .line-detail-modal header button,body.dark .cancel-line-btn,#app.dark .line-detail-modal header button,#app.dark .cancel-line-btn{background:#1e293b;color:#94a3b8}
 body.dark .line-detail-grid article,#app.dark .line-detail-grid article{background:#1e293b;border-color:#334155}
 body.dark .line-detail-grid article.earned,#app.dark .line-detail-grid article.earned{background:#052e16;border-color:#14532d}
+body.dark .line-detail-grid article.adj-discount,#app.dark .line-detail-grid article.adj-discount{background:#431407;border-color:#9a3412}
+body.dark .line-detail-grid article.adj-surcharge,#app.dark .line-detail-grid article.adj-surcharge{background:#0c4a6e;border-color:#0369a1}
+body.dark .line-detail-grid article.base-highlight,#app.dark .line-detail-grid article.base-highlight{background:#1e3a5f;border-color:#3b82f6}
+body.dark .line-detail-grid article.base-highlight strong,#app.dark .line-detail-grid article.base-highlight strong{color:#93c5fd}
+body.dark .payroll-table td.adj-discount,#app.dark .payroll-table td.adj-discount{color:#fdba74}
+body.dark .payroll-table td.adj-surcharge,#app.dark .payroll-table td.adj-surcharge{color:#7dd3fc}
 body.dark .line-detail-grid article.audit,#app.dark .line-detail-grid article.audit{background:#422006;border-color:#713f12}
 body.dark .line-detail-grid article.deleted,#app.dark .line-detail-grid article.deleted{background:#450a0a;border-color:#7f1d1d}
 body.dark .line-detail-grid strong,#app.dark .line-detail-grid strong{color:#f8fafc}
@@ -693,6 +983,11 @@ body.dark .line-edit-form input,body.dark .line-edit-form select,#app.dark .line
 body.dark .line-audit-list,#app.dark .line-audit-list{border-color:#334155}
 body.dark .line-audit-list th,#app.dark .line-audit-list th{background:#1e293b;color:#94a3b8}
 body.dark .info-btn,#app.dark .info-btn{background:#1e3a5f;border-color:#334155;color:#93c5fd}
+body.dark .service-count-btn,#app.dark .service-count-btn{background:#1e3a5f;border-color:#334155;color:#93c5fd}
+body.dark .service-count-btn:hover,#app.dark .service-count-btn:hover{background:#1e40af}
+body.dark .patient-row-meta,#app.dark .patient-row-meta{color:#94a3b8}
+body.dark .patient-services-wrap th,#app.dark .patient-services-wrap th{background:#1e293b;color:#94a3b8}
+body.dark .patient-services-wrap td,#app.dark .patient-services-wrap td{border-color:#334155;color:#e2e8f0}
 body.dark .delete-line-btn,#app.dark .delete-line-btn{background:#450a0a;border-color:#7f1d1d;color:#fca5a5}
 body.dark .restore-line-btn,#app.dark .restore-line-btn{background:#052e16;border-color:#14532d;color:#4ade80}
 body.dark .line-status.edited,#app.dark .line-status.edited{background:#422006;color:#fbbf24}
