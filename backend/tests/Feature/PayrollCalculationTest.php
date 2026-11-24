@@ -147,6 +147,30 @@ class PayrollCalculationTest extends TestCase
         $this->assertNotEquals(24700000.0, $bases[0]);
     }
 
+    public function test_independent_addon_payment_still_counts_toward_main_service_commission(): void
+    {
+        Inventory::query()->create(['name' => 'co2 fractional', 'amount' => 10000000]);
+        $this->staff->update(['new_customer_bonus' => 2, 'existing_customer_bonus' => 0]);
+        // بیمار ۱۳M پرداخته: ۱۰M خدمت + ۳M جانبی مستقل؛ جانبی ردیف پورسانت ندارد ولی نباید سهم پرداخت را ببلعد.
+        $visit = Appointment::query()->create([
+            'month' => '1405-08', 'day_num' => 25, 'done' => 'انجام شد', 'new_customer' => true,
+            'doctor' => $this->doctor->name, 'consultant' => $this->staff->name,
+            'amount' => 13000000, 'original_amount' => 13000000, 'discount' => 0,
+            'payment_details' => ['ledger_total' => 13000000, 'card' => 13000000],
+            'services' => [[
+                'name' => 'co2 fractional', 'cc' => 1, 'doctor' => $this->doctor->name, 'consultant' => $this->staff->name,
+                'addons' => [['name' => 'پماد', 'cc' => 1, 'addon_definition_id' => 2, 'discount' => 0]],
+            ]],
+        ]);
+
+        $this->resync();
+
+        $staffLine = ResourceEarningLine::query()->where('appointment_id', $visit->id)->where('resource_type', 'staff')->firstOrFail();
+        $this->assertSame(13000000.0, (float) $staffLine->commission_base);
+        $this->assertSame(260000.0, (float) $staffLine->amount);
+        $this->assertSame(0, ResourceEarningLine::query()->where('appointment_id', $visit->id)->where('service_name', 'پماد')->count());
+    }
+
     public function test_only_done_appointments_with_quantity_earn_commission(): void
     {
         Inventory::query()->create(['name' => 'ویزیت', 'amount' => 500000]);

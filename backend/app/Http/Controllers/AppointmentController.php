@@ -2955,28 +2955,25 @@ class AppointmentController extends Controller
 
     /**
      * تخصیص مبلغ پرداخت‌شده بین خطوط خدمت به نسبت خالص کاتالوگ هر خط (قیمت×تعداد − تخفیف + اضافه‌مبلغ).
-     * خطوط با خالص صفر سهم ندارند؛ اگر همه صفر باشند ولی پرداخت مثبت باشد، سهم مساوی بین خطوط با تعداد > ۰.
-     * باقیماندهٔ گرد کردن ریالی به بزرگ‌ترین وزن داده می‌شود تا جمع سهم‌ها دقیقاً برابر پرداخت شود.
+     * فقط خطوط قابل‌پورسانت وزن می‌گیرند (جانبی مستقل با addon_definition_id وزن صفر دارد تا پول پرداخت‌شده‌اش
+     * به خدمات اصلی برسد؛ خودِ جانبی همچنان ردیف پورسانت نمی‌سازد).
+     * خطوط با خالص صفر سهم ندارند؛ اگر همه صفر باشند ولی پرداخت مثبت باشد، سهم مساوی بین خطوط قابل‌پورسانت.
+     * باقیماندهٔ گرد کردن ریالی به بزرگ‌ترین وزن داده می‌شود تا جمع سهم‌های قابل‌پورسانت دقیقاً برابر پرداخت شود.
      *
      * @return array<int, float> index => paid share
      */
     private function allocatePaidAcrossServiceLines(float $paid, array $lines, $inventories): array
     {
         $paid = max(0, round($paid));
-        $addonIds = collect($lines)->pluck('addon_definition_id')->filter()->unique()->values();
-        $addons = $addonIds->isEmpty()
-            ? collect()
-            : InventoryAddonDefinition::query()->whereIn('id', $addonIds)->get()->keyBy('id');
 
         $weights = [];
         foreach ($lines as $index => $line) {
-            if (($line['quantity'] ?? 0) <= 0) {
+            // جانبی مستقل پورسانت ندارد؛ نباید سهم پرداخت را «ببلعد» و از مبنای خدمات اصلی کم کند.
+            if (! empty($line['addon_definition_id']) || ($line['quantity'] ?? 0) <= 0) {
                 $weights[$index] = 0.0;
                 continue;
             }
-            $unit = ! empty($line['addon_definition_id'])
-                ? (float) ($addons->get($line['addon_definition_id'])?->amount ?? 0)
-                : (float) ($inventories->get($line['name'])?->amount ?? 0);
+            $unit = (float) ($inventories->get($line['name'])?->amount ?? 0);
             $gross = $unit * (float) $line['quantity'];
             $discount = min((float) ($line['discount'] ?? 0), $gross);
             $weights[$index] = max(0, $gross + (float) ($line['surcharge'] ?? 0) - $discount);
@@ -2989,7 +2986,10 @@ class AppointmentController extends Controller
         }
 
         if ($totalWeight <= 0) {
-            $eligible = collect($lines)->filter(fn ($line) => ($line['quantity'] ?? 0) > 0)->keys()->all();
+            $eligible = collect($lines)
+                ->filter(fn ($line) => empty($line['addon_definition_id']) && ($line['quantity'] ?? 0) > 0)
+                ->keys()
+                ->all();
             if ($eligible === []) {
                 return $shares;
             }
