@@ -45,6 +45,8 @@ class BeautyAnnotationController extends Controller
         return response()->json([
             'areas' => $areas,
             'problems' => $this->faceProblems(),
+            'regions' => $this->regionCatalog(),
+            'templates' => $this->templateCatalog(),
         ]);
     }
 
@@ -237,8 +239,14 @@ class BeautyAnnotationController extends Controller
 
     public function show(Request $request, Patient $patient, CustomerLevelService $levels)
     {
-        // New beauty points are placed only on the patient's profile photo.
         $profilePhoto = $this->profilePhotoPayload($patient);
+        $region = BeautyAnnotation::isValidRegion($request->query('region'))
+            ? (string) $request->query('region')
+            : BeautyAnnotation::REGION_FACE;
+        $requestedCanvas = strtolower(trim((string) $request->query('canvas', '')));
+        if (! in_array($requestedCanvas, ['photo', 'template', 'media', ''], true)) {
+            $requestedCanvas = '';
+        }
 
         // Older points were saved on regular patient photos. Those photos stay
         // reachable (only the ones that actually carry points) so the saved
@@ -258,38 +266,83 @@ class BeautyAnnotationController extends Controller
                 ->whereIn('id', $legacyMediaIds)
                 ->latest()
                 ->get()
-                ->map(fn (PatientMedia $media) => [...$media->toArray(), 'source' => BeautyAnnotation::SOURCE_MEDIA])
+                ->map(fn (PatientMedia $media) => [
+                    ...$media->toArray(),
+                    'source' => BeautyAnnotation::SOURCE_MEDIA,
+                    'region' => BeautyAnnotation::REGION_FACE,
+                    'is_template' => false,
+                ])
                 ->values();
 
         $requestedMediaId = $request->integer('media_id');
-        $selectedPhoto = ($requestedMediaId ? $legacyPhotos->firstWhere('id', $requestedMediaId) : null)
-            ?: $profilePhoto;
+        $legacySelected = $requestedMediaId
+            ? $legacyPhotos->firstWhere('id', $requestedMediaId)
+            : null;
 
-        $annotations = collect();
-        if ($selectedPhoto) {
-            $annotationsQuery = BeautyAnnotation::query()
-                ->with('creator:id,name')
-                ->where('patient_id', $patient->id)
-                ->latest();
+        $regionCounts = BeautyAnnotation::query()
+            ->where('patient_id', $patient->id)
+            ->selectRaw('region, photo_source, COUNT(*) as total')
+            ->groupBy('region', 'photo_source')
+            ->get();
 
-            if ($selectedPhoto['source'] === BeautyAnnotation::SOURCE_PROFILE) {
-                $annotationsQuery->where('photo_source', BeautyAnnotation::SOURCE_PROFILE);
+        $regions = collect(BeautyAnnotation::REGIONS)->map(function (string $label, string $key) use ($regionCounts, $profilePhoto) {
+            $forRegion = $regionCounts->where('region', $key);
+            $photoCount = (int) $forRegion->whereIn('photo_source', [
+                BeautyAnnotation::SOURCE_PROFILE,
+                BeautyAnnotation::SOURCE_MEDIA,
+            ])->sum('total');
+            $templateCount = (int) $forRegion->where('photo_source', BeautyAnnotation::SOURCE_TEMPLATE)->sum('total');
+
+            return [
+                'key' => $key,
+                'label' => $label,
+                'point_count' => $photoCount + $templateCount,
+                'photo_point_count' => $photoCount,
+                'template_point_count' => $templateCount,
+                'has_real_photo' => $key === BeautyAnnotation::REGION_FACE && (bool) $profilePhoto,
+            ];
+        })->values();
+
+        if ($legacySelected) {
+            $selectedPhoto = $legacySelected;
+            $selectedCanvas = 'media';
+            $region = BeautyAnnotation::REGION_FACE;
+        } else {
+            $canUseRealPhoto = $region === BeautyAnnotation::REGION_FACE && (bool) $profilePhoto;
+            if ($requestedCanvas === 'template' || ! $canUseRealPhoto) {
+                $selectedPhoto = $this->templatePayload($region);
+                $selectedCanvas = 'template';
             } else {
-                $annotationsQuery
-                    ->where('photo_source', BeautyAnnotation::SOURCE_MEDIA)
-                    ->where('patient_media_id', $selectedPhoto['id']);
+                $selectedPhoto = $profilePhoto;
+                $selectedCanvas = 'photo';
             }
-
-            if ($request->filled('date_from')) {
-                $annotationsQuery->whereDate('created_at', '>=', $request->date_from);
-            }
-
-            if ($request->filled('date_to')) {
-                $annotationsQuery->whereDate('created_at', '<=', $request->date_to);
-            }
-
-            $annotations = $annotationsQuery->get();
         }
+
+        $annotationsQuery = BeautyAnnotation::query()
+            ->with('creator:id,name')
+            ->where('patient_id', $patient->id)
+            ->where('region', $region)
+            ->latest();
+
+        if ($selectedCanvas === 'photo') {
+            $annotationsQuery->where('photo_source', BeautyAnnotation::SOURCE_PROFILE);
+        } elseif ($selectedCanvas === 'template') {
+            $annotationsQuery->where('photo_source', BeautyAnnotation::SOURCE_TEMPLATE);
+        } else {
+            $annotationsQuery
+                ->where('photo_source', BeautyAnnotation::SOURCE_MEDIA)
+                ->where('patient_media_id', $selectedPhoto['id'] ?? null);
+        }
+
+        if ($request->filled('date_from')) {
+            $annotationsQuery->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $annotationsQuery->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $annotations = $annotationsQuery->get();
 
         $levels->decorate(collect([$patient]));
 
@@ -297,7 +350,12 @@ class BeautyAnnotationController extends Controller
             'patient' => $this->hidePatientPhones($patient, $request),
             'profile_photo' => $profilePhoto,
             'legacy_photos' => $legacyPhotos,
+            'regions' => $regions,
+            'templates' => $this->templateCatalog(),
+            'selected_region' => $region,
+            'selected_canvas' => $selectedCanvas,
             'selected_photo' => $selectedPhoto,
+            'can_annotate' => in_array($selectedCanvas, ['photo', 'template'], true),
             'annotations' => $annotations->map(fn (BeautyAnnotation $annotation) => $this->formatAnnotation($annotation))->values(),
             'photo_timeline' => $this->photoTimeline($patient),
         ]);
@@ -386,11 +444,45 @@ class BeautyAnnotationController extends Controller
         return [
             'id' => BeautyAnnotation::SOURCE_PROFILE,
             'source' => BeautyAnnotation::SOURCE_PROFILE,
+            'region' => BeautyAnnotation::REGION_FACE,
             'url' => $patient->profile_photo_url,
             'thumbnail_url' => $patient->profile_thumbnail_url,
             'photo_angle_label' => 'عکس پروفایل',
             'created_at' => optional($patient->updated_at)->toDateTimeString(),
+            'is_template' => false,
         ];
+    }
+
+    private function templatePayload(string $region): array
+    {
+        $region = BeautyAnnotation::isValidRegion($region) ? $region : BeautyAnnotation::REGION_FACE;
+        $label = BeautyAnnotation::REGIONS[$region] ?? $region;
+
+        return [
+            'id' => 'template:'.$region,
+            'source' => BeautyAnnotation::SOURCE_TEMPLATE,
+            'region' => $region,
+            'url' => '/beauty-templates/'.$region.'.svg',
+            'thumbnail_url' => null,
+            'photo_angle_label' => 'قالب '.$label,
+            'created_at' => null,
+            'is_template' => true,
+        ];
+    }
+
+    private function regionCatalog(): array
+    {
+        return collect(BeautyAnnotation::REGIONS)
+            ->map(fn (string $label, string $key) => ['key' => $key, 'label' => $label])
+            ->values()
+            ->all();
+    }
+
+    private function templateCatalog(): array
+    {
+        return collect(BeautyAnnotation::regionKeys())
+            ->mapWithKeys(fn (string $key) => [$key => $this->templatePayload($key)])
+            ->all();
     }
 
     private function hidePatientPhones(?Patient $patient, Request $request): ?Patient
@@ -407,9 +499,11 @@ class BeautyAnnotationController extends Controller
 
     public function store(Request $request, Patient $patient)
     {
+        $regionKeys = implode(',', BeautyAnnotation::regionKeys());
         $data = $request->validate([
-            'photo_source' => 'nullable|in:'.BeautyAnnotation::SOURCE_MEDIA.','.BeautyAnnotation::SOURCE_PROFILE,
-            'patient_media_id' => 'required_unless:photo_source,'.BeautyAnnotation::SOURCE_PROFILE.'|nullable|integer|exists:patient_media,id',
+            'photo_source' => 'nullable|in:'.BeautyAnnotation::SOURCE_MEDIA.','.BeautyAnnotation::SOURCE_PROFILE.','.BeautyAnnotation::SOURCE_TEMPLATE,
+            'region' => 'nullable|in:'.$regionKeys,
+            'patient_media_id' => 'nullable|integer|exists:patient_media,id',
             'x_percent' => 'required|numeric|min:0|max:100',
             'y_percent' => 'required|numeric|min:0|max:100',
             'area' => 'nullable|string|max:120',
@@ -421,16 +515,29 @@ class BeautyAnnotationController extends Controller
             'annotation_date' => 'nullable|date',
         ]);
 
-        $data['photo_source'] = $data['photo_source'] ?? BeautyAnnotation::SOURCE_MEDIA;
+        $data['photo_source'] = $data['photo_source'] ?? BeautyAnnotation::SOURCE_TEMPLATE;
+        $data['region'] = BeautyAnnotation::isValidRegion($data['region'] ?? null)
+            ? $data['region']
+            : BeautyAnnotation::REGION_FACE;
 
         if ($data['photo_source'] === BeautyAnnotation::SOURCE_PROFILE) {
             if (! $patient->profile_photo_path) {
                 return response()->json([
-                    'message' => 'برای ثبت نقطه، ابتدا عکس پروفایل بیمار را آپلود کنید.',
+                    'message' => 'برای ثبت نقطه روی عکس واقعی، ابتدا عکس پروفایل بیمار را آپلود کنید. می‌توانید فعلاً روی قالب پیش‌فرض نقطه بگذارید.',
                 ], 422);
             }
+            // عکس پروفایل فقط برای نمای صورت معنا دارد
+            $data['region'] = BeautyAnnotation::REGION_FACE;
+            $data['patient_media_id'] = null;
+        } elseif ($data['photo_source'] === BeautyAnnotation::SOURCE_TEMPLATE) {
+            // نقاط قالب حتی بعد از آپلود عکس پروفایل دست‌نخورده می‌مانند
             $data['patient_media_id'] = null;
         } else {
+            if (empty($data['patient_media_id'])) {
+                return response()->json([
+                    'message' => 'برای نقطه روی عکس پرونده، شناسه عکس لازم است.',
+                ], 422);
+            }
             PatientMedia::query()
                 ->where('patient_id', $patient->id)
                 ->where('media_type', 'image')
@@ -458,9 +565,11 @@ class BeautyAnnotationController extends Controller
     {
         abort_unless($annotation->patient_id === $patient->id, 404);
 
+        $regionKeys = implode(',', BeautyAnnotation::regionKeys());
         $data = $request->validate([
             'x_percent' => 'sometimes|numeric|min:0|max:100',
             'y_percent' => 'sometimes|numeric|min:0|max:100',
+            'region' => 'sometimes|in:'.$regionKeys,
             'area' => 'nullable|string|max:120',
             'problem' => 'nullable|string|max:160',
             'note' => 'nullable|string',
@@ -498,11 +607,19 @@ class BeautyAnnotationController extends Controller
 
     private function formatAnnotation(BeautyAnnotation $annotation): array
     {
+        $source = $annotation->photo_source ?: BeautyAnnotation::SOURCE_MEDIA;
+        $region = BeautyAnnotation::isValidRegion($annotation->region)
+            ? $annotation->region
+            : BeautyAnnotation::REGION_FACE;
+
         return [
             'id' => $annotation->id,
             'patient_id' => $annotation->patient_id,
             'patient_media_id' => $annotation->patient_media_id,
-            'photo_source' => $annotation->photo_source ?: BeautyAnnotation::SOURCE_MEDIA,
+            'photo_source' => $source,
+            'region' => $region,
+            'region_label' => BeautyAnnotation::REGIONS[$region] ?? $region,
+            'on_template' => $source === BeautyAnnotation::SOURCE_TEMPLATE,
             'x_percent' => $annotation->x_percent,
             'y_percent' => $annotation->y_percent,
             'area' => $annotation->area,

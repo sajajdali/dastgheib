@@ -296,10 +296,59 @@
             </span>
           </section>
 
+          <section class="beauty-flow-side-block">
+            <label>نمای بدن</label>
+            <div class="beauty-flow-region-tabs" role="tablist" aria-label="نمای بدن">
+              <button
+                v-for="region in regionTabs"
+                :key="region.key"
+                type="button"
+                role="tab"
+                :aria-selected="selectedRegion === region.key"
+                :class="{ on: selectedRegion === region.key }"
+                :disabled="recordLoading"
+                @click="selectRegion(region.key)"
+              >
+                {{ region.label }}
+                <small v-if="region.point_count">{{ region.point_count.toLocaleString('fa-IR') }}</small>
+              </button>
+            </div>
+          </section>
+
+          <section v-if="showCanvasSwitcher" class="beauty-flow-side-block">
+            <label>بوم نقطه‌گذاری</label>
+            <div class="beauty-flow-canvas-tabs" role="tablist" aria-label="بوم نقطه‌گذاری">
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="selectedCanvas === 'photo'"
+                :class="{ on: selectedCanvas === 'photo' }"
+                :disabled="recordLoading"
+                @click="selectCanvas('photo')"
+              >عکس واقعی</button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="selectedCanvas === 'template'"
+                :class="{ on: selectedCanvas === 'template' }"
+                :disabled="recordLoading"
+                @click="selectCanvas('template')"
+              >
+                قالب پیش‌فرض
+                <small v-if="activeRegionMeta?.template_point_count">
+                  {{ activeRegionMeta.template_point_count.toLocaleString('fa-IR') }}
+                </small>
+              </button>
+            </div>
+            <small class="beauty-flow-default-photo-note">
+              نقاط روی قالب بعد از آپلود عکس جابه‌جا یا حذف نمی‌شوند.
+            </small>
+          </section>
+
           <section v-if="!profilePhoto" class="beauty-flow-side-block">
             <div class="beauty-flow-profile-missing">
               <strong>عکس پروفایل ثبت نشده است.</strong>
-              <span>برای نقطه‌گذاری در زیبایار، ابتدا عکس پروفایل بیمار را آپلود کنید.</span>
+              <span>می‌توانید روی قالب‌های پیش‌فرض نقطه بگذارید. با آپلود عکس، نقاط قالب حفظ می‌مانند و نقطه‌گذاری روی عکس واقعی هم فعال می‌شود.</span>
               <button type="button" class="beauty-flow-upload-profile-btn" :disabled="recordLoading" @click="openProfileUpload">آپلود عکس پروفایل</button>
             </div>
           </section>
@@ -307,10 +356,10 @@
           <section v-if="legacyPhotos.length" class="beauty-flow-side-block beauty-flow-legacy-block">
             <label>نقاط ثبت‌شده روی عکس‌های قبلی</label>
             <button
-              v-if="!isProfileSelected && profilePhoto"
+              v-if="selectedCanvas === 'media' && profilePhoto"
               type="button"
               class="beauty-flow-legacy-pick beauty-flow-return-profile"
-              @click="selectProfilePhoto"
+              @click="selectCanvas('photo')"
             >
               بازگشت به عکس پروفایل
             </button>
@@ -324,7 +373,7 @@
               {{ photoLabel(photo) }}
             </button>
             <small class="beauty-flow-default-photo-note">
-              این عکس‌ها فقط برای مشاهده و پیگیری نقاط قبلی نمایش داده می‌شوند. نقطه‌گذاری فقط روی عکس پروفایل است.
+              این عکس‌ها فقط برای مشاهده و پیگیری نقاط قبلی نمایش داده می‌شوند.
             </small>
           </section>
 
@@ -389,6 +438,8 @@
                 ×
               </button>
             </div>
+            <p><b>نما:</b> {{ selectedAnnotation.region_label || activeRegionMeta?.label || '-' }}</p>
+            <p><b>بوم:</b> {{ selectedAnnotation.on_template || selectedAnnotation.photo_source === 'template' ? 'قالب پیش‌فرض' : 'عکس واقعی' }}</p>
             <p><b>ناحیه:</b> {{ selectedAnnotation.area || '-' }}</p>
             <p><b>مشکل:</b> {{ selectedAnnotation.problem || '-' }}</p>
             <p><b>توضیح:</b> {{ selectedAnnotation.note || '-' }}</p>
@@ -426,31 +477,30 @@
           <div v-if="recordLoading" class="beauty-flow-photo-empty">در حال دریافت پرونده...</div>
 
           <div v-else-if="!selectedPhoto" class="beauty-flow-photo-empty">
-            <strong>عکس پروفایل برای این بیمار ثبت نشده است.</strong>
-            <span>نقاط زیبایار فقط روی عکس پروفایل ثبت می‌شوند؛ ابتدا عکس پروفایل بیمار را آپلود کنید.</span>
-            <button type="button" class="beauty-flow-add-photo-btn" @click="openProfileUpload">آپلود عکس پروفایل</button>
+            <strong>بوم نقطه‌گذاری آماده نیست.</strong>
+            <span>یک نما انتخاب کنید یا صفحه را دوباره بارگذاری کنید.</span>
           </div>
 
           <template v-else>
             <header class="beauty-flow-photo-header">
               <div>
-                <h3>{{ isProfileSelected ? 'عکس پروفایل' : (selectedPhoto.photo_angle_label || 'عکس قبلی') }}</h3>
-                <p>{{ isProfileSelected ? 'برای ثبت نقطه روی عکس کلیک کنید' : 'عکس قبلی · فقط مشاهده و پیگیری نقاط ثبت‌شده' }}</p>
+                <h3>{{ canvasTitle }}</h3>
+                <p>{{ canvasHint }}</p>
               </div>
               <div class="beauty-flow-point-count">
                 <span>{{ annotations.length }} نقطه</span>
                 <span>{{ doneCount }} انجام شده</span>
               </div>
               <button
-                v-if="!isProfileSelected && profilePhoto"
+                v-if="selectedCanvas === 'media' && profilePhoto"
                 type="button"
                 class="beauty-flow-mark-all"
-                @click="selectProfilePhoto"
+                @click="selectCanvas('photo')"
               >
                 بازگشت به عکس پروفایل
               </button>
               <button
-                v-if="isProfileSelected && annotations.some(item => item.status !== 'done')"
+                v-if="canAnnotate && annotations.some(item => item.status !== 'done')"
                 type="button"
                 class="beauty-flow-mark-all"
                 :disabled="savingPoint"
@@ -460,10 +510,10 @@
               </button>
             </header>
 
-            <div :class="['beauty-flow-photo-stage', { 'beauty-flow-photo-stage-readonly': !isProfileSelected }]" @click="startPoint">
+            <div :class="['beauty-flow-photo-stage', { 'beauty-flow-photo-stage-readonly': !canAnnotate }]" @click="startPoint">
               <LoadingImage
                 :src="selectedPhoto.url"
-                :alt="isProfileSelected ? 'عکس پروفایل بیمار' : 'عکس قبلی بیمار'"
+                :alt="canvasTitle"
                 fit="contain"
                 dark
                 show-label
@@ -666,6 +716,10 @@ export default {
     recordLoading: false,
     profilePhoto: null,
     legacyPhotos: [],
+    regions: [],
+    templates: {},
+    selectedRegion: 'face',
+    selectedCanvas: 'template',
     photoTimeline: { angles: [], folders: [] },
     compareAngleIndex: 0,
     loadedPhotoUrls: {},
@@ -744,6 +798,38 @@ export default {
     },
     isProfileSelected() {
       return this.selectedPhoto?.source === 'profile'
+    },
+    isTemplateSelected() {
+      return this.selectedPhoto?.source === 'template'
+    },
+    canAnnotate() {
+      return this.isProfileSelected || this.isTemplateSelected
+    },
+    regionTabs() {
+      if (this.regions.length) return this.regions
+      return [
+        { key: 'face', label: 'صورت', point_count: 0 },
+        { key: 'body', label: 'بدن', point_count: 0 },
+        { key: 'bikini', label: 'بیکینی', point_count: 0 }
+      ]
+    },
+    activeRegionMeta() {
+      return this.regionTabs.find(item => item.key === this.selectedRegion) || null
+    },
+    showCanvasSwitcher() {
+      return this.selectedRegion === 'face' && !!this.profilePhoto && this.selectedCanvas !== 'media'
+    },
+    canvasTitle() {
+      if (this.isTemplateSelected) {
+        return this.selectedPhoto?.photo_angle_label || `قالب ${this.activeRegionMeta?.label || ''}`
+      }
+      if (this.isProfileSelected) return 'عکس پروفایل'
+      return this.selectedPhoto?.photo_angle_label || 'عکس قبلی'
+    },
+    canvasHint() {
+      if (this.isTemplateSelected) return 'برای ثبت نقطه روی قالب پیش‌فرض کلیک کنید'
+      if (this.isProfileSelected) return 'برای ثبت نقطه روی عکس واقعی کلیک کنید'
+      return 'عکس قبلی · فقط مشاهده و پیگیری نقاط ثبت‌شده'
     },
     visibleServiceHistory() {
       return this.servicesExpanded ? this.serviceHistory : this.serviceHistory.slice(0, 3)
@@ -957,19 +1043,44 @@ export default {
     },
     async onProfilePhotoUploaded(data) {
       if (data?.patient) this.activePatient = { ...this.activePatient, ...data.patient }
-      // بعد از آپلود، عکس پروفایل مستقیم برای نقطه‌گذاری باز می‌شود.
+      // آپلود عکس نقاط قالب را جابه‌جا/حذف نمی‌کند؛ بوم صورت به عکس واقعی می‌رود.
       this.selectedPhotoId = ''
+      this.selectedRegion = 'face'
+      this.selectedCanvas = 'photo'
       await this.loadRecord()
     },
     async selectProfilePhoto() {
-      if (!this.profilePhoto || this.isProfileSelected) return
+      await this.selectCanvas('photo')
+    },
+    async selectRegion(regionKey) {
+      if (!regionKey || regionKey === this.selectedRegion) return
+      this.selectedRegion = regionKey
       this.selectedPhotoId = ''
+      this.selectedCanvas = regionKey === 'face' && this.profilePhoto ? 'photo' : 'template'
+      this.draftPoint = null
+      this.selectedAnnotation = null
+      await this.loadRecord()
+    },
+    async selectCanvas(canvas) {
+      if (!canvas || canvas === this.selectedCanvas) return
+      this.selectedCanvas = canvas
+      this.selectedPhotoId = ''
+      this.draftPoint = null
+      this.selectedAnnotation = null
       await this.loadRecord()
     },
     async selectLegacyPhoto(photo) {
       if (!photo?.id || String(this.selectedPhotoId) === String(photo.id)) return
       this.selectedPhotoId = photo.id
+      this.selectedRegion = 'face'
+      this.selectedCanvas = 'media'
       await this.loadRecord()
+    },
+    canvasFromPhotoSource(source) {
+      if (source === 'template') return 'template'
+      if (source === 'profile') return 'photo'
+      if (source === 'media') return 'media'
+      return ''
     },
     annotationFullText(point) {
       return [point?.area, point?.problem, point?.note].filter(Boolean).join(' - ') || 'بدون توضیح'
@@ -991,6 +1102,13 @@ export default {
         if (!res.ok) throw new Error(data.message || 'دریافت اطلاعات خدمتیار انجام نشد.')
         this.areas = data.areas || []
         this.problems = data.problems || []
+        if (Array.isArray(data.regions) && data.regions.length) {
+          this.regions = data.regions.map(region => ({
+            ...region,
+            point_count: Number(region.point_count || 0)
+          }))
+        }
+        this.templates = data.templates && typeof data.templates === 'object' ? data.templates : {}
       } catch (error) {
         this.searchError = error.message || 'دریافت اطلاعات خدمتیار انجام نشد.'
       }
@@ -1076,10 +1194,12 @@ export default {
         this.searching = false
       }
     },
-    async openRecord(patient, mediaId = '', focusAnnotationId = null) {
+    async openRecord(patient, mediaId = '', focusAnnotationId = null, options = {}) {
       this.activePatient = patient
       this.selectedPhotoId = mediaId || ''
       this.focusAnnotationId = focusAnnotationId || null
+      this.selectedRegion = options.region || 'face'
+      this.selectedCanvas = options.canvas || (mediaId ? 'media' : '')
       this.draftPoint = null
       this.selectedAnnotation = null
       this.clearDraftVoice()
@@ -1089,12 +1209,19 @@ export default {
     },
     async openWorklistRecord(item) {
       if (!item?.patient) return
-      await this.openRecord(item.patient, item.patient_media_id || '', item.id || null)
+      const mediaId = item.photo_source === 'media' ? (item.patient_media_id || '') : ''
+      await this.openRecord(item.patient, mediaId, item.id || null, {
+        region: item.region || 'face',
+        canvas: this.canvasFromPhotoSource(item.photo_source)
+      })
     },
     async openOverdueRecord(item) {
       if (!item?.patient) return
       const mediaId = item.photo_source === 'media' ? (item.patient_media_id || '') : ''
-      await this.openRecord(item.patient, mediaId, item.id || null)
+      await this.openRecord(item.patient, mediaId, item.id || null, {
+        region: item.region || 'face',
+        canvas: this.canvasFromPhotoSource(item.photo_source)
+      })
     },
     async loadServiceHistory() {
       if (!this.activePatient?.id) return
@@ -1140,14 +1267,23 @@ export default {
       this.searchError = ''
       try {
         const params = new URLSearchParams()
-        // فقط عکس‌های قبلیِ دارای نقطه شناسه عددی دارند؛ پیش‌فرض عکس پروفایل است.
-        if (/^\d+$/.test(String(this.selectedPhotoId || ''))) params.set('media_id', this.selectedPhotoId)
+        params.set('region', this.selectedRegion || 'face')
+        if (this.selectedCanvas === 'media' && /^\d+$/.test(String(this.selectedPhotoId || ''))) {
+          params.set('media_id', this.selectedPhotoId)
+          params.set('canvas', 'media')
+        } else if (this.selectedCanvas === 'photo' || this.selectedCanvas === 'template') {
+          params.set('canvas', this.selectedCanvas)
+        }
         const res = await fetch(`${API}/patients/${this.activePatient.id}/beauty?${params}`)
         const data = await res.json()
         if (!res.ok) throw new Error(data.message || 'دریافت پرونده زیبایار انجام نشد.')
         this.activePatient = data.patient || this.activePatient
         this.profilePhoto = data.profile_photo || null
         this.legacyPhotos = Array.isArray(data.legacy_photos) ? data.legacy_photos : []
+        this.regions = Array.isArray(data.regions) ? data.regions : this.regions
+        this.templates = data.templates && typeof data.templates === 'object' ? data.templates : this.templates
+        this.selectedRegion = data.selected_region || this.selectedRegion || 'face'
+        this.selectedCanvas = data.selected_canvas || this.selectedCanvas || 'template'
         this.selectedPhoto = data.selected_photo || null
         this.selectedPhotoId = this.selectedPhoto?.source === 'media' ? this.selectedPhoto.id : ''
         this.annotations = data.annotations || []
@@ -1172,10 +1308,8 @@ export default {
     },
     startPoint(event) {
       if (!this.selectedPhoto) return
-      if (!this.isProfileSelected) {
-        this.searchError = this.profilePhoto
-          ? 'نقطه جدید فقط روی عکس پروفایل ثبت می‌شود. از «بازگشت به عکس پروفایل» استفاده کنید.'
-          : 'برای ثبت نقطه جدید، ابتدا عکس پروفایل بیمار را آپلود کنید.'
+      if (!this.canAnnotate) {
+        this.searchError = 'نقطه جدید فقط روی عکس واقعی یا قالب پیش‌فرض ثبت می‌شود.'
         return
       }
       const rect = event.currentTarget.getBoundingClientRect()
@@ -1192,11 +1326,12 @@ export default {
       this.clearDraftVoice()
     },
     async savePoint() {
-      if (!this.activePatient?.id || !this.isProfileSelected || !this.draftPoint) return
+      if (!this.activePatient?.id || !this.canAnnotate || !this.draftPoint) return
       this.savingPoint = true
       try {
         const form = new FormData()
-        form.append('photo_source', 'profile')
+        form.append('photo_source', this.isTemplateSelected ? 'template' : 'profile')
+        form.append('region', this.selectedRegion || 'face')
         Object.entries(this.draftPoint).forEach(([key, value]) => {
           form.append(key, value ?? '')
         })
@@ -1215,12 +1350,30 @@ export default {
         this.selectedAnnotation = data
         this.draftPoint = null
         this.clearDraftVoice()
+        this.bumpRegionCount(data, 1)
         this.refreshLists()
       } catch (error) {
         this.searchError = error.message || 'ثبت نقطه انجام نشد.'
       } finally {
         this.savingPoint = false
       }
+    },
+    bumpRegionCount(point, delta = 1) {
+      const regionKey = point?.region || this.selectedRegion || 'face'
+      const onTemplate = point?.on_template || point?.photo_source === 'template'
+      this.regions = (this.regions.length ? this.regions : this.regionTabs).map(region => {
+        if (region.key !== regionKey) return region
+        const next = {
+          ...region,
+          point_count: Math.max(0, Number(region.point_count || 0) + delta)
+        }
+        if (onTemplate) {
+          next.template_point_count = Math.max(0, Number(region.template_point_count || 0) + delta)
+        } else if (point?.photo_source === 'profile' || point?.photo_source === 'media') {
+          next.photo_point_count = Math.max(0, Number(region.photo_point_count || 0) + delta)
+        }
+        return next
+      })
     },
     async markDone(point) {
       this.savingPoint = true
@@ -1331,6 +1484,7 @@ export default {
         if (!res.ok) throw new Error(data.message || 'حذف نقطه انجام نشد.')
         this.annotations = this.annotations.filter(item => item.id !== point.id)
         this.selectedAnnotation = null
+        this.bumpRegionCount(point, -1)
         this.refreshLists()
       } catch (error) {
         this.searchError = error.message || 'حذف نقطه انجام نشد.'
@@ -1398,6 +1552,9 @@ export default {
       this.activePatient = null
       this.profilePhoto = null
       this.legacyPhotos = []
+      this.regions = []
+      this.selectedRegion = 'face'
+      this.selectedCanvas = 'template'
       this.selectedPhotoId = ''
       this.selectedPhoto = null
       this.annotations = []
@@ -1987,7 +2144,44 @@ export default {
   font-weight: 800;
   line-height: 1.8;
 }
-/* انتخاب عکس پروفایل به‌عنوان تنها هدف نقطه‌گذاری */
+.beauty-flow-region-tabs,
+.beauty-flow-canvas-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.beauty-flow-region-tabs button,
+.beauty-flow-canvas-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.beauty-flow-region-tabs button.on,
+.beauty-flow-canvas-tabs button.on {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.beauty-flow-region-tabs button small,
+.beauty-flow-canvas-tabs button small {
+  color: #64748b;
+  font-size: 10px;
+}
+.beauty-flow-region-tabs button:disabled,
+.beauty-flow-canvas-tabs button:disabled {
+  opacity: .6;
+  cursor: default;
+}
+/* انتخاب عکس پروفایل / قالب پیش‌فرض برای نقطه‌گذاری */
 .beauty-flow .beauty-flow-profile-pick {
   height: auto;
   display: flex;

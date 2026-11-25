@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" role="img" aria-label="قالب بیکینی">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="560" fill="url(#bg)"/>
+  <path d="M145 60
+           C120 90 110 150 118 210
+           L105 320 L130 325 L145 230
+           L150 360 Q200 400 250 360
+           L255 230 L270 325 L295 320 L282 210
+           C290 150 280 90 255 60
+           Q200 95 145 60 Z"
+        fill="#f1e6dc" stroke="#cbd5e1" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M150 95 Q200 120 250 95" fill="none" stroke="#94a3b8" stroke-width="2.5"/>
+  <path d="M155 330 Q200 365 245 330" fill="none" stroke="#94a3b8" stroke-width="2.5"/>
+  <line x1="200" y1="110" x2="200" y2="350" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 6"/>
+  <text x="200" y="520" text-anchor="middle" font-family="Tahoma, sans-serif" font-size="18" fill="#64748b">قالب بیکینی</text>
+</svg>
