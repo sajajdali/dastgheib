@@ -2821,7 +2821,7 @@ import LoadingImage from './LoadingImage.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 import { isBookingDayCapacityFull as bookingDayCapacityFull } from '../utils/bookingDayCapacity';
 import { appointmentPhotosRequired as appointmentNeedsPhotos } from '../utils/appointmentPhotosRequired';
-import { sectionLeafLabel } from '../utils/sectionLeafLabel';
+import { firstRootSubsectionLabel } from '../utils/sectionLeafLabel';
 import {
   appointmentStatusChartColor as sharedAppointmentStatusChartColor,
   appointmentStatusCssClass,
@@ -12028,8 +12028,8 @@ smsColor(val) {
       return row.services?.some(s => s.name);
     },
 
-    // در ستون خدمات فقط عمیق‌ترین زیربخش برگ نمایش داده می‌شود
-    // (مثلاً لیزر←کندلا←بانوان → «بانوان»)؛ والدین تکرار نمی‌شوند.
+    // در ستون خدمات اولین زیربخش مستقیم زیر ریشه نشان داده می‌شود
+    // (مثلاً لیزر←الکساندرایت←بانوان←خدمت → «الکساندرایت»)؛ چند خدمت یکتا و با «، ».
     serviceButtonLabels(row) {
       const labels = (row?.services || [])
         .map(service => this.serviceSubsectionLabel(service))
@@ -12041,10 +12041,12 @@ smsColor(val) {
       const name = String(service?.name || '').trim();
       const sectionId = service?.sectionId || this.getServiceData(service)?.section_id || '';
       const rootId = service?.rootSectionId || this.rootSectionIdFor(sectionId);
-      if (sectionId && String(sectionId) !== String(rootId || '')) {
-        return sectionLeafLabel(this.serviceSectionLabel(sectionId) || name);
-      }
-      return sectionLeafLabel(name) || name;
+      return firstRootSubsectionLabel({
+        sectionId,
+        rootSectionId: rootId,
+        sections: this.serviceSections,
+        serviceName: name,
+      });
     },
 
     serviceButtonTitle(row) {
