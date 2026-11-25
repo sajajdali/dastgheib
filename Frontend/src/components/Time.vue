@@ -5342,8 +5342,16 @@ export default {
 
     async saveTimelineModal() {
       if (this.timelineTransferMode) return this.saveAppointmentTransfer();
-      if (!this.activeTimelineDay || !this.activeTimelineRow || !this.activeTimelineDraft) return;
       if (this.timelineSaving) return;
+      if (!this.activeTimelineDay || !this.activeTimelineRow || !this.activeTimelineDraft) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'نوبت آماده ثبت نیست',
+          text: 'پنجرهٔ نوبت ناقص است. آن را ببندید و دوباره باز کنید، سپس ثبت کنید.',
+          confirmButtonText: 'باشه',
+        });
+        return;
+      }
       const draft = this.activeTimelineDraft;
       if (!this.validateTimelineDraft(draft)) {
         await Swal.fire({ icon:'warning', title:'اطلاعات نوبت کامل نیست', text:this.timelineValidationSummary || 'لطفا فیلدهای اجباری را کامل کنید.' });
@@ -6085,7 +6093,11 @@ export default {
     },
 
     async saveAppointmentTransfer(allowOccupiedSlot = false) {
-      if (this.timelineSaving || !this.activeTimelineRow) return;
+      if (this.timelineSaving) return;
+      if (!this.activeTimelineRow || !this.activeTimelineDraft) {
+        this.timelineTransferError = 'نوبت برای انتقال آماده نیست. پنجره را ببندید و دوباره باز کنید.';
+        return;
+      }
       const date = moment(this.timelineTransferDate, 'YYYY-MM-DD', true);
       const time = this.activeTimelineDraft.time;
       if (!date.isValid() || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time || '')) {
@@ -6103,7 +6115,13 @@ export default {
         // Existing appointments are already persisted. Saving the source row
         // again before rescheduling can race with realtime updates and reject
         // a perfectly valid move before the reschedule endpoint is reached.
-        if (!row.appointmentId && !await this.persistDirectAppointment(row)) return;
+        if (!row.appointmentId && !await this.persistDirectAppointment(row)) {
+          this.timelineTransferError = this._saveErrorDialogShown
+            ? 'ذخیره نوبت مبدأ انجام نشد.'
+            : 'ذخیره نوبت مبدأ انجام نشد. لطفاً دوباره تلاش کنید.';
+          this._saveErrorDialogShown = false;
+          return;
+        }
         const { data } = await axios.post(`/api/appointments/${row.appointmentId}/reschedule`, {
           lock_version: row.lockVersion, month: date.format('jYYYY-jMM'),
           day_num: Number(date.format('jD')), time,
