@@ -95,10 +95,15 @@ backup_all_databases() {
   log "Backing up all MySQL databases → ${ZIP_PATH}"
   mkdir -p "${DUMP_DIR}"
 
-  local -a base_args=(-h "${MYSQL_HOST}" -u "${MYSQL_USER}" --single-transaction --routines --triggers --events --default-character-set=utf8mb4)
+  # mysql client vs mysqldump take different flags. Dump-only options
+  # (--single-transaction, --routines, --triggers, --events) must NOT be
+  # passed to mysql — aaPanel/MariaDB mysql rejects them with
+  # "unknown option '--single-transaction'".
+  local -a mysql_args=(-h "${MYSQL_HOST}" -u "${MYSQL_USER}" --default-character-set=utf8mb4)
+  local -a dump_args=("${mysql_args[@]}" --single-transaction --routines --triggers --events)
   local dbs
   dbs="$(
-    run_mysql "${MYSQL_CLI}" "${base_args[@]}" -N -e \
+    run_mysql "${MYSQL_CLI}" "${mysql_args[@]}" -N -e \
       "SHOW DATABASES WHERE \`Database\` NOT IN ('information_schema','performance_schema','sys');"
   )"
   [[ -n "${dbs}" ]] || die "no databases returned by SHOW DATABASES"
@@ -107,7 +112,7 @@ backup_all_databases() {
   while IFS= read -r db; do
     [[ -n "${db}" ]] || continue
     log "  dumping ${db}"
-    run_mysql "${MYSQLDUMP_CLI}" "${base_args[@]}" --databases "${db}" \
+    run_mysql "${MYSQLDUMP_CLI}" "${dump_args[@]}" --databases "${db}" \
       > "${DUMP_DIR}/${db}.sql"
     count=$((count + 1))
   done <<< "${dbs}"
