@@ -8,12 +8,16 @@ use App\Models\Doctor;
 use App\Models\Inventory;
 use App\Models\Patient;
 use App\Models\PatientMedia;
+use App\Models\ResourceAdjustment;
+use App\Models\ResourceEarningLine;
+use App\Models\SalaryAdvanceInstallment;
 use App\Models\ServiceFollowup;
 use App\Models\Staff;
 use App\Models\User;
 use App\Reporting\DynamicReports\DynamicReportFilterPipeline;
 use App\Services\ClinicReportService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 final class AssistantToolExecutor
@@ -50,6 +54,7 @@ final class AssistantToolExecutor
             'inspect_clinic_record' => app(AssistantDataCatalog::class)->inspect($user, (string) ($arguments['dataset'] ?? ''), (int) ($arguments['id'] ?? 0)),
             'get_financial_metric' => $this->financial($arguments),
             'get_doctor_revenue' => $this->doctorRevenue($arguments),
+            'get_payroll_summary' => $this->payrollSummary($arguments),
             'read_clinic_settings' => app(AssistantSettingsReader::class)->read($user, (string) ($arguments['topic'] ?? '')),
             'explain_app_feature' => app(AssistantHelpCatalog::class)->search($user, (string) ($arguments['query'] ?? '')),
             'open_clinic_page' => $this->page($user, $arguments),
@@ -458,6 +463,126 @@ final class AssistantToolExecutor
                 'columns'=>['appointmentDate','name','family','doctor','work','amount','income','expense'],
                 'multi_filters'=>$needle !== '' && count($rows) === 1 ? [['field'=>'doctor','values'=>[$rows[0]['doctor']]]] : []],
                 'ریز نوبت‌ها و مبالغ هر پزشک در گزارش‌ساز'),
+        ]);
+    }
+
+    /** خلاصهٔ حقوق/پورسانت یک پزشک یا پرسنل در ماه شمسی — هم‌منطق صفحهٔ حقوق. */
+    private function payrollSummary(array $arguments): array
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', (string) ($arguments['name'] ?? '')));
+        $month = strtr(trim((string) ($arguments['month'] ?? '')), ['۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9','/'=>'-']);
+        $typeFilter = $arguments['resource_type'] ?? null;
+        if ($name === '' || mb_strlen($name) < 2) throw new InvalidArgumentException('برای محاسبهٔ پورسانت حداقل دو حرف از نام لازم است.');
+        if (! preg_match('/^1[34]\d{2}-(0[1-9]|1[0-2])$/', $month)) {
+            throw new InvalidArgumentException('ماه باید شمسی و به شکل YYYY-MM باشد؛ مثلاً ۱۴۰۵-۰۸ برای آبان.');
+        }
+        if ($typeFilter !== null && ! in_array($typeFilter, ['doctor', 'staff'], true)) {
+            throw new InvalidArgumentException('نوع نیرو باید doctor یا staff باشد.');
+        }
+
+        $pattern = '%'.addcslashes($name, '%_\\').'%';
+        $matches = collect();
+        if ($typeFilter !== 'staff') {
+            foreach (Doctor::query()->where('name', 'like', $pattern)->orderBy('name')->limit(8)->get(['id', 'name', 'salary']) as $doctor) {
+                $matches->push(['resource_type' => 'doctor', 'resource_id' => (int) $doctor->id, 'name' => (string) $doctor->name, 'salary' => (float) ($doctor->salary ?? 0)]);
+            }
+        }
+        if ($typeFilter !== 'doctor') {
+            foreach (Staff::query()->where('name', 'like', $pattern)->orderBy('name')->limit(8)->get(['id', 'name', 'salary']) as $staff) {
+                $matches->push(['resource_type' => 'staff', 'resource_id' => (int) $staff->id, 'name' => (string) $staff->name, 'salary' => (float) ($staff->salary ?? 0)]);
+            }
+        }
+        if ($matches->isEmpty()) {
+            return $this->result(['error' => 'پزشک یا پرسنلی با این نام پیدا نشد.', 'name' => $name, 'month' => $month]);
+        }
+        if ($matches->count() > 1) {
+            $choices = $matches->map(fn (array $row) => [
+                'resource_type' => $row['resource_type'],
+                'resource_id' => $row['resource_id'],
+                'name' => $row['name'],
+                'role' => $row['resource_type'] === 'doctor' ? 'پزشک' : 'پرسنل',
+            ])->values()->all();
+
+            return $this->result([
+                'error' => 'چند نفر هم‌نام پیدا شد؛ بپرس کدام‌یک.',
+                'matches' => $choices,
+            ], [
+                'type' => 'table', 'title' => 'انتخاب نیروی حقوق', 'count' => count($choices),
+                'columns' => ['name' => 'نام', 'role' => 'نقش'], 'rows' => $choices, 'page' => 'payroll',
+            ]);
+        }
+
+        $person = $matches->first();
+        $lines = ResourceEarningLine::query()
+            ->whereNull('deleted_at')
+            ->where('month', $month)
+            ->where('resource_type', $person['resource_type'])
+            ->where('resource_id', $person['resource_id'])
+            ->get(['earning_type', 'amount', 'status']);
+        $active = $lines->where('status', 'active');
+        $sum = fn (array $types) => (float) $active->whereIn('earning_type', $types)->sum('amount');
+        $serviceCommission = $sum(['base_commission']);
+        $inventoryCommission = $sum(ResourceEarningLine::INVENTORY_COMMISSION_TYPES);
+        $referralCommission = $sum([ResourceEarningLine::REFERRAL_TYPE]);
+        $salesBonus = $sum(['sales_bonus']);
+        $overtime = $sum(['attendance_overtime']);
+        $shortage = $sum(['attendance_shortage']);
+        $absence = $sum(['attendance_absence']);
+        $attendanceAdjustment = $overtime + $shortage + $absence;
+        $adjustments = Schema::hasTable('resource_adjustments')
+            ? ResourceAdjustment::query()
+                ->where('month', $month)
+                ->where('resource_type', $person['resource_type'])
+                ->where('resource_id', $person['resource_id'])
+                ->when(Schema::hasColumn('resource_adjustments', 'status'), fn ($query) => $query->where('status', 'active'))
+                ->get()
+            : collect();
+        $taskImpacts = $adjustments->filter(fn ($row) => ! empty($row->source_task_id) || ($row->kind ?? '') === 'task_impact' || str_starts_with((string) ($row->title ?: $row->reason), 'تأثیر وظیفه'));
+        $manualOnly = $adjustments->reject(fn ($row) => $taskImpacts->contains('id', $row->id));
+        $manualBonus = (float) $manualOnly->where('amount', '>', 0)->sum('amount') + (float) $taskImpacts->where('amount', '>', 0)->sum('amount');
+        $manualDeduction = (float) $manualOnly->where('amount', '<', 0)->sum('amount') + (float) $taskImpacts->where('amount', '<', 0)->sum('amount');
+        $advanceDeduction = 0.0;
+        if (Schema::hasTable('salary_advance_installments') && Schema::hasTable('salary_advances')) {
+            $advanceDeduction = -(float) SalaryAdvanceInstallment::query()
+                ->where('month', $month)
+                ->whereHas('advance', fn ($query) => $query
+                    ->where('resource_type', $person['resource_type'])
+                    ->where('resource_id', $person['resource_id'])
+                    ->whereIn('status', ['paid', 'deducted']))
+                ->sum('amount');
+        }
+        $salary = (float) $person['salary'];
+        $totalCommission = $serviceCommission + $inventoryCommission;
+        $totalEarned = $salary + $totalCommission + $referralCommission + $salesBonus + $attendanceAdjustment + $manualBonus + $manualDeduction + $advanceDeduction;
+        $role = $person['resource_type'] === 'doctor' ? 'پزشک' : 'پرسنل';
+        $summary = [
+            'salary' => (int) round($salary),
+            'service_commission' => (int) round($serviceCommission),
+            'inventory_commission' => (int) round($inventoryCommission),
+            'referral_commission' => (int) round($referralCommission),
+            'sales_bonus' => (int) round($salesBonus),
+            'attendance_adjustment' => (int) round($attendanceAdjustment),
+            'manual_bonus' => (int) round($manualBonus),
+            'manual_deduction' => (int) round($manualDeduction),
+            'advance_deduction' => (int) round($advanceDeduction),
+            'total_commission' => (int) round($totalCommission),
+            'total_earned' => (int) round($totalEarned),
+            'active_line_count' => $active->count(),
+        ];
+
+        return $this->result([
+            'resource' => ['type' => $person['resource_type'], 'id' => $person['resource_id'], 'name' => $person['name'], 'role' => $role],
+            'month' => $month,
+            'unit' => 'تومان',
+            'definition' => 'جمع پورسانت خدمت و انبار از ریز کارکرد فعال همان ماه؛ برابر صفحهٔ حقوق.',
+            'summary' => $summary,
+        ], [
+            'type' => 'metric',
+            'title' => 'پورسانت '.$person['name'].' · '.$month,
+            'value' => $summary['total_commission'],
+            'unit' => 'تومان',
+            'subtitle' => $role.' · پورسانت خدمت+انبار '.$summary['total_commission'].' · دریافتی کل '.$summary['total_earned'].' تومان',
+            'page' => 'payroll',
         ]);
     }
 

@@ -26,6 +26,7 @@ final class AssistantToolRegistry
         'inspect_clinic_record' => ['permission' => null, 'description' => 'Inspect one exact record previously returned by query_clinic_records and show its permitted linked datasets with counts and interactive choices. Use after the user selects one of several matches.'],
         'get_financial_metric' => ['permission' => 'reports.financial', 'description' => 'Get a precisely named clinic financial KPI for a Jalali period: recognized revenue, expenses, or net profit according to the existing clinic report.'],
         'get_doctor_revenue' => ['permission' => 'reports.financial&reports.doctors', 'description' => 'Get attributed recognized revenue for each registered doctor from the existing doctor performance report. Use for questions like how much revenue each doctor generates. This is clinic revenue attributed to the doctor, not doctor salary, commission or take-home pay. If no period is specified, use this_month through today.'],
+        'get_payroll_summary' => ['permission' => 'payroll.view', 'description' => 'Calculate salary, service/inventory commission, referral commission, sales bonus and net payroll for one doctor or staff member in a Jalali month (YYYY-MM). Use for questions like «پورسانت خانم الهام در آبان» or «حقوق دکتر X در این ماه». Search by name across doctors and staff; if several people match, return choices instead of guessing. Prefer this over querying earnings rows one by one.'],
         'read_clinic_settings' => ['permission' => 'assistant.use|settings.view', 'description' => 'Read the clinic\'s current software settings in plain words, e.g. which patient-form fields are enabled or required (age is derived from birth date), appointment columns, SMS and birthday SMS, working hours, customer levels, wallet, report targets, attendance, AI assistant, the current user access (my_access), roles and who has which access, storage usage, VoIP, satisfaction form, photo processing and automatic SMS scenarios. Use it to answer questions like "is X active?" instead of telling the user to check.'],
         'explain_app_feature' => ['permission' => null, 'description' => 'Explain where a part of this clinic software is and what it does / how to use it (menus, settings, report builder, SMS, roles, etc.). Use for questions like "where is X", "how do I do Y", "what is Z". Returns location path, explanation and a button to open it.'],
         'open_clinic_page' => ['permission' => null, 'description' => 'Offer a button to open the exact clinic page, settings section and nested tab requested by the user. Use for navigation, never as evidence of live data.'],
@@ -162,6 +163,11 @@ final class AssistantToolRegistry
             ],
             'get_doctor_revenue' => [
                 'period' => $period, 'from' => $date, 'to' => $date, 'doctor' => $doctor,
+            ],
+            'get_payroll_summary' => [
+                'name' => ['type' => 'string', 'description' => 'Doctor or staff name fragment, e.g. الهام.'],
+                'month' => ['type' => 'string', 'description' => 'Jalali month YYYY-MM (e.g. 1405-08 for آبان). Use today\'s year unless the user named another.'],
+                'resource_type' => ['type' => ['string', 'null'], 'enum' => ['doctor', 'staff', null], 'description' => 'Limit search to doctors or staff, or null for both.'],
             ],
             'read_clinic_settings' => ['topic' => ['type' => 'string', 'enum' => array_keys(AssistantSettingsReader::TOPICS)]],
             'explain_app_feature' => ['query' => ['type' => 'string', 'description' => 'The feature or question in Persian, e.g. «گزارش‌ساز» or «کجا پزشک اضافه کنم».']],

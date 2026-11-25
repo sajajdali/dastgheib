@@ -12,8 +12,9 @@ return [
     'transcription_model' => 'gpt-transcribe',
     // پیام صوتی موقتاً خاموش است؛ برای روشن کردن ASSISTANT_VOICE_ENABLED=true در .env بگذارید.
     'voice_enabled' => (bool) env('ASSISTANT_VOICE_ENABLED', false),
-    'max_tool_rounds' => 4,
-    'max_tool_calls' => 8,
+    // پورسانت/حقوق ماهانه معمولاً چند مرحلهٔ ابزار می‌خواهد؛ سقف قبلی زود قطع می‌شد.
+    'max_tool_rounds' => 8,
+    'max_tool_calls' => 16,
     'max_audio_seconds' => 90,
     // فهرست‌های بزرگ‌تر از این تعداد کارت پرسش «چند مورد نشان بدهم؟» می‌گیرند و مدل فقط خلاصه را می‌بیند.
     'list_ask_threshold' => 30,

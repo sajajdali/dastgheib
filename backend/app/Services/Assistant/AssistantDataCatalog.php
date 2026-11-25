@@ -138,6 +138,7 @@ final class AssistantDataCatalog
             else $query->where($field, ['equals'=>'=','gte'=>'>=','lte'=>'<='][$operator], $value);
         }
         $count = (clone $query)->count();
+        $amountSum = isset($columns['amount']) ? (float) (clone $query)->sum('amount') : null;
         [$offset, $limit] = AssistantToolExecutor::window($arguments);
         $rows = $query->orderByDesc('id')->offset($offset)->limit($limit)->get(array_keys($columns))
             ->map(fn ($record) => collect($columns)->mapWithKeys(fn ($title, $field) => [$field => $record->getRawOriginal($field)])->all())->all();
@@ -146,7 +147,7 @@ final class AssistantDataCatalog
         $actions = array_map(fn (array $row) => $this->personAction($user, $dataset, $row)
             ?? ['prompt'=>'جزئیات رکورد '.$dataset.' با شناسهٔ '.$row['id'].' را نشان بده', 'label'=>'بررسی این مورد'], $rows);
 
-        return ['model'=>['dataset'=>$dataset,'count'=>$count,'rows'=>$rows,'truncated'=>$count>$offset+count($rows)],
+        return ['model'=>['dataset'=>$dataset,'count'=>$count,'amount_sum'=>$amountSum,'rows'=>$rows,'truncated'=>$count>$offset+count($rows)],
             'presentation'=>['type'=>'table','title'=>$label,'count'=>$count,'columns'=>$columns,
                 'rows'=>$rows,'row_actions'=>$actions,'page'=>$page,'label'=>'باز کردن بخش '.$label,
                 ...($dataset === 'patients' && $filters === [] && $user->can('reports.view') ? [
