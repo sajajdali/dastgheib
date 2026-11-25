@@ -981,6 +981,24 @@
                 ارسال پیامک
               </button>
             </div>
+            <div
+              v-if="isGeneralFollowupCampaign(activeCampaign) && subsectionFilterChips.length"
+              class="section-filter-chips"
+              @click.stop
+            >
+              <button
+                v-for="chip in subsectionFilterChips"
+                :key="chip.value"
+                type="button"
+                class="section-filter-chip"
+                :title="chip.label"
+                @click="removeSubsectionFilter(chip.value)"
+              >
+                <span>{{ chip.label }}</span>
+                <b aria-hidden="true">×</b>
+              </button>
+              <button type="button" class="section-filter-clear-all" @click="clearSubsectionFilters">پاک کردن همه</button>
+            </div>
 
             <div class="table-scroll" @scroll="onFilterAnchorSync">
               <table class="contacts-table" :style="{ tableLayout: 'fixed', minWidth: ((isGeneralFollowupCampaign(activeCampaign) ? 1530 : 1410) + rowNumberColWidth) + 'px' }">
@@ -1328,7 +1346,7 @@
                       <teleport to="body">
                         <div
                           v-if="activeSubsectionRowId === row._localId"
-                          class="subsection-menu-floating"
+                          class="subsection-menu-floating hierarchical"
                           :style="subsectionMenuStyle"
                           @click.stop
                         >
@@ -1336,27 +1354,75 @@
                             v-model="subsectionSearch"
                             class="filter-search-input subsection-search-input"
                             type="search"
-                            placeholder="جست‌وجوی بخش..."
+                            placeholder="جست‌وجوی بخش یا خدمت..."
                             @keydown.esc.prevent="closeSubsectionMenu"
                             @keydown.enter.prevent="selectFirstSubsection(row)"
                           />
+                          <div v-if="!subsectionSearch.trim()" class="section-picker-crumb">
+                            <button type="button" class="section-crumb" :class="{ active: !pickerTrail.length }" @click="pickerTrail = []">ریشه</button>
+                            <button
+                              v-for="(crumb, crumbIndex) in pickerTrail"
+                              :key="'p-' + crumb.id"
+                              type="button"
+                              class="section-crumb"
+                              :class="{ active: crumbIndex === pickerTrail.length - 1 }"
+                              @click="pickerTrail = pickerTrail.slice(0, crumbIndex + 1)"
+                            >{{ crumb.name }}</button>
+                          </div>
                           <div class="subsection-options">
                             <div v-if="subsectionsLoading" class="filter-empty">در حال دریافت بخش‌ها...</div>
                             <div v-else-if="subsectionsLoadError" class="filter-empty">{{ subsectionsLoadError }} <button type="button" class="subsection-retry" @click="loadSubsections">تلاش مجدد</button></div>
                             <template v-else>
                               <button v-if="followupSubsectionLabel(row)" type="button" class="subsection-option clear" @click="setRowSubsection(row, null)">بدون بخش</button>
-                              <button
-                                v-for="option in filteredSubsectionOptions"
-                                :key="option.id"
-                                type="button"
-                                class="subsection-option"
-                                :class="{ selected: String(option.id) === String(row.subsectionId || '') }"
-                                @click="setRowSubsection(row, option)"
-                              >
-                                <span>{{ option.name }}</span>
-                                <i v-if="String(option.id) === String(row.subsectionId || '')">✓</i>
-                              </button>
-                              <div v-if="!filteredSubsectionOptions.length" class="filter-empty">{{ subsectionOptions.length ? 'بخشی با این نام پیدا نشد.' : 'هنوز زیربخشی در بخش خدمات تعریف نشده است.' }}</div>
+                              <template v-if="subsectionSearch.trim()">
+                                <button
+                                  v-for="option in filteredSubsectionOptions"
+                                  :key="option.value"
+                                  type="button"
+                                  class="subsection-option path-option"
+                                  :class="{ selected: isRowSectionOptionSelected(row, option) }"
+                                  @click="applySectionOptionToRow(row, option)"
+                                >
+                                  <span>
+                                    <small>{{ option.type === 'service' ? 'خدمت' : 'بخش' }}</small>
+                                    {{ option.label }}
+                                  </span>
+                                  <i v-if="isRowSectionOptionSelected(row, option)">✓</i>
+                                </button>
+                              </template>
+                              <template v-else>
+                                <button
+                                  v-if="pickerCurrentSection"
+                                  type="button"
+                                  class="subsection-option select-level"
+                                  @click="selectPickerSectionLevel(row)"
+                                >انتخاب «{{ pickerCurrentSection.name }}»</button>
+                                <button
+                                  v-for="child in pickerChildSections"
+                                  :key="'c-' + child.id"
+                                  type="button"
+                                  class="subsection-option"
+                                  :class="{ selected: String(row.subsectionId || '') === String(child.id) && !row.serviceId }"
+                                  @click="drillOrSelectSection(row, child)"
+                                >
+                                  <span>{{ child.name }}</span>
+                                  <b v-if="(child.children || []).length || (child.services || []).length">‹</b>
+                                  <i v-else-if="String(row.subsectionId || '') === String(child.id) && !row.serviceId">✓</i>
+                                </button>
+                                <button
+                                  v-for="service in pickerCurrentServices"
+                                  :key="'s-' + service.id"
+                                  type="button"
+                                  class="subsection-option service-option"
+                                  :class="{ selected: String(row.serviceId || '') === String(service.id) }"
+                                  @click="selectPickerService(row, service)"
+                                >
+                                  <span><small>خدمت</small> {{ service.name }}</span>
+                                  <i v-if="String(row.serviceId || '') === String(service.id)">✓</i>
+                                </button>
+                              </template>
+                              <div v-if="!filteredSubsectionOptions.length && subsectionSearch.trim()" class="filter-empty">بخشی با این نام پیدا نشد.</div>
+                              <div v-else-if="!subsectionSearch.trim() && !pickerChildSections.length && !pickerCurrentServices.length && !pickerCurrentSection" class="filter-empty">هنوز بخشی در بخش خدمات تعریف نشده است.</div>
                             </template>
                           </div>
                         </div>
@@ -1542,15 +1608,60 @@
           </div>
         </template>
         <template v-else-if="activeFilter === 'subsection'">
-          <input v-model="subsectionFilterSearch" class="filter-search-input" type="search" placeholder="جست‌وجوی بخش..." @keydown.stop />
-          <div class="followup-filter-options">
-            <label v-for="option in subsectionFilterOptions" :key="option.value" class="filter-option">
-              <input type="checkbox" :checked="selectedFilters.subsection.includes(option.value)" @change="toggleValue('subsection', option.value)" />
-              <span>{{ option.label }}</span>
-            </label>
-            <div v-if="!subsectionFilterOptions.length" class="filter-empty">بخشی پیدا نشد.</div>
+          <input v-model="subsectionFilterSearch" class="filter-search-input" type="search" placeholder="جست‌وجوی بخش یا خدمت..." @keydown.stop />
+          <div v-if="!subsectionFilterSearch.trim()" class="section-picker-crumb filter-crumb">
+            <button type="button" class="section-crumb" :class="{ active: !filterTrail.length }" @click="filterTrail = []">ریشه</button>
+            <button
+              v-for="(crumb, crumbIndex) in filterTrail"
+              :key="'f-' + crumb.id"
+              type="button"
+              class="section-crumb"
+              :class="{ active: crumbIndex === filterTrail.length - 1 }"
+              @click="filterTrail = filterTrail.slice(0, crumbIndex + 1)"
+            >{{ crumb.name }}</button>
           </div>
-          <button v-if="isFiltered('subsection')" type="button" class="filter-clear-btn" @click="selectedFilters.subsection = []">پاک کردن فیلتر</button>
+          <div class="followup-filter-options">
+            <label class="filter-option">
+              <input type="checkbox" :checked="selectedFilters.subsection.includes('__none__')" @change="toggleValue('subsection', '__none__')" />
+              <span>بدون بخش</span>
+            </label>
+            <template v-if="subsectionFilterSearch.trim()">
+              <label v-for="option in subsectionFilterOptions" :key="option.value" class="filter-option path-option">
+                <input type="checkbox" :checked="selectedFilters.subsection.includes(option.value)" @change="toggleValue('subsection', option.value)" />
+                <span><small>{{ option.type === 'service' ? 'خدمت' : 'بخش' }}</small> {{ option.label }}</span>
+              </label>
+            </template>
+            <template v-else>
+              <label v-if="filterCurrentSection" class="filter-option">
+                <input type="checkbox" :checked="selectedFilters.subsection.includes(sectionToken(filterCurrentSection.id))" @change="toggleValue('subsection', sectionToken(filterCurrentSection.id))" />
+                <span>همین سطح: {{ filterCurrentSection.path || filterCurrentSection.name }}</span>
+              </label>
+              <div
+                v-for="child in filterChildSections"
+                :key="'fc-' + child.id"
+                class="filter-tree-row"
+              >
+                <label class="filter-option">
+                  <input type="checkbox" :checked="selectedFilters.subsection.includes(sectionToken(child.id))" @change="toggleValue('subsection', sectionToken(child.id))" />
+                  <span>{{ child.name }}</span>
+                </label>
+                <button
+                  v-if="(child.children || []).length || (child.services || []).length"
+                  type="button"
+                  class="filter-drill-btn"
+                  title="باز کردن زیرشاخه"
+                  @click="filterTrail = [...filterTrail, child]"
+                >‹</button>
+              </div>
+              <label v-for="service in filterCurrentServices" :key="'fs-' + service.id" class="filter-option path-option">
+                <input type="checkbox" :checked="selectedFilters.subsection.includes(serviceToken(service.id))" @change="toggleValue('subsection', serviceToken(service.id))" />
+                <span><small>خدمت</small> {{ service.name }}</span>
+              </label>
+            </template>
+            <div v-if="subsectionFilterSearch.trim() && !subsectionFilterOptions.length" class="filter-empty">بخشی پیدا نشد.</div>
+            <div v-else-if="!subsectionFilterSearch.trim() && !filterChildSections.length && !filterCurrentServices.length && !filterCurrentSection && sectionTreeIndex.sections.length === 0" class="filter-empty">هنوز بخشی تعریف نشده است.</div>
+          </div>
+          <button v-if="isFiltered('subsection')" type="button" class="filter-clear-btn" @click="clearSubsectionFilters">پاک کردن همه</button>
         </template>
         <template v-else-if="activeFilter === 'status'">
           <div class="followup-filter-options">
@@ -1867,6 +1978,16 @@ import draggable from "vuedraggable";
 import { avatarInitial, avatarUrl, findResourceByName } from '@/utils/avatar';
 import { sectionLeafLabel, dateInInclusiveRange } from '@/utils/sectionLeafLabel';
 import {
+  indexSectionTree,
+  normalizeSectionSearch,
+  parseSectionFilterToken,
+  rowMatchesSectionFilters,
+  searchSectionOptions,
+  sectionToken,
+  serviceToken,
+  selectionFieldsFromSection,
+} from '@/utils/followupSectionTree';
+import {
   createFollowupNote,
   followupLatestDescription,
   followupNotesSearchText,
@@ -2152,12 +2273,17 @@ export default {
         followUpDate: { from: "", to: "" },
       },
       subsectionOptions: [],
+      sectionTree: [],
+      sectionTreeIndex: indexSectionTree(),
       subsectionsLoading: false,
       subsectionsLoadError: "",
       subsectionFilterSearch: "",
       activeSubsectionRowId: null,
       subsectionMenuStyle: {},
       subsectionSearch: "",
+      pickerTrail: [],
+      filterTrail: [],
+      sectionTreeHost: "",
 
       colWidths: {
         campaignTitle: 128,
@@ -2169,7 +2295,7 @@ export default {
         gender: 64,
         consultant: 104,
         source: 92,
-        subsection: 120,
+        subsection: 168,
         status: 90,
         description: 132,
         interest: 76,
@@ -2301,8 +2427,11 @@ export default {
           if (!inSearch || !colMatch) return false;
           if (!this.isGeneralFollowupCampaign(this.activeCampaign)) return true;
 
-          const subsectionMatch = !this.selectedFilters.subsection.length
-            || this.selectedFilters.subsection.includes(this.followupSubsectionFilterValue(r));
+          const subsectionMatch = rowMatchesSectionFilters(
+            r,
+            this.selectedFilters.subsection,
+            this.sectionTreeIndex,
+          );
           return subsectionMatch
             && this.rowMatchesDateFilter(r, "contactDate")
             && this.rowMatchesDateFilter(r, "followUpDate");
@@ -2328,26 +2457,46 @@ export default {
     },
 
     filteredSubsectionOptions() {
-      const term = this.normalizeSubsectionSearch(this.subsectionSearch);
-      if (!term) return this.subsectionOptions;
-      return this.subsectionOptions.filter(option => this.normalizeSubsectionSearch(option.name).includes(term));
+      return searchSectionOptions(this.sectionTreeIndex, this.subsectionSearch);
     },
 
     subsectionFilterOptions() {
-      // فقط زیربخش‌های برگ از API؛ نام بخش والد/اصلی و برچسب‌های ردیف غیربرگ وارد فیلتر نمی‌شوند.
-      const leafNames = new Set(
-        (this.subsectionOptions || [])
-          .map(option => sectionLeafLabel(option?.name))
-          .filter(Boolean)
-      );
-      const options = [
-        { value: "__none__", label: "بدون بخش" },
-        ...[...leafNames].sort((a, b) => a.localeCompare(b, "fa")).map(name => ({ value: name, label: name })),
-      ];
-      const term = this.normalizeSubsectionSearch(this.subsectionFilterSearch);
-      if (!term) return options;
-      return options.filter(option => this.selectedFilters.subsection.includes(option.value)
-        || this.normalizeSubsectionSearch(option.label).includes(term));
+      return searchSectionOptions(this.sectionTreeIndex, this.subsectionFilterSearch);
+    },
+
+    subsectionFilterChips() {
+      return (this.selectedFilters.subsection || []).map((value) => ({
+        value,
+        label: this.subsectionFilterLabel(value),
+      }));
+    },
+
+    pickerCurrentSection() {
+      if (!this.pickerTrail.length) return null;
+      return this.pickerTrail[this.pickerTrail.length - 1];
+    },
+
+    pickerChildSections() {
+      if (!this.pickerTrail.length) return this.sectionTree || [];
+      return this.pickerCurrentSection?.children || [];
+    },
+
+    pickerCurrentServices() {
+      return this.pickerCurrentSection?.services || [];
+    },
+
+    filterCurrentSection() {
+      if (!this.filterTrail.length) return null;
+      return this.filterTrail[this.filterTrail.length - 1];
+    },
+
+    filterChildSections() {
+      if (!this.filterTrail.length) return this.sectionTree || [];
+      return this.filterCurrentSection?.children || [];
+    },
+
+    filterCurrentServices() {
+      return this.filterCurrentSection?.services || [];
     },
 
     reportAllFilteredRows() {
@@ -2478,7 +2627,7 @@ export default {
     this.loadStaff();
     this.loadDoctors();
     this.loadChannels();
-    this.loadSubsections();
+    this.ensureSectionTreeLoaded(true);
     this.loadLandingSmsTags();
     this.loadCampaignsFromServer();
     this.loadWaitingSlotAppointments();
@@ -3147,7 +3296,7 @@ export default {
       this.showArchived = false;
       this.showMissedFollowups = false;
       this.loadChannels();
-      this.loadSubsections();
+      this.ensureSectionTreeLoaded(true);
 
       let campaign = this.generalFollowupCampaign;
       try {
@@ -3205,8 +3354,7 @@ export default {
         ...(Array.isArray(this.reasonOptions) ? this.reasonOptions : []),
         ...Array.from({ length: 16 }, (_, i) => `علت دمو ${i + 1}`),
       ];
-      // فقط زیربخش برگ واقعی؛ برای دمو نام والد جعلی به فیلتر بخش اضافه نمی‌شود.
-      const subsections = Array.isArray(this.subsectionOptions) ? this.subsectionOptions : [];
+      const subsections = Array.isArray(this.sectionTreeIndex.sections) ? this.sectionTreeIndex.sections : [];
 
       this.demoFilterExtras = {
         source: sources,
@@ -3222,6 +3370,9 @@ export default {
       const today = this.getTodayString();
       const demoRows = sources.map((source, index) => {
         const subsection = subsections.length ? subsections[index % subsections.length] : null;
+        const sectionFields = subsection
+          ? selectionFieldsFromSection(subsection, null)
+          : selectionFieldsFromSection(null, null);
         return {
           ...this.createEmptyRow(),
           _localId: `demo-filter-${index}-${Date.now()}`,
@@ -3234,8 +3385,7 @@ export default {
           gender: genders[index % genders.length],
           consultant: consultants[index % consultants.length],
           source,
-          subsectionId: subsection?.id ?? null,
-          subsectionName: subsection ? sectionLeafLabel(subsection.name) : "",
+          ...sectionFields,
           status: statuses[index % statuses.length],
           interest: interests[index % interests.length],
           reason: reasons[index % reasons.length],
@@ -3431,7 +3581,7 @@ export default {
       if (anchorEl.isConnected === false) return null;
       const rect = anchorEl.getBoundingClientRect();
       const isDate = key === "contactDate" || key === "followUpDate";
-      const width = isDate ? 268 : 248;
+      const width = isDate ? 268 : (key === "subsection" ? 320 : 248);
       const gap = 6;
       const maxPanelHeight = Math.min(isDate ? 260 : 360, Math.floor(window.innerHeight * 0.55));
       let top = rect.bottom + gap;
@@ -3491,6 +3641,11 @@ export default {
       }
       this.filterAnchorEl = event?.currentTarget || null;
       this.activeFilter = key;
+      if (key === 'subsection') {
+        this.subsectionFilterSearch = '';
+        this.filterTrail = [];
+        this.ensureSectionTreeLoaded();
+      }
       this.filterMenuStyle = this.floatingFilterMenuStyleFromAnchor(this.filterAnchorEl, key) || {};
       this.$nextTick(() => this.repositionActiveFilterMenu());
     },
@@ -3568,25 +3723,56 @@ export default {
     },
 
     normalizeSubsectionSearch(value) {
-      return this.normalizeDigits(String(value || ""))
-        .replace(/ي/g, "ی")
-        .replace(/ك/g, "ک")
-        .replace(/[\u200c\s]+/g, " ")
-        .trim()
-        .toLowerCase();
+      return normalizeSectionSearch(this.normalizeDigits(String(value || "")));
     },
 
+    sectionToken,
+    serviceToken,
+
     followupSubsectionLabel(row) {
+      const path = String(row?.sectionPath || "").trim();
+      if (path) return path;
+      if (row?.serviceName && row?.subsectionName) {
+        return `${sectionLeafLabel(row.subsectionName)} / ${row.serviceName}`;
+      }
       const id = String(row?.subsectionId || "");
       if (id) {
-        const option = this.subsectionOptions.find(item => String(item.id) === id);
-        if (option) return sectionLeafLabel(option.name);
+        const section = this.sectionTreeIndex.sectionById.get(id);
+        if (section?.path) {
+          return row?.serviceName ? `${section.path} / ${row.serviceName}` : section.path;
+        }
       }
-      return sectionLeafLabel(row?.subsectionName);
+      return sectionLeafLabel(row?.subsectionName) || (row?.serviceName || "");
     },
 
     followupSubsectionFilterValue(row) {
+      if (row?.serviceId) return serviceToken(row.serviceId);
+      if (row?.subsectionId) return sectionToken(row.subsectionId);
       return this.followupSubsectionLabel(row) || "__none__";
+    },
+
+    subsectionFilterLabel(value) {
+      const parsed = parseSectionFilterToken(value);
+      if (parsed.type === 'none') return 'بدون بخش';
+      if (parsed.type === 'service') {
+        const service = this.sectionTreeIndex.serviceById.get(String(parsed.id));
+        return service?.path || service?.name || `خدمت ${parsed.id}`;
+      }
+      if (parsed.type === 'section') {
+        const section = this.sectionTreeIndex.sectionById.get(String(parsed.id));
+        return section?.path || section?.name || `بخش ${parsed.id}`;
+      }
+      return parsed.label || String(value || '');
+    },
+
+    removeSubsectionFilter(value) {
+      this.selectedFilters.subsection = (this.selectedFilters.subsection || []).filter((item) => item !== value);
+      this.queueActiveLeadsReload();
+    },
+
+    clearSubsectionFilters() {
+      this.selectedFilters.subsection = [];
+      this.queueActiveLeadsReload();
     },
 
     toggleSubsectionMenu(row, event) {
@@ -3598,10 +3784,11 @@ export default {
       this.filterAnchorEl = null;
       this.filterMenuStyle = {};
       this.closeLandingMenu();
-      this.subsectionMenuStyle = { ...this.floatingFilterMenuStyle(event), width: "230px" };
+      this.subsectionMenuStyle = { ...this.floatingFilterMenuStyle(event), width: "320px" };
       this.subsectionSearch = "";
+      this.pickerTrail = this.trailForRow(row);
       this.activeSubsectionRowId = row._localId;
-      if (!this.subsectionOptions.length && !this.subsectionsLoading) this.loadSubsections();
+      this.ensureSectionTreeLoaded();
       this.$nextTick(() => document.querySelector(".subsection-menu-floating .subsection-search-input")?.focus());
     },
 
@@ -3609,34 +3796,124 @@ export default {
       this.activeSubsectionRowId = null;
       this.subsectionMenuStyle = {};
       this.subsectionSearch = "";
+      this.pickerTrail = [];
+    },
+
+    trailForRow(row) {
+      const pathIds = Array.isArray(row?.sectionPathIds) ? row.sectionPathIds.map(Number) : [];
+      if (!pathIds.length) return [];
+      const trail = [];
+      let nodes = this.sectionTree || [];
+      for (const id of pathIds) {
+        const node = nodes.find((item) => Number(item.id) === Number(id));
+        if (!node) break;
+        trail.push(node);
+        nodes = node.children || [];
+      }
+      return trail;
+    },
+
+    isRowSectionOptionSelected(row, option) {
+      if (!option) return false;
+      if (option.type === 'service') return String(row?.serviceId || '') === String(option.id);
+      return String(row?.subsectionId || '') === String(option.id) && !row?.serviceId;
+    },
+
+    applySectionOptionToRow(row, option) {
+      if (!option) return;
+      if (option.type === 'service') {
+        const section = this.sectionTreeIndex.sectionById.get(String(option.sectionId || option.pathIds?.[option.pathIds.length - 1] || ''));
+        const service = this.sectionTreeIndex.serviceById.get(String(option.id));
+        Object.assign(row, selectionFieldsFromSection(section || {
+          id: option.sectionId,
+          name: sectionLeafLabel(option.path),
+          path: (service?.path || option.path || '').replace(/\s*\/\s*[^/]+$/, ''),
+          path_ids: option.pathIds || [],
+        }, service || { id: option.id, name: option.name, path: option.path, path_ids: option.pathIds }));
+      } else {
+        const section = this.sectionTreeIndex.sectionById.get(String(option.id)) || {
+          id: option.id,
+          name: option.name,
+          path: option.path,
+          path_ids: option.pathIds,
+        };
+        Object.assign(row, selectionFieldsFromSection(section, null));
+      }
+      this.closeSubsectionMenu();
     },
 
     setRowSubsection(row, option) {
-      row.subsectionId = option ? Number(option.id) : null;
-      row.subsectionName = option ? sectionLeafLabel(option.name) : "";
+      if (!option) {
+        Object.assign(row, selectionFieldsFromSection(null, null));
+        this.closeSubsectionMenu();
+        return;
+      }
+      this.applySectionOptionToRow(row, {
+        type: 'section',
+        id: option.id,
+        name: option.name,
+        path: option.path || option.name,
+        pathIds: option.path_ids || option.pathIds || [],
+      });
+    },
+
+    selectPickerSectionLevel(row) {
+      if (!this.pickerCurrentSection) return;
+      Object.assign(row, selectionFieldsFromSection(this.pickerCurrentSection, null));
+      this.closeSubsectionMenu();
+    },
+
+    drillOrSelectSection(row, child) {
+      if (!child) return;
+      const hasMore = (child.children || []).length > 0 || (child.services || []).length > 0;
+      if (hasMore) {
+        this.pickerTrail = [...this.pickerTrail, child];
+        return;
+      }
+      Object.assign(row, selectionFieldsFromSection(child, null));
+      this.closeSubsectionMenu();
+    },
+
+    selectPickerService(row, service) {
+      Object.assign(row, selectionFieldsFromSection(this.pickerCurrentSection, service));
       this.closeSubsectionMenu();
     },
 
     selectFirstSubsection(row) {
       const [first] = this.filteredSubsectionOptions;
-      if (first) this.setRowSubsection(row, first);
+      if (first) this.applySectionOptionToRow(row, first);
+    },
+
+    ensureSectionTreeLoaded(force = false) {
+      const host = String(window.location.hostname || '');
+      if (force || host !== this.sectionTreeHost || (!this.sectionTree.length && !this.subsectionsLoading)) {
+        this.loadSubsections();
+      }
     },
 
     async loadSubsections() {
       this.subsectionsLoading = true;
       this.subsectionsLoadError = "";
+      const host = String(window.location.hostname || '');
       try {
         const { data } = await axios.get("/api/campaigns/subsections");
-        const seen = new Set();
-        this.subsectionOptions = (Array.isArray(data) ? data : [])
-          .map(item => ({ id: item?.id, name: sectionLeafLabel(item?.name) }))
-          .filter(item => {
-            if (!item.id || !item.name || seen.has(String(item.id))) return false;
-            seen.add(String(item.id));
-            return true;
-          });
+        const payload = data && typeof data === 'object' && !Array.isArray(data)
+          ? data
+          : { tree: [], sections: Array.isArray(data) ? data : [], services: [] };
+        this.sectionTree = Array.isArray(payload.tree) ? payload.tree : [];
+        this.sectionTreeIndex = indexSectionTree(payload);
+        this.subsectionOptions = (this.sectionTreeIndex.sections || []).map((section) => ({
+          id: section.id,
+          name: section.path || section.name,
+          path: section.path || section.name,
+          path_ids: section.path_ids || [],
+          is_leaf: section.is_leaf,
+        }));
+        this.sectionTreeHost = host;
       } catch (error) {
         this.subsectionOptions = [];
+        this.sectionTree = [];
+        this.sectionTreeIndex = indexSectionTree();
         this.subsectionsLoadError = "بارگذاری بخش‌ها انجام نشد.";
         console.error("Subsections load error", error);
       } finally {
@@ -4398,6 +4675,11 @@ export default {
         source: "",
         subsectionId: null,
         subsectionName: "",
+        rootSectionId: null,
+        sectionPathIds: [],
+        sectionPath: "",
+        serviceId: null,
+        serviceName: "",
         status: "",
         landingSms: [],
         landingSmsSent: {},
@@ -4740,7 +5022,7 @@ export default {
       if (followupRowHasDescription(row)) return false;
       return ![
         row.fullName, row.phone, row.followUpDate, row.gender, row.consultant,
-        row.source, row.status, row.interest, row.reason, row.subsectionId, row.file_number,
+        row.source, row.status, row.interest, row.reason, row.subsectionId, row.serviceId, row.sectionPath, row.file_number,
       ].some(value => String(value ?? "").trim());
     },
 
@@ -5669,6 +5951,11 @@ export default {
                 source: r.source ?? "",
                 subsectionId: r.subsectionId ?? null,
                 subsectionName: r.subsectionName ?? "",
+                rootSectionId: r.rootSectionId ?? null,
+                sectionPathIds: Array.isArray(r.sectionPathIds) ? r.sectionPathIds : [],
+                sectionPath: r.sectionPath ?? "",
+                serviceId: r.serviceId ?? null,
+                serviceName: r.serviceName ?? "",
                 status: normalizeStatus(r.status ?? ""),
                 landingSms: Array.isArray(r.landingSms)
                   ? r.landingSms.filter(Boolean)
@@ -7464,7 +7751,7 @@ export default {
   cursor: grab;
 }
 .report-filter-tabs{display:flex;align-items:center;gap:8px;margin:14px 0 10px;padding:6px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}.report-filter-tabs button{height:40px;padding:0 18px;border:0;border-radius:10px;background:transparent;color:#64748b;font-family:inherit;font-weight:900;cursor:pointer}.report-filter-tabs button.active{background:#2563eb;color:#fff;box-shadow:0 7px 18px rgba(37,99,235,.2)}.report-filter-tabs>span{margin-right:auto;padding:5px 10px;border-radius:999px;background:#e2e8f0;color:#475569;font-size:11px;font-weight:900}.report-filter-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px;border:1px solid #dbeafe;border-radius:16px;background:linear-gradient(135deg,#f8fbff,#f0fdf4)}.report-filter-group{min-width:0;display:flex;flex-direction:column;gap:8px}.report-filter-group.wide{grid-column:span 2}.report-filter-group>b{color:#334155;font-size:12px}.report-filter-group>input,.report-cost-range input{height:40px;padding:0 11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-family:inherit;outline:none}.report-filter-group>input:focus,.report-cost-range input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.13)}.report-filter-chips{display:flex;gap:6px;flex-wrap:wrap}.report-filter-chips label{display:flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #dbe3ed;border-radius:999px;background:#fff;color:#475569;font-size:10px;font-weight:900;cursor:pointer}.report-filter-chips label.selected{border-color:#60a5fa;background:#dbeafe;color:#1d4ed8}.report-filter-chips input{display:none}.report-cost-range>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}.report-filter-actions{grid-column:1/-1;display:flex;justify-content:flex-end;padding:8px 0}.report-filter-actions button{padding:8px 13px;border:1px solid #fecaca;border-radius:9px;background:#fff7f7;color:#b91c1c;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer}.filtered-campaign-results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-height:52vh;overflow:auto;padding:5px}.filtered-campaign-results article{padding:15px;border:1px solid #e2e8f0;border-radius:15px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06);cursor:pointer;transition:.18s}.filtered-campaign-results article:hover{transform:translateY(-2px);border-color:#93c5fd;box-shadow:0 12px 25px rgba(15,23,42,.1)}.filtered-campaign-results header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px}.filtered-campaign-results header strong{overflow:hidden;color:#0f172a;text-overflow:ellipsis;white-space:nowrap}.filtered-campaign-results header span{padding:4px 7px;border-radius:999px;font-size:9px;font-weight:900}.filtered-campaign-results article>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filtered-campaign-results article>div span{display:flex;justify-content:space-between;padding:7px;border-radius:8px;background:#f8fafc;color:#64748b;font-size:10px}.filtered-campaign-results article>div b{color:#1e293b}@media(max-width:900px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr 1fr}}@media(max-width:640px){.report-filter-panel,.filtered-campaign-results{grid-template-columns:1fr}.report-filter-group.wide{grid-column:auto}.report-filter-tabs button{padding:0 10px}.report-filter-tabs>span{display:none}}
-.subsection-cell{position:relative;overflow:visible!important}.subsection-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#94a3b8;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}.subsection-trigger.active{border-color:#a78bfa;background:#f5f3ff;color:#5b21b6}.subsection-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.subsection-menu-floating{position:fixed!important;z-index:2147483575!important;display:flex;flex-direction:column;gap:6px;max-height:min(330px,calc(100vh - 24px));padding:8px;border:1px solid #ddd6fe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2);direction:rtl;box-sizing:border-box}.subsection-options{display:grid;gap:2px;overflow:auto;max-height:260px}.subsection-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 9px;border:0;border-radius:8px;background:transparent;color:#334155;font-family:inherit;font-size:11px;font-weight:800;text-align:right;cursor:pointer}.subsection-option:hover,.subsection-option.selected{background:#f5f3ff;color:#5b21b6}.subsection-option.clear{color:#b91c1c}.subsection-option.clear:hover{background:#fee2e2}.subsection-option i{color:#16a34a;font-style:normal;font-weight:1000}.subsection-retry{margin-right:4px;border:0;background:none;color:#2563eb;font-family:inherit;font-weight:900;cursor:pointer}.filter-search-input{width:100%;height:32px;margin:0 0 6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#0f172a;font-family:inherit;font-size:11px;box-sizing:border-box}.filter-search-input:focus{outline:none;border-color:#8b5cf6;background:#fff}.filter-empty{padding:9px 6px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}.filter-clear-btn{width:100%;margin-top:6px;padding:7px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-dropdown{min-width:230px!important}.date-filter-title{padding:2px 4px 8px;color:#334155;font-size:11px;font-weight:1000}.date-filter-field{display:grid;grid-template-columns:22px 1fr;align-items:center;gap:6px;margin-bottom:6px;color:#64748b;font-size:11px;font-weight:900}.date-filter-actions{display:flex;gap:6px;margin-top:4px}.date-filter-actions button{flex:1;padding:7px;border:0;border-radius:8px;background:#ede9fe;color:#5b21b6;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-actions button.danger{background:#fee2e2;color:#b91c1c}
+.section-filter-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 2px 8px}.section-filter-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 8px;border:1px solid #c4b5fd;border-radius:999px;background:#f5f3ff;color:#5b21b6;font:inherit;font-size:11px;font-weight:800;cursor:pointer}.section-filter-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.section-filter-chip b{font-size:13px;line-height:1}.section-filter-clear-all{border:0;background:transparent;color:#7c3aed;font:inherit;font-size:11px;font-weight:800;cursor:pointer;padding:4px 6px}.section-picker-crumb{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.section-crumb{border:0;background:#f1f5f9;color:#475569;border-radius:999px;padding:3px 8px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}.section-crumb.active{background:#ede9fe;color:#5b21b6}.filter-tree-row{display:flex;align-items:center;gap:4px}.filter-tree-row .filter-option{flex:1;min-width:0}.filter-drill-btn{border:0;background:#f8fafc;color:#64748b;border-radius:8px;width:28px;height:28px;font:inherit;font-weight:900;cursor:pointer}.subsection-option.path-option span,.filter-option.path-option span,.subsection-option.service-option span{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:right}.subsection-option.path-option small,.subsection-option.service-option small,.filter-option.path-option small{color:#94a3b8;font-size:9px;font-weight:700}.subsection-option.select-level{background:#f5f3ff;color:#5b21b6}.subsection-menu-floating.hierarchical{max-height:min(420px,calc(100vh - 24px))}.subsection-cell{position:relative;overflow:visible!important}.subsection-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#94a3b8;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}.subsection-trigger.active{border-color:#a78bfa;background:#f5f3ff;color:#5b21b6}.subsection-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.subsection-menu-floating{position:fixed!important;z-index:2147483575!important;display:flex;flex-direction:column;gap:6px;max-height:min(330px,calc(100vh - 24px));padding:8px;border:1px solid #ddd6fe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2);direction:rtl;box-sizing:border-box}.subsection-options{display:grid;gap:2px;overflow:auto;max-height:260px}.subsection-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 9px;border:0;border-radius:8px;background:transparent;color:#334155;font-family:inherit;font-size:11px;font-weight:800;text-align:right;cursor:pointer}.subsection-option:hover,.subsection-option.selected{background:#f5f3ff;color:#5b21b6}.subsection-option.clear{color:#b91c1c}.subsection-option.clear:hover{background:#fee2e2}.subsection-option i{color:#16a34a;font-style:normal;font-weight:1000}.subsection-retry{margin-right:4px;border:0;background:none;color:#2563eb;font-family:inherit;font-weight:900;cursor:pointer}.filter-search-input{width:100%;height:32px;margin:0 0 6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#0f172a;font-family:inherit;font-size:11px;box-sizing:border-box}.filter-search-input:focus{outline:none;border-color:#8b5cf6;background:#fff}.filter-empty{padding:9px 6px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}.filter-clear-btn{width:100%;margin-top:6px;padding:7px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-dropdown{min-width:230px!important}.date-filter-title{padding:2px 4px 8px;color:#334155;font-size:11px;font-weight:1000}.date-filter-field{display:grid;grid-template-columns:22px 1fr;align-items:center;gap:6px;margin-bottom:6px;color:#64748b;font-size:11px;font-weight:900}.date-filter-actions{display:flex;gap:6px;margin-top:4px}.date-filter-actions button{flex:1;padding:7px;border:0;border-radius:8px;background:#ede9fe;color:#5b21b6;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}.date-filter-actions button.danger{background:#fee2e2;color:#b91c1c}
 .landing-multi-cell{position:relative;overflow:visible!important}.landing-multi-trigger{width:100%;height:36px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:10px;font-weight:800;cursor:pointer}.landing-multi-trigger.active{border-color:#60a5fa;background:#eff6ff;color:#1d4ed8}.landing-multi-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.landing-multi-menu{position:absolute;z-index:500;top:calc(100% + 5px);right:4px;width:230px;padding:8px;border:1px solid #dbeafe;border-radius:13px;background:#fff;box-shadow:0 18px 42px rgba(15,23,42,.2)}.landing-multi-menu-floating{position:fixed!important;z-index:1000005!important;max-height:min(320px,calc(100vh - 24px));overflow:auto}.landing-multi-title{padding:5px 7px 9px;border-bottom:1px solid #eef2f7;color:#334155;font-size:11px;font-weight:1000}.landing-multi-menu label{display:flex;align-items:center;gap:8px;padding:9px 7px;border-radius:8px;color:#475569;font-size:11px;font-weight:800;cursor:pointer}.landing-multi-menu label:hover,.landing-multi-menu label.selected{background:#eff6ff;color:#1d4ed8}.landing-multi-menu input{width:16px!important;height:16px!important;accent-color:#2563eb}.landing-multi-menu label span{flex:1}.landing-multi-menu label i{color:#16a34a;font-style:normal;font-weight:1000}.landing-clear-btn{width:100%;margin-top:5px;padding:8px;border:0;border-radius:8px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer}
 .landing-multi-empty{padding:13px 7px;color:#94a3b8;font-size:10px;font-weight:800;text-align:center}
 

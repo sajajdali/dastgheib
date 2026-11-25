@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
-use App\Models\InventorySection;
 use App\Services\CampaignLeadSync;
 use App\Services\CampaignRowMerger;
+use App\Services\FollowupSectionTree;
 use App\Support\CampaignFollowupNotes;
 use App\Support\FollowupLeadPhoneVisibility;
 use Illuminate\Http\Request;
@@ -107,6 +107,12 @@ class CampaignController extends Controller
             'upserts' => ['nullable', 'array'],
             'upserts.*.subsectionId' => ['nullable', 'integer'],
             'upserts.*.subsectionName' => ['nullable', 'string', 'max:255'],
+            'upserts.*.rootSectionId' => ['nullable', 'integer'],
+            'upserts.*.sectionPathIds' => ['nullable', 'array'],
+            'upserts.*.sectionPathIds.*' => ['integer'],
+            'upserts.*.sectionPath' => ['nullable', 'string', 'max:500'],
+            'upserts.*.serviceId' => ['nullable', 'integer'],
+            'upserts.*.serviceName' => ['nullable', 'string', 'max:255'],
             'deletes' => ['nullable', 'array'],
             'deletes.*' => ['string', 'max:64'],
         ]);
@@ -202,20 +208,12 @@ class CampaignController extends Controller
     }
 
     /**
-     * فقط زیربخش‌های آخر (برگ‌های درخت بخش‌ها) برای ستون «بخش» پیگیری کلی؛
-     * بخش اصلی و بخشی که زیربخش ندارد در فهرست نمی‌آید.
+     * درخت پویای بخش‌ها + خدمات فعال برای ستون «بخش» پیگیری کلی
+     * (همان منبع inventory_sections / inventories نوبت‌دهی جدولی).
      */
     public function subsections()
     {
-        return InventorySection::query()
-            ->whereNotNull('parent_id')
-            ->whereDoesntHave('children')
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->orderBy('id')
-            ->get(['id', 'name'])
-            ->map(fn (InventorySection $section) => ['id' => $section->id, 'name' => trim((string) $section->name)])
-            ->values();
+        return response()->json(app(FollowupSectionTree::class)->payload());
     }
 
     /**
@@ -371,6 +369,12 @@ class CampaignController extends Controller
             'ui_payload.rows' => ['nullable', 'array'],
             'ui_payload.rows.*.subsectionId' => ['nullable', 'integer'],
             'ui_payload.rows.*.subsectionName' => ['nullable', 'string', 'max:255'],
+            'ui_payload.rows.*.rootSectionId' => ['nullable', 'integer'],
+            'ui_payload.rows.*.sectionPathIds' => ['nullable', 'array'],
+            'ui_payload.rows.*.sectionPathIds.*' => ['integer'],
+            'ui_payload.rows.*.sectionPath' => ['nullable', 'string', 'max:500'],
+            'ui_payload.rows.*.serviceId' => ['nullable', 'integer'],
+            'ui_payload.rows.*.serviceName' => ['nullable', 'string', 'max:255'],
         ]);
 
         // قواعد تو در توی ردیف‌ها فقط اعتبارسنجی می‌کنند؛ validated() بقیهٔ فیلدهای ردیف را حذف می‌کند،

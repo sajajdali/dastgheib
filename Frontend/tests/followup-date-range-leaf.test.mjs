@@ -12,8 +12,8 @@ test('general follow-up date filters update one bound without clearing the other
   assert.match(source, /dateInInclusiveRange\(value, from, to\)/);
 });
 
-test('general follow-up بخش column and filter use leaf subsection labels', () => {
-  assert.match(source, /sectionLeafLabel\(option\.name\)/);
-  assert.match(source, /sectionLeafLabel\(row\?\.subsectionName\)/);
-  assert.match(source, /this\.followupSubsectionLabel\(r\)/);
+test('general follow-up بخش column uses hierarchical path labels', () => {
+  assert.match(source, /followupSubsectionLabel\(row\)/);
+  assert.match(source, /row\.sectionPath/);
+  assert.match(source, /section-filter-chips/);
 });

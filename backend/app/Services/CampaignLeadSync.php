@@ -31,7 +31,7 @@ class CampaignLeadSync
             if (! is_array($row)) {
                 continue;
             }
-            $normalized = CampaignFollowupNotes::normalizeRow($row);
+            $normalized = app(FollowupSectionTree::class)->enrichLeadRow(CampaignFollowupNotes::normalizeRow($row));
             $localId = trim((string) ($normalized['_localId'] ?? ''));
             if ($localId === '') {
                 $localId = 'srv-'.Str::uuid()->toString();
@@ -57,6 +57,7 @@ class CampaignLeadSync
                     return $row;
                 }, $chunk));
             }
+            $this->mirrorLeadsIntoPayload($campaign);
         });
     }
 
@@ -90,7 +91,7 @@ class CampaignLeadSync
                 if (! is_array($row)) {
                     continue;
                 }
-                $normalized = CampaignFollowupNotes::normalizeRow($row);
+                $normalized = app(FollowupSectionTree::class)->enrichLeadRow(CampaignFollowupNotes::normalizeRow($row));
                 $localId = trim((string) ($normalized['_localId'] ?? ''));
                 if ($localId === '') {
                     $localId = 'srv-'.Str::uuid()->toString();
@@ -343,15 +344,52 @@ class CampaignLeadSync
 
         $subsections = $this->stringList($filters['subsection'] ?? null);
         if ($subsections !== []) {
-            $query->where(function (Builder $builder) use ($subsections): void {
+            $tree = app(FollowupSectionTree::class);
+            $query->where(function (Builder $builder) use ($subsections, $tree): void {
                 foreach ($subsections as $value) {
                     if ($value === '__none__') {
                         $builder->orWhere(function (Builder $inner): void {
-                            $inner->whereNull('subsection_name')->orWhere('subsection_name', '');
+                            $inner->whereNull('subsection_id')
+                                ->where(function (Builder $emptyName): void {
+                                    $emptyName->whereNull('subsection_name')->orWhere('subsection_name', '');
+                                });
                         });
-                    } else {
-                        $builder->orWhere('subsection_name', $value);
+
+                        continue;
                     }
+
+                    if (preg_match('/^service:(\d+)$/', $value, $match)) {
+                        $serviceId = (int) $match[1];
+                        $builder->orWhere(function (Builder $inner) use ($serviceId): void {
+                            $inner->where('payload->serviceId', $serviceId)
+                                ->orWhere('payload->service_id', $serviceId);
+                        });
+
+                        continue;
+                    }
+
+                    $sectionId = null;
+                    if (preg_match('/^section:(\d+)$/', $value, $match)) {
+                        $sectionId = (int) $match[1];
+                    } elseif (ctype_digit($value)) {
+                        $sectionId = (int) $value;
+                    }
+
+                    if ($sectionId) {
+                        $ids = $tree->descendantSectionIds($sectionId);
+                        $builder->orWhere(function (Builder $inner) use ($ids, $sectionId): void {
+                            $inner->whereIn('subsection_id', $ids);
+                            foreach ($ids as $id) {
+                                $inner->orWhereJsonContains('payload->sectionPathIds', $id);
+                            }
+                            $inner->orWhere('payload->rootSectionId', $sectionId);
+                        });
+
+                        continue;
+                    }
+
+                    // سازگاری با فیلتر قدیمی مبتنی بر نام برگ
+                    $builder->orWhere('subsection_name', $value);
                 }
             });
         }
@@ -417,6 +455,16 @@ class CampaignLeadSync
         $payload = $row;
         unset($payload['_localId']);
 
+        $subsectionId = isset($row['subsectionId']) && $row['subsectionId'] !== '' && $row['subsectionId'] !== null
+            ? (int) $row['subsectionId']
+            : null;
+        $pathIds = is_array($row['sectionPathIds'] ?? null)
+            ? array_values(array_map('intval', $row['sectionPathIds']))
+            : [];
+        if ($subsectionId === null && $pathIds !== []) {
+            $subsectionId = (int) end($pathIds);
+        }
+
         $now = now();
 
         return [
@@ -434,9 +482,7 @@ class CampaignLeadSync
             'contact_date' => $this->normalizeDate($row['contactDate'] ?? null),
             'contact_time' => $this->nullableString($row['contactTime'] ?? null),
             'follow_up_date' => $this->normalizeDate($row['followUpDate'] ?? null),
-            'subsection_id' => isset($row['subsectionId']) && $row['subsectionId'] !== '' && $row['subsectionId'] !== null
-                ? (int) $row['subsectionId']
-                : null,
+            'subsection_id' => $subsectionId,
             'subsection_name' => $this->nullableString($row['subsectionName'] ?? null),
             'appointment_registered' => (bool) ($row['appointmentRegistered'] ?? false),
             'appointment_done' => $this->isAppointmentDone($row),
@@ -468,10 +514,15 @@ class CampaignLeadSync
             'followUpDate' => $lead->follow_up_date ?? ($payload['followUpDate'] ?? ''),
             'subsectionId' => $lead->subsection_id,
             'subsectionName' => $lead->subsection_name ?? ($payload['subsectionName'] ?? ''),
+            'rootSectionId' => $payload['rootSectionId'] ?? null,
+            'sectionPathIds' => is_array($payload['sectionPathIds'] ?? null) ? $payload['sectionPathIds'] : [],
+            'sectionPath' => $payload['sectionPath'] ?? '',
+            'serviceId' => $payload['serviceId'] ?? null,
+            'serviceName' => $payload['serviceName'] ?? '',
             'appointmentRegistered' => (bool) $lead->appointment_registered,
         ]);
 
-        return CampaignFollowupNotes::normalizeRow($row);
+        return app(FollowupSectionTree::class)->enrichLeadRow(CampaignFollowupNotes::normalizeRow($row));
     }
 
     /**
