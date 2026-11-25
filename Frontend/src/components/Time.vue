@@ -2821,7 +2821,7 @@ import LoadingImage from './LoadingImage.vue';
 import { subscribeAppointmentChanges, subscribeAppointmentNoteChanges } from '../services/presence';
 import { isBookingDayCapacityFull as bookingDayCapacityFull } from '../utils/bookingDayCapacity';
 import { appointmentPhotosRequired as appointmentNeedsPhotos } from '../utils/appointmentPhotosRequired';
-import { firstRootSubsectionLabel } from '../utils/sectionLeafLabel';
+import { firstRootSubsectionLabel, uniqueServiceSummaryLabels } from '../utils/sectionLeafLabel';
 import {
   appointmentStatusChartColor as sharedAppointmentStatusChartColor,
   appointmentStatusCssClass,
@@ -12030,11 +12030,11 @@ smsColor(val) {
 
     // در ستون خدمات اولین زیربخش مستقیم زیر ریشه نشان داده می‌شود
     // (مثلاً لیزر←الکساندرایت←بانوان←خدمت → «الکساندرایت»)؛ چند خدمت یکتا و با «، ».
+    // فقط برچسب دکمه خلاصه عوض می‌شود؛ مسیر کامل مودال و نام خدمت دست‌نخورده می‌مانند.
     serviceButtonLabels(row) {
-      const labels = (row?.services || [])
-        .map(service => this.serviceSubsectionLabel(service))
-        .filter(Boolean);
-      return [...new Set(labels)];
+      return uniqueServiceSummaryLabels(
+        (row?.services || []).map(service => this.serviceSubsectionLabel(service))
+      );
     },
 
     serviceSubsectionLabel(service) {
