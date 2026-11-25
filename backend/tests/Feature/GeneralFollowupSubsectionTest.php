@@ -40,10 +40,36 @@ class GeneralFollowupSubsectionTest extends TestCase
             $table->json('ui_payload')->nullable();
             $table->timestamps();
         });
+        Schema::create('campaign_leads', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('campaign_id');
+            $table->string('local_id', 64);
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->string('full_name')->nullable();
+            $table->string('phone', 32)->nullable();
+            $table->string('gender', 20)->nullable();
+            $table->string('consultant')->nullable();
+            $table->string('source')->nullable();
+            $table->string('status', 40)->nullable();
+            $table->string('interest', 20)->nullable();
+            $table->string('reason')->nullable();
+            $table->string('contact_date', 16)->nullable();
+            $table->string('contact_time', 16)->nullable();
+            $table->string('follow_up_date', 16)->nullable();
+            $table->unsignedBigInteger('subsection_id')->nullable();
+            $table->string('subsection_name')->nullable();
+            $table->boolean('appointment_registered')->default(false);
+            $table->boolean('appointment_done')->default(false);
+            $table->boolean('meaningful')->default(false);
+            $table->json('payload')->nullable();
+            $table->timestamps();
+            $table->unique(['campaign_id', 'local_id']);
+        });
     }
 
     protected function tearDown(): void
     {
+        Schema::dropIfExists('campaign_leads');
         Schema::dropIfExists('campaigns');
         Schema::dropIfExists('inventory_sections');
         parent::tearDown();
@@ -111,10 +137,14 @@ class GeneralFollowupSubsectionTest extends TestCase
         $this->assertSame('2026-11-05', $saved['ui_payload']['rows'][0]['contactDate']);
         $this->assertTrue($saved['ui_payload']['isGeneralFollowup']);
 
-        $this->getJson('/api/campaigns')
+        $this->getJson('/api/campaigns?full=1')
             ->assertOk()
             ->assertJsonPath('0.ui_payload.rows.0.subsectionId', $botox->id)
             ->assertJsonPath('0.ui_payload.rows.1.fullName', 'سارا');
+
+        $lean = $this->getJson('/api/campaigns')->assertOk()->json();
+        $this->assertTrue((bool) ($lean[0]['rows_omitted'] ?? false));
+        $this->assertArrayNotHasKey('rows', $lean[0]['ui_payload'] ?? []);
 
         $payload['ui_payload']['rows'][0]['subsectionId'] = 'not-a-number';
         try {

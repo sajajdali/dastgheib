@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\InventorySection;
+use App\Services\CampaignLeadSync;
 use App\Services\CampaignRowMerger;
 use App\Support\CampaignFollowupNotes;
 use App\Support\FollowupLeadPhoneVisibility;
@@ -19,26 +20,147 @@ class CampaignController extends Controller
     public function index(Request $request)
     {
         $campaigns = Campaign::query()->orderByDesc('active')->orderBy('name')->get();
+        $sync = app(CampaignLeadSync::class);
         $visible = FollowupLeadPhoneVisibility::visibleConsultants($request);
-        $campaigns->each(function (Campaign $campaign) use ($visible): void {
+        $wantFull = $request->boolean('full');
+        $wantSummary = $request->boolean('summary');
+
+        $campaigns->each(function (Campaign $campaign) use ($sync, $visible, $wantFull, $wantSummary): void {
+            $sync->ensureSyncedFromPayload($campaign);
             $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
-            if (is_array($payload['rows'] ?? null)) {
-                $payload['rows'] = CampaignFollowupNotes::normalizePayloadRows($payload['rows']);
-                $campaign->setAttribute('ui_payload', $payload);
+
+            if ($wantFull) {
+                if (is_array($payload['rows'] ?? null)) {
+                    $payload['rows'] = CampaignFollowupNotes::normalizePayloadRows($payload['rows']);
+                } else {
+                    $payload['rows'] = $sync->rowsForCampaign($campaign->getKey());
+                }
+            } else {
+                // فهرست سبک: ردیف‌ها را برنمی‌گردانیم؛ آمار از جدول ایندکس‌شده می‌آید.
+                unset($payload['rows'], $payload['banners'], $payload['attachmentData']);
+                if ($wantSummary) {
+                    unset($payload['description']);
+                }
             }
+
+            $campaign->setAttribute('ui_payload', $payload);
+            $campaign->setAttribute('lead_stats', $sync->statsForCampaign($campaign->getKey()));
+            $campaign->setAttribute('rows_omitted', ! $wantFull);
             FollowupLeadPhoneVisibility::maskCampaign($campaign, $visible);
         });
 
-        // نسخهٔ سبک برای فید «سرنخ‌ها»: بنرها و فایل‌های پیوست حذف می‌شوند.
-        if ($request->boolean('summary')) {
-            $campaigns->each(function (Campaign $campaign): void {
-                $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
-                unset($payload['banners'], $payload['attachmentData']);
-                $campaign->setAttribute('ui_payload', $payload);
-            });
-        }
-
         return $campaigns;
+    }
+
+    /**
+     * صفحه‌بندی سرنخ‌های یک کمپین با فیلتر سروری.
+     */
+    public function leads(Request $request, Campaign $campaign)
+    {
+        $sync = app(CampaignLeadSync::class);
+        $sync->ensureSyncedFromPayload($campaign);
+
+        $filters = $request->only([
+            'q',
+            'gender',
+            'consultant',
+            'source',
+            'status',
+            'interest',
+            'reason',
+            'subsection',
+            'contact_date_from',
+            'contact_date_to',
+            'follow_up_date_from',
+            'follow_up_date_to',
+        ]);
+
+        $paginator = $sync->paginate(
+            $campaign,
+            $filters,
+            max(1, (int) $request->input('page', 1)),
+            max(1, (int) $request->input('per_page', CampaignLeadSync::DEFAULT_PER_PAGE)),
+        );
+
+        $visible = FollowupLeadPhoneVisibility::visibleConsultants($request);
+        $rows = FollowupLeadPhoneVisibility::maskRows($paginator->items(), $visible);
+
+        return response()->json([
+            'data' => array_values($rows),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'has_more' => $paginator->hasMorePages(),
+            ],
+            'lead_stats' => $sync->statsForCampaign($campaign->getKey()),
+        ]);
+    }
+
+    /**
+     * ذخیرهٔ جزئی سرنخ‌ها بدون ارسال کل تاریخچه (برای مجموعهٔ بزرگ).
+     */
+    public function syncLeads(Request $request, Campaign $campaign)
+    {
+        $request->validate([
+            'upserts' => ['nullable', 'array'],
+            'upserts.*.subsectionId' => ['nullable', 'integer'],
+            'upserts.*.subsectionName' => ['nullable', 'string', 'max:255'],
+            'deletes' => ['nullable', 'array'],
+            'deletes.*' => ['string', 'max:64'],
+        ]);
+
+        // مثل ui_payload.rows: validated() بقیهٔ فیلدهای ردیف را حذف می‌کند.
+        $upserts = array_values(array_filter((array) $request->input('upserts', []), 'is_array'));
+        $deletes = array_values((array) $request->input('deletes', []));
+        $serverPayload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
+        $serverRows = is_array($serverPayload['rows'] ?? null) ? $serverPayload['rows'] : [];
+        $upserts = FollowupLeadPhoneVisibility::restoreMaskedPhones($upserts, $serverRows);
+        $upserts = CampaignFollowupNotes::normalizePayloadRows($upserts, $request->user()?->name);
+
+        $result = app(CampaignLeadSync::class)->applyBatch(
+            $campaign,
+            $upserts,
+            $deletes,
+        );
+
+        $visible = FollowupLeadPhoneVisibility::visibleConsultants($request);
+
+        return response()->json([
+            'lead_stats' => $result['stats'],
+            'upserted' => FollowupLeadPhoneVisibility::maskRows(
+                array_values(array_filter(
+                    $result['rows'],
+                    fn ($row) => in_array((string) ($row['_localId'] ?? ''), array_map(
+                        fn ($item) => (string) ($item['_localId'] ?? ''),
+                        $upserts
+                    ), true)
+                )),
+                $visible
+            ),
+            'deleted' => $deletes,
+        ]);
+    }
+
+    /**
+     * هشدار پیگیری امروز و عدم‌پیگیری‌ها بدون بارگذاری کل کمپین‌ها.
+     */
+    public function alerts(Request $request)
+    {
+        $sync = app(CampaignLeadSync::class);
+        Campaign::query()->orderBy('id')->chunkById(50, function ($campaigns) use ($sync): void {
+            foreach ($campaigns as $campaign) {
+                $sync->ensureSyncedFromPayload($campaign);
+            }
+        });
+
+        $alerts = $sync->alerts(now(), max(1, min(500, (int) $request->input('limit', 200))));
+        $visible = FollowupLeadPhoneVisibility::visibleConsultants($request);
+        $alerts['today'] = FollowupLeadPhoneVisibility::maskRows($alerts['today'], $visible);
+        $alerts['missed'] = FollowupLeadPhoneVisibility::maskRows($alerts['missed'], $visible);
+
+        return response()->json($alerts);
     }
 
     public function general(Request $request)
@@ -66,14 +188,17 @@ class CampaignController extends Controller
         );
 
         $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
-        if (!($payload['isGeneralFollowup'] ?? false)) {
+        if (! ($payload['isGeneralFollowup'] ?? false)) {
             $campaign->update(['ui_payload' => array_merge($payload, [
                 'title' => 'پیگیری کلی',
                 'isGeneralFollowup' => true,
             ])]);
         }
 
-        return $this->forViewer($campaign->fresh(), $request);
+        $fresh = $campaign->fresh();
+        app(CampaignLeadSync::class)->ensureSyncedFromPayload($fresh);
+
+        return $this->forViewer($fresh, $request, lean: true);
     }
 
     /**
@@ -128,7 +253,12 @@ class CampaignController extends Controller
             );
         }
 
-        return response()->json($this->forViewer(Campaign::create($data), $request), 201);
+        $campaign = Campaign::create($data);
+        if (is_array($data['ui_payload']['rows'] ?? null)) {
+            app(CampaignLeadSync::class)->replaceAll($campaign, $data['ui_payload']['rows']);
+        }
+
+        return response()->json($this->forViewer($campaign->fresh(), $request), 201);
     }
 
     /**
@@ -139,25 +269,38 @@ class CampaignController extends Controller
     {
         $data = $this->data($request);
         $request->validate(['base_rows' => ['nullable', 'array']]);
+        $sync = app(CampaignLeadSync::class);
 
         if (! $request->exists('base_rows') || ! is_array($data['ui_payload']['rows'] ?? null)) {
-            if (is_array($data['ui_payload']['rows'] ?? null)) {
+            $rowsProvided = is_array($data['ui_payload'] ?? null) && array_key_exists('rows', $data['ui_payload']);
+            if ($rowsProvided) {
                 $serverPayload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
                 $data['ui_payload']['rows'] = FollowupLeadPhoneVisibility::restoreMaskedPhones($data['ui_payload']['rows'], $serverPayload['rows'] ?? []);
                 $data['ui_payload']['rows'] = CampaignFollowupNotes::normalizePayloadRows(
                     $data['ui_payload']['rows'],
                     $request->user()?->name
                 );
+            } elseif (is_array($data['ui_payload'] ?? null)) {
+                // ویرایش متادیتای کمپین بدون ارسال ردیف‌ها؛ سرنخ‌های قبلی پاک نمی‌شوند.
+                $serverPayload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
+                $data['ui_payload']['rows'] = is_array($serverPayload['rows'] ?? null) ? $serverPayload['rows'] : [];
             }
             $campaign->update($data);
+            if ($rowsProvided) {
+                $sync->replaceAll($campaign, $data['ui_payload']['rows']);
+            }
 
-            return $this->forViewer($campaign->fresh(), $request);
+            return $this->forViewer($campaign->fresh(), $request, lean: ! $rowsProvided);
         }
 
-        return DB::transaction(function () use ($request, $campaign, $data) {
+        return DB::transaction(function () use ($request, $campaign, $data, $sync) {
             $current = Campaign::query()->lockForUpdate()->findOrFail($campaign->getKey());
             $serverPayload = is_array($current->ui_payload) ? $current->ui_payload : [];
             $serverRows = is_array($serverPayload['rows'] ?? null) ? $serverPayload['rows'] : [];
+            if ($serverRows === []) {
+                $sync->ensureSyncedFromPayload($current);
+                $serverRows = $sync->rowsForCampaign($current->getKey());
+            }
             // کاربری که شمارهٔ بعضی ردیف‌ها را ماسک‌شده دیده، همان را برمی‌گرداند؛ پیش از ادغام بازیابی می‌شود.
             $result = app(CampaignRowMerger::class)->merge(
                 FollowupLeadPhoneVisibility::restoreMaskedPhones((array) $request->input('base_rows', []), $serverRows),
@@ -178,6 +321,7 @@ class CampaignController extends Controller
                 $request->user()?->name
             );
             $current->update($data);
+            $sync->replaceAll($current, $data['ui_payload']['rows']);
 
             return $this->forViewer($current->fresh(), $request);
         });
@@ -190,13 +334,25 @@ class CampaignController extends Controller
         return response()->noContent();
     }
 
-    private function forViewer(Campaign $campaign, Request $request): Campaign
+    private function forViewer(Campaign $campaign, Request $request, bool $lean = false): Campaign
     {
+        $sync = app(CampaignLeadSync::class);
+        $sync->ensureSyncedFromPayload($campaign);
         $payload = is_array($campaign->ui_payload) ? $campaign->ui_payload : [];
-        if (is_array($payload['rows'] ?? null)) {
+
+        if ($lean) {
+            unset($payload['rows'], $payload['banners'], $payload['attachmentData']);
+            $campaign->setAttribute('rows_omitted', true);
+        } elseif (is_array($payload['rows'] ?? null)) {
             $payload['rows'] = CampaignFollowupNotes::normalizePayloadRows($payload['rows']);
-            $campaign->setAttribute('ui_payload', $payload);
+            $campaign->setAttribute('rows_omitted', false);
+        } else {
+            $payload['rows'] = $sync->rowsForCampaign($campaign->getKey());
+            $campaign->setAttribute('rows_omitted', false);
         }
+
+        $campaign->setAttribute('ui_payload', $payload);
+        $campaign->setAttribute('lead_stats', $sync->statsForCampaign($campaign->getKey()));
 
         return FollowupLeadPhoneVisibility::maskCampaign($campaign, FollowupLeadPhoneVisibility::visibleConsultants($request));
     }

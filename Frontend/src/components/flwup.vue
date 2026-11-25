@@ -1447,6 +1447,21 @@
               />
               <button class="btn minus" style="    text-align: center !important;" title="حذف ردیف‌های خالی از انتهای جدول" @click="removeRowsFromActive">-</button>
             </div>
+            <div v-if="activeCampaign?._rowsMode === 'paged'" class="leads-pagination" @click.stop>
+              <div class="leads-pagination-meta">
+                <span v-if="leadsPageLoading">در حال بارگذاری سرنخ‌ها…</span>
+                <span v-else-if="leadsPageError">{{ leadsPageError }}</span>
+                <span v-else>
+                  صفحه {{ (activeLeadsMeta?.current_page || 1).toLocaleString('fa-IR') }}
+                  از {{ (activeLeadsMeta?.last_page || 1).toLocaleString('fa-IR') }}
+                  · {{ (activeLeadsMeta?.total || 0).toLocaleString('fa-IR') }} سرنخ
+                </span>
+              </div>
+              <div class="leads-pagination-actions">
+                <button type="button" class="leads-page-btn" :disabled="leadsPageLoading || (activeLeadsMeta?.current_page || 1) <= 1" @click="loadCampaignLeadsPage(activeCampaign, (activeLeadsMeta?.current_page || 1) - 1)">قبلی</button>
+                <button type="button" class="leads-page-btn" :disabled="leadsPageLoading || !(activeLeadsMeta?.has_more)" @click="loadCampaignLeadsPage(activeCampaign, (activeLeadsMeta?.current_page || 1) + 1)">بعدی</button>
+              </div>
+            </div>
             <div v-if="bulkPhonePasteNotice" class="bulk-phone-paste-notice" role="status">
               {{ bulkPhonePasteNotice }}
             </div>
@@ -2125,6 +2140,10 @@ export default {
       campaignPersistedFingerprints: {},
       // آخرین ردیف‌هایی که از سرور تأیید شده‌اند؛ پایهٔ ادغام سه‌طرفه هنگام ذخیره.
       campaignServerRows: {},
+      followupAlerts: { today: [], missed: [] },
+      leadsPageLoading: false,
+      leadsPageError: "",
+      leadsPerPage: 50,
       pendingAppointmentResult: null,
       campaignSaveInProgress: false,
       campaignSaveQueued: false,
@@ -2157,7 +2176,11 @@ export default {
       return this.campaigns.find(campaign => this.isGeneralFollowupCampaign(campaign)) || null;
     },
     generalFollowupCount() {
-      return Array.isArray(this.generalFollowupCampaign?.rows) ? this.generalFollowupCampaign.rows.length : 0;
+      const campaign = this.generalFollowupCampaign;
+      if (!campaign) return 0;
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.total))) return Number(stats.total);
+      return Array.isArray(campaign.rows) ? campaign.rows.length : 0;
     },
     regularCampaigns() {
       return this.campaigns.filter(campaign => !this.isGeneralFollowupCampaign(campaign));
@@ -2177,8 +2200,11 @@ export default {
       },
     },
     missedFollowups() {
+      if (Array.isArray(this.followupAlerts?.missed) && this.followupAlerts.missed.length) {
+        return this.followupAlerts.missed;
+      }
       return this.campaigns
-        .filter(campaign => this.isActiveFollowupCampaign(campaign))
+        .filter(campaign => this.isActiveFollowupCampaign(campaign) && Array.isArray(campaign.rows) && campaign.rows.length)
         .flatMap(campaign => campaign.rows
         .filter(row => this.isMissedFollowup(row))
         .map(row => ({ ...row, campaignId: campaign.id, campaignTitle: campaign.title })))
@@ -2205,10 +2231,13 @@ export default {
 
     activeFilteredRows() {
       if (!this.activeCampaign) return [];
+      const rows = Array.isArray(this.activeCampaign.rows) ? this.activeCampaign.rows : [];
+      // در حالت صفحه‌بندی سروری، فیلتر روی API اعمال شده؛ فقط ردیف‌های همین صفحه نشان داده می‌شود.
+      if (this.activeCampaign._rowsMode === "paged") return rows;
 
       const term = this.campaignSearch.trim().toLowerCase();
 
-      return this.activeCampaign.rows.filter((r) => {
+      return rows.filter((r) => {
         const inSearch =
           !term ||
           [r.fullName, r.phone, r.consultant, followupNotesSearchText(r), this.followupSubsectionLabel(r)]
@@ -2326,8 +2355,11 @@ export default {
     },
 
     todayFollowups() {
+      if (Array.isArray(this.followupAlerts?.today) && this.followupAlerts.today.length) {
+        return this.followupAlerts.today;
+      }
       return this.campaigns
-        .filter((campaign) => this.isActiveFollowupCampaign(campaign))
+        .filter((campaign) => this.isActiveFollowupCampaign(campaign) && Array.isArray(campaign.rows) && campaign.rows.length)
         .flatMap((campaign) =>
           campaign.rows
           .filter((r) => this.isDueForFollowupToday(r))
@@ -2337,6 +2369,10 @@ export default {
             campaignTitle: campaign.title,
           }))
         );
+    },
+
+    activeLeadsMeta() {
+      return this.activeCampaign?._leadsMeta || null;
     },
 
     activeTodayRows() {
@@ -2382,7 +2418,6 @@ export default {
     this.loadSubsections();
     this.loadLandingSmsTags();
     this.loadCampaignsFromServer();
-    this.hydrateFollowupPatientProfiles();
     this.loadWaitingSlotAppointments();
     this.applyAppointmentResult(this.appointmentResult);
     if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
@@ -2407,9 +2442,28 @@ export default {
   },
 
   watch: {
-    activeCampaignId() {
+    activeCampaignId(id) {
       this.loadFollowupAutomaticSms();
       this.loadFollowupAppointmentStatuses();
+      if (id) {
+        const campaign = this.campaigns.find(item => String(item.id) === String(id));
+        if (campaign) this.ensureCampaignLeadsLoaded(campaign);
+      }
+    },
+    campaignSearch() {
+      this.queueActiveLeadsReload();
+    },
+    selectedFilters: {
+      deep: true,
+      handler() {
+        this.queueActiveLeadsReload();
+      },
+    },
+    dateFilters: {
+      deep: true,
+      handler() {
+        this.queueActiveLeadsReload();
+      },
     },
     campaigns: {
       handler() {
@@ -3040,13 +3094,19 @@ export default {
           cost: data.ui_payload?.cost ?? '',
           campaignStatus: 'active',
           isGeneralFollowup: true,
-          rows: Array.isArray(data.ui_payload?.rows) ? data.ui_payload.rows : [],
+          rows: [],
+          lead_stats: data.lead_stats || null,
+          rows_omitted: true,
+          _rowsMode: 'lean',
+          _rowsHydrated: false,
+          _leadsMeta: null,
+          _deletedLocalIds: [],
           _serverPersisted: true,
         });
         const index = this.campaigns.findIndex(item => String(item.id) === String(serverCampaign.id));
         if (index >= 0) this.campaigns.splice(index, 1, serverCampaign);
         else this.campaigns.unshift(serverCampaign);
-        this.rememberServerRows(serverCampaign, serverCampaign.rows);
+        this.rememberServerRows(serverCampaign, []);
         this.markCampaignPersisted(serverCampaign);
         campaign = serverCampaign;
         this.saveCampaignsToLocal();
@@ -3058,8 +3118,9 @@ export default {
         }
       }
 
-      this.seedDemoFilterFixtures(campaign);
       this.openCampaign(campaign.id);
+      await this.ensureCampaignLeadsLoaded(campaign);
+      this.seedDemoFilterFixtures(campaign);
     },
 
     isDemoFollowupHost() {
@@ -4572,6 +4633,10 @@ export default {
       if (index < 0) return;
 
       const [removedRow] = campaign.rows.splice(index, 1);
+      if (campaign._rowsMode === 'paged' && removedRow?._localId && !removedRow?._localDemo) {
+        if (!Array.isArray(campaign._deletedLocalIds)) campaign._deletedLocalIds = [];
+        campaign._deletedLocalIds.push(String(removedRow._localId));
+      }
       this.saveCampaignsToLocal();
 
       if (!campaign._serverPersisted) return;
@@ -4579,9 +4644,16 @@ export default {
       try {
         await this.putCampaign(campaign);
         this.saveCampaignsToLocal();
+        if (campaign._rowsMode === 'paged') {
+          await this.loadCampaignLeadsPage(campaign, campaign._leadsMeta?.current_page || 1);
+        }
       } catch (error) {
         if (error.response?.status === 409) return;
         campaign.rows.splice(index, 0, removedRow);
+        if (campaign._rowsMode === 'paged' && removedRow?._localId) {
+          campaign._deletedLocalIds = (campaign._deletedLocalIds || [])
+            .filter(id => String(id) !== String(removedRow._localId));
+        }
         this.saveCampaignsToLocal();
         this.notify(error.response?.data?.message || 'حذف پیگیری روی سرور انجام نشد؛ ردیف به جدول برگردانده شد.', 'error');
       }
@@ -4775,7 +4847,15 @@ export default {
         : [];
     },
 
+    campaignLeadStats(campaign) {
+      return campaign?.lead_stats && typeof campaign.lead_stats === "object"
+        ? campaign.lead_stats
+        : null;
+    },
+
     getLeadCount(campaign) {
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.total))) return Number(stats.total);
       return this.campaignLeadRows(campaign).length;
     },
 
@@ -4788,19 +4868,30 @@ export default {
     },
 
     getAnsweredCount(campaign) {
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.answered))) return Number(stats.answered);
       return this.campaignLeadRows(campaign).filter((r) => r.status === "پاسخ داد").length;
     },
 
     getNoAnswerCount(campaign) {
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.no_answer))) return Number(stats.no_answer);
       return this.campaignLeadRows(campaign).filter((r) => r.status === "پاسخ نداد").length;
     },
 
     getUncalledCount(campaign) {
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.uncalled))) return Number(stats.uncalled);
       return this.campaignLeadRows(campaign).filter((r) => !r.status).length;
     },
 
     getInterestCount(campaign, value) {
       const normalizedValue = normalizeInterest(value);
+      const stats = this.campaignLeadStats(campaign);
+      if (stats) {
+        const key = normalizedValue === "ok" ? "appointment" : `interest_${normalizedValue}`;
+        if (Number.isFinite(Number(stats[key]))) return Number(stats[key]);
+      }
       return this.campaignLeadRows(campaign).filter(
         (r) => normalizeInterest(r.interest) === normalizedValue,
       ).length;
@@ -4812,11 +4903,16 @@ export default {
     },
 
     getWorkDoneCount(campaign) {
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.work_done))) return Number(stats.work_done);
       // افرادی که از همین کمپین نوبت گرفته‌اند و وضعیت نوبت‌شان «انجام شد» شده است.
       return this.campaignLeadRows(campaign).filter((row) => this.isFollowupAppointmentDone(row)).length;
     },
 
     calculateCampaignScore(campaign) {
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.score))) return Number(stats.score);
+
       const validRows = this.getComputedRows(campaign);
 
       if (!validRows.length) return 0;
@@ -4847,8 +4943,10 @@ export default {
     },
 
     hasTodayFollowups(campaign) {
-      return this.isActiveFollowupCampaign(campaign)
-        && campaign.rows.some((r) => this.isDueForFollowupToday(r));
+      if (!this.isActiveFollowupCampaign(campaign)) return false;
+      const stats = this.campaignLeadStats(campaign);
+      if (stats && Number.isFinite(Number(stats.today))) return Number(stats.today) > 0;
+      return Array.isArray(campaign.rows) && campaign.rows.some((r) => this.isDueForFollowupToday(r));
     },
 
     isActiveFollowupCampaign(campaign) {
@@ -4992,15 +5090,37 @@ export default {
           }
         });
       });
-      localStorage.setItem("campaigns_flwup_v1", JSON.stringify(this.campaigns));
+      // فقط متادیتا و آمار را در localStorage نگه می‌داریم تا دادهٔ حجیم مرورگر را قفل نکند.
+      const lean = this.campaigns.map(campaign => {
+        const copy = { ...campaign };
+        if (campaign._rowsMode === "paged" || campaign._rowsMode === "lean" || campaign.rows_omitted) {
+          copy.rows = [];
+          copy._rowsMode = "lean";
+          copy._rowsHydrated = false;
+          copy._leadsMeta = null;
+          copy._deletedLocalIds = [];
+        }
+        delete copy._leadsRequestId;
+        return copy;
+      });
+      localStorage.setItem("campaigns_flwup_v1", JSON.stringify(lean));
       window.dispatchEvent(new CustomEvent("app:notifications-changed"));
     },
 
-    campaignApiPayload(campaign) {
+    campaignApiPayload(campaign, { includeRows = true } = {}) {
       const uiPayload = JSON.parse(JSON.stringify(campaign));
       delete uiPayload._serverPersisted;
       delete uiPayload._demoFilterSeeded;
-      if (Array.isArray(uiPayload.rows)) {
+      delete uiPayload.lead_stats;
+      delete uiPayload.rows_omitted;
+      delete uiPayload._rowsMode;
+      delete uiPayload._rowsHydrated;
+      delete uiPayload._leadsMeta;
+      delete uiPayload._deletedLocalIds;
+      delete uiPayload._leadsRequestId;
+      if (!includeRows) {
+        delete uiPayload.rows;
+      } else if (Array.isArray(uiPayload.rows)) {
         uiPayload.rows = uiPayload.rows
           .filter(row => !row?._localDemo)
           .map(row => {
@@ -5030,7 +5150,28 @@ export default {
 
     campaignFingerprint(campaign) {
       // نرمال‌شده تا تفاوت ""/null و ترتیب کلیدها بین نسخهٔ محلی و سرور، ذخیرهٔ بی‌پایان نسازد.
-      const { _serverPersisted, ...rest } = campaign || {};
+      const {
+        _serverPersisted,
+        _rowsMode,
+        _rowsHydrated,
+        _leadsMeta,
+        _leadsRequestId,
+        _deletedLocalIds,
+        rows_omitted,
+        lead_stats,
+        ...rest
+      } = campaign || {};
+      if (_rowsMode === 'lean' || _rowsMode === 'paged') {
+        // در حالت lean/paged ردیف‌های صفحه را در اثرانگشت متادیتا قاطی نمی‌کنیم؛
+        // ذخیرهٔ سرنخ‌ها جدا (sync) انجام می‌شود.
+        const { rows, ...meta } = rest;
+        return JSON.stringify(normalizeMergeValue({
+          ...meta,
+          _rowsMode,
+          _deletedLocalIds: _deletedLocalIds || [],
+          rows: _rowsMode === 'paged' ? rows : [],
+        }));
+      }
       return JSON.stringify(normalizeMergeValue(rest));
     },
 
@@ -5055,6 +5196,23 @@ export default {
      */
     async putCampaign(campaign, overrides = {}) {
       const key = this.campaignStorageKey(campaign);
+      const pagedOrLean = campaign._rowsMode === "lean" || campaign._rowsMode === "paged";
+      if (pagedOrLean) {
+        Object.assign(campaign, overrides);
+        const snapshot = JSON.parse(JSON.stringify(campaign));
+        const { data } = await axios.put(
+          `/api/campaigns/${campaign.id}`,
+          this.campaignApiPayload(snapshot, { includeRows: false }),
+        );
+        if (data?.lead_stats) campaign.lead_stats = data.lead_stats;
+        if (campaign._rowsMode === "paged") {
+          await this.syncCampaignLeads(campaign);
+        } else {
+          this.markCampaignPersisted(campaign);
+        }
+        return data;
+      }
+
       const baseRows = cloneRows(this.campaignServerRows[key]);
       const snapshot = JSON.parse(JSON.stringify({ ...campaign, ...overrides }));
       const payload = { ...this.campaignApiPayload(snapshot), base_rows: baseRows };
@@ -5084,6 +5242,25 @@ export default {
         }
         throw error;
       }
+    },
+
+    async syncCampaignLeads(campaign, overrides = {}) {
+      Object.assign(campaign, overrides);
+      const upserts = (Array.isArray(campaign.rows) ? campaign.rows : [])
+        .filter(row => !row?._localDemo)
+        .map(row => {
+          const next = normalizeFollowupRowNotes({ ...row });
+          delete next._localDemo;
+          return next;
+        });
+      const deletes = Array.isArray(campaign._deletedLocalIds) ? campaign._deletedLocalIds.slice() : [];
+      const { data } = await axios.post(`/api/campaigns/${campaign.id}/leads/sync`, { upserts, deletes });
+      if (data?.lead_stats) campaign.lead_stats = data.lead_stats;
+      campaign._deletedLocalIds = [];
+      this.rememberServerRows(campaign, campaign.rows);
+      this.markCampaignPersisted(campaign);
+      this.loadFollowupAlerts();
+      return data;
     },
 
     async saveCampaignsToServer() {
@@ -5116,6 +5293,7 @@ export default {
               delete this.campaignServerRows[previousKey];
             }
             this.rememberServerRows(campaign, data?.ui_payload?.rows);
+            if (data?.lead_stats) campaign.lead_stats = data.lead_stats;
             this.markCampaignPersisted(campaign);
           }
           } catch (error) {
@@ -5132,6 +5310,118 @@ export default {
       }
     },
 
+    async loadFollowupAlerts() {
+      try {
+        const { data } = await axios.get('/api/followups/alerts');
+        this.followupAlerts = {
+          today: Array.isArray(data?.today) ? data.today : [],
+          missed: Array.isArray(data?.missed) ? data.missed : [],
+        };
+      } catch (error) {
+        console.error('Followup alerts load error', error);
+      }
+    },
+
+    queueActiveLeadsReload() {
+      if (!this.activeCampaign || this.activeCampaign._rowsMode !== 'paged') return;
+      if (this.campaignsLoadingFromServer || this.leadsPageLoading) return;
+      clearTimeout(this._leadsReloadTimer);
+      this._leadsReloadTimer = setTimeout(() => {
+        if (this.activeCampaign) this.loadCampaignLeadsPage(this.activeCampaign, 1);
+      }, 280);
+    },
+
+    async ensureCampaignLeadsLoaded(campaign) {
+      if (!campaign?._serverPersisted) return;
+      if (campaign._rowsMode === 'paged' && campaign._rowsHydrated) return;
+      await this.loadCampaignLeadsPage(campaign, 1);
+    },
+
+    activeLeadsQueryParams(page = 1) {
+      const params = {
+        page: Math.max(1, Number(page) || 1),
+        per_page: this.leadsPerPage,
+      };
+      const term = String(this.campaignSearch || '').trim();
+      if (term) params.q = term;
+      const filters = this.selectedFilters || {};
+      ['gender', 'consultant', 'source', 'status', 'interest', 'reason', 'subsection'].forEach((key) => {
+        if (Array.isArray(filters[key]) && filters[key].length) params[key] = filters[key];
+      });
+      const contact = this.dateFilters?.contactDate || {};
+      const follow = this.dateFilters?.followUpDate || {};
+      if (contact.from) params.contact_date_from = contact.from;
+      if (contact.to) params.contact_date_to = contact.to;
+      if (follow.from) params.follow_up_date_from = follow.from;
+      if (follow.to) params.follow_up_date_to = follow.to;
+      return params;
+    },
+
+    async loadCampaignLeadsPage(campaign, page = 1) {
+      if (!campaign?._serverPersisted || !campaign.id) return;
+      const requestId = `${campaign.id}:${page}:${Date.now()}`;
+      campaign._leadsRequestId = requestId;
+      this.leadsPageLoading = true;
+      this.leadsPageError = '';
+      try {
+        const { data } = await axios.get(`/api/campaigns/${campaign.id}/leads`, {
+          params: this.activeLeadsQueryParams(page),
+        });
+        if (campaign._leadsRequestId !== requestId) return;
+        campaign.rows = Array.isArray(data?.data) ? data.data : [];
+        campaign._leadsMeta = data?.meta || null;
+        if (data?.lead_stats) campaign.lead_stats = data.lead_stats;
+        campaign._rowsMode = 'paged';
+        campaign._rowsHydrated = true;
+        campaign.rows_omitted = false;
+        if (!Array.isArray(campaign._deletedLocalIds)) campaign._deletedLocalIds = [];
+        this.normalizeCampaignRows(campaign);
+        this.rememberServerRows(campaign, campaign.rows);
+        this.markCampaignPersisted(campaign);
+        this.hydrateFollowupPatientProfilesForCampaign(campaign);
+        if (this.highlightedFollowupRowId) {
+          this.$nextTick(() => this.scrollToHighlightedFollowupRow());
+        }
+      } catch (error) {
+        console.error('Campaign leads page load error', error);
+        this.leadsPageError = error.response?.data?.message || 'بارگذاری سرنخ‌ها انجام نشد.';
+      } finally {
+        if (campaign._leadsRequestId === requestId) this.leadsPageLoading = false;
+      }
+    },
+
+    async hydrateFollowupPatientProfilesForCampaign(campaign) {
+      const rows = (Array.isArray(campaign?.rows) ? campaign.rows : [])
+        .filter(row => this.normalizePhoneLookup(row.phone).length >= 10)
+        .filter(row => !row.patient_id || !row.customer_level || !row.avatarUrl);
+      const seen = new Set();
+      const uniqueRows = rows.filter(row => {
+        const phone = this.normalizePhoneLookup(row.phone);
+        if (seen.has(phone)) return false;
+        seen.add(phone);
+        return true;
+      }).slice(0, 30);
+
+      await Promise.all(uniqueRows.map(async row => {
+        try {
+          const { data: patient } = await axios.get(`/api/patients/find-by-phone/${encodeURIComponent(this.normalizePhoneLookup(row.phone))}`);
+          if (!patient) return;
+          (campaign.rows || []).forEach(item => {
+            if (this.normalizePhoneLookup(item.phone) !== this.normalizePhoneLookup(row.phone)) return;
+            item.patient_id = patient.id || item.patient_id || '';
+            item.file_number = patient.file_number || item.file_number || '';
+            item.customer_level = patient.customer_level || item.customer_level || 'silver';
+            item.profile_thumbnail_url = patient.profile_thumbnail_url || item.profile_thumbnail_url || '';
+            item.profile_photo_url = patient.profile_photo_url || item.profile_photo_url || '';
+            item.avatar_url = patient.avatar_url || item.avatar_url || '';
+            item.avatarUrl = avatarUrl(patient) || item.avatarUrl || '';
+          });
+        } catch (error) {
+          if (error.response?.status !== 404) console.warn('دریافت اطلاعات پرونده پیگیری انجام نشد.', error);
+        }
+      }));
+    },
+
     async loadCampaignsFromServer() {
       this.campaignsLoadingFromServer = true;
       try {
@@ -5146,7 +5436,13 @@ export default {
             date: item.ui_payload?.date || item.starts_on || '',
             cost: item.ui_payload?.cost ?? item.budget ?? '',
             campaignStatus: item.ui_payload?.campaignStatus || (item.active ? 'active' : 'archived'),
-            rows: Array.isArray(item.ui_payload?.rows) ? item.ui_payload.rows : [],
+            rows: [],
+            lead_stats: item.lead_stats || null,
+            rows_omitted: item.rows_omitted !== false,
+            _rowsMode: 'lean',
+            _rowsHydrated: false,
+            _leadsMeta: null,
+            _deletedLocalIds: [],
             _serverPersisted: true,
           }));
           const serverIds = new Set(sharedCampaigns.map(campaign => String(campaign.id)));
@@ -5155,9 +5451,10 @@ export default {
           );
           unsyncedLocalCampaigns.forEach(campaign => this.normalizeCampaignRows(campaign));
           this.campaigns = [...sharedCampaigns, ...unsyncedLocalCampaigns];
-          sharedCampaigns.forEach(campaign => this.rememberServerRows(campaign, campaign.rows));
+          sharedCampaigns.forEach(campaign => this.rememberServerRows(campaign, []));
           this.markCampaignsPersisted(sharedCampaigns);
           this.saveCampaignsToLocal();
+          await this.loadFollowupAlerts();
           return;
         }
 
@@ -5180,7 +5477,6 @@ export default {
           this.pendingAppointmentResult = null;
           this.applyAppointmentResult(pendingResult);
         }
-        await this.hydrateFollowupPatientProfiles();
         if (this.openFollowupRequest) this.openRequestedFollowups(this.openFollowupRequest);
       }
     },
@@ -6623,6 +6919,39 @@ export default {
   justify-content: center;
   gap: 10px;
   margin-top: 18px;
+}
+
+.leads-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+}
+
+.leads-pagination-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.leads-page-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.leads-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn {

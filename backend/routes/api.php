@@ -305,6 +305,9 @@ Route::apiResource('expenses', ExpenseController::class)->middleware('permission
 Route::post('/campaigns/general', [CampaignController::class, 'general'])->middleware('permission:followups.view');
 Route::get('/campaigns/subsections', [CampaignController::class, 'subsections'])->middleware('permission:followups.view');
 Route::post('/campaigns/banners', [CampaignController::class, 'uploadBanner'])->middleware('permission:followups.view');
+Route::get('/followups/alerts', [CampaignController::class, 'alerts'])->middleware('permission:followups.view');
+Route::get('/campaigns/{campaign}/leads', [CampaignController::class, 'leads'])->middleware('permission:followups.view');
+Route::post('/campaigns/{campaign}/leads/sync', [CampaignController::class, 'syncLeads'])->middleware('permission:followups.view');
 Route::apiResource('campaigns', CampaignController::class)->middleware('permission:followups.view');
 Route::get('/payroll/resources', [PayrollReportController::class, 'resources'])->middleware('permission:payroll.view');
 Route::get('/payroll/report', [PayrollReportController::class, 'show'])->middleware('permission:payroll.view');

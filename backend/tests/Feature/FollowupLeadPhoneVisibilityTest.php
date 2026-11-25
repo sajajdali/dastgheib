@@ -32,6 +32,31 @@ class FollowupLeadPhoneVisibilityTest extends TestCase
             $table->decimal('budget', 15, 2)->default(0); $table->text('note')->nullable();
             $table->boolean('active')->default(true); $table->json('ui_payload')->nullable(); $table->timestamps();
         });
+        Schema::create('campaign_leads', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('campaign_id');
+            $table->string('local_id', 64);
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->string('full_name')->nullable();
+            $table->string('phone', 32)->nullable();
+            $table->string('gender', 20)->nullable();
+            $table->string('consultant')->nullable();
+            $table->string('source')->nullable();
+            $table->string('status', 40)->nullable();
+            $table->string('interest', 20)->nullable();
+            $table->string('reason')->nullable();
+            $table->string('contact_date', 16)->nullable();
+            $table->string('contact_time', 16)->nullable();
+            $table->string('follow_up_date', 16)->nullable();
+            $table->unsignedBigInteger('subsection_id')->nullable();
+            $table->string('subsection_name')->nullable();
+            $table->boolean('appointment_registered')->default(false);
+            $table->boolean('appointment_done')->default(false);
+            $table->boolean('meaningful')->default(false);
+            $table->json('payload')->nullable();
+            $table->timestamps();
+            $table->unique(['campaign_id', 'local_id']);
+        });
         DB::table('staff')->insert([
             ['id' => 1, 'name' => 'زهره کاظمی', 'user_id' => 8],
             ['id' => 2, 'name' => 'پریا رحمانی', 'user_id' => 9],
@@ -40,6 +65,7 @@ class FollowupLeadPhoneVisibilityTest extends TestCase
 
     protected function tearDown(): void
     {
+        Schema::dropIfExists('campaign_leads');
         Schema::dropIfExists('campaigns');
         Schema::dropIfExists('staff');
         Schema::dropIfExists('app_settings');
@@ -75,7 +101,9 @@ class FollowupLeadPhoneVisibilityTest extends TestCase
 
     private function phones(Request $request): array
     {
-        $campaigns = app(CampaignController::class)->index($request);
+        $full = Request::create('/', 'GET', ['full' => 1]);
+        $full->setUserResolver($request->getUserResolver());
+        $campaigns = app(CampaignController::class)->index($full);
 
         return collect($campaigns->first()->ui_payload['rows'])->pluck('phone', '_localId')->all();
     }
@@ -107,10 +135,13 @@ class FollowupLeadPhoneVisibilityTest extends TestCase
         $campaign = $this->campaign();
         AppSetting::query()->create(['key' => FollowupLeadPhoneVisibility::SETTING_KEY, 'value' => '1']);
         $request = $this->request(8, 'zohre');
-        $seen = app(CampaignController::class)->index($request)->first()->ui_payload['rows'];
+        $full = Request::create('/', 'GET', ['full' => 1]);
+        $full->setUserResolver($request->getUserResolver());
+        $baseRows = app(CampaignController::class)->index($full)->first()->ui_payload['rows'];
+        $seen = json_decode(json_encode($baseRows), true);
         $seen[1]['description'] = 'تماس گرفته شد';
 
-        $update = Request::create('/', 'PUT', ['name' => 'کمپین', 'ui_payload' => ['rows' => $seen], 'base_rows' => app(CampaignController::class)->index($request)->first()->ui_payload['rows']]);
+        $update = Request::create('/', 'PUT', ['name' => 'کمپین', 'ui_payload' => ['rows' => $seen], 'base_rows' => $baseRows]);
         $update->setUserResolver($request->getUserResolver());
         $response = app(CampaignController::class)->update($update, $campaign);
 
