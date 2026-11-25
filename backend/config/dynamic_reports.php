@@ -97,7 +97,7 @@ return [
         'name' => 'نام', 'family' => 'نام خانوادگی', 'gender' => 'جنسیت', 'phone' => 'شماره تماس', 'nationalId' => 'کد ملی',
         'fileNo' => 'شماره پرونده', 'city' => 'شهر', 'birth' => 'تاریخ تولد', 'custseg' => 'تفکیک مشتری',
         'referrer' => 'معرف', 'noreturn' => 'عدم بازگشت', 'status' => 'وضعیت',
-        'appointmentCreatedDate' => 'تاریخ ثبت نوبت', 'appointmentDate' => 'تاریخ نوبت (خدمت)', 'source' => 'منبع',
+        'appointmentCreatedDate' => 'تاریخ ثبت نوبت', 'appointmentDate' => 'تاریخ نوبت (خدمت)', 'source' => 'نحوه آشنایی',
         'work' => 'انجام کار', 'section2' => 'بخش', 'subsection' => 'زیر بخش', 'areas' => 'نواحی',
         'problem' => 'مشکل', 'extra' => 'جانبی', 'count' => 'تعداد', 'amount' => 'مبلغ',
         'income' => 'درآمد', 'expense' => 'هزینه مواد', 'discount' => 'تخفیف', 'finstatus' => 'وضعیت مالی', 'debt' => 'بدهی',

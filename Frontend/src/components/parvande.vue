@@ -100,6 +100,23 @@
           <option>عالی</option>
         </select>
 
+        <Multiselect
+          v-model="selectedSource"
+          class="city-select source-select"
+          :options="channelOptions"
+          label="name"
+          track-by="name"
+          :placeholder="channelsLoading ? 'در حال بارگذاری نحوه آشنایی...' : 'نحوه آشنایی'"
+          :searchable="true"
+          :allow-empty="true"
+          :show-labels="false"
+          :disabled="channelsLoading"
+          :custom-label="channelOptionLabel"
+          @select="selectSource"
+          @remove="clearSource"
+        />
+        <small v-if="channelsLoadError" class="field-error">{{ channelsLoadError }}</small>
+
         <input
           v-if="activeProfileFields.national_id"
           v-model="form.national_id"
@@ -437,6 +454,11 @@
               <span class="profile-info-icon">📍</span>
               <b>شهر / محدوده</b>
               <strong>{{ activePatientProfile.city || activePatientProfile.area || '-' }}</strong>
+            </div>
+            <div class="profile-info-row">
+              <span class="profile-info-icon">📣</span>
+              <b>نحوه آشنایی</b>
+              <strong>{{ activePatientProfile.source || '-' }}</strong>
             </div>
             <div class="profile-info-row">
               <span class="profile-info-icon">👥</span>
@@ -787,7 +809,7 @@
               <th>ساعت</th>
               <th>وضعیت</th>
               <th>انجام کار</th>
-              <th>منبع</th>
+              <th>نحوه آشنایی</th>
               <th>خدمات</th>
               <th>مبلغ</th>
               <th>بدهکار</th>
@@ -885,6 +907,23 @@
             <option value="خوب">وضعیت مالی: خوب</option>
             <option value="عالی">وضعیت مالی: عالی</option>
           </select>
+
+          <Multiselect
+            v-model="selectedEditSource"
+            class="city-select source-select edit-source-select"
+            :options="channelOptions"
+            label="name"
+            track-by="name"
+            :placeholder="channelsLoading ? 'در حال بارگذاری نحوه آشنایی...' : 'نحوه آشنایی'"
+            :searchable="true"
+            :allow-empty="true"
+            :show-labels="false"
+            :disabled="channelsLoading"
+            :custom-label="channelOptionLabel"
+            @select="selectEditSource"
+            @remove="clearEditSource"
+          />
+          <small v-if="channelsLoadError" class="field-error">{{ channelsLoadError }}</small>
 
           <input v-if="activeProfileFields.national_id" v-model="editPatient.national_id" placeholder="کد ملی" />
           <input v-if="activeProfileFields.foreign_national_code" v-model="editPatient.foreign_national_code" placeholder="کد اتباع" />
@@ -1926,6 +1965,11 @@ export default {
       cityOptions: iranCities,
       selectedCity: iranCities.find(city => city.name === 'تهران' && city.province === 'تهران') || null,
       selectedEditCity: null,
+      channelOptions: [],
+      selectedSource: null,
+      selectedEditSource: null,
+      channelsLoading: false,
+      channelsLoadError: '',
 
       form: {
         first_name: '',
@@ -1949,7 +1993,8 @@ export default {
         education: '',
         weight: '',
         second_phone: '',
-        address: ''
+        address: '',
+        source: ''
       },
 
       search: {
@@ -1981,6 +2026,7 @@ export default {
         weight: 'وزن (کیلوگرم)',
         second_phone: 'شماره تماس دوم',
         address: 'آدرس',
+        source: 'نحوه آشنایی',
         wallet_balance: 'موجودی کیف پول',
         outstanding_debt: 'بدهکاری کل',
         created_at: 'تاریخ تشکیل پرونده',
@@ -2631,6 +2677,7 @@ export default {
     this.resetNonFilterableAppointmentFilters()
     this.fetchNextFileNumber()
     this.fetchActiveProfileFields() // لود فیلدهای فعال در بدو ورود به صفحه
+    this.fetchChannels()
   },
 
   beforeUnmount() {
@@ -2666,6 +2713,7 @@ export default {
           if ('first_name' in request) this.form.first_name = String(request.first_name || '').trim()
           if ('last_name' in request) this.form.last_name = String(request.last_name || '').trim()
           if (request.gender) this.form.gender = String(request.gender).trim()
+          if ('source' in request) this.applySourceToForm(request.source)
           this.$nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
         } else if (request) this.openRequestedPatientProfile(request)
       }
@@ -2757,9 +2805,68 @@ export default {
         education: '',
         weight: '',
         second_phone: '',
-        address: ''
+        address: '',
+        source: ''
       }
       this.selectedCity = tehran
+      this.selectedSource = null
+    },
+
+    channelOptionLabel(option) {
+      if (!option) return ''
+      const name = String(option.name || '').trim()
+      return option.icon ? `${option.icon} ${name}` : name
+    },
+
+    resolveChannelOption(value) {
+      const name = String(value || '').trim()
+      if (!name) return null
+      return (this.channelOptions || []).find(item => String(item.name || '').trim() === name)
+        || { name, icon: null }
+    },
+
+    applySourceToForm(value) {
+      const option = this.resolveChannelOption(value)
+      this.selectedSource = option
+      this.form.source = option?.name || ''
+    },
+
+    selectSource(option) {
+      this.form.source = option?.name || ''
+    },
+
+    clearSource() {
+      this.selectedSource = null
+      this.form.source = ''
+    },
+
+    selectEditSource(option) {
+      this.editPatient.source = option?.name || ''
+    },
+
+    clearEditSource() {
+      this.selectedEditSource = null
+      this.editPatient.source = ''
+    },
+
+    async fetchChannels() {
+      this.channelsLoading = true
+      this.channelsLoadError = ''
+      try {
+        const res = await fetch('/api/channels', { headers: { Accept: 'application/json' } })
+        const data = await res.json().catch(() => [])
+        if (!res.ok) throw new Error(data.message || 'دریافت منابع انجام نشد')
+        this.channelOptions = Array.isArray(data) ? data.filter(item => String(item?.name || '').trim()) : []
+        if (this.form.source) this.applySourceToForm(this.form.source)
+        if (this.editPatient?.source) {
+          this.selectedEditSource = this.resolveChannelOption(this.editPatient.source)
+        }
+      } catch (error) {
+        this.channelOptions = []
+        this.channelsLoadError = error.message || 'دریافت منابع انجام نشد'
+      } finally {
+        this.channelsLoading = false
+      }
     },
 
     openWalletModal(patient) {
@@ -4929,11 +5036,14 @@ export default {
           : '',
         weight: this.optionalPatientValue(patient.weight),
         address: this.optionalPatientValue(patient.address),
+        source: this.optionalPatientValue(patient.source),
         patient_history: this.optionalPatientValue(patient.patient_history),
         medical_history: this.optionalPatientValue(patient.medical_history)
       }
       this.selectedEditCity = this.cityOptions.find(item => item.name === this.editPatient.city) || null
+      this.selectedEditSource = this.resolveChannelOption(this.editPatient.source)
       this.showEditModal = true
+      if (!this.channelOptions.length && !this.channelsLoading) this.fetchChannels()
     },
 
     patientDateForPicker(value) {
@@ -5214,7 +5324,8 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
 }
 
-.city-select {
+.city-select,
+.source-select {
   width: 100% !important;
   flex: initial;
   min-width: 0 !important;
@@ -5223,7 +5334,14 @@ select:focus {
   overflow: visible;
 }
 
-::v-deep(.city-select .multiselect__tags) {
+.field-error {
+  color: #b91c1c;
+  font-size: 11px;
+  margin-top: -4px;
+}
+
+::v-deep(.city-select .multiselect__tags),
+::v-deep(.source-select .multiselect__tags) {
   min-height: 42px;
   height: 42px;
   border: 1px solid #dbe3ea;

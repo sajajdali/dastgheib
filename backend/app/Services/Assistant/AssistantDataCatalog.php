@@ -33,7 +33,7 @@ final class AssistantDataCatalog
 {
     private const DATASETS = [
         'patients' => ['پرونده‌ها', Patient::class, 'patients.view', 'patients', ['first_name'=>'نام','last_name'=>'نام خانوادگی','file_number'=>'شماره پرونده','gender'=>'جنسیت','city'=>'شهر','customer_level'=>'سطح مشتری','financial_status'=>'وضعیت مالی','phone'=>'شماره تماس','national_id'=>'کد ملی','birth_date'=>'تاریخ تولد']],
-        'appointments' => ['نوبت‌ها', Appointment::class, 'appointments.view', 'appointments', ['month'=>'ماه شمسی','day_num'=>'روز','lastname'=>'نام مراجع','doctor'=>'پزشک','status'=>'وضعیت','time'=>'ساعت','file_number'=>'شماره پرونده','done'=>'انجام کار','consultant'=>'مشاور','source'=>'منبع','phone'=>'شماره تماس','amount'=>'مبلغ','debt'=>'بدهی','payment_method'=>'روش پرداخت']],
+        'appointments' => ['نوبت‌ها', Appointment::class, 'appointments.view', 'appointments', ['month'=>'ماه شمسی','day_num'=>'روز','lastname'=>'نام مراجع','doctor'=>'پزشک','status'=>'وضعیت','time'=>'ساعت','file_number'=>'شماره پرونده','done'=>'انجام کار','consultant'=>'مشاور','source'=>'نحوه آشنایی','phone'=>'شماره تماس','amount'=>'مبلغ','debt'=>'بدهی','payment_method'=>'روش پرداخت']],
         'doctors' => ['پزشکان', Doctor::class, 'resources.view|appointments.view', 'settings_doctors', ['name'=>'نام']],
         'staff' => ['پرسنل', Staff::class, 'resources.view', 'settings_staff', ['name'=>'نام']],
         'inventory' => ['انبار', Inventory::class, 'inventory.view', 'inventory', ['name'=>'نام','stock'=>'موجودی','min_stock'=>'حداقل موجودی','price'=>'قیمت','active'=>'فعال']],

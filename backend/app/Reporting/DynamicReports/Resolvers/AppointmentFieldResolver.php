@@ -20,7 +20,8 @@ class AppointmentFieldResolver implements ReportFieldResolver
             'status' => $appointment?->status,
             'appointmentCreatedDate' => $this->createdDate($appointment),
             'appointmentDate' => $this->appointmentDate($appointment),
-            'source' => $appointment?->source,
+            // نوبت منبع خودش را دارد؛ در گزارش پرونده بدون نوبت، مقدار پرونده استفاده می‌شود.
+            'source' => $appointment?->source ?: ($context->patient->source ?? null),
             'work' => ! $appointment ? null : (trim((string) $appointment->done) === 'انجام شد' ? 'انجام شده' : (trim((string) $appointment->done) ?: ($appointment->status ?: 'انجام نشده'))),
             // service_types فقط شناسهٔ بخش‌هاست؛ نام بخش و زیر بخش از درخت بخش‌های انبار خوانده می‌شود.
             'section2' => $this->join(app(ReportServiceSections::class)->namesForServices($appointment?->services)['roots']),

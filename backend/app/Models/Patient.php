@@ -37,6 +37,7 @@ class Patient extends Model
         'weight',
         'second_phone',
         'address',
+        'source',
         'profile_photo_path',
         'profile_thumbnail_path',
         'wallet_balance',

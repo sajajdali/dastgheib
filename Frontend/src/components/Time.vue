@@ -319,7 +319,7 @@
               :class="{ 'filtered-header': selectedSources.length > 0 }"
             >
               <div class="header-with-filter">
-                <span>منبع</span>
+                <span>نحوه آشنایی</span>
 
                 <button
                   class="filter-btn"
@@ -1738,7 +1738,7 @@
             </label>
 
             <label v-if="false">
-              منبع
+              نحوه آشنایی
               <select v-model="activeTimelineDraft.source">
                 <option value=""></option>
                 <option v-for="src in sourceOptions" :key="src.id" :value="src.name">
@@ -2305,7 +2305,7 @@
             </section>
 
             <section class="daily-report-panel">
-              <h4>منبع تبلیغاتی</h4>
+              <h4>نحوه آشنایی</h4>
               <div class="daily-chart-list">
                 <div v-for="item in activeDailyReport.stats.sourceItems" :key="item.label" class="daily-chart-row daily-chart-row-source">
                   <span class="daily-source-label">
@@ -4528,6 +4528,7 @@ export default {
         last_name,
         gender: row.gender || '',
         phone: /[•*]/.test(phone) ? '' : phone,
+        source: String(row.source || '').trim(),
       });
     },
 
@@ -4564,6 +4565,11 @@ export default {
       if (thumbnail) row.profileThumbnailUrl = thumbnail;
       if (photo) row.profilePhotoUrl = photo;
       if (patient?.customer_level) row.customerLevel = this.normalizeCustomerLevel(patient.customer_level);
+      const source = String(patient?.source || '').trim();
+      if (source) {
+        row.source = source;
+        this.calculateReferralRewardForRow(row);
+      }
     },
 
     async selectTablePatient(row, patient) {
@@ -5543,6 +5549,12 @@ export default {
       // قدیم فقط اگر سابقهٔ پرداخت خدمت داشته باشد؛ وگرنه برای پیش‌نمایش پورسانت جدید می‌ماند.
       if (Object.prototype.hasOwnProperty.call(patient, 'is_new_customer')) {
         row.newCustomer = Boolean(patient.is_new_customer);
+      }
+      // نحوه آشنایی پرونده را روی نوبت می‌گذارد؛ کاربر می‌تواند عوض کند.
+      const patientSource = String(patient.source || '').trim();
+      if (patientSource) {
+        row.source = patientSource;
+        this.calculateReferralRewardForRow(row);
       }
       this.autoSetAppointmentStatus(row);
       this.clearTimelineValidationError("lastname");

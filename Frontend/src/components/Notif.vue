@@ -846,11 +846,11 @@ export default {
 
               type: "وقت‌دهی",
 
-              title: "منبع مراجعه مشخص نشده",
+              title: "نحوه آشنایی مشخص نشده",
 
               appointment,
 
-              message: `منبع ${this.personTitle(appointment)} ${patientName} مشخص نشده`,
+              message: `نحوه آشنایی ${this.personTitle(appointment)} ${patientName} مشخص نشده`,
 
               action: "appointment-material"
 

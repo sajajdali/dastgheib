@@ -98,6 +98,7 @@ class PatientController extends Controller
             'weight' => [$presence('weight'), 'numeric', 'between:1,500'],
             'second_phone' => $presence('second_phone').'|string|max:30',
             'address' => $presence('address').'|string',
+            'source' => 'nullable|string|max:255',
         ], [
             'phone.unique' => 'شماره موبایل تکراری است',
             'file_number.unique' => 'این شماره پرونده قبلاً ثبت شده است.',
@@ -164,6 +165,7 @@ class PatientController extends Controller
             'wallet_balance' => $patient->wallet_balance,
             'outstanding_debt' => $patient->outstanding_debt,
             'customer_level' => $patient->customer_level,
+            'source' => $patient->source,
             'is_new_customer' => (bool) $patient->getAttribute('is_new_customer'),
         ]);
     }
@@ -336,6 +338,7 @@ class PatientController extends Controller
             'weight' => [$presence('weight'), 'numeric', 'between:1,500'],
             'second_phone' => [$presence('second_phone'), 'string', 'max:30'],
             'address' => [$presence('address'), 'string'],
+            'source' => ['nullable', 'string', 'max:255'],
         ], [
             'phone.unique' => 'شماره موبایل تکراری است',
             'file_number.unique' => 'این شماره پرونده قبلاً ثبت شده است.',

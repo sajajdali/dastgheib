@@ -372,10 +372,10 @@
           </div>
 
           <div class="field">
-            <label>منبع</label>
+            <label>نحوه آشنایی</label>
             <select v-model="newCampaign.source" :disabled="channelsLoading">
               <option value="">
-                {{ channelsLoading ? 'در حال بارگذاری منابع...' : 'انتخاب منبع' }}
+                {{ channelsLoading ? 'در حال بارگذاری نحوه آشنایی...' : 'انتخاب نحوه آشنایی' }}
               </option>
               <option v-if="newCampaign.source && !channelOptions.some(channel => channel.name === newCampaign.source)" :value="newCampaign.source">{{ newCampaign.source }}</option>
               <option
@@ -631,14 +631,14 @@
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'consultant')" @dblclick.stop="autoFitFollowupColumn('consultant')"></div>
                     </th>
 
-                    <!-- منبع -->
+                    <!-- نحوه آشنایی -->
                     <th
                       class="filterable resizable"
                       :class="{ 'filtered-cell': isReportFiltered('source') }"
                       :style="{ width: colWidths.source + 'px' }"
                     >
                       <div class="th-content">
-                        منبع
+                        نحوه آشنایی
                         <button class="filter-btn" @click.stop="toggleReportFilterMenu('source', $event)">⚙</button>
                       </div>
 
@@ -887,7 +887,7 @@
             <div v-else class="campaign-modal-meta">
               <span>تاریخ: {{ formatDateFa(activeCampaign.date) }}</span>
               <span>•</span>
-              <span v-if="activeCampaign.source">منبع: {{ activeCampaign.source }}</span>
+              <span v-if="activeCampaign.source">نحوه آشنایی: {{ activeCampaign.source }}</span>
               <span v-if="activeCampaign.source">•</span>
               <span v-if="activeCampaign.sourceName">نام منبع: {{ activeCampaign.sourceName }}</span>
               <span v-if="activeCampaign.sourceName">•</span>
@@ -1051,7 +1051,7 @@
                       :class="{ 'filtered-cell': isFiltered('source') }"
                       :style="{ width: colWidths.source + 'px' }"
                     >
-                      <div class="th-content">منبع <button class="filter-btn" @click.stop="toggleFilterMenu('source', $event)">⚙</button></div>
+                      <div class="th-content">نحوه آشنایی <button class="filter-btn" @click.stop="toggleFilterMenu('source', $event)">⚙</button></div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'source')" @dblclick.stop="autoFitFollowupColumn('source')"></div>
                     </th>
                     <!-- بخش (فقط زیربخش آخر) -->
@@ -1267,8 +1267,8 @@
                     </td>
 
                     <td v-if="isGeneralFollowupCampaign(activeCampaign)" :class="{ 'filtered-cell': isFiltered('source') }">
-                      <select v-model="row.source" :title="channelsLoadError || 'انتخاب منبع'">
-                        <option value="">{{ channelsLoading ? 'در حال بارگذاری منابع...' : 'انتخاب منبع' }}</option>
+                      <select v-model="row.source" :title="channelsLoadError || 'انتخاب نحوه آشنایی'">
+                        <option value="">{{ channelsLoading ? 'در حال بارگذاری نحوه آشنایی...' : 'انتخاب نحوه آشنایی' }}</option>
                         <option v-if="row.source && !channelOptions.some(channel => channel.name === row.source)" :value="row.source">{{ row.source }}</option>
                         <option v-for="channel in channelOptions" :key="channel.id" :value="channel.name">{{ channel.name }}</option>
                       </select>
@@ -1630,7 +1630,7 @@
 
         <div class="history-table-wrap">
           <table class="history-table">
-            <thead><tr><th>کمپین</th><th>تاریخ تماس</th><th>پیگیری بعدی</th><th>مشاور</th><th>منبع</th><th>وضعیت</th><th>تمایل</th><th>علت</th><th>توضیحات ثبت‌شده</th></tr></thead>
+            <thead><tr><th>کمپین</th><th>تاریخ تماس</th><th>پیگیری بعدی</th><th>مشاور</th><th>نحوه آشنایی</th><th>وضعیت</th><th>تمایل</th><th>علت</th><th>توضیحات ثبت‌شده</th></tr></thead>
             <tbody>
               <tr v-for="item in followupHistory" :key="`${item.campaignId}-${item.rowId}`" :class="{ current: item.isCurrent }">
                 <td><strong>{{ item.campaignTitle || 'کمپین بدون عنوان' }}</strong><small v-if="item.isCurrent">ردیف فعلی</small></td>
@@ -3592,7 +3592,7 @@ export default {
       if (!field) return;
       const rows = this.activeCampaign ? this.activeCampaign.rows : this.reportFilteredRows;
       const cellText = row => key === 'description' ? this.latestFollowupDescription(row) : String(row?.[field] || '');
-      const longest = Math.max(String({ campaignTitle:'نام کمپین', fullName:'نام کامل', phone:'شماره تماس', consultant:'مشاور', source:'منبع', subsection:'بخش', status:'وضعیت', description:'توضیحات', reason:'علت' }[key] || '').length, ...(rows || []).map(row => cellText(row).length));
+      const longest = Math.max(String({ campaignTitle:'نام کمپین', fullName:'نام کامل', phone:'شماره تماس', consultant:'مشاور', source:'نحوه آشنایی', subsection:'بخش', status:'وضعیت', description:'توضیحات', reason:'علت' }[key] || '').length, ...(rows || []).map(row => cellText(row).length));
       const extra = key === 'fullName' ? 54 : 26;
       const minimum = { campaignTitle:120, fullName:145, phone:110, consultant:110, source:95, subsection:110, status:95, description:135, reason:90 }[key] || 80;
       const maximum = { description:240, fullName:220, campaignTitle:220 }[key] || 170;
@@ -4163,7 +4163,7 @@ export default {
         ['ساعت تماس', row => row.contactTime],
         ['تاریخ پیگیری', row => this.formatDateFa(row.followUpDate)],
         ['مشاور', row => row.consultant],
-        ['منبع', row => row.source || campaign.source],
+        ['نحوه آشنایی', row => row.source || campaign.source],
         ...(this.isGeneralFollowupCampaign(campaign) ? [['بخش', row => this.followupSubsectionLabel(row)]] : []),
         ['وضعیت', row => row.status],
         ['تمایل', row => interestLabels[String(row.interest ?? '')] || ''],

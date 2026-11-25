@@ -506,7 +506,7 @@ const FIELDS = [
   { g: 'خدمات و درمان', id: 'status', label: 'وضعیت', type: 'multi' },
   { g: 'خدمات و درمان', id: 'appointmentCreatedDate', label: 'تاریخ ثبت نوبت', type: 'display' },
   { g: 'خدمات و درمان', id: 'appointmentDate', label: 'تاریخ نوبت (خدمت)', type: 'display' },
-  { g: 'خدمات و درمان', id: 'source', label: 'منبع', type: 'multi' },
+  { g: 'خدمات و درمان', id: 'source', label: 'نحوه آشنایی', type: 'multi' },
   { g: 'خدمات و درمان', id: 'work', label: 'انجام کار', type: 'multi' },
   { g: 'خدمات و درمان', id: 'section2', label: 'بخش', type: 'multi' },
   { g: 'خدمات و درمان', id: 'subsection', label: 'زیر بخش', type: 'multi' },
