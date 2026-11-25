@@ -919,6 +919,7 @@
                   v-if="activeServicePopup === row._rowId"
                   class="service-popup"
                   @click.stop
+                  @wheel="onServicePopupWheel"
                 >
 
                   <div class="service-popup-header">
@@ -927,13 +928,21 @@
                       خدمات {{ row.lastname || 'بیمار' }}
                     </div>
 
-                    <button
-                      type="button"
-                      class="service-popup-close-btn"
-                      title="بستن ثبت خدمات"
-                      aria-label="بستن ثبت خدمات"
-                      data-keep-enabled @click.stop="closeServicePopup"
-                    >×</button>
+                    <div class="service-popup-primary-actions">
+                      <button
+                        type="button"
+                        class="add-service-line-btn service-popup-add-btn"
+                        data-keep-enabled
+                        @click.stop="addService(row)"
+                      >+ افزودن خدمت</button>
+                      <button
+                        type="button"
+                        class="service-popup-close-btn"
+                        title="بستن ثبت خدمات"
+                        aria-label="بستن ثبت خدمات"
+                        data-keep-enabled @click.stop="closeServicePopup"
+                      >×</button>
+                    </div>
 
                   </div>
 
@@ -1021,18 +1030,22 @@
                       v-for="(service, sIndex) in row.services"
                       :key="sIndex"
                     >
+                    <div class="service-item-toolbar">
+                      <strong>خدمت {{ (sIndex + 1).toLocaleString('fa-IR') }}</strong>
+                      <button
+                        v-if="row.services.length > 1 && !service.finalized"
+                        type="button"
+                        class="remove-service-btn"
+                        title="حذف خدمت"
+                        aria-label="حذف خدمت"
+                        @click.stop="removeService(row, sIndex)"
+                      >×</button>
+                    </div>
                     <div class="service-lock-scope" v-lock-controls="Boolean(service.finalized)">
 
                       <div class="service-main-row">
                         <div class="service-choice-row">
                           <span class="service-row-caption">مسیر خدمت</span>
-                          <button
-                            v-if="sIndex === 0"
-                            type="button"
-                            class="add-service-line-btn service-path-add"
-                            data-keep-enabled
-                            @click.stop="addService(row)"
-                          >+ افزودن خدمت</button>
 
                           <div class="service-path-selectors">
                             <Multiselect
@@ -1179,14 +1192,6 @@
 
                       <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" data-keep-enabled @click.stop="toggleServiceAddons(service)">
                         جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b aria-hidden="true">{{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b>
-                      </button>
-
-                      <button
-                        v-if="row.services.length > 1 && !service.finalized"
-                        class="remove-service-btn"
-                        @click.stop="removeService(row, sIndex)"
-                      >
-                        -
                       </button>
 
                         </div>
@@ -9748,32 +9753,57 @@ this.calculateFinalAmount(row)
         .map(item => item.row);
     },
 
-    // پنل خدمات جدول همیشه داخل صفحه می‌ماند: اگر پایین صفحه جا نباشد بالاتر باز می‌شود
-    // (نوار ماه‌های پایین صفحه هم در نظر گرفته می‌شود)؛ اگر از صفحه بلندتر شود، بالای آن ثابت می‌ماند
-    // و صفحه اسکرول می‌خورد. اسکرول داخلی ندارد تا لیست‌های بازشوی خدمات بریده نشوند.
+    // پنل خدمات جدول داخل viewport می‌ماند؛ فقط فهرست خدمت‌ها اسکرول می‌خورد
+    // (هدر و دکمه‌های اصلی چسبان می‌مانند) و اسکرول به جدول/صفحه زنجیره نمی‌شود.
     fitServicePopup(revealLast = false) {
       const popup = document.querySelector('.service-popup');
       const cell = popup?.parentElement;
       if (!popup || !cell) return;
       const topGap = 72;
       const bottomGap = 96;
-      const viewport = window.innerHeight;
-      const limit = viewport - bottomGap;
+      const viewport = window.innerHeight || document.documentElement.clientHeight || 0;
+      const available = Math.max(240, viewport - topGap - bottomGap);
+      popup.style.maxHeight = `${Math.round(available)}px`;
       const height = popup.offsetHeight;
       const cellTop = cell.getBoundingClientRect().top;
       let offset = 0;
-      if (cellTop + height > limit) offset = limit - height - cellTop;
+      if (cellTop + height > viewport - bottomGap) offset = viewport - bottomGap - height - cellTop;
       if (cellTop + offset < topGap) offset = topGap - cellTop;
       popup.style.top = `${Math.round(offset)}px`;
       if (revealLast !== true) return;
-      const lines = popup.querySelectorAll('.service-line, .service-row, .service-item');
-      const target = lines[lines.length - 1] || popup;
-      const bottom = target.getBoundingClientRect().bottom;
-      if (bottom <= limit - 8) return;
-      const delta = bottom - limit + 16;
-      const tableScroller = this.appointmentView === 'table' ? this.$refs.tableContainer : null;
-      if (tableScroller) tableScroller.scrollBy({ top: delta, behavior: 'smooth' });
-      else window.scrollBy({ top: delta, behavior: 'smooth' });
+      const list = popup.querySelector('.service-popup-meta');
+      const lines = popup.querySelectorAll('.service-item');
+      const target = lines[lines.length - 1];
+      if (!list || !target) return;
+      const listRect = list.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const nextTop = list.scrollTop + (targetRect.bottom - listRect.bottom) + 12;
+      if (targetRect.bottom > listRect.bottom - 4) {
+        list.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
+      }
+    },
+
+    onServicePopupWheel(event) {
+      event.stopPropagation();
+      const popup = event.currentTarget;
+      const list = popup?.querySelector?.('.service-popup-meta');
+      if (!list) {
+        event.preventDefault();
+        return;
+      }
+      const overList = list === event.target || list.contains(event.target);
+      if (!overList) {
+        event.preventDefault();
+        return;
+      }
+      const canScroll = list.scrollHeight > list.clientHeight + 1;
+      if (!canScroll) {
+        event.preventDefault();
+        return;
+      }
+      const atTop = list.scrollTop <= 0 && event.deltaY < 0;
+      const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1 && event.deltaY > 0;
+      if (atTop || atBottom) event.preventDefault();
     },
 
     stopServicePopupFit() {
@@ -15037,12 +15067,25 @@ td.row-action-col {
   top: 0;
   margin-right: 10px;
   width: min(940px, 92vw);
+  max-height: min(78vh, calc(100dvh - 120px));
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   background: #fff;
   border: 1px solid #dcdcdc;
   border-radius: 10px;
   box-shadow: 0 8px 18px rgba(0,0,0,0.15);
   padding: 10px;
   z-index: 99999;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* وقتی دراپ‌داون باز است، برش نخورد. */
+.service-popup:has(.multiselect--active),
+.service-popup:has(.service-tag-menu),
+.service-popup:has(.referrer-results) {
+  overflow: visible;
 }
 
 /* فضای خالی زیر پنل تا پایین آن از زیر نوار ماه‌ها بیرون بیاید. */
@@ -15057,16 +15100,40 @@ td.row-action-col {
 }
 
 .service-popup-header{
+  position: sticky;
+  top: 0;
+  z-index: 6;
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:10px;
-  margin-bottom:10px;
+  flex: 0 0 auto;
+  margin: -10px -10px 10px;
+  padding: 10px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 10px 10px 0 0;
 }
 
 .service-popup-title{
+  min-width: 0;
   font-weight:700;
   font-size:14px;
+}
+
+.service-popup-primary-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+
+.service-popup-add-btn{
+  width:auto!important;
+  min-width:0;
+  height:32px;
+  padding:0 12px!important;
+  white-space:nowrap;
 }
 
 .service-popup-close-btn{
@@ -15096,6 +15163,46 @@ td.row-action-col {
   z-index: 1;
   display: block;
   margin-bottom: 8px;
+}
+
+.service-item-toolbar{
+  position: relative;
+  z-index: 4;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin: 0 0 6px;
+  padding: 0 2px;
+}
+
+.service-item-toolbar strong{
+  color:#1e3a8a;
+  font-size:11px;
+  font-weight:1000;
+}
+
+.service-item-toolbar .remove-service-btn{
+  position: relative;
+  z-index: 5;
+  display:grid;
+  place-items:center;
+  width:30px;
+  height:30px;
+  flex:0 0 30px;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:8px;
+  background:#fee2e2;
+  color:#dc2626;
+  font:700 18px/1 inherit;
+  cursor:pointer;
+  box-shadow:0 1px 0 rgba(15,23,42,.04);
+}
+
+.service-item-toolbar .remove-service-btn:hover{
+  background:#fecaca;
 }
 .service-item.service-item-layer-active,
 .service-item:has(.multiselect--active) {
@@ -16088,10 +16195,33 @@ tr.data-row td {
     position: relative;
     display: flex;
     gap: 8px;
-    margin-bottom: 10px;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 2px 2px 8px;
     flex-direction: column;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     isolation: isolate;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: #93c5fd #eef2f7;
+}
+
+.service-popup-meta::-webkit-scrollbar { width: 10px; }
+.service-popup-meta::-webkit-scrollbar-track { background: #eef2f7; border-radius: 999px; }
+.service-popup-meta::-webkit-scrollbar-thumb { background: #93c5fd; border: 2px solid #eef2f7; border-radius: 999px; }
+
+/* دراپ‌داون‌های داخل فهرست بریده نشوند. */
+.service-popup-meta:has(.multiselect--active),
+.service-popup-meta:has(.service-tag-menu) {
+  overflow: visible;
+}
+
+.service-popup > .referral-section {
+  flex: 0 0 auto;
 }
 
 .service-popup-field {
@@ -16729,10 +16859,27 @@ td.st-arrived select {
 
 /* معرف نوبت: مشتری / پزشک / پرسنل */
 .referral-section.patient-services-referral-actions{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important;align-items:start}
-.service-choice-row:has(.service-path-add){display:flex!important;flex-wrap:wrap;align-items:center!important;gap:8px}
-.service-choice-row .service-path-add{flex:0 0 auto;width:auto!important;height:38px;margin:0;padding:0 12px;white-space:nowrap;align-self:center}
-.service-choice-row:has(.service-path-add) .service-path-selectors{flex:1 1 0;min-width:0;width:auto;grid-column:auto!important}
-.service-choice-row:has(.service-path-add) .service-tag-picker{flex:1 0 100%;grid-column:1/-1!important;grid-row:auto!important}
+
+@media (max-width: 700px) {
+  .service-popup {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: calc(100vw - 16px);
+    max-height: min(82dvh, calc(100dvh - 96px));
+    margin-right: 0;
+  }
+  .service-popup-header {
+    flex-wrap: wrap;
+  }
+  .service-popup-primary-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .service-popup-add-btn {
+    flex: 1 1 auto;
+  }
+}
 .referrer-search{position:relative}
 .referrer-search-input{width:100%;box-sizing:border-box}
 .referrer-chip{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:32px;padding:3px 8px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;box-sizing:border-box}
