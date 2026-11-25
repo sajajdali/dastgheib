@@ -22,8 +22,10 @@ trait DynamicReportPayrollWalletFixtures
         });
         Schema::create('wallet_transactions', function (Blueprint $table) {
             $table->id(); $table->unsignedBigInteger('patient_id'); $table->string('type'); $table->decimal('amount', 14, 2);
+            $table->string('payment_method')->nullable(); $table->string('payment_account')->nullable();
             $table->string('source_type')->nullable(); $table->unsignedBigInteger('appointment_id')->nullable();
-            $table->unsignedBigInteger('reversed_transaction_id')->nullable(); $table->timestamp('reversed_at')->nullable();
+            $table->unsignedBigInteger('reversed_transaction_id')->nullable(); $table->timestamp('occurred_at')->nullable();
+            $table->timestamp('reversed_at')->nullable();
             $table->timestamps();
         });
     }

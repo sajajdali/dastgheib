@@ -54,7 +54,7 @@ final class AppointmentReportMatch
         });
     }
 
-    /** روش پرداخت یا حساب: اولین پرداخت ذخیره‌شده روی نوبت یا هر پرداخت فعال در دفتر مالی آن. */
+    /** روش پرداخت یا حساب: ستون نوبت، پرداخت/تسویه فعال، یا بیعانهٔ دفتر مالی (حساب مقصد بیعانه). */
     public static function payment(Builder|QueryBuilder $query, string $alias, string $column, array $values): void
     {
         $values = array_values(array_filter(array_map(fn ($value) => trim((string) $value), $values)));
@@ -63,7 +63,7 @@ final class AppointmentReportMatch
             ->orWhereExists(fn (QueryBuilder $ledger) => $ledger->selectRaw('1')
                 ->from('appointment_financial_transactions as payment_ledger')
                 ->whereColumn('payment_ledger.appointment_id', "{$alias}.id")
-                ->whereIn('payment_ledger.type', ['payment', 'debt_settlement'])
+                ->whereIn('payment_ledger.type', ['payment', 'debt_settlement', 'deposit'])
                 ->whereNull('payment_ledger.voided_at')
                 ->whereIn("payment_ledger.{$column}", $values)));
     }
@@ -96,7 +96,11 @@ final class AppointmentReportMatch
         return "CAST(REPLACE(REPLACE(REPLACE(COALESCE({$column}, '0'), ',', ''), '٬', ''), ' ', '') AS DECIMAL(18,2))";
     }
 
-    /** بیعانهٔ ثبت‌شده در دفتر مالی نوبت. */
+    /**
+     * بیعانهٔ ثبت‌شده در دفتر مالی نوبت (جمع مبلغ).
+     * تاریخ و حساب مقصد واقعی روی خود ردیف دفتر/کیف پول است؛
+     * فیلتر بازهٔ زمانی واریز کیف پول از occurred_at استفاده می‌کند.
+     */
     public static function deposit(string $alias): string
     {
         return "(SELECT COALESCE(SUM(deposit_ledger.amount),0) FROM appointment_financial_transactions AS deposit_ledger WHERE deposit_ledger.appointment_id = {$alias}.id AND deposit_ledger.type = 'deposit' AND deposit_ledger.voided_at IS NULL)";

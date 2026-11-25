@@ -134,6 +134,48 @@ class DynamicReportFieldsTest extends TestCase
         $this->assertNull($fields->resolve('walletDeposit', new ReportPatientContext(new Patient(), null, collect(), collect(), 'silver', $range)));
     }
 
+    public function test_wallet_deposit_uses_occurred_at_not_created_at_alone(): void
+    {
+        $this->createPayrollAndWalletTables();
+        DB::table('wallet_transactions')->insert([
+            'patient_id' => 1,
+            'type' => 'deposit',
+            'amount' => 250000,
+            'payment_account' => 'صندوق ۱',
+            'source_type' => 'booking_deposit',
+            // ذخیره امروز، اما تاریخ واقعی بیعانه داخل بازه گزارش است.
+            'created_at' => '2026-11-01 10:00:00',
+            'occurred_at' => '2026-10-05 12:00:00',
+        ]);
+        DB::table('wallet_transactions')->insert([
+            'patient_id' => 1,
+            'type' => 'deposit',
+            'amount' => 180000,
+            'payment_account' => 'صندوق ۲',
+            'source_type' => 'booking_deposit',
+            'created_at' => '2026-10-05 10:00:00',
+            'occurred_at' => '2026-11-01 12:00:00',
+        ]);
+
+        $patient = (new Patient())->forceFill(['id' => 1]);
+        $patient->exists = true;
+        $range = ['from' => '1405-07-01', 'to' => '1405-07-30'];
+        $fields = app(DynamicReportFieldRegistry::class);
+        $context = new ReportPatientContext($patient, null, collect(), collect(), 'silver', $range);
+
+        $this->assertSame(250000.0, $fields->resolve('walletDeposit', $context));
+        $this->assertSame(250000.0, \App\Reporting\DynamicReports\ReportWalletTotals::forPatient(
+            1,
+            'deposit',
+            ['reportDate' => $range, 'multi' => ['account' => ['صندوق ۱']]]
+        ));
+        $this->assertSame(0.0, \App\Reporting\DynamicReports\ReportWalletTotals::forPatient(
+            1,
+            'deposit',
+            ['reportDate' => $range, 'multi' => ['account' => ['صندوق ۲']]]
+        ));
+    }
+
     public function test_new_money_columns_are_formatted_like_other_amounts(): void
     {
         $this->createPayrollAndWalletTables();

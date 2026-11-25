@@ -11,7 +11,9 @@ use Illuminate\Support\Facades\DB;
  * - برداشت: پرداخت نوبت از کیف پول و برداشت دستی.
  * - ردیف‌های «برگشت» (source_type = reversal) خودشان حساب نمی‌شوند؛ مبلغ برگشت‌خورده از
  *   همان ردیف اصلی کم می‌شود، تا برگشتِ بخشی از یک واریز هم درست حساب شود.
- * - تاریخ هر ردیف همان created_at است (به وقت تهران) و بازهٔ شمسی گزارش به میلادی تبدیل می‌شود.
+ * - تاریخ هر ردیف تاریخ واقعی رخداد است: COALESCE(occurred_at, created_at) به وقت تهران؛
+ *   نه تاریخ نوبت و نه صرفاً لحظهٔ ذخیره در نرم‌افزار وقتی occurred_at جدا ثبت شده باشد.
+ * - بازهٔ شمسی گزارش به میلادی تبدیل می‌شود.
  */
 final class ReportWalletTotals
 {
@@ -25,6 +27,7 @@ final class ReportWalletTotals
     public static function expression(string $patientId, string $type, array $filters): array
     {
         if (! in_array($type, self::TYPES, true)) throw new \InvalidArgumentException("Unknown wallet transaction type [{$type}].");
+        $eventAt = 'COALESCE(wallet_ledger.occurred_at, wallet_ledger.created_at)';
         $sql = "(SELECT COALESCE(SUM(CASE WHEN wallet_ledger.amount - COALESCE(wallet_reversal.amount, 0) > 0"
             ." THEN wallet_ledger.amount - COALESCE(wallet_reversal.amount, 0) ELSE 0 END), 0)"
             ." FROM wallet_transactions AS wallet_ledger"
@@ -34,8 +37,15 @@ final class ReportWalletTotals
             ." AND (wallet_ledger.source_type IS NULL OR wallet_ledger.source_type <> 'reversal')";
         $bindings = [$type];
         [$from, $to] = self::range($filters);
-        if ($from) { $sql .= ' AND wallet_ledger.created_at >= ?'; $bindings[] = $from; }
-        if ($to) { $sql .= ' AND wallet_ledger.created_at <= ?'; $bindings[] = $to; }
+        if ($from) { $sql .= " AND {$eventAt} >= ?"; $bindings[] = $from; }
+        if ($to) { $sql .= " AND {$eventAt} <= ?"; $bindings[] = $to; }
+        $accounts = collect(data_get($filters, 'multi.account', []))
+            ->map(fn ($value) => trim((string) $value))->filter()->unique()->values()->all();
+        if ($accounts !== []) {
+            $placeholders = implode(', ', array_fill(0, count($accounts), '?'));
+            $sql .= " AND wallet_ledger.payment_account IN ({$placeholders})";
+            array_push($bindings, ...$accounts);
+        }
 
         return [$sql.')', $bindings];
     }

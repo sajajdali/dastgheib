@@ -2505,9 +2505,39 @@
         <section class="financial-accordion-section">
         <button type="button" class="financial-accordion-head" @click="financialDepositOpen = !financialDepositOpen"><span>بیعانه این جلسه</span><b>{{ financialDepositOpen ? '⌃' : '⌄' }}</b></button>
         <div v-if="financialDepositOpen" class="financial-accordion-body financial-deposit-body">
+        <section class="financial-deposit-meta">
+          <header><div><strong>ثبت بیعانه / اعتبار بیمار</strong><small>بدون خدمت هم قابل ثبت است و تا مصرف در نوبت بعدی فقط اعتبار می‌ماند</small></div><b>{{ formatDisplayMoney(financialDepositTotal()) }} تومان</b></header>
+          <div class="financial-deposit-meta-grid">
+            <label>مبلغ بیعانه (اعتبار)<BufferedInput v-model="financialDepositCredit" type="text" inputmode="numeric" placeholder="۰" :format="formatMoneyDraft" @commit="formatFinancialDepositCredit" /></label>
+            <label>تاریخ بیعانه
+              <date-picker
+                v-model="financialDepositDate"
+                format="YYYY-MM-DD"
+                display-format="jYYYY/jMM/jDD"
+                input-class="financial-date-input"
+                placeholder="انتخاب تاریخ"
+                auto-submit
+                color="#2563eb"
+              />
+            </label>
+            <label>روش پرداخت
+              <select v-model="financialDepositMethod">
+                <option value="">انتخاب روش پرداخت</option>
+                <option v-for="method in paymentOptions.methods" :key="`deposit-method-${method}`" :value="method">{{ method }}</option>
+              </select>
+            </label>
+            <label>حساب مقصد
+              <select v-model="financialDepositAccount">
+                <option value="">انتخاب حساب مقصد</option>
+                <option v-for="account in paymentOptions.accounts" :key="`deposit-account-${account}`" :value="account">{{ account }}</option>
+              </select>
+            </label>
+            <label class="financial-deposit-recorder">ثبت‌کننده<input type="text" :value="currentUserName || 'سیستم'" disabled /></label>
+          </div>
+        </section>
         <section class="financial-deposit-lines">
-          <header><div><strong>ثبت بیعانه برای هر خدمت</strong></div><b>{{ formatDisplayMoney(financialDepositTotal()) }} تومان</b></header>
-          <p v-if="!financialDepositLines.length" class="financial-deposit-empty">برای این نوبت هنوز خدمتی انتخاب نشده است.</p>
+          <header><div><strong>اختصاص اختیاری به خدمت</strong><small>اگر خدمتی انتخاب نشده، همین مبلغ به‌عنوان اعتبار بیمار می‌ماند</small></div></header>
+          <p v-if="!financialDepositLines.length" class="financial-deposit-empty">خدمتی روی این نوبت نیست؛ بیعانه فقط به‌عنوان اعتبار بیمار ثبت می‌شود.</p>
           <div v-else class="financial-deposit-line" v-for="line in financialDepositLines" :key="line.key">
             <div class="financial-deposit-identity">
               <small>{{ line.isAddon ? 'خدمت جانبی' : 'خدمت' }}</small>
@@ -2524,7 +2554,11 @@
           <header><strong>بیعانه‌های ثبت‌شده همین جلسه</strong><small v-if="financialDepositHistoryLoading">در حال دریافت...</small></header>
           <p v-if="!financialDepositHistoryLoading && !financialCurrentDepositHistory().length">موردی ثبت نشده است.</p>
           <article v-for="item in financialCurrentDepositHistory()" :key="item.id">
-            <div><b>{{ formatDisplayMoney(item.amount) }} تومان</b><small>{{ financialDepositServicesLabel(item) }}</small></div>
+            <div>
+              <b>{{ formatDisplayMoney(item.amount) }} تومان</b>
+              <small>{{ financialDepositServicesLabel(item) }}</small>
+              <small>{{ financialDepositDetailsLabel(item) }}</small>
+            </div>
             <button type="button" :disabled="financialDepositDeletingId === item.id" @click="deleteFinancialDeposit(item)">{{ financialDepositDeletingId === item.id ? '...' : 'حذف' }}</button>
           </article>
         </section>
@@ -3048,6 +3082,10 @@ export default {
       financialOriginalRecordedPayment: 0,
       financialOpeningDebt: 0,
       financialDepositLines: [],
+      financialDepositCredit: "",
+      financialDepositMethod: "",
+      financialDepositAccount: "",
+      financialDepositDate: "",
       financialDepositHistory: [],
       financialDepositHistoryLoading: false,
       financialDepositDeletingId: null,
@@ -8784,7 +8822,8 @@ this.calculateFinalAmount(row)
       await this.loadFinancialDepositHistory();
       const history = this.financialDepositHistory.map(item => {
         const service = this.financialDepositServicesLabel(item);
-        return `<article><b>${this.formatDisplayMoney(item.amount)} تومان</b><small>${this.financialSafeHtml(service)}<br>${this.financialSafeHtml(item.description || '')}<br>ثبت‌کننده: ${this.financialSafeHtml(item.created_by_name || 'سیستم')} — ${this.financialSafeHtml(this.formatFinancialTransactionDate(item.created_at))}</small></article>`;
+        const details = this.financialDepositDetailsLabel(item);
+        return `<article><b>${this.formatDisplayMoney(item.amount)} تومان</b><small>${this.financialSafeHtml(service)}<br>${this.financialSafeHtml(details)}<br>${this.financialSafeHtml(item.description || '')}</small></article>`;
       }).join('');
       const available = Math.min(Number(this.activeFinancialRow?.walletBalance || 0), Math.max(0, this.moneyToNumber(this.activeFinancialRow?.amount) - this.financialOriginalRecordedPayment - this.financialDebtLinesTotal()));
       const result = await Swal.fire({ title: 'بیعانه‌های گذشته', html: `<div class="swal-financial-details">${history || '<p>جزئیات بیعانه‌ای ثبت نشده است.</p>'}</div><label style="display:grid;gap:7px;margin-top:12px;text-align:right">مبلغ استفاده در این جلسه<input id="wallet-use-amount" class="swal2-input" style="width:100%;margin:0" value="${available ? this.formatDisplayMoney(available) : ''}"></label>`, showCancelButton: true, showConfirmButton: available > 0, confirmButtonText: 'کسر از پرداخت این جلسه', cancelButtonText: 'بستن', confirmButtonColor: '#16a34a', width: 680, preConfirm: () => { const amount = this.moneyToNumber(document.getElementById('wallet-use-amount')?.value); if (!amount || amount > available) return Swal.showValidationMessage(`حداکثر مبلغ قابل استفاده ${this.formatDisplayMoney(available)} تومان است.`); return amount; } });
@@ -8804,6 +8843,10 @@ this.calculateFinalAmount(row)
       this.financialInvoiceLines = this.financialLinesForRow(row);
       this.financialDebtLines = this.debtLinesForInvoice(this.financialInvoiceLines, 0, this.financialDebtDescriptionDraft);
       this.financialDepositLines = this.depositLinesForRow(row);
+      this.financialDepositCredit = "";
+      this.financialDepositMethod = "";
+      this.financialDepositAccount = "";
+      this.financialDepositDate = this.todayGregorianDate();
       this.financialPreviousDebts = [];
       this.financialTransactions = [];
       this.financialPaymentDeletingId = null;
@@ -8847,6 +8890,10 @@ this.calculateFinalAmount(row)
       this.financialOriginalRecordedPayment = 0;
       this.financialOpeningDebt = 0;
       this.financialDepositLines = [];
+      this.financialDepositCredit = "";
+      this.financialDepositMethod = "";
+      this.financialDepositAccount = "";
+      this.financialDepositDate = "";
       this.financialInvoiceLines = [];
       this.financialPreviousDebts = [];
       this.financialTransactions = [];
@@ -9135,8 +9182,21 @@ this.calculateFinalAmount(row)
       line.amount = amount ? this.formatDisplayMoney(amount) : "";
     },
 
+    formatFinancialDepositCredit() {
+      const amount = this.moneyToNumber(this.financialDepositCredit);
+      this.financialDepositCredit = amount ? this.formatDisplayMoney(amount) : "";
+    },
+
+    todayGregorianDate() {
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${now.getFullYear()}-${month}-${day}`;
+    },
+
     financialDepositTotal() {
-      return this.financialDepositLines.reduce((total, line) => total + Math.max(0, this.moneyToNumber(line.amount)), 0);
+      const serviceTotal = this.financialDepositLines.reduce((total, line) => total + Math.max(0, this.moneyToNumber(line.amount)), 0);
+      return serviceTotal + Math.max(0, this.moneyToNumber(this.financialDepositCredit));
     },
 
     async loadFinancialDepositHistory() {
@@ -9157,7 +9217,23 @@ this.calculateFinalAmount(row)
     },
 
     financialDepositServicesLabel(item) {
-      return (item?.metadata?.services || []).map(service => [service.section, service.subsection, service.parent_service, service.service].filter(Boolean).join(' / ')).filter(Boolean).join('، ') || 'خدمت ثبت نشده';
+      const services = (item?.metadata?.services || [])
+        .map(service => [service.section, service.subsection, service.parent_service, service.service].filter(Boolean).join(' / '))
+        .filter(Boolean);
+      if (services.length) return services.join('، ');
+      if (item?.metadata?.credit_only || item?.source_type === 'booking_deposit') return 'اعتبار بیمار (بدون خدمت)';
+      return 'خدمت ثبت نشده';
+    },
+
+    financialDepositDetailsLabel(item) {
+      const occurred = this.formatFinancialTransactionDate(item?.occurred_at || item?.created_at);
+      const parts = [
+        item?.payment_method || null,
+        item?.payment_account ? `حساب: ${item.payment_account}` : null,
+        `تاریخ بیعانه: ${occurred}`,
+        `ثبت‌کننده: ${item?.created_by_name || 'سیستم'}`,
+      ].filter(Boolean);
+      return parts.join(' · ');
     },
 
     financialCurrentDepositHistory() {
@@ -9237,7 +9313,8 @@ this.calculateFinalAmount(row)
       const depositLines = this.financialDepositLines
         .map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)) }))
         .filter(line => line.amount > 0);
-      const deposit = depositLines.reduce((total, line) => total + line.amount, 0);
+      const depositCredit = Math.max(0, this.moneyToNumber(this.financialDepositCredit));
+      const deposit = depositLines.reduce((total, line) => total + line.amount, 0) + depositCredit;
       const paymentLines = this.financialPaymentLines.map(line => ({ ...line, amount: Math.max(0, this.moneyToNumber(line.amount)) })).filter(line => line.amount > 0);
       if (paymentLines.some(line => !line.account)) {
         await Swal.fire({ icon: 'warning', title: 'حساب واریز مشخص نیست', text: 'برای هر پرداخت، یکی از حساب‌های ثبت‌شده در تنظیمات را انتخاب کنید.' });
@@ -9245,6 +9322,14 @@ this.calculateFinalAmount(row)
       }
       if (deposit > 0 && !row.patientId) {
         await Swal.fire({ icon: "warning", title: "پرونده بیمار مشخص نیست", text: "ابتدا بیمار را از پرونده‌های موجود انتخاب کنید." });
+        return;
+      }
+      if (deposit > 0 && (!String(this.financialDepositMethod || '').trim() || !String(this.financialDepositAccount || '').trim())) {
+        await Swal.fire({ icon: 'warning', title: 'جزئیات بیعانه ناقص است', text: 'برای ثبت بیعانه، روش پرداخت و حساب مقصد را انتخاب کنید.' });
+        return;
+      }
+      if (deposit > 0 && !String(this.financialDepositDate || '').trim()) {
+        await Swal.fire({ icon: 'warning', title: 'تاریخ بیعانه مشخص نیست', text: 'تاریخ دریافت بیعانه را انتخاب کنید (پیش‌فرض امروز است و برای گذشته قابل ویرایش است).' });
         return;
       }
 
@@ -9283,6 +9368,12 @@ this.calculateFinalAmount(row)
           payments, debt_allocations: debtAllocations,
           wallet_payment: this.financialWalletApplied > 0 ? { amount: this.financialWalletApplied, allocations: this.allocateFinancialAmount(this.financialWalletApplied, 0) } : null,
           deposit_allocations: depositLines.map(line => ({ key: line.key, amount: line.amount })),
+          deposit: deposit > 0 ? {
+            credit_amount: depositCredit || null,
+            method: this.financialDepositMethod,
+            account: this.financialDepositAccount,
+            occurred_at: this.financialDepositDate,
+          } : null,
           service_lines: this.financialInvoiceLines.map(line => ({ key: line.key, service: line.service, section: line.section, subsection: line.subsection, parent_service: line.parent_service, is_addon: line.is_addon, quantity: line.quantity, gross_amount: line.grossAmount, discount_amount: line.discountAmount })),
           confirm_debt_overage: confirmDebtOverage,
           confirm_overpayment: confirmOverpayment,
@@ -9312,6 +9403,10 @@ this.calculateFinalAmount(row)
         if (data.appointment?.payment_details) row.paymentDetails = this.normalizePaymentDetails(data.appointment.payment_details);
         row.walletBalance = Number(data.wallet_balance || row.walletBalance || 0);
         this.financialDepositLines = this.depositLinesForRow(row);
+        this.financialDepositCredit = "";
+        this.financialDepositMethod = "";
+        this.financialDepositAccount = "";
+        this.financialDepositDate = this.todayGregorianDate();
         this.financialInvoiceLines = this.financialLinesForRow(row);
         await this.loadFinancialContext();
         await this.loadFinancialDepositHistory();
@@ -16583,7 +16678,7 @@ td.st-arrived select {
 .financial-invoice-card,.financial-accordion-section{margin-top:16px!important;border-color:#dbe3ee!important;border-radius:17px!important;box-shadow:0 4px 14px rgba(15,23,42,.035)}.financial-accordion-head{min-height:54px;padding:0 18px!important;background:#fff!important;font-size:13px!important;border-bottom:0!important}.financial-accordion-head b{display:grid;place-items:center;min-width:27px;height:27px;padding:0 7px;border-radius:9px;background:#eff6ff;color:#2563eb!important}.financial-accordion-body{padding:20px;border-top:1px solid #e7edf5;background:#fff}.financial-invoice-table-wrap{padding:4px 18px 16px!important;background:#fff}.financial-invoice-table-wrap table{font-size:11px!important}.financial-invoice-table-wrap th,.financial-invoice-table-wrap td{padding:12px 10px!important}.financial-payable-total{align-items:center;padding:16px 8px 4px!important;border-top:1px solid #e2e8f0}.financial-payable-total strong{font-size:17px!important}
 .financial-debt-body{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(320px,1.2fr);align-items:start;gap:18px}.financial-field{display:grid!important;gap:9px!important;margin:0!important;color:#334155!important;font-size:11px!important;font-weight:900!important}.financial-field>span{display:block}.financial-debt-amount-field input{height:48px!important;border-color:#fecaca!important;background:#fffafa!important;color:#b91c1c;font-size:15px;font-weight:1000}.financial-debt-description textarea{width:100%;min-height:112px!important;padding:12px 14px!important;border-radius:12px!important;font-size:11px}.financial-debt-preview{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;padding:10px 11px;border-radius:10px;background:#fff7ed;color:#9a3412!important;font-size:9px!important;line-height:1.7}.financial-debt-preview b{font-size:10px}.financial-previous-debts{grid-column:1/-1;gap:9px!important;margin-top:2px!important;padding-top:16px;border-top:1px dashed #fecaca}.financial-previous-debts h4{margin:0 0 2px;color:#991b1b;font-size:11px}.financial-previous-debts article{grid-template-columns:minmax(0,1fr) auto 64px!important;gap:14px!important;min-height:52px;padding:10px 12px!important}.financial-previous-debts article>span{display:grid;gap:4px;font-weight:900}.financial-previous-debts article>span small{color:#9f6b6b;font-size:9px}.financial-previous-debts article>b{white-space:nowrap;font-size:11px}.financial-previous-debts button{height:34px!important;border-radius:9px!important;font-size:10px!important}
 .financial-debt-lines{grid-column:1/-1;display:grid;gap:10px;padding:16px;border:1px solid #fecaca;border-radius:14px;background:#fffafa}.financial-debt-lines>header{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#991b1b}.financial-debt-lines>header>div{display:grid;gap:3px}.financial-debt-lines>header small{color:#64748b;font-size:9px}.financial-debt-lines>header>b{font-size:10px;white-space:nowrap}.financial-debt-line{display:grid;grid-template-columns:minmax(150px,1fr) 170px minmax(220px,1.3fr);gap:12px;align-items:center;padding:12px;border:1px solid #fee2e2;border-radius:12px;background:#fff}.financial-debt-line label{display:grid;gap:4px;margin:0!important}.financial-debt-line label>span{color:#64748b;font-size:9px;font-weight:800}.financial-debt-line input{height:43px!important;border-color:#fecaca!important;background:#fffafa!important}.financial-debt-line textarea{min-height:43px!important;padding:9px 11px!important;border:1px solid #fecaca!important;border-radius:10px!important;background:#fffafa!important;font-family:inherit;resize:vertical}.financial-debt-lines>.financial-debt-preview{margin-top:2px}
-.financial-deposit-body{padding:18px!important}.financial-deposit-lines{margin:0!important;padding:16px!important;border-radius:14px!important}.financial-deposit-lines>header{margin-bottom:5px}.financial-deposit-line{grid-template-columns:minmax(0,1fr) 190px!important;padding:13px 14px!important;border-radius:12px!important}.financial-deposit-amount input{height:43px!important}.financial-deposit-history{margin-top:16px!important;padding-top:16px!important;gap:9px!important}.financial-deposit-history article{min-height:45px;padding:9px 12px!important}
+.financial-deposit-body{padding:18px!important;display:grid;gap:12px}.financial-deposit-meta{display:grid;gap:10px;padding:16px;border:1px solid #d7e6dd;border-radius:14px;background:#fafdfb}.financial-deposit-meta>header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;color:#166534;font-size:12px}.financial-deposit-meta>header>div{display:grid;gap:3px}.financial-deposit-meta>header small{color:#64748b;font-size:9px;font-weight:700}.financial-deposit-meta>header>b{padding:4px 8px;border-radius:7px;background:#dcfce7;color:#15803d;font-size:10px;white-space:nowrap}.financial-deposit-meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.financial-deposit-meta-grid label{display:grid;gap:6px;color:#64748b;font-size:10px;font-weight:800}.financial-deposit-meta-grid input,.financial-deposit-meta-grid select,.financial-deposit-meta-grid .financial-date-input{height:43px;width:100%;box-sizing:border-box;padding:0 11px;border:1px solid #dbe7df;border-radius:10px;background:#fff;color:#0f172a;font-family:inherit;font-size:12px;font-weight:800}.financial-deposit-recorder{grid-column:1/-1}.financial-deposit-lines{margin:0!important;padding:16px!important;border-radius:14px!important}.financial-deposit-lines>header{margin-bottom:5px}.financial-deposit-line{grid-template-columns:minmax(0,1fr) 190px!important;padding:13px 14px!important;border-radius:12px!important}.financial-deposit-amount input{height:43px!important}.financial-deposit-history{margin-top:4px!important;padding-top:16px!important;gap:9px!important}.financial-deposit-history article{min-height:45px;padding:9px 12px!important}.financial-deposit-history article small{white-space:normal!important}
 .payment-open>.financial-accordion-head{background:#f7fbff!important}.financial-payment-body{padding-top:16px}.financial-method-choices{gap:9px!important;padding:0 0 17px!important}.financial-method-choices button{height:40px!important;padding:0 14px!important;border-radius:11px!important;font-size:10px!important}.financial-payment-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:14px!important;margin:0!important;padding:16px;border:1px solid #dbeafe;border-radius:14px;background:#f8fbff}.financial-payment-grid label,.financial-check-grid label{gap:8px!important;margin:0!important}.financial-payment-grid input,.financial-payment-grid select,.financial-check-grid input{height:46px!important;background:#fff!important}.financial-advanced-toggle{margin-top:14px!important}.financial-check-grid{gap:14px!important;margin-top:12px!important;padding:16px!important}
 .financial-configured-payment{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-bottom:14px;border-bottom:1px dashed #bfdbfe}.financial-configured-payment:last-child{padding-bottom:0;border-bottom:0}.financial-configured-payment label{display:grid}.financial-configured-payment label:nth-child(n+3){grid-column:auto}
 .financial-balance-actions{display:flex;flex-wrap:wrap;gap:10px;margin:-8px 28px 4px}.financial-balance-actions button{flex:1;min-width:220px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid;border-radius:12px;background:#fff;font-family:inherit;font-weight:900;cursor:pointer}.financial-balance-actions .debt-action{border-color:#fecaca;color:#b91c1c}.financial-balance-actions .deposit-action{border-color:#bbf7d0;color:#15803d}.financial-balance-actions b{font-size:10px}.swal-financial-details{display:grid;gap:9px;max-height:340px;overflow:auto;text-align:right}.swal-financial-details article{display:grid;gap:6px;padding:11px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}.swal-financial-details article b{color:#172554;font-size:12px}.swal-financial-details article small{color:#475569;font-size:10px;line-height:2}

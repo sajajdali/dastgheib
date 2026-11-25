@@ -614,6 +614,9 @@ class PatientController extends Controller
         $data = $request->validate([
             'amount' => 'required|numeric|min:1',
             'description' => 'nullable|string|max:255',
+            'payment_method' => 'nullable|string|max:100',
+            'payment_account' => 'nullable|string|max:100',
+            'occurred_at' => 'nullable|date',
             'allocations' => 'nullable|array|max:50',
             'allocations.*.amount' => 'required_with:allocations|numeric|min:1',
             'allocations.*.section' => 'nullable|string|max:255',
@@ -646,11 +649,14 @@ class PatientController extends Controller
         }
 
         $patient = Patient::findOrFail($id);
+        $occurredAt = $this->resolveWalletDepositOccurredAt($data['occurred_at'] ?? null);
+        $paymentMethod = trim((string) ($data['payment_method'] ?? '')) ?: null;
+        $paymentAccount = trim((string) ($data['payment_account'] ?? '')) ?: null;
 
-        DB::transaction(function () use ($patient, $data, $request) {
+        DB::transaction(function () use ($patient, $data, $request, $occurredAt, $paymentMethod, $paymentAccount) {
             $allocations = collect($data['allocations'] ?? []);
             if ($allocations->isNotEmpty()) {
-                $allocations->each(function (array $allocation) use ($patient, $data, $request) {
+                $allocations->each(function (array $allocation) use ($patient, $request, $occurredAt, $paymentMethod, $paymentAccount) {
                     $service = [
                         'section' => trim((string) ($allocation['section'] ?? '')),
                         'subsection' => trim((string) ($allocation['subsection'] ?? '')),
@@ -661,24 +667,32 @@ class PatientController extends Controller
                     $patient->walletTransactions()->create([
                         'amount' => $allocation['amount'],
                         'type' => 'deposit',
+                        'payment_method' => $paymentMethod,
+                        'payment_account' => $paymentAccount,
                         'description' => 'بیعانه '.$service['service'],
                         'source_type' => 'booking_deposit',
                         'created_by' => $request->user()?->id,
-                        'metadata' => ['ip' => $request->ip(), 'services' => [$service]],
+                        'occurred_at' => $occurredAt,
+                        'metadata' => ['ip' => $request->ip(), 'credit_only' => false, 'services' => [$service]],
                     ]);
                 });
 
                 return;
             }
 
+            $hasServices = ! empty($data['services']);
             $patient->walletTransactions()->create([
                 'amount' => $data['amount'],
                 'type' => 'deposit',
-                'description' => $data['description'] ?? 'واریز به کیف پول',
-                'source_type' => ! empty($data['services']) ? 'booking_deposit' : 'manual',
+                'payment_method' => $paymentMethod,
+                'payment_account' => $paymentAccount,
+                'description' => $data['description'] ?? ($hasServices ? 'واریز به کیف پول' : 'بیعانه / اعتبار بیمار'),
+                'source_type' => $hasServices ? 'booking_deposit' : 'manual',
                 'created_by' => $request->user()?->id,
+                'occurred_at' => $occurredAt,
                 'metadata' => [
                     'ip' => $request->ip(),
+                    'credit_only' => ! $hasServices,
                     'services' => collect($data['services'] ?? [])->map(fn (array $service) => [
                         'section' => trim((string) ($service['section'] ?? '')),
                         'subsection' => trim((string) ($service['subsection'] ?? '')),
@@ -797,6 +811,8 @@ class PatientController extends Controller
                     'id' => $transaction->id,
                     'type' => $transaction->type,
                     'amount' => (float) $transaction->amount,
+                    'payment_method' => $transaction->payment_method,
+                    'payment_account' => $transaction->payment_account,
                     'description' => $transaction->description,
                     'source_type' => $transaction->source_type,
                     'source_key' => $transaction->source_key,
@@ -804,6 +820,7 @@ class PatientController extends Controller
                     'reversed_transaction_id' => $transaction->reversed_transaction_id,
                     'reversed_at' => $transaction->reversed_at,
                     'expires_at' => $transaction->expires_at,
+                    'occurred_at' => $transaction->occurred_at ?: $transaction->created_at,
                     'metadata' => $transaction->metadata,
                     'reward_lines' => $transaction->referralRewardLines,
                     'remaining_amount' => $transaction->type === 'deposit' ? (float) $patient->walletCreditRemaining($transaction->id) : 0,
@@ -814,6 +831,24 @@ class PatientController extends Controller
                     'created_at' => $transaction->created_at,
                 ]),
         ]);
+    }
+
+    private function resolveWalletDepositOccurredAt(mixed $value): \Carbon\Carbon
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') return now();
+        try {
+            $parsed = \Carbon\Carbon::parse($raw);
+        } catch (\Throwable) {
+            return now();
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            return $parsed->isSameDay(now())
+                ? now()
+                : $parsed->copy()->setTime(12, 0, 0);
+        }
+
+        return $parsed->greaterThan(now()) ? now() : $parsed;
     }
 
     private function referredPeople(Patient $patient): array

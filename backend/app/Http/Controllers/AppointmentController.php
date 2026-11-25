@@ -2023,7 +2023,12 @@ class AppointmentController extends Controller
             'debt_allocations' => ['array', 'max:50'], 'debt_allocations.*.amount' => ['required', 'integer', 'min:1'],
             'debt_allocations.*.reason' => ['required', 'string', 'max:1000'], 'debt_allocations.*.key' => ['nullable', 'string', 'max:190'],
             'deposit_allocations' => ['array', 'max:50'], 'deposit_allocations.*.amount' => ['required', 'integer', 'min:1'],
-            'deposit_allocations.*.key' => ['required', 'string', 'max:190'],
+            'deposit_allocations.*.key' => ['nullable', 'string', 'max:190'],
+            'deposit' => ['nullable', 'array'],
+            'deposit.credit_amount' => ['nullable', 'integer', 'min:1'],
+            'deposit.method' => ['nullable', 'string', 'max:100'],
+            'deposit.account' => ['nullable', 'string', 'max:100'],
+            'deposit.occurred_at' => ['nullable', 'date'],
             'service_lines' => ['array', 'max:50'], 'service_lines.*.key' => ['required', 'string', 'max:190'],
             'service_lines.*.service' => ['required', 'string', 'max:255'], 'service_lines.*.section' => ['nullable', 'string', 'max:255'],
             'service_lines.*.subsection' => ['nullable', 'string', 'max:255'], 'service_lines.*.parent_service' => ['nullable', 'string', 'max:255'],
@@ -2040,10 +2045,15 @@ class AppointmentController extends Controller
             $payments = collect($data['payments'] ?? []);
             $walletPayment = collect($data['wallet_payment'] ?? []);
             $debtRows = collect($data['debt_allocations'] ?? []);
-            $depositRows = collect($data['deposit_allocations'] ?? []);
+            $depositMeta = collect($data['deposit'] ?? []);
+            $depositRows = collect($data['deposit_allocations'] ?? [])
+                ->map(fn ($row) => [...$row, 'amount' => (int) ($row['amount'] ?? 0)])
+                ->filter(fn ($row) => $row['amount'] > 0 && filled($row['key'] ?? null))
+                ->values();
+            $depositCredit = max(0, (int) ($depositMeta->get('credit_amount') ?? 0));
             $walletPaymentAmount = (int) ($walletPayment->get('amount') ?? 0);
             $totalPayment = (int) $payments->sum('amount') + $walletPaymentAmount;
-            $totalDeposit = (int) $depositRows->sum('amount');
+            $totalDeposit = (int) $depositRows->sum('amount') + $depositCredit;
             $payable = max(0, $this->signedMoneyToInteger($appointment->amount));
             $existingPaymentTotal = $this->appointmentPreviouslyReceived($appointment, $balanceService);
             if ($walletPaymentAmount > 0) {
@@ -2071,6 +2081,12 @@ class AppointmentController extends Controller
             $overpayment = $balance['overpayment'];
             $debtReason = (string) ($debtRows->pluck('reason')->filter()->first() ?: 'مانده پرداخت این نوبت');
             if ($totalDeposit > 0 && ! $patient) abort(422, 'برای ثبت بیعانه، پرونده بیمار باید مشخص باشد.');
+            $depositMethod = trim((string) ($depositMeta->get('method') ?? ''));
+            $depositAccount = trim((string) ($depositMeta->get('account') ?? ''));
+            $depositOccurredAt = $this->resolveDepositOccurredAt($depositMeta->get('occurred_at'));
+            if ($totalDeposit > 0 && ($depositMethod === '' || $depositAccount === '')) {
+                abort(422, 'برای ثبت بیعانه، روش پرداخت و حساب مقصد را مشخص کنید.');
+            }
 
             $create = function (string $type, int $amount, array $extra = [], array $allocations = []) use ($request, $appointment, $patient, $lines) {
                 $transaction = AppointmentFinancialTransaction::create([
@@ -2080,7 +2096,7 @@ class AppointmentController extends Controller
                     'reference_number' => $extra['reference_number'] ?? null, 'due_date' => $extra['due_date'] ?? null,
                     'reason' => $extra['reason'] ?? null,
                     'metadata' => ['ip' => $request->ip(), 'user_agent' => substr((string) $request->userAgent(), 0, 255)],
-                    'occurred_at' => now(),
+                    'occurred_at' => $extra['occurred_at'] ?? now(),
                 ]);
                 foreach ($allocations as $allocation) {
                     $line = $lines->get($allocation['key'] ?? '') ?: [];
@@ -2103,6 +2119,7 @@ class AppointmentController extends Controller
                     'source_type' => 'appointment_financial_payment',
                     'source_key' => 'appointment-financial-wallet|'.$appointment->id.'|'.now()->format('YmdHisv'),
                     'appointment_id' => $appointment->id, 'created_by' => $request->user()?->id,
+                    'occurred_at' => now(),
                     'metadata' => ['ip' => $request->ip(), 'services' => $walletPayment->get('allocations', [])],
                 ]);
                 $create('payment', $walletPaymentAmount, [
@@ -2123,13 +2140,49 @@ class AppointmentController extends Controller
                     $create('debt', (int) $debtRow['amount'], ['reason' => $debtRow['reason']], [$debtRow]);
                 }
             }
+            $depositExtra = [
+                'method' => $depositMethod ?: null,
+                'account' => $depositAccount ?: null,
+                'occurred_at' => $depositOccurredAt,
+            ];
             foreach ($depositRows as $row) {
-                $tx = $create('deposit', (int) $row['amount'], [], [$row]);
+                $serviceName = (string) ($lines->get($row['key'])['service'] ?? '');
+                $tx = $create('deposit', (int) $row['amount'], $depositExtra, [$row]);
                 WalletTransaction::create([
                     'patient_id' => $patient->id, 'type' => 'deposit', 'amount' => $row['amount'],
-                    'description' => 'بیعانه خدمت '.($lines->get($row['key'])['service'] ?? ''), 'source_type' => 'booking_deposit',
+                    'payment_method' => $depositMethod ?: null, 'payment_account' => $depositAccount ?: null,
+                    'description' => 'بیعانه خدمت '.($serviceName !== '' ? $serviceName : 'بدون نام'),
+                    'source_type' => 'booking_deposit',
                     'source_key' => 'financial-ledger|'.$tx->id, 'appointment_id' => $appointment->id,
-                    'created_by' => $request->user()?->id, 'metadata' => ['financial_transaction_id' => $tx->id],
+                    'created_by' => $request->user()?->id, 'occurred_at' => $depositOccurredAt,
+                    'metadata' => [
+                        'financial_transaction_id' => $tx->id,
+                        'credit_only' => false,
+                        'services' => $serviceName !== '' ? [[
+                            'section' => $lines->get($row['key'])['section'] ?? null,
+                            'subsection' => $lines->get($row['key'])['subsection'] ?? null,
+                            'parent_service' => $lines->get($row['key'])['parent_service'] ?? null,
+                            'service' => $serviceName,
+                            'amount' => (int) $row['amount'],
+                        ]] : [],
+                    ],
+                ]);
+            }
+            if ($depositCredit > 0) {
+                // بیعانه بدون خدمت فقط اعتبار بیمار است؛ درآمد خدمت/پورسانت/حقوق پزشک نمی‌سازد.
+                $tx = $create('deposit', $depositCredit, $depositExtra, []);
+                WalletTransaction::create([
+                    'patient_id' => $patient->id, 'type' => 'deposit', 'amount' => $depositCredit,
+                    'payment_method' => $depositMethod ?: null, 'payment_account' => $depositAccount ?: null,
+                    'description' => 'بیعانه / اعتبار بیمار',
+                    'source_type' => 'booking_deposit',
+                    'source_key' => 'financial-ledger|'.$tx->id, 'appointment_id' => $appointment->id,
+                    'created_by' => $request->user()?->id, 'occurred_at' => $depositOccurredAt,
+                    'metadata' => [
+                        'financial_transaction_id' => $tx->id,
+                        'credit_only' => true,
+                        'services' => [],
+                    ],
                 ]);
             }
 
@@ -4269,6 +4322,25 @@ class AppointmentController extends Controller
         })->first();
     }
 
+    /** تاریخ واقعی دریافت بیعانه؛ اگر فقط روز باشد برای امروز ساعت فعلی و برای گذشته ظهر همان روز. */
+    private function resolveDepositOccurredAt(mixed $value): \Carbon\Carbon
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') return now();
+        try {
+            $parsed = \Carbon\Carbon::parse($raw);
+        } catch (\Throwable) {
+            return now();
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            return $parsed->isSameDay(now())
+                ? now()
+                : $parsed->copy()->setTime(12, 0, 0);
+        }
+
+        return $parsed->greaterThan(now()) ? now() : $parsed;
+    }
+
     private function syncWalletTransaction(Request $request, Patient $patient, Appointment $appointment, string $sourceKey, string $sourceType, int $amount, string $description, array $metadata, string $type = 'deposit', $expiresAt = null): WalletTransaction
     {
         $existing = WalletTransaction::query()->where('source_key', $sourceKey)->whereNull('reversed_at')->lockForUpdate()->first();
@@ -4284,7 +4356,7 @@ class AppointmentController extends Controller
             'patient_id' => $patient->id, 'type' => $type, 'amount' => $amount,
             'description' => $description, 'source_type' => $sourceType, 'source_key' => $sourceKey,
             'appointment_id' => $appointment->id, 'created_by' => $request->user()?->id, 'metadata' => $metadata,
-            'expires_at' => $expiresAt,
+            'occurred_at' => now(), 'expires_at' => $expiresAt,
         ]);
     }
 

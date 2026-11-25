@@ -13,13 +13,14 @@ class WalletTransaction extends Model
     public function activitySection(): string { return 'کیف پول'; }
 
     protected $fillable = [
-        'patient_id', 'type', 'amount', 'description', 'source_type', 'source_key',
-        'appointment_id', 'reversed_transaction_id', 'created_by', 'metadata', 'reversed_at', 'expires_at',
+        'patient_id', 'type', 'amount', 'payment_method', 'payment_account', 'description', 'source_type', 'source_key',
+        'appointment_id', 'reversed_transaction_id', 'created_by', 'metadata', 'occurred_at', 'reversed_at', 'expires_at',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'metadata' => 'array',
+        'occurred_at' => 'datetime',
         'reversed_at' => 'datetime',
         'expires_at' => 'datetime',
     ];

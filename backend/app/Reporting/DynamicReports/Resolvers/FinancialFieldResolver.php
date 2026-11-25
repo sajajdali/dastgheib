@@ -24,15 +24,31 @@ class FinancialFieldResolver implements ReportFieldResolver
             'debt' => $appointment ? $this->money($appointment->debt) : null,
             'deposit' => $appointment ? $this->money(AppointmentFinancialTransaction::query()
                 ->where('appointment_id', $appointment->id)->where('type', 'deposit')->whereNull('voided_at')->sum('amount')) : null,
-            'payment' => $appointment?->payment_method,
-            'account' => $appointment?->payment_account,
+            'payment' => $appointment?->payment_method ?: $this->latestDepositValue($appointment, 'payment_method'),
+            'account' => $appointment?->payment_account ?: $this->latestDepositValue($appointment, 'payment_account'),
         };
     }
 
-    /** مبلغ نوبت بعد از تخفیف + کیف پول (همان تعریف درآمد گزارش کلینیک). */
+    /** مبلغ نوبت بعد از تخفیف + کیف پول (همان تعریف درآمد گزارش کلینیک). بیعانه درآمد خدمت نیست. */
     private function incomeAmount(mixed $appointment): float
     {
         return $this->number($appointment->amount ?? 0) + max(0, $this->number($appointment->wallet_applied ?? 0));
+    }
+
+    /** حساب/روش آخرین بیعانهٔ دفتر مالی، وقتی پرداخت خدمت روی نوبت ثبت نشده باشد. */
+    private function latestDepositValue(mixed $appointment, string $column): ?string
+    {
+        if (! $appointment?->id) return null;
+        $value = AppointmentFinancialTransaction::query()
+            ->where('appointment_id', $appointment->id)
+            ->where('type', 'deposit')
+            ->whereNull('voided_at')
+            ->whereNotNull($column)
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->value($column);
+
+        return filled($value) ? (string) $value : null;
     }
 
     /**
