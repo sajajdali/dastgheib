@@ -1004,15 +1004,55 @@
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'history')" @dblclick.stop="autoFitFollowupColumn('history')"></div>
                     </th>
 
-                    <!-- تاریخ پیگیری -->
-                    <th class="center resizable" :class="{ filterable: isGeneralFollowupCampaign(activeCampaign), 'filtered-cell': isFiltered('contactDate') }" :style="{ width: colWidths.contactDate + 'px' }">
-                      <div class="th-content">تاریخ و ساعت تماس <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ تماس" @click.stop="toggleFilterMenu('contactDate', $event)">⚙</button></div>
+                    <!-- تاریخ و ساعت تماس -->
+                    <th
+                      class="center resizable"
+                      :class="{
+                        filterable: isGeneralFollowupCampaign(activeCampaign),
+                        'filtered-cell': isFiltered('contactDate'),
+                        'sort-active-col': generalDateSort.key === 'contactDate',
+                      }"
+                      :style="{ width: colWidths.contactDate + 'px' }"
+                    >
+                      <div class="th-content">
+                        تاریخ و ساعت تماس
+                        <button
+                          v-if="isGeneralFollowupCampaign(activeCampaign)"
+                          type="button"
+                          class="sort-btn"
+                          :class="{ 'is-active': generalDateSort.key === 'contactDate' }"
+                          :title="generalDateSortTitle('contactDate')"
+                          :aria-label="generalDateSortTitle('contactDate')"
+                          @click.stop="cycleGeneralDateSort('contactDate')"
+                        >{{ generalDateSortIcon('contactDate') }}</button>
+                        <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ تماس" @click.stop="toggleFilterMenu('contactDate', $event)">⚙</button>
+                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'contactDate')" @dblclick.stop="autoFitFollowupColumn('contactDate')"></div>
                     </th>
 
-                    <!-- تاریخ پیگیری -->
-                    <th class="center resizable" :class="{ filterable: isGeneralFollowupCampaign(activeCampaign), 'filtered-cell': isFiltered('followUpDate') }" :style="{ width: colWidths.followUpDate + 'px' }">
-                      <div class="th-content">تاریخ پیگیری <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ پیگیری" @click.stop="toggleFilterMenu('followUpDate', $event)">⚙</button></div>
+                    <!-- تاریخ پیگیری بعدی -->
+                    <th
+                      class="center resizable"
+                      :class="{
+                        filterable: isGeneralFollowupCampaign(activeCampaign),
+                        'filtered-cell': isFiltered('followUpDate'),
+                        'sort-active-col': generalDateSort.key === 'followUpDate',
+                      }"
+                      :style="{ width: colWidths.followUpDate + 'px' }"
+                    >
+                      <div class="th-content">
+                        تاریخ پیگیری بعدی
+                        <button
+                          v-if="isGeneralFollowupCampaign(activeCampaign)"
+                          type="button"
+                          class="sort-btn"
+                          :class="{ 'is-active': generalDateSort.key === 'followUpDate' }"
+                          :title="generalDateSortTitle('followUpDate')"
+                          :aria-label="generalDateSortTitle('followUpDate')"
+                          @click.stop="cycleGeneralDateSort('followUpDate')"
+                        >{{ generalDateSortIcon('followUpDate') }}</button>
+                        <button v-if="isGeneralFollowupCampaign(activeCampaign)" class="filter-btn" title="فیلتر تاریخ پیگیری" @click.stop="toggleFilterMenu('followUpDate', $event)">⚙</button>
+                      </div>
                       <div class="resizer" @mousedown.stop.prevent="initResize($event, 'followUpDate')" @dblclick.stop="autoFitFollowupColumn('followUpDate')"></div>
                     </th>
 
@@ -1965,7 +2005,10 @@ export default {
     return {
       campaigns: [],
       campaignsLoadingFromServer: false,
-      duplicatePhoneWarningsEnabled: false,
+      // هشدار شماره تکراری فقط داخل همان کمپین فعال (ویرایش را مسدود نمی‌کند).
+      duplicatePhoneWarningsEnabled: true,
+      // مرتب‌سازی تاریخ در پیگیری کلی: newest→oldest → oldest→newest → پیش‌فرض
+      generalDateSort: { key: null, direction: null },
       showCampaignModal: false,
       editingCampaignId: null,
       campaignFormSaving: false,
@@ -2121,8 +2164,8 @@ export default {
         fullName: 136,
         phone: 104,
         history: 72,
-        contactDate: 205,
-        followUpDate: 130,
+        contactDate: 220,
+        followUpDate: 155,
         gender: 64,
         consultant: 104,
         source: 92,
@@ -2233,35 +2276,55 @@ export default {
       if (!this.activeCampaign) return [];
       const rows = Array.isArray(this.activeCampaign.rows) ? this.activeCampaign.rows : [];
       // در حالت صفحه‌بندی سروری، فیلتر روی API اعمال شده؛ فقط ردیف‌های همین صفحه نشان داده می‌شود.
-      if (this.activeCampaign._rowsMode === "paged") return rows;
+      let filtered;
+      if (this.activeCampaign._rowsMode === "paged") {
+        filtered = rows;
+      } else {
+        const term = this.campaignSearch.trim().toLowerCase();
 
-      const term = this.campaignSearch.trim().toLowerCase();
+        filtered = rows.filter((r) => {
+          const inSearch =
+            !term ||
+            [r.fullName, r.phone, r.consultant, followupNotesSearchText(r), this.followupSubsectionLabel(r)]
+              .filter(Boolean)
+              .some((f) => String(f).toLowerCase().includes(term));
 
-      return rows.filter((r) => {
-        const inSearch =
-          !term ||
-          [r.fullName, r.phone, r.consultant, followupNotesSearchText(r), this.followupSubsectionLabel(r)]
-            .filter(Boolean)
-            .some((f) => String(f).toLowerCase().includes(term));
+          const keys = ["gender", "consultant", "source", "status", "interest", "reason"];
 
-        const keys = ["gender", "consultant", "source", "status", "interest", "reason"];
+          const colMatch = keys.every((key) => {
+            const selected = this.selectedFilters[key];
+            if (!selected.length) return true;
+            const value = this.normalizedFollowupFilterValue(key, r[key]);
+            return selected.includes(value);
+          });
 
-        const colMatch = keys.every((key) => {
-          const selected = this.selectedFilters[key];
-          if (!selected.length) return true;
-          const value = this.normalizedFollowupFilterValue(key, r[key]);
-          return selected.includes(value);
+          if (!inSearch || !colMatch) return false;
+          if (!this.isGeneralFollowupCampaign(this.activeCampaign)) return true;
+
+          const subsectionMatch = !this.selectedFilters.subsection.length
+            || this.selectedFilters.subsection.includes(this.followupSubsectionFilterValue(r));
+          return subsectionMatch
+            && this.rowMatchesDateFilter(r, "contactDate")
+            && this.rowMatchesDateFilter(r, "followUpDate");
         });
+      }
 
-        if (!inSearch || !colMatch) return false;
-        if (!this.isGeneralFollowupCampaign(this.activeCampaign)) return true;
+      return this.applyGeneralDateSort(filtered);
+    },
 
-        const subsectionMatch = !this.selectedFilters.subsection.length
-          || this.selectedFilters.subsection.includes(this.followupSubsectionFilterValue(r));
-        return subsectionMatch
-          && this.rowMatchesDateFilter(r, "contactDate")
-          && this.rowMatchesDateFilter(r, "followUpDate");
+    // شماره‌های تکراری داخل کمپین فعال (پس از نرمال‌سازی)؛ برای هایلایت هشدار.
+    activeCampaignDuplicatePhoneKeys() {
+      const counts = new Map();
+      for (const row of this.activeCampaign?.rows || []) {
+        const key = this.followupPhoneKey(row?.phone);
+        if (key.length < 7) continue;
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+      const duplicates = new Set();
+      counts.forEach((count, key) => {
+        if (count > 1) duplicates.add(key);
       });
+      return duplicates;
     },
 
     filteredSubsectionOptions() {
@@ -2860,20 +2923,19 @@ export default {
     },
 
     duplicatePhoneInfo(row) {
-      if (!this.duplicatePhoneWarningsEnabled) return null;
+      if (!this.duplicatePhoneWarningsEnabled || !this.activeCampaign) return null;
 
-      const phone = this.normalizePhoneLookup(row?.phone);
-      if (phone.length < 7) return null;
+      const key = this.followupPhoneKey(row?.phone);
+      if (key.length < 7 || !this.activeCampaignDuplicatePhoneKeys.has(key)) return null;
 
-      for (const campaign of this.campaigns) {
-        for (const item of campaign.rows || []) {
-          if (item === row || item._localId === row?._localId) continue;
-          if (this.normalizePhoneLookup(item.phone) === phone) {
-            return {
-              campaign,
-              row: item,
-            };
-          }
+      // فقط داخل همین کمپین؛ هشدار بصری است و ویرایش را مسدود نمی‌کند.
+      for (const item of this.activeCampaign.rows || []) {
+        if (item === row || item._localId === row?._localId) continue;
+        if (this.followupPhoneKey(item.phone) === key) {
+          return {
+            campaign: this.activeCampaign,
+            row: item,
+          };
         }
       }
 
@@ -2883,9 +2945,8 @@ export default {
     duplicatePhoneTitle(row) {
       const duplicate = this.duplicatePhoneInfo(row);
       if (!duplicate) return "";
-      const campaignTitle = duplicate.campaign?.title || "کمپین بدون عنوان";
       const person = duplicate.row?.fullName || "بدون نام";
-      return `این شماره قبلا در ${campaignTitle} برای ${person} ثبت شده است`;
+      return `این شماره در همین کمپین برای «${person}» هم ثبت شده است (فقط هشدار؛ می‌توانید ویرایش کنید)`;
     },
 
     lookupPatientByPhone(row) {
@@ -3582,7 +3643,7 @@ export default {
     },
 
     autoFitFollowupColumn(key) {
-      const fixed = { contactDate:205, followUpDate:130, gender:72, interest:88, landingSms:145, automaticSms:130, appointment:122, history:76 };
+      const fixed = { contactDate:220, followUpDate:155, gender:72, interest:88, landingSms:145, automaticSms:130, appointment:122, history:76 };
       if (fixed[key]) {
         this.colWidths[key] = fixed[key];
         return;
@@ -3766,6 +3827,7 @@ export default {
         contactDate: { from: "", to: "" },
         followUpDate: { from: "", to: "" },
       };
+      this.generalDateSort = { key: null, direction: null };
       if (this.highlightedFollowupRowId) {
         this.$nextTick(() => this.scrollToHighlightedFollowupRow());
       }
@@ -3777,6 +3839,7 @@ export default {
       this.activeFilter = null;
       this.filterAnchorEl = null;
       this.filterMenuStyle = {};
+      this.generalDateSort = { key: null, direction: null };
     },
 
     openAppointmentsTimeline() {
@@ -4345,7 +4408,73 @@ export default {
         file_number: "",
         customer_level: "silver",
       };
-      this.$nextTick(() => this.scrollToHighlightedFollowupRow());
+    },
+
+    cycleGeneralDateSort(key) {
+      if (!this.isGeneralFollowupCampaign(this.activeCampaign)) return;
+      if (this.generalDateSort.key !== key) {
+        this.generalDateSort = { key, direction: "desc" };
+        return;
+      }
+      if (this.generalDateSort.direction === "desc") {
+        this.generalDateSort = { key, direction: "asc" };
+        return;
+      }
+      this.generalDateSort = { key: null, direction: null };
+    },
+
+    generalDateSortIcon(key) {
+      if (this.generalDateSort.key !== key) return "↕";
+      return this.generalDateSort.direction === "desc" ? "↓" : "↑";
+    },
+
+    generalDateSortTitle(key) {
+      if (this.generalDateSort.key !== key) return "مرتب‌سازی: جدیدترین اول";
+      if (this.generalDateSort.direction === "desc") return "مرتب‌سازی: قدیمی‌ترین اول";
+      return "مرتب‌سازی: بازگشت به ترتیب پیش‌فرض";
+    },
+
+    // مقدار قابل‌مقایسه بر اساس تاریخ واقعی (نه متن جلالی نمایشی).
+    followupSortInstant(row, key) {
+      if (key === "contactDate") {
+        const date = this.normalizeDateValue(row?.contactDate);
+        if (!date) return null;
+        const rawTime = String(row?.contactTime || "00:00").trim() || "00:00";
+        const time = /^\d{1,2}:\d{2}$/.test(rawTime) ? `${rawTime.padStart(5, "0")}:00` : rawTime;
+        const ts = Date.parse(`${date}T${time}`);
+        return Number.isNaN(ts) ? null : ts;
+      }
+      const date = this.normalizeDateValue(row?.followUpDate);
+      if (!date) return null;
+      const ts = Date.parse(`${date}T12:00:00`);
+      return Number.isNaN(ts) ? null : ts;
+    },
+
+    applyGeneralDateSort(rows) {
+      if (!Array.isArray(rows) || !rows.length) return rows || [];
+      if (!this.isGeneralFollowupCampaign(this.activeCampaign)) return rows;
+      const { key, direction } = this.generalDateSort || {};
+      if (!key || !direction) return rows;
+
+      const indexed = rows.map((row, index) => ({ row, index, instant: this.followupSortInstant(row, key) }));
+      const descending = direction === "desc";
+      indexed.sort((a, b) => {
+        if (a.instant == null && b.instant == null) return a.index - b.index;
+        if (a.instant == null) return 1;
+        if (b.instant == null) return -1;
+        if (a.instant !== b.instant) return descending ? b.instant - a.instant : a.instant - b.instant;
+        return a.index - b.index;
+      });
+      return indexed.map(item => item.row);
+    },
+
+    focusFollowupRowInput(row) {
+      if (!row?._localId) return;
+      const tableRow = Array.from(document.querySelectorAll(".campaign-table-modal [data-followup-row-id]"))
+        .find(element => element.dataset.followupRowId === String(row._localId));
+      const input = tableRow?.querySelector(".campaign-patient-cell input, .followup-phone-input:not([readonly])");
+      input?.focus({ preventScroll: true });
+      input?.select?.();
     },
 
     normalizeCampaignRows(campaign) {
@@ -4585,9 +4714,19 @@ export default {
     addMultipleRowsToActive() {
       if (!this.activeCampaign) return;
       const count = Math.max(1, Number(this.rowCount) || 1);
-      for (let i = 0; i < count; i++) {
-        this.activeCampaign.rows.push(this.createEmptyRow());
-      }
+      const newRows = Array.from({ length: count }, () => this.createEmptyRow());
+      // ردیف تازه بالای جدول؛ برای دیده شدن در بالا مرتب‌سازی تاریخ را هم ریست می‌کنیم.
+      this.generalDateSort = { key: null, direction: null };
+      this.activeCampaign.rows.unshift(...newRows);
+      const focusRow = newRows[0];
+      this.highlightedFollowupRowId = String(focusRow._localId);
+      this.selectedFollowupRowId = String(focusRow._localId);
+      this.$nextTick(() => {
+        const scroll = this.$el?.querySelector?.(".campaign-table-modal .table-scroll");
+        if (scroll) scroll.scrollTop = 0;
+        this.scrollToHighlightedFollowupRow();
+        this.focusFollowupRowInput(focusRow);
+      });
     },
 
     // ردیفی که جز تاریخ/ساعت تماسِ خودکار چیزی ندارد؛ فقط این ردیف‌ها با دکمهٔ «−» حذف می‌شوند.
@@ -6998,6 +7137,44 @@ export default {
   flex-shrink: 0;
 }
 
+.sort-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 6px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.sort-btn.is-active,
+.contacts-table thead th.sort-active-col .sort-btn.is-active {
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-weight: 900;
+}
+
+.contacts-table thead th.sort-active-col {
+  box-shadow: inset 0 -2px 0 #2563eb;
+}
+
+.campaign-table-modal .sort-btn {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #64748b;
+  font-size: 10px;
+}
+
 .filter-dropdown {
   position: absolute;
   top: 100%;
@@ -8139,6 +8316,21 @@ html body.dark .flwup-root .phone-input-wrap.duplicate input,
 html #app.dark .flwup-root .phone-input-wrap.duplicate input {
   border-color: #ef4444 !important;
   background: #2a1515 !important;
+}
+html body.dark .flwup-root .sort-btn,
+html #app.dark .flwup-root .sort-btn {
+  color: #9aa0a6 !important;
+}
+html body.dark .flwup-root .sort-btn.is-active,
+html body.dark .flwup-root .contacts-table thead th.sort-active-col .sort-btn.is-active,
+html #app.dark .flwup-root .sort-btn.is-active,
+html #app.dark .flwup-root .contacts-table thead th.sort-active-col .sort-btn.is-active {
+  color: #93c5fd !important;
+  background: #1e3a5f !important;
+}
+html body.dark .flwup-root .contacts-table thead th.sort-active-col,
+html #app.dark .flwup-root .contacts-table thead th.sort-active-col {
+  box-shadow: inset 0 -2px 0 #60a5fa !important;
 }
 
 /* Report filter panels */
