@@ -3160,6 +3160,7 @@ export default {
       saveRetryCount: 0,
       saveWaiters: [],
       timelineSaving: false,
+      _saveErrorDialogShown: false,
       draftRevision: 0,
       lastPersistedScheduleFingerprint: '',
       isFetching: true,
@@ -5368,6 +5369,17 @@ export default {
       draft.timelineDoctors = doctors;
       draft.timelineConsultant = consultant;
 
+      // بعد از تازه‌سازی ماه/realtime ممکن است ردیف مودال از this.days جدا شده باشد.
+      if (!this.reattachTimelineRowToSchedule()) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'نوبت روی صفحه به‌روز نیست',
+          text: 'لیست نوبت‌ها تازه شده است. پنجره را ببندید و دوباره نوبت را باز کنید، سپس ثبت کنید.',
+          confirmButtonText: 'باشه',
+        });
+        return;
+      }
+
       const timelineOccupants = this.slotOccupants(this.activeTimelineDay, draft, this.activeTimelineRow);
       const timelineKey = this.slotConfirmKey(this.activeTimelineDay, draft);
       const movesSlot = !this.activeTimelineRow.appointmentId || (this.activeTimelineRow._persistedTime || '') !== String(draft.time || '');
@@ -5389,9 +5401,25 @@ export default {
       this.sortDayRowsByTime(this.activeTimelineDay);
       this.flashRowHighlight(this.activeTimelineRow._rowId);
       this.timelineSaving = true;
-      const saved = await this.persistDirectAppointment(this.activeTimelineRow);
-      this.timelineSaving = false;
-      if (!saved) return;
+      let saved = false;
+      try {
+        saved = await this.persistDirectAppointment(this.activeTimelineRow);
+      } finally {
+        this.timelineSaving = false;
+      }
+      if (!saved) {
+        // اگر saveData خودش Swal نشان داده، دوباره تکرار نکن؛ فقط مسیرهای بی‌صدا را پوشش بده.
+        if (!this._saveErrorDialogShown) {
+          await Swal.fire({
+            icon: 'error',
+            title: 'ثبت نوبت انجام نشد',
+            text: 'تغییرات روی سرور ذخیره نشد. لطفاً اتصال را بررسی کنید و دوباره «ثبت نوبت» را بزنید. اگر باز هم ذخیره نشد، صفحه را تازه کنید.',
+            confirmButtonText: 'باشه',
+          });
+        }
+        this._saveErrorDialogShown = false;
+        return;
+      }
 
       const followupResult = this.activeTimelineFollowup
         ? {
@@ -5414,6 +5442,43 @@ export default {
       if (followupResult) {
         this.$emit("followup-appointment-created", followupResult);
       }
+    },
+
+    /**
+     * ردیف مودال تایم‌لاین را به روز زندهٔ this.days وصل می‌کند.
+     * اگر بعد از fetch/realtime فقط مرجع کهنه مانده باشد، همان نوبت زنده را پیدا می‌کند.
+     */
+    reattachTimelineRowToSchedule() {
+      const row = this.activeTimelineRow;
+      const draft = this.activeTimelineDraft;
+      if (!row || !draft) return false;
+
+      let day = this.days.find(item => (item.rows || []).includes(row));
+      if (day) {
+        this.activeTimelineDay = day;
+        return true;
+      }
+
+      const dayNum = Number(this.activeTimelineDay?.dayNum);
+      day = this.days.find(item => Number(item.dayNum) === dayNum)
+        || this.days.find(item => (item.rows || []).some(itemRow =>
+          (row.appointmentId && Number(itemRow.appointmentId) === Number(row.appointmentId))
+          || (row._rowId && itemRow._rowId === row._rowId)
+        ));
+      if (!day) return false;
+
+      let live = (day.rows || []).find(itemRow =>
+        (row.appointmentId && Number(itemRow.appointmentId) === Number(row.appointmentId))
+        || (row._rowId && itemRow._rowId === row._rowId)
+      );
+      if (!live) {
+        day.rows.push(row);
+        live = row;
+      }
+
+      this.activeTimelineDay = day;
+      this.activeTimelineRow = live;
+      return true;
     },
 
     async init() {
@@ -5486,7 +5551,26 @@ export default {
     },
 
     async confirmDirectAppointment(row, notify = false) {
-      const day = this.days.find(item => (item.rows || []).includes(row));
+      let day = this.days.find(item => (item.rows || []).includes(row));
+      // Modal edits can keep a stale row object after a month refresh; prefer
+      // the live schedule row with the same appointment / client key.
+      if (!day && row) {
+        day = this.days.find(item => (item.rows || []).some(itemRow =>
+          (row.appointmentId && Number(itemRow.appointmentId) === Number(row.appointmentId))
+          || (row._rowId && itemRow._rowId === row._rowId)
+        ));
+        if (day) {
+          const live = day.rows.find(itemRow =>
+            (row.appointmentId && Number(itemRow.appointmentId) === Number(row.appointmentId))
+            || (row._rowId && itemRow._rowId === row._rowId)
+          );
+          if (live && live !== row) {
+            Object.assign(live, row);
+            if (this.activeTimelineRow === row) this.activeTimelineRow = live;
+            row = live;
+          }
+        }
+      }
       // Any user-entered value creates the row. The generated clock value by
       // itself is deliberately ignored so untouched slots stay database-free.
       if (!day || !this.rowNeedsServerWrite(row)) return false;
@@ -5497,6 +5581,7 @@ export default {
         const rowIndex = day.rows.indexOf(row);
         confirmed = Boolean(
           row.appointmentId
+          && rowIndex >= 0
           && row._persistedStateFingerprint === this.appointmentRowStateFingerprint(day, row, rowIndex)
         );
         // saveData owns API errors and retry policy. Do not stack a generic
@@ -7743,7 +7828,12 @@ export default {
       // ممکن است کاربر پیش از اجرای debounce ماه دیگری را انتخاب کند.
       const scheduledMonth = this.months[this.currentMonth];
       const scheduledDays = this.days;
-      if (!scheduledMonth) return Promise.resolve(false);
+      if (!scheduledMonth) {
+        // این waiter را همان‌جا resolve کن؛ در غیر این صورت تا ذخیرهٔ بعدی معلق می‌ماند.
+        const orphaned = this.saveWaiters.pop();
+        if (orphaned) orphaned(false);
+        return completion;
+      }
       this.saveTimeout =
         setTimeout(async () => {
           this.saveTimeout = null;
@@ -7761,6 +7851,7 @@ export default {
 
           this.saveInProgress = true;
           let saveSucceeded = false;
+          this._saveErrorDialogShown = false;
 
           try {
 
@@ -8084,6 +8175,7 @@ this.calculateFinalAmount(row)
             // خطای شبکه و قفل کوتاه‌مدت ماه معمولاً گذرا هستند. ابتدا بدون
             // مزاحمت کاربر دوباره تلاش می‌کنیم؛ نسخهٔ محلی نیز تا موفقیت حذف نمی‌شود.
             if (!this.retrySave(e)) {
+              this._saveErrorDialogShown = true;
               Swal.fire({
                 icon: "error",
                 title: "ذخیره نوبت‌ها انجام نشد",
@@ -8093,17 +8185,18 @@ this.calculateFinalAmount(row)
 
           } finally {
             this.saveInProgress = false;
-            if (this.saveQueued) {
-              this.saveQueued = false;
-              // اگر هم‌زمان با ارسال تغییری آمده است، تنها یک ذخیرهٔ تازه اجرا شود.
-              if (saveSucceeded) {
-                this.saveData(0);
-                return;
-              }
-            }
+            const replayQueuedEdits = this.saveQueued && saveSucceeded;
+            this.saveQueued = false;
 
+            // اول waiterهای فعلی (از جمله ثبت نوبت تایم‌لاین) را resolve کن؛
+            // قبلاً با return زودهنگام بعد از saveData مجدد، Promise مودال تا ابد معلق می‌ماند
+            // و timelineSaving روی true گیر می‌کرد یا کلیک بعدی بی‌اثر به نظر می‌رسید.
             const waiters = this.saveWaiters.splice(0);
             waiters.forEach(resolve => resolve(saveSucceeded));
+
+            if (replayQueuedEdits) {
+              this.saveData(0, true);
+            }
 
           }
 
@@ -13366,8 +13459,9 @@ smsColor(val) {
   }
 }
 
+/* باید بالاتر از timeline-modal-overlay (2147483645) بماند؛ وگرنه خطای ذخیره پشت مودال می‌ماند. */
 .swal2-container {
-  z-index: 1100000 !important;
+  z-index: 2147483647 !important;
 }
 .sms-queue-overlay{position:fixed;inset:0;z-index:1000001;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.62);backdrop-filter:blur(5px)}.sms-queue-modal{width:min(590px,96vw);overflow:hidden;border-radius:23px;background:#f8fafc;box-shadow:0 28px 80px rgba(15,23,42,.42);direction:rtl}.sms-queue-modal>header{display:flex;align-items:flex-start;justify-content:space-between;padding:22px 24px;background:linear-gradient(135deg,#eff6ff,#ecfdf5);border-bottom:1px solid #dbeafe}.sms-queue-modal header span{font-size:11px;font-weight:900;color:#2563eb}.sms-queue-modal header h3{margin:4px 0;color:#0f172a;font-size:21px}.sms-queue-modal header p{margin:0;color:#64748b;font-size:12px}.sms-queue-modal header button{width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#64748b;font-size:25px;cursor:pointer}.sms-queue-confirm{display:flex;align-items:center;gap:13px;margin:20px;padding:18px;border:1px solid #bfdbfe;border-radius:16px;background:linear-gradient(135deg,#eff6ff,#f0fdfa)}.sms-queue-confirm>span{display:grid;flex:0 0 45px;width:45px;height:45px;place-items:center;border-radius:14px;background:#dbeafe;color:#2563eb;font-size:22px}.sms-queue-confirm div{display:grid;gap:5px}.sms-queue-confirm strong{color:#1e3a8a;font-size:14px}.sms-queue-confirm p{display:flex;gap:7px;margin:0}.sms-queue-confirm p b{padding:4px 8px;border-radius:99px;background:#fff;color:#2563eb;font-size:10px}.sms-queue-confirm small{color:#475569;font-size:11px;font-weight:700}.sms-queue-progress{height:7px;background:#dbeafe}.sms-queue-progress span{display:block;height:100%;border-radius:0 0 0 8px;background:linear-gradient(90deg,#2563eb,#22c55e);transition:width .35s ease}.sms-queue-list{display:grid;gap:9px;max-height:340px;overflow:auto;padding:18px}.sms-queue-item{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid #e2e8f0;border-radius:13px;background:#fff}.sms-queue-state{display:grid;flex:0 0 26px;width:26px;height:26px;place-items:center;border-radius:50%;background:#e2e8f0;color:#64748b;font-weight:1000}.sms-queue-item div{display:grid;gap:2px}.sms-queue-item strong{color:#1e293b;font-size:12px}.sms-queue-item small{color:#64748b;font-size:10px}.sms-queue-item em{font-size:10px;font-style:normal;font-weight:800}.sms-queue-item.sending{border-color:#93c5fd;background:#eff6ff}.sms-queue-item.sending .sms-queue-state{background:#2563eb;color:#fff}.sms-queue-item.sent{border-color:#86efac;background:#f0fdf4}.sms-queue-item.sent .sms-queue-state{background:#16a34a;color:#fff}.sms-queue-item.sent em{color:#15803d}.sms-queue-item.failed{border-color:#fecaca;background:#fff7f7}.sms-queue-item.failed .sms-queue-state{background:#dc2626;color:#fff}.sms-queue-item.failed em{color:#b91c1c}.sms-queue-modal>footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-top:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:11px;font-weight:700}.sms-queue-modal>footer div{display:flex;gap:8px}.sms-queue-modal>footer .error{color:#b45309}.sms-queue-modal>footer button{padding:10px 17px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:900 11px inherit;cursor:pointer}.sms-queue-modal>footer .sms-queue-cancel{background:#e2e8f0;color:#475569}.sms-queue-modal>footer button:disabled{opacity:.55;cursor:not-allowed}
 .completion-sms-overlay{position:fixed;inset:0;z-index:1000000;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.6);backdrop-filter:blur(5px)}.completion-sms-modal{width:min(680px,96vw);overflow:hidden;border-radius:24px;background:#f8fafc;box-shadow:0 28px 80px rgba(15,23,42,.4);direction:rtl}.completion-sms-modal>header{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px;background:linear-gradient(135deg,#eff6ff,#ecfdf5);border-bottom:1px solid #dbeafe}.completion-sms-modal header span{font-size:11px;font-weight:900;color:#2563eb}.completion-sms-modal header h3{margin:4px 0;font-size:22px;color:#0f172a}.completion-sms-modal header p{margin:0;color:#64748b;font-size:13px}.completion-sms-modal header button{width:36px;height:36px;border:0;border-radius:50%;background:#fff;color:#64748b;font-size:25px;cursor:pointer}.completion-sms-list{display:grid;gap:10px;padding:18px}.completion-sms-empty{display:flex;align-items:center;gap:13px;margin:18px;padding:18px;border:1px dashed #93c5fd;border-radius:16px;background:linear-gradient(135deg,#eff6ff,#f0fdfa)}.completion-sms-empty-icon{display:grid;flex:0 0 42px;width:42px;height:42px;place-items:center;border-radius:13px;background:#dbeafe;color:#2563eb;font-size:21px}.completion-sms-empty div{display:grid;gap:3px;flex:1}.completion-sms-empty strong{color:#1e3a8a;font-size:14px}.completion-sms-empty p{margin:0;color:#64748b;font-size:11px;line-height:1.8}.completion-sms-empty button{display:flex;align-items:center;gap:7px;padding:10px 13px;border:0;border-radius:10px;background:#2563eb;color:#fff;font:900 11px inherit;cursor:pointer;box-shadow:0 5px 12px rgba(37,99,235,.2);transition:.18s}.completion-sms-empty button:hover{background:#1d4ed8;transform:translateY(-1px)}.completion-sms-card{position:relative;display:flex;align-items:center;gap:12px;padding:14px;border:2px solid #e2e8f0;border-radius:15px;background:#fff;cursor:pointer;transition:.18s}.completion-sms-card:hover{border-color:#93c5fd;transform:translateY(-1px)}.completion-sms-card.sent{border-color:#4ade80;background:#f0fdf4;cursor:default}.completion-sms-card.failed{border-color:#fca5a5;background:#fff7f7}.completion-sms-card input{width:18px;height:18px;accent-color:#2563eb}.completion-sms-card-icon{font-size:25px}.completion-sms-card-content{display:flex;flex-direction:column;gap:3px;flex:1}.completion-sms-card-content strong{color:#1e293b;font-size:14px}.completion-sms-card-content small{color:#64748b}.completion-sms-card-content em{color:#15803d;font-style:normal;font-size:11px;font-weight:900}.completion-sms-card-content em.error{color:#dc2626}.completion-sms-success{width:21px;height:21px;display:grid;place-items:center;border-radius:50%;background:#22c55e;color:#fff;font-weight:900}.completion-referral-info{margin:0 18px 15px;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:800}.completion-sms-modal>footer{display:flex;justify-content:flex-end;gap:9px;padding:14px 18px;border-top:1px solid #e2e8f0;background:#fff}.completion-sms-modal footer button{padding:10px 17px;border:0;border-radius:10px;font-family:inherit;font-weight:900;cursor:pointer}.completion-sms-cancel{background:#e2e8f0;color:#475569}.completion-sms-send{background:#2563eb;color:#fff}.completion-sms-send:disabled{opacity:.55;cursor:not-allowed}
