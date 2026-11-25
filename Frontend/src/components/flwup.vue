@@ -1169,7 +1169,7 @@
                   <tr
                     v-for="(row, rowIndex) in activeFilteredRows"
                     :key="row._localId"
-                    :class="{ 'duplicate-phone-row': duplicatePhoneInfo(row), 'followup-highlight-row': highlightedFollowupRowId === String(row._localId), 'followup-row-selected': selectedFollowupRowId === String(row._localId) }"
+                    :class="{ 'duplicate-phone-row': isDuplicatePhoneInCampaign(row), 'followup-highlight-row': highlightedFollowupRowId === String(row._localId), 'followup-row-selected': selectedFollowupRowId === String(row._localId) }"
                     :data-followup-row-id="String(row._localId)"
                     @click.capture="selectFollowupRow(row)"
                     @focusin="selectFollowupRow(row)"
@@ -1227,7 +1227,7 @@
                     <td>
                       <div
                         class="phone-input-wrap"
-                        :class="{ duplicate: duplicatePhoneInfo(row) }"
+                        :class="{ duplicate: isDuplicatePhoneInCampaign(row) }"
                         :title="duplicatePhoneTitle(row)"
                       >
                         <input
@@ -1246,7 +1246,7 @@
                           readonly
                           :title="canViewCampaignPhone(row) ? 'شمارهٔ این ردیف فقط برای مشاور همین ردیف نمایش داده می‌شود' : 'نمایش شماره تماس برای این نقش غیرفعال است'"
                         />
-                        <span v-if="duplicatePhoneInfo(row)" class="duplicate-phone-badge">تکراری</span>
+                        <span v-if="isDuplicatePhoneInCampaign(row)" class="duplicate-phone-badge">تکراری</span>
                       </div>
                     </td>
                     <td class="history-cell">
@@ -2922,31 +2922,36 @@ export default {
       return this.normalizeFollowupLookup(value).replace(/\D/g, "");
     },
 
-    duplicatePhoneInfo(row) {
-      if (!this.duplicatePhoneWarningsEnabled || !this.activeCampaign) return null;
-
+    // همهٔ ردیف‌های هم‌شماره در همین کمپین (نه فقط یکی/آخرین) هایلایت می‌شوند.
+    isDuplicatePhoneInCampaign(row) {
+      if (!this.duplicatePhoneWarningsEnabled || !this.activeCampaign) return false;
       const key = this.followupPhoneKey(row?.phone);
-      if (key.length < 7 || !this.activeCampaignDuplicatePhoneKeys.has(key)) return null;
+      return key.length >= 7 && this.activeCampaignDuplicatePhoneKeys.has(key);
+    },
 
-      // فقط داخل همین کمپین؛ هشدار بصری است و ویرایش را مسدود نمی‌کند.
-      for (const item of this.activeCampaign.rows || []) {
-        if (item === row || item._localId === row?._localId) continue;
-        if (this.followupPhoneKey(item.phone) === key) {
-          return {
-            campaign: this.activeCampaign,
-            row: item,
-          };
-        }
-      }
+    duplicatePhonePeers(row) {
+      if (!this.isDuplicatePhoneInCampaign(row)) return [];
+      const key = this.followupPhoneKey(row?.phone);
+      return (this.activeCampaign.rows || []).filter(item => {
+        if (!item || item === row || item._localId === row?._localId) return false;
+        return this.followupPhoneKey(item.phone) === key;
+      });
+    },
 
-      return null;
+    duplicatePhoneInfo(row) {
+      const peers = this.duplicatePhonePeers(row);
+      if (!peers.length) return null;
+      return { campaign: this.activeCampaign, row: peers[0], peers };
     },
 
     duplicatePhoneTitle(row) {
-      const duplicate = this.duplicatePhoneInfo(row);
-      if (!duplicate) return "";
-      const person = duplicate.row?.fullName || "بدون نام";
-      return `این شماره در همین کمپین برای «${person}» هم ثبت شده است (فقط هشدار؛ می‌توانید ویرایش کنید)`;
+      const peers = this.duplicatePhonePeers(row);
+      if (!peers.length) return "";
+      const names = peers
+        .map(item => String(item.fullName || "").trim() || "بدون نام")
+        .slice(0, 3);
+      const more = peers.length > 3 ? ` و ${peers.length - 3} مورد دیگر` : "";
+      return `شماره تکراری در همین کمپین (${peers.length + 1} ردیف): ${names.join("، ")}${more} — فقط هشدار؛ ویرایش آزاد است`;
     },
 
     lookupPatientByPhone(row) {
