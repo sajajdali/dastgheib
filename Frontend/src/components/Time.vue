@@ -4215,13 +4215,16 @@ export default {
       };
     },
 
-    activateScheduleDay(day, smooth = true) {
+    activateScheduleDay(day, smooth = true, scroll = true) {
       if (!day) return;
       this.days.forEach(item => {
         item.collapsed = Number(item.dayNum) !== Number(day.dayNum);
       });
       day.collapsed = false;
       this.allCollapsed = false;
+
+      // ورود اولیه به وقت‌دهی جدولی نباید صفحه را جابه‌جا کند؛ اسکرول فقط برای پرش عمدی (جستجو/انتقال).
+      if (!scroll) return;
 
       this.$nextTick(() => {
         window.requestAnimationFrame(() => {
@@ -4251,7 +4254,7 @@ export default {
       const today = moment();
       if ((this.months[this.currentMonth] || "") !== today.format("jYYYY-jMM")) return;
       const todayDay = this.ensureScheduleDay(today);
-      this.activateScheduleDay(todayDay);
+      this.activateScheduleDay(todayDay, false, false);
     },
 
     focusTodayInTimeline(smooth = true) {
