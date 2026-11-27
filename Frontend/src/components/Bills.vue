@@ -395,12 +395,21 @@ export default {
     toApiDate(value) {
       if (!value) return ''
       if (typeof value === 'object' && value !== null && typeof value.format === 'function') {
-        try { return value.format('jYYYY-jMM-jDD') } catch (_) { /* fall through */ }
+        try {
+          const formatted = value.format('jYYYY-jMM-jDD')
+          if (formatted) return this.toApiDate(String(formatted))
+        } catch (_) { /* fall through */ }
       }
       const raw = this.normalizeDigits(value).trim().replaceAll('/', '-')
       const match = raw.match(/^(1[34]\d{2})-(\d{1,2})-(\d{1,2})/)
       if (!match) return ''
       return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`
+    },
+
+    responseId(data, fallback = null) {
+      const raw = data?.id ?? data?.data?.id ?? fallback
+      const id = Number(raw)
+      return Number.isFinite(id) && id > 0 ? id : null
     },
 
     toUiDate(value) {
@@ -516,6 +525,23 @@ export default {
         return
       }
 
+      // Empty grid + prior server rows: never silently wipe. Confirm first.
+      if (!filled.length && this.knownIds.length) {
+        const confirmed = await Swal.fire({
+          icon: 'warning',
+          title: 'همه هزینه‌ها حذف شوند؟',
+          text: 'جدول خالی است. با تأیید، تمام هزینه‌های ذخیره‌شده از سرور پاک می‌شوند.',
+          showCancelButton: true,
+          confirmButtonText: 'حذف همه',
+          cancelButtonText: 'انصراف',
+          confirmButtonColor: '#dc2626',
+        })
+        if (!confirmed.isConfirmed) return
+      } else if (!filled.length) {
+        this.saveError = 'ردیفی برای ذخیره نیست.'
+        return
+      }
+
       this.saving = true
       try {
         const keepIds = new Set()
@@ -524,16 +550,23 @@ export default {
           const payload = this.buildPayload(row)
           if (row.id) {
             const { data } = await axios.put(`/api/expenses/${row.id}`, payload)
-            keepIds.add(Number(data.id || row.id))
+            const id = this.responseId(data, row.id)
+            if (!id) throw new Error('پاسخ ذخیره هزینه شناسه معتبری نداشت.')
+            keepIds.add(id)
           } else {
             const { data } = await axios.post('/api/expenses', payload)
-            keepIds.add(Number(data.id))
+            const id = this.responseId(data)
+            if (!id) throw new Error('پاسخ ایجاد هزینه شناسه معتبری نداشت.')
+            keepIds.add(id)
           }
         }
 
-        for (const id of this.knownIds) {
-          if (!keepIds.has(Number(id))) {
-            await axios.delete(`/api/expenses/${id}`)
+        // Only sync-delete when we successfully tracked keepIds (or intentional wipe).
+        if (filled.length === 0 || keepIds.size > 0 || this.knownIds.length === 0) {
+          for (const id of this.knownIds) {
+            if (!keepIds.has(Number(id))) {
+              await axios.delete(`/api/expenses/${id}`)
+            }
           }
         }
 
@@ -567,7 +600,7 @@ export default {
         const first = Object.values(errors).flat()[0]
         if (first) return String(first)
       }
-      return error?.response?.data?.message || fallback
+      return error?.response?.data?.message || error?.message || fallback
     },
 
     async deleteRow(row) {
