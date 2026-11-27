@@ -123,7 +123,7 @@ class PatientController extends Controller
                 break;
             } catch (QueryException $exception) {
                 // در ثبت هم‌زمان، شمارهٔ تازه محاسبه و دوباره امتحان می‌شود.
-                $fileNumberCollision = str_contains(strtolower($exception->getMessage()), 'file_number');
+                $fileNumberCollision = $this->isFileNumberUniqueCollision($exception);
                 if ($fileNumberCollision && $requestedFileNumber !== '') {
                     throw \Illuminate\Validation\ValidationException::withMessages([
                         'file_number' => 'این شماره پرونده قبلاً ثبت شده است.',
@@ -394,8 +394,7 @@ class PatientController extends Controller
                 }
             });
         } catch (QueryException $exception) {
-            if ($fileNumberChanged && in_array((string) $exception->getCode(), ['23000', '23505', '19'], true)
-                && str_contains(strtolower($exception->getMessage()), 'file_number')) {
+            if ($fileNumberChanged && $this->isFileNumberUniqueCollision($exception)) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'file_number' => 'این شماره پرونده قبلاً ثبت شده است.',
                 ]);
@@ -516,6 +515,26 @@ class PatientController extends Controller
         }
 
         return (string) $candidate;
+    }
+
+    /**
+     * تشخیص برخورد یکتایی شماره پرونده از روی SQLSTATE/کد درایور و نام قید،
+     * نه فقط وجود رشتهٔ file_number در متن خطا (که می‌تواند مثبت کاذب بدهد).
+     */
+    private function isFileNumberUniqueCollision(QueryException $exception): bool
+    {
+        if (! in_array((string) $exception->getCode(), ['23000', '23505', '19'], true)) {
+            return false;
+        }
+
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'patients_file_number_unique')
+            || str_contains($message, 'patients.file_number')
+            || (
+                str_contains($message, 'file_number')
+                && (str_contains($message, 'unique') || str_contains($message, 'duplicate'))
+            );
     }
 
     private function hidePatientPhones($patients, Request $request)

@@ -9862,15 +9862,23 @@ this.calculateFinalAmount(row)
         const list = popup?.querySelector?.('.service-popup-meta');
         const active = list?.querySelector?.('.multiselect--active');
         if (!list || !active) return;
+        const item = active.closest('.service-item');
+        const toolbar = item?.querySelector?.('.service-item-toolbar');
         const dropdownRoom = 220;
         const listRect = list.getBoundingClientRect();
         const activeRect = active.getBoundingClientRect();
         const spaceBelow = listRect.bottom - activeRect.bottom;
+        // فقط به‌اندازهٔ لازم اسکرول کن؛ عنوان «خدمت N» نباید از دید خارج شود.
         if (spaceBelow < dropdownRoom) {
           list.scrollTop += (dropdownRoom - spaceBelow) + 12;
         }
-        // اگر هنوز جا نیست، Multiselect خودش preferredOpenDirection=above می‌گیرد.
-        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        if (toolbar) {
+          const toolbarTop = toolbar.getBoundingClientRect().top;
+          const listTop = list.getBoundingClientRect().top;
+          if (toolbarTop < listTop + 2) {
+            list.scrollTop -= (listTop + 2 - toolbarTop);
+          }
+        }
       });
     },
 
@@ -15319,6 +15327,19 @@ td.row-action-col {
   gap:8px;
   margin: 0 0 6px;
   padding: 0 2px;
+}
+
+/* عنوان «خدمت N» هنگام باز بودن Multiselect در بدنهٔ مودال دیده بماند. */
+.service-popup-meta .service-item-toolbar{
+  position: sticky;
+  top: 0;
+  z-index: 1102;
+  margin: 0 0 6px;
+  padding: 4px 2px;
+  background: #fff;
+}
+.service-popup-meta .service-item.service-item-finalized .service-item-toolbar{
+  background: #f0fdf4;
 }
 
 .service-item-toolbar strong{
