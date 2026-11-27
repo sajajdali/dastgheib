@@ -127,16 +127,29 @@ async function submitLogin() {
   }
 }
 
-// دکمهٔ ورود سریع فقط وقتی دیده می‌شود که سرور IP را مجاز بداند (IP مدیر یا اجرای محلی).
-const quickLoginAvailable = ref(false);
+// روی لوکال (localhost / *.localhost) دکمه همیشه دیده شود؛ پروب سرور نباید آن را پنهان کند.
+// روی سایر hostها فقط وقتی سرور available=true بدهد.
+function isLocalDemoHost() {
+  const host = String(window.location.hostname || "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost");
+}
+
+const quickLoginAvailable = ref(isLocalDemoHost());
 const quickLoading = ref(false);
 
 async function checkQuickLogin() {
+  if (isLocalDemoHost()) {
+    quickLoginAvailable.value = true;
+  }
   try {
     const { data } = await axios.get(`${BACKEND_URL}/quick-login`);
+    if (isLocalDemoHost()) {
+      quickLoginAvailable.value = true;
+      return;
+    }
     quickLoginAvailable.value = Boolean(data?.available);
   } catch {
-    quickLoginAvailable.value = false;
+    if (!isLocalDemoHost()) quickLoginAvailable.value = false;
   }
 }
 
