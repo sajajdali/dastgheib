@@ -2090,12 +2090,23 @@
                               :allow-empty="true"
                               placeholder="انتخاب بخش"
                               select-label=""
-                              selected-label="انتخاب شد"
-                              deselect-label="حذف"
+                              selected-label=""
+                              deselect-label=""
                               class="service-multiselect service-section-multiselect service-root-multiselect"
                               @open="onServiceMultiselectOpen"
                               @update:model-value="setServiceRootSection(service, activeServicePopupRow, $event)"
-                            />
+                            >
+                              <template #clear>
+                                <button
+                                  v-if="service.rootSectionId && !service.finalized"
+                                  type="button"
+                                  class="service-path-clear"
+                                  title="پاک کردن بخش"
+                                  aria-label="پاک کردن بخش"
+                                  @mousedown.prevent.stop="setServiceRootSection(service, activeServicePopupRow, null)"
+                                >×</button>
+                              </template>
+                            </Multiselect>
 
                             <Multiselect
                               v-for="level in serviceSectionLevels(service)"
@@ -2110,12 +2121,23 @@
                               :allow-empty="true"
                               :placeholder="serviceSectionLevelPlaceholder(level)"
                               select-label=""
-                              selected-label="انتخاب شد"
-                              deselect-label="حذف"
+                              selected-label=""
+                              deselect-label=""
                               class="service-multiselect service-section-multiselect service-subsection-multiselect"
                               @open="onServiceMultiselectOpen"
                               @update:model-value="setServiceSectionLevel(service, activeServicePopupRow, level, $event)"
-                            />
+                            >
+                              <template #clear>
+                                <button
+                                  v-if="level.value && !service.finalized"
+                                  type="button"
+                                  class="service-path-clear"
+                                  title="پاک کردن زیر‌بخش"
+                                  aria-label="پاک کردن زیر‌بخش"
+                                  @mousedown.prevent.stop="setServiceSectionLevel(service, activeServicePopupRow, level, null)"
+                                >×</button>
+                              </template>
+                            </Multiselect>
 
                             <Multiselect
                               v-model="service.name"
@@ -2129,13 +2151,24 @@
                               :disabled="!serviceCanChooseItem(service)"
                               :placeholder="serviceCanChooseItem(service) ? 'جستجو و انتخاب خدمت' : 'مسیر زیر‌بخش را کامل کنید'"
                               select-label=""
-                              selected-label="انتخاب شده"
-                              deselect-label="حذف"
+                              selected-label=""
+                              deselect-label=""
                               class="service-multiselect service-name-multiselect"
                               @open="onServiceMultiselectOpen"
                               @select="onServiceNameChanged(service, activeServicePopupRow)"
                               @remove="onServiceNameChanged(service, activeServicePopupRow)"
-                            />
+                            >
+                              <template #clear>
+                                <button
+                                  v-if="service.name && !service.finalized"
+                                  type="button"
+                                  class="service-path-clear"
+                                  title="پاک کردن خدمت"
+                                  aria-label="پاک کردن خدمت"
+                                  @mousedown.prevent.stop="service.name = ''; onServiceNameChanged(service, activeServicePopupRow)"
+                                >×</button>
+                              </template>
+                            </Multiselect>
                           </div>
 
                           <div v-if="service.name" class="service-tag-picker" @click.stop>
@@ -2233,7 +2266,7 @@
                         <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>{{ service.addons.length }} مورد انتخاب شده</small></div>
                         <div class="service-addon-head" aria-hidden="true"><span>نام جانبی</span><span>تعداد</span><span>مبلغ</span><span>تخفیف / مازاد</span><span></span></div>
                         <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
-                          <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, activeServicePopupRow)" @remove="onAddonChanged(service, addon, activeServicePopupRow)" />
+                          <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="" deselect-label="" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, activeServicePopupRow)" @remove="onAddonChanged(service, addon, activeServicePopupRow)" />
                           <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="sanitizeServiceQuantity(addon, activeServicePopupRow)">
                           <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
                           <div class="addon-adjustment-cell">
@@ -15156,6 +15189,43 @@ td.row-action-col {
 .service-popup .multiselect__content-wrapper {
   z-index: 30;
   max-height: min(220px, 36vh) !important;
+}
+
+/* «حذف» قرمز روی گزینهٔ انتخاب‌شدهٔ vue-multiselect را نشان نده؛ پاک‌کردن با × جداست. */
+.service-popup .service-multiselect .multiselect__option--selected::after,
+.service-popup .service-multiselect .multiselect__option--selected.multiselect__option--highlight::after {
+  content: none !important;
+  display: none !important;
+}
+.service-popup .service-multiselect .multiselect__option--selected.multiselect__option--highlight {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+.service-popup .service-multiselect {
+  position: relative;
+}
+.service-popup .service-path-clear {
+  position: absolute;
+  top: 50%;
+  left: 28px;
+  z-index: 5;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #475569;
+  font: 700 15px/1 inherit;
+  cursor: pointer;
+}
+.service-popup .service-path-clear:hover {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .service-popup-header{
