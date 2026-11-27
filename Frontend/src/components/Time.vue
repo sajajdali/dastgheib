@@ -2097,6 +2097,7 @@
                               class="service-multiselect service-section-multiselect service-root-multiselect"
                               @open="onServiceMultiselectOpen"
                               @close="onServiceMultiselectClose"
+                              @search-change="onServiceMultiselectSearchChange"
                               @update:model-value="setServiceRootSection(service, activeServicePopupRow, $event)"
                             >
                               <template #clear>
@@ -2137,6 +2138,7 @@
                               class="service-multiselect service-section-multiselect service-subsection-multiselect"
                               @open="onServiceMultiselectOpen"
                               @close="onServiceMultiselectClose"
+                              @search-change="onServiceMultiselectSearchChange"
                               @update:model-value="setServiceSectionLevel(service, activeServicePopupRow, level, $event)"
                             >
                               <template #clear>
@@ -2176,6 +2178,7 @@
                               class="service-multiselect service-name-multiselect"
                               @open="onServiceMultiselectOpen"
                               @close="onServiceMultiselectClose"
+                              @search-change="onServiceMultiselectSearchChange"
                               @select="onServiceNameChanged(service, activeServicePopupRow)"
                               @remove="onServiceNameChanged(service, activeServicePopupRow)"
                             >
@@ -9888,7 +9891,7 @@ this.calculateFinalAmount(row)
       const panel = this.$refs.servicePopupPanel;
       panel?.classList?.remove('is-path-dropdown-open');
       panel?.querySelectorAll?.('.service-path-selectors .multiselect__content-wrapper').forEach((el) => {
-        el.classList.remove('service-path-dropdown-fixed');
+        el.classList.remove('service-path-dropdown-fixed', 'service-path-dropdown-empty');
         el.style.position = '';
         el.style.top = '';
         el.style.bottom = '';
@@ -9950,12 +9953,24 @@ this.calculateFinalAmount(row)
       const bounds = this.getServicePathDropdownBounds();
       const spaceBelow = Math.max(0, bounds.bottom - rect.bottom - gap);
       const spaceAbove = Math.max(0, rect.top - bounds.top - gap);
-      const idealMax = 180;
-      // Prefer below; flip above when the footer pocket below is too tight.
-      const useAbove = spaceBelow < Math.min(140, idealMax) && spaceAbove > spaceBelow;
+
+      // Empty #noOptions / #noResult is a short strip — pin to natural height so the
+      // message does not float at the top of a 180px shell above the field.
+      const isEmpty = !!dropdown.querySelector('.service-path-empty');
+      dropdown.classList.toggle('service-path-dropdown-empty', isEmpty);
+      if (isEmpty) {
+        dropdown.style.removeProperty('max-height');
+        dropdown.style.maxHeight = 'none';
+      }
+      const naturalEmpty = isEmpty
+        ? Math.max(40, Math.ceil(dropdown.scrollHeight) || 48)
+        : 0;
+      const idealMax = isEmpty ? naturalEmpty : 180;
+      // Prefer under the trigger; empty always stays compact under the field when possible.
+      const flipThreshold = isEmpty ? 44 : Math.min(140, idealMax);
+      const useAbove = spaceBelow < flipThreshold && spaceAbove > spaceBelow;
       const room = useAbove ? spaceAbove : spaceBelow;
-      // Cap to modal pocket only — never force a min height that spills past footer.
-      const clampedHeight = Math.max(0, Math.min(idealMax, room));
+      const clampedHeight = Math.max(0, Math.min(idealMax, room > 0 ? room : idealMax));
 
       this.$refs.servicePopupPanel?.classList?.add('is-path-dropdown-open');
 
@@ -9969,6 +9984,7 @@ this.calculateFinalAmount(row)
 
       if (useAbove) {
         active.classList.add('multiselect--above');
+        // Bottom-align empty strip to the trigger so text sits just above the field.
         const top = Math.max(bounds.top, rect.top - gap - clampedHeight);
         dropdown.style.bottom = 'auto';
         dropdown.style.top = `${Math.round(top)}px`;
@@ -10007,6 +10023,13 @@ this.calculateFinalAmount(row)
           }
           window.addEventListener('resize', this.repositionServicePathDropdown, { passive: true });
         });
+      });
+    },
+
+    onServiceMultiselectSearchChange() {
+      // Filtering to/from empty changes content height — re-pin under the trigger.
+      this.$nextTick(() => {
+        requestAnimationFrame(() => this.repositionServicePathDropdown());
       });
     },
 
@@ -15351,6 +15374,20 @@ td.row-action-col {
   z-index: 2147483647 !important;
   /* top/left/width/max-height set inline by pin helper against modal header/footer */
 }
+/* Compact empty strip (#noOptions / #noResult) — hug content, sit under the trigger. */
+.service-popup .service-path-selectors .multiselect__content-wrapper.service-path-dropdown-empty {
+  height: auto !important;
+  overflow: hidden !important;
+}
+.service-popup .service-path-selectors .multiselect__content-wrapper.service-path-dropdown-empty .multiselect__content,
+.service-popup .service-path-selectors .multiselect__content-wrapper.service-path-dropdown-empty .multiselect__element,
+.service-popup .service-path-selectors .multiselect__content-wrapper.service-path-dropdown-empty li {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .service-popup .service-path-selectors .multiselect__option {
   min-height: 38px;
   padding: 9px 12px;
@@ -15368,13 +15405,18 @@ td.row-action-col {
 }
 .service-path-empty{
   display:block;
+  box-sizing:border-box;
   width:100%;
+  min-height:40px;
   padding:10px 12px;
   color:#64748b;
   font-size:12px;
   font-weight:800;
   line-height:1.6;
   text-align:right;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .service-popup .service-path-selectors .multiselect__content-wrapper,
 .service-popup .multiselect-enter-active,
