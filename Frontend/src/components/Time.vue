@@ -2109,6 +2109,12 @@
                                   @mousedown.prevent.stop="setServiceRootSection(service, activeServicePopupRow, null)"
                                 >×</button>
                               </template>
+                              <template #noOptions>
+                                <span class="service-path-empty">موردی برای نمایش نیست</span>
+                              </template>
+                              <template #noResult>
+                                <span class="service-path-empty">موردی یافت نشد</span>
+                              </template>
                             </Multiselect>
 
                             <Multiselect
@@ -2143,6 +2149,12 @@
                                   @mousedown.prevent.stop="setServiceSectionLevel(service, activeServicePopupRow, level, null)"
                                 >×</button>
                               </template>
+                              <template #noOptions>
+                                <span class="service-path-empty">موردی برای نمایش نیست</span>
+                              </template>
+                              <template #noResult>
+                                <span class="service-path-empty">موردی یافت نشد</span>
+                              </template>
                             </Multiselect>
 
                             <Multiselect
@@ -2176,6 +2188,12 @@
                                   aria-label="پاک کردن خدمت"
                                   @mousedown.prevent.stop="service.name = ''; onServiceNameChanged(service, activeServicePopupRow)"
                                 >×</button>
+                              </template>
+                              <template #noOptions>
+                                <span class="service-path-empty">موردی برای نمایش نیست</span>
+                              </template>
+                              <template #noResult>
+                                <span class="service-path-empty">موردی یافت نشد</span>
                               </template>
                             </Multiselect>
                           </div>
@@ -9868,6 +9886,7 @@ this.calculateFinalAmount(row)
       clearTimeout(this._servicePathDropdownRepinTimer);
       this._servicePathDropdownRepinTimer = null;
       const panel = this.$refs.servicePopupPanel;
+      panel?.classList?.remove('is-path-dropdown-open');
       panel?.querySelectorAll?.('.service-path-selectors .multiselect__content-wrapper').forEach((el) => {
         el.classList.remove('service-path-dropdown-fixed');
         el.style.position = '';
@@ -9879,6 +9898,7 @@ this.calculateFinalAmount(row)
         el.style.maxHeight = '';
         el.style.removeProperty('max-height');
         el.style.zIndex = '';
+        el.style.removeProperty('z-index');
       });
       panel?.querySelectorAll?.('.service-path-selectors .multiselect--above').forEach((el) => {
         el.classList.remove('multiselect--above');
@@ -9937,12 +9957,14 @@ this.calculateFinalAmount(row)
       // Cap to modal pocket only — never force a min height that spills past footer.
       const clampedHeight = Math.max(0, Math.min(idealMax, room));
 
+      this.$refs.servicePopupPanel?.classList?.add('is-path-dropdown-open');
+
       dropdown.classList.add('service-path-dropdown-fixed');
       dropdown.style.position = 'fixed';
       dropdown.style.left = `${Math.round(rect.left)}px`;
       dropdown.style.width = `${Math.round(rect.width)}px`;
       dropdown.style.right = 'auto';
-      dropdown.style.zIndex = '2147483647';
+      dropdown.style.setProperty('z-index', '2147483647', 'important');
       dropdown.style.setProperty('max-height', `${Math.round(clampedHeight)}px`, 'important');
 
       if (useAbove) {
@@ -15326,6 +15348,7 @@ td.row-action-col {
   position: fixed !important;
   right: auto !important;
   margin: 0 !important;
+  z-index: 2147483647 !important;
   /* top/left/width/max-height set inline by pin helper against modal header/footer */
 }
 .service-popup .service-path-selectors .multiselect__option {
@@ -15342,6 +15365,22 @@ td.row-action-col {
 .service-popup .service-path-selectors .multiselect__option--selected.multiselect__option--highlight {
   background: #dcfce7 !important;
   color: #166534 !important;
+}
+.service-path-empty{
+  display:block;
+  width:100%;
+  padding:10px 12px;
+  color:#64748b;
+  font-size:12px;
+  font-weight:800;
+  line-height:1.6;
+  text-align:right;
+}
+.service-popup .service-path-selectors .multiselect__content-wrapper,
+.service-popup .multiselect-enter-active,
+.service-popup .multiselect-leave-active{
+  transition:none !important;
+  animation:none !important;
 }
 
 /* «حذف» قرمز روی گزینهٔ انتخاب‌شدهٔ vue-multiselect را نشان نده؛ پاک‌کردن با × جداست. */
@@ -15474,14 +15513,17 @@ td.row-action-col {
   padding: 0 2px;
 }
 
-/* عنوان «خدمت N» هنگام باز بودن Multiselect در بدنهٔ مودال دیده بماند. */
+/* عنوان «خدمت N» sticky بماند، ولی زیر لیست مسیر (که به overlay منتقل می‌شود). */
 .service-popup-meta .service-item-toolbar{
   position: sticky;
   top: 0;
-  z-index: 1102;
+  z-index: 20;
   margin: 0 0 6px;
   padding: 4px 2px;
   background: #fff;
+}
+.service-popup.is-path-dropdown-open .service-popup-meta .service-item-toolbar{
+  z-index: 1;
 }
 .service-popup-meta .service-item.service-item-finalized .service-item-toolbar{
   background: #f0fdf4;
@@ -15517,14 +15559,20 @@ td.row-action-col {
 }
 .service-item.service-item-layer-active,
 .service-item:has(.multiselect--active) {
-  z-index: 1000;
+  z-index: 1300;
 }
 .service-item .service-multiselect {
   position: relative;
   z-index: 1;
 }
 .service-item .service-multiselect.multiselect--active {
-  z-index: 1001;
+  z-index: 1301;
+}
+.service-popup.is-path-dropdown-open .service-path-selectors:has(.multiselect--active),
+.service-popup.is-path-dropdown-open .service-choice-row:has(.multiselect--active),
+.service-popup.is-path-dropdown-open .service-main-row:has(.multiselect--active) {
+  position: relative;
+  z-index: 1302;
 }
 .service-main-row{display:flex;align-items:center;gap:6px;direction:rtl;width:100%;flex-wrap:wrap}.service-main-row .service-multiselect{flex:1.35 1 220px;min-width:205px;text-align:right;direction:rtl}.service-main-row .service-select{flex:0 1 118px;min-width:108px;text-align:right;direction:rtl}.service-main-row input{text-align:right;direction:rtl}.service-price-chip{flex:0 0 96px;min-width:96px;max-width:96px;height:32px;display:flex;align-items:center;justify-content:center;padding:0 6px;border:1px solid #bfdbfe;border-radius:7px;background:#eff6ff;color:#1d4ed8;font-size:9.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.addon-price-chip{min-width:95px;background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
 .service-discount-wrap{position:relative;flex:0 0 112px;height:32px}.service-discount-input{width:100%!important;height:32px!important;padding:0 7px 0 45px!important;border:1px solid #fecaca!important;border-radius:7px!important;background:#fff7f7!important;color:#b91c1c!important;font-family:inherit;font-size:10px!important;font-weight:900}.service-discount-wrap>span{position:absolute;left:20px;top:50%;transform:translateY(-50%);padding:2px 3px;border-radius:5px;background:#fee2e2;color:#b91c1c;font-size:8px;font-weight:1000;pointer-events:none}.service-discount-wrap>button{position:absolute;left:3px;top:50%;transform:translateY(-50%);width:15px;height:17px;padding:0;border:0;border-radius:4px;background:#fee2e2;color:#b91c1c;font-family:inherit;font-size:12px;line-height:1;cursor:pointer}.service-discount-wrap.surcharge .service-discount-input{border-color:#bfdbfe!important;background:#eff6ff!important;color:#1d4ed8!important}.service-discount-wrap.surcharge>span,.service-discount-wrap.surcharge>button{background:#dbeafe;color:#1d4ed8}.addon-discount-wrap{flex-basis:112px}
