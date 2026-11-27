@@ -771,8 +771,9 @@ export default {
     },
 
     tenantEnabledFeatures() {
-      // سایت محلی دمو باید همهٔ امکانات را نمایش دهد، مستقل از ماژول‌های خریداری‌شدهٔ تننت.
-      if (window.location.hostname.toLowerCase() === 'clinic1.localhost') return null;
+      // روی لوکال (localhost / *.localhost) همهٔ امکانات منو دیده شود، حتی اگر module_ids تننت ناقص باشد.
+      const host = window.location.hostname.toLowerCase();
+      if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')) return null;
       const features = this.user?.tenant?.module_ids;
       if (!Array.isArray(features)) return null;
       const aliases = {
