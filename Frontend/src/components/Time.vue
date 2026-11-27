@@ -2088,6 +2088,7 @@
                               :close-on-select="true"
                               :clear-on-select="false"
                               :allow-empty="true"
+                              open-direction="above"
                               placeholder="انتخاب بخش"
                               select-label=""
                               selected-label=""
@@ -2119,6 +2120,7 @@
                               :close-on-select="true"
                               :clear-on-select="false"
                               :allow-empty="true"
+                              open-direction="above"
                               :placeholder="serviceSectionLevelPlaceholder(level)"
                               select-label=""
                               selected-label=""
@@ -2148,6 +2150,7 @@
                               :close-on-select="true"
                               :clear-on-select="false"
                               :allow-empty="true"
+                              open-direction="above"
                               :disabled="!serviceCanChooseItem(service)"
                               :placeholder="serviceCanChooseItem(service) ? 'جستجو و انتخاب خدمت' : 'مسیر زیر‌بخش را کامل کنید'"
                               select-label=""
@@ -9864,13 +9867,21 @@ this.calculateFinalAmount(row)
         if (!list || !active) return;
         const item = active.closest('.service-item');
         const toolbar = item?.querySelector?.('.service-item-toolbar');
-        const dropdownRoom = 220;
+        const opensAbove = active.classList.contains('multiselect--above');
+        const dropdownRoom = 180;
         const listRect = list.getBoundingClientRect();
         const activeRect = active.getBoundingClientRect();
-        const spaceBelow = listRect.bottom - activeRect.bottom;
-        // فقط به‌اندازهٔ لازم اسکرول کن؛ عنوان «خدمت N» نباید از دید خارج شود.
-        if (spaceBelow < dropdownRoom) {
-          list.scrollTop += (dropdownRoom - spaceBelow) + 12;
+        // مسیر خدمت عمداً به بالا باز می‌شود تا روی «جزئیات» ننشیند؛ فضای بالا را در اسکرول بدنه تأمین کن.
+        if (opensAbove) {
+          const spaceAbove = activeRect.top - listRect.top;
+          if (spaceAbove < dropdownRoom) {
+            list.scrollTop -= (dropdownRoom - spaceAbove) + 12;
+          }
+        } else {
+          const spaceBelow = listRect.bottom - activeRect.bottom;
+          if (spaceBelow < dropdownRoom) {
+            list.scrollTop += (dropdownRoom - spaceBelow) + 12;
+          }
         }
         if (toolbar) {
           const toolbarTop = toolbar.getBoundingClientRect().top;
@@ -15196,7 +15207,15 @@ td.row-action-col {
 /* دراپ‌داون‌ها فقط داخل بدنهٔ مودال باز می‌شوند؛ از فوتر بیرون نزنند. */
 .service-popup .multiselect__content-wrapper {
   z-index: 30;
-  max-height: min(220px, 36vh) !important;
+  max-height: min(180px, 32vh) !important;
+}
+
+/* مسیر خدمت به بالا باز می‌شود تا روی ردیف جزئیات ننشیند. */
+.service-popup .service-path-selectors .multiselect--above .multiselect__content-wrapper {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 4px;
 }
 
 /* «حذف» قرمز روی گزینهٔ انتخاب‌شدهٔ vue-multiselect را نشان نده؛ پاک‌کردن با × جداست. */
