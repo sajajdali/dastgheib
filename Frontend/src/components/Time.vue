@@ -9926,12 +9926,17 @@ this.calculateFinalAmount(row)
       const panelRect = panel.getBoundingClientRect();
       const header = panel.querySelector('.service-popup-header');
       const footer = panel.querySelector('.service-popup-footer');
+      const addBtn = footer?.querySelector?.('.service-popup-add-btn, .add-service-line-btn');
       const headerBottom = header ? header.getBoundingClientRect().bottom : panelRect.top;
-      const footerTop = footer ? footer.getBoundingClientRect().top : panelRect.bottom;
-      // Keep the list inside the modal body: below sticky header, above sticky footer.
+      const footerRect = footer ? footer.getBoundingClientRect() : null;
+      const btnRect = addBtn ? addBtn.getBoundingClientRect() : null;
+      // Stop above the sticky footer / «افزودن خدمت» button — never tuck under it.
+      const footerCeiling = footerRect
+        ? Math.min(footerRect.top, btnRect ? btnRect.top : footerRect.top) - 8
+        : panelRect.bottom - 8;
       return {
         top: Math.max(panelRect.top + 4, headerBottom + 4),
-        bottom: Math.min(panelRect.bottom - 4, footerTop - 4),
+        bottom: Math.min(panelRect.bottom - 4, footerCeiling),
       };
     },
 
@@ -9966,8 +9971,9 @@ this.calculateFinalAmount(row)
         ? Math.max(40, Math.ceil(dropdown.scrollHeight) || 48)
         : 0;
       const idealMax = isEmpty ? naturalEmpty : 180;
-      // Prefer under the trigger; empty always stays compact under the field when possible.
-      const flipThreshold = isEmpty ? 44 : Math.min(140, idealMax);
+      // Prefer under the trigger; flip sooner when the footer pocket is tight so the
+      // list never sits under «افزودن خدمت».
+      const flipThreshold = isEmpty ? 44 : Math.min(120, idealMax);
       const useAbove = spaceBelow < flipThreshold && spaceAbove > spaceBelow;
       const room = useAbove ? spaceAbove : spaceBelow;
       const clampedHeight = Math.max(0, Math.min(idealMax, room > 0 ? room : idealMax));
@@ -15371,8 +15377,12 @@ td.row-action-col {
   position: fixed !important;
   right: auto !important;
   margin: 0 !important;
+  /* Above sticky footer/header stacking inside the backdrop-filter overlay. */
   z-index: 2147483647 !important;
   /* top/left/width/max-height set inline by pin helper against modal header/footer */
+}
+.service-popup.is-path-dropdown-open .service-path-selectors .multiselect__content-wrapper.service-path-dropdown-fixed {
+  z-index: 2147483647 !important;
 }
 /* Compact empty strip (#noOptions / #noResult) — hug content, sit under the trigger. */
 .service-popup .service-path-selectors .multiselect__content-wrapper.service-path-dropdown-empty {
@@ -15505,6 +15515,19 @@ td.row-action-col {
   border-top: 1px solid #e2e8f0;
   border-radius: 0 0 10px 10px;
   box-shadow: 0 -6px 14px rgba(15, 23, 42, 0.06);
+}
+/* Path list lives inside meta (isolation + overflow). While open: stop clipping at the
+   footer seam, lift meta above sticky «افزودن خدمت», and keep the menu clamped above it. */
+.service-popup.is-path-dropdown-open .service-popup-meta{
+  isolation: auto;
+  overflow: visible;
+  z-index: 30;
+}
+.service-popup.is-path-dropdown-open .service-popup-footer{
+  z-index: 2;
+}
+.service-popup.is-path-dropdown-open .service-popup-header{
+  z-index: 31;
 }
 
 .service-popup-add-btn{
