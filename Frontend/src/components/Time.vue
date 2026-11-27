@@ -915,332 +915,6 @@
                   <span class="service-mini-summary">{{ serviceButtonLabels(row).join('، ') || 'خدمات' }}</span>
                 </button>
 
-                <div
-                  v-if="activeServicePopup === row._rowId"
-                  class="service-popup"
-                  @click.stop
-                  @wheel="onServicePopupWheel"
-                >
-
-                  <div class="service-popup-header">
-
-                    <div class="service-popup-title">
-                      خدمات {{ row.lastname || 'بیمار' }}
-                    </div>
-
-                    <div class="service-popup-primary-actions">
-                      <button
-                        type="button"
-                        class="service-popup-close-btn"
-                        title="بستن ثبت خدمات"
-                        aria-label="بستن ثبت خدمات"
-                        data-keep-enabled @click.stop="closeServicePopup"
-                      >×</button>
-                    </div>
-
-                  </div>
-
-                  <div class="referral-section patient-services-referral-actions">
-
-                    <div class="referral-field referrer-type-field">
-                      <span class="referral-field-caption">معرف</span>
-                      <select :value="row.referrerType || ''" class="service-select referrer-type-select" @change="setReferrerType(row, $event.target.value)">
-                        <option value="">بدون معرف</option>
-                        <option value="customer">مشتری</option>
-                        <option value="doctor">پزشک</option>
-                        <option value="staff">پرسنل</option>
-                      </select>
-                    </div>
-
-                    <div v-if="row.referrerType === 'customer'" class="referral-field referrer-customer-field">
-                      <span class="referral-field-caption">مشتری معرف</span>
-                      <div class="referrer-search">
-                        <div v-if="(row.referrerId || row.referrerPhone) && referrerSearch.rowId !== row._rowId" class="referrer-chip">
-                          <span>
-                            <b>{{ row.referrerName || referrerInfo(row).name || 'مشتری معرف' }}</b>
-                            <small v-if="row.referrerPhone">{{ displayPatientPhone(row.referrerPhone) }}</small>
-                          </span>
-                          <button type="button" title="تغییر معرف" @click.stop="clearReferrer(row)">×</button>
-                        </div>
-                        <input
-                          v-else
-                          :value="referrerSearch.rowId === row._rowId ? referrerSearch.query : ''"
-                          type="text"
-                          autocomplete="off"
-                          placeholder="نام، موبایل، شماره پرونده یا کد ملی"
-                          class="service-select referrer-search-input"
-                          @input="searchReferrer(row, $event.target.value)"
-                          @focus="referrerSearch.rowId = row._rowId"
-                        />
-                        <div v-if="referrerSearch.rowId === row._rowId && referrerSearch.query.length >= 2" class="referrer-results" @click.stop>
-                          <div v-if="referrerSearch.loading" class="referrer-results-state">در حال جست‌وجو…</div>
-                          <button
-                            v-for="patient in referrerSearch.results"
-                            :key="patient.id"
-                            type="button"
-                            class="referrer-result"
-                            @click.stop="selectReferrerPatient(row, patient)"
-                          >
-                            <b>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</b>
-                            <small>{{ [patient.file_number && `پرونده ${patient.file_number}`, patient.phone && displayPatientPhone(patient.phone), patient.national_id && `کد ملی ${patient.national_id}`].filter(Boolean).join(' · ') }}</small>
-                          </button>
-                          <div v-if="!referrerSearch.loading && !referrerSearch.results.length" class="referrer-results-state">مشتری‌ای با این مشخصات پیدا نشد.</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div v-if="row.referrerType === 'customer'" class="referral-field">
-                      <span class="referral-field-caption">موجودی کیف پول معرف</span>
-                      <div
-                        class="referrer-wallet-info"
-                        :class="`is-${referrerInfo(row).state}`"
-                        :title="referrerInfoTitle(row)"
-                        aria-live="polite"
-                      >
-                        <template v-if="referrerInfo(row).state === 'found'">
-                          <b>{{ formatDisplayMoney(referrerInfo(row).balance) }} تومان</b>
-                          <span>{{ referrerInfo(row).name || 'معرف' }}</span>
-                        </template>
-                        <span v-else>{{ row.referrerId ? 'پاداش پس از انجام و تسویهٔ کامل به کیف پول او واریز می‌شود' : referrerStatusText(row) }}</span>
-                      </div>
-                    </div>
-
-                    <div v-if="row.referrerType === 'doctor' || row.referrerType === 'staff'" class="referral-field referrer-resource-field">
-                      <span class="referral-field-caption">{{ row.referrerType === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف' }}</span>
-                      <select :value="referrerSelectValue(row)" class="service-select" @change="onReferrerResourceChange(row, $event)">
-                        <option value="">{{ row.referrerType === 'doctor' ? 'انتخاب پزشک' : 'انتخاب پرسنل' }}</option>
-                        <option v-for="person in referrerResourceOptions(row.referrerType)" :key="person.id" :value="String(person.id)">{{ person.name }}</option>
-                      </select>
-                      <small class="referrer-resource-hint">{{ referrerResourceHint(row) }}</small>
-                    </div>
-
-                  </div>
-
-                  <div class="service-popup-meta">
-
-                    <div
-                      class="service-item"
-                      :class="{ 'service-item-layer-active': activeServiceTagPicker === service, 'service-item-finalized': service.finalized }"
-                      v-for="(service, sIndex) in row.services"
-                      :key="sIndex"
-                    >
-                    <div class="service-item-toolbar">
-                      <strong>خدمت {{ (sIndex + 1).toLocaleString('fa-IR') }}</strong>
-                      <button
-                        v-if="row.services.length > 1 && !service.finalized"
-                        type="button"
-                        class="remove-service-btn"
-                        title="حذف خدمت"
-                        aria-label="حذف خدمت"
-                        @click.stop="removeService(row, sIndex)"
-                      >×</button>
-                    </div>
-                    <div class="service-lock-scope" v-lock-controls="Boolean(service.finalized)">
-
-                      <div class="service-main-row">
-                        <div class="service-choice-row">
-                          <span class="service-row-caption">مسیر خدمت</span>
-
-                          <div class="service-path-selectors">
-                            <Multiselect
-                              :model-value="service.rootSectionId"
-                              :options="serviceRootSectionOptions(row)"
-                              :custom-label="serviceSectionLabel"
-                              :multiple="false"
-                              :searchable="true"
-                              :close-on-select="true"
-                              :clear-on-select="false"
-                              :allow-empty="true"
-                              placeholder="انتخاب بخش"
-                              select-label=""
-                              selected-label="انتخاب شد"
-                              deselect-label="حذف"
-                              class="service-multiselect service-section-multiselect service-root-multiselect"
-                              @open="activeServiceTagPicker = null"
-                              @update:model-value="setServiceRootSection(service, row, $event)"
-                            />
-
-                            <Multiselect
-                              v-for="level in serviceSectionLevels(service)"
-                              :key="`${level.parentId}-${level.depth}`"
-                              :model-value="level.value"
-                              :options="level.options"
-                              :custom-label="serviceSectionLabel"
-                              :multiple="false"
-                              :searchable="true"
-                              :close-on-select="true"
-                              :clear-on-select="false"
-                              :allow-empty="true"
-                              :placeholder="serviceSectionLevelPlaceholder(level)"
-                              select-label=""
-                              selected-label="انتخاب شد"
-                              deselect-label="حذف"
-                              class="service-multiselect service-section-multiselect service-subsection-multiselect"
-                              @open="activeServiceTagPicker = null"
-                              @update:model-value="setServiceSectionLevel(service, row, level, $event)"
-                            />
-
-                            <Multiselect
-                              v-model="service.name"
-                              :options="serviceOptionsFor(service, row)"
-                              :multiple="false"
-                              :searchable="true"
-                              :internal-search="true"
-                              :close-on-select="true"
-                              :clear-on-select="false"
-                              :allow-empty="true"
-                              :disabled="!serviceCanChooseItem(service)"
-                              :placeholder="serviceCanChooseItem(service) ? 'جستجو و انتخاب خدمت' : 'مسیر زیر‌بخش را کامل کنید'"
-                              select-label=""
-                              selected-label="انتخاب شده"
-                              deselect-label="حذف"
-                              class="service-multiselect service-name-multiselect"
-                              @open="activeServiceTagPicker = null"
-                              @select="onServiceNameChanged(service, row)"
-                              @remove="onServiceNameChanged(service, row)"
-                            />
-                          </div>
-
-                          <div v-if="service.name" class="service-tag-picker" @click.stop>
-                            <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
-                              <span>نواحی</span>
-                              <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
-                              <em v-else>انتخاب ناحیه</em>
-                              <i>⌄</i>
-                            </button>
-                            <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
-                              <label v-for="tag in serviceTagsForSelection(service, row)" :key="tag">
-                                <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, row)">
-                                <span>{{ tag }}</span>
-                              </label>
-                              <span v-if="!serviceTagsForSelection(service, row).length" class="service-tag-menu-empty">
-                                ناحیه‌ای برای این خدمت در انبار ثبت نشده است.
-                              </span>
-                            </div>
-                            <div v-if="service.tags?.length" class="service-tag-chips">
-                              <button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, row)">{{ tag }} <b>×</b></button>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="service-details-row">
-                          <span class="service-row-caption">جزئیات همین خدمت</span>
-
-                      <select
-                        v-model="service.doctor"
-                        class="service-select"
-                        :disabled="!service.sectionId"
-                        @change="calculateRowAmount(row)"
-                      >
-
-                        <option value="">
-                          انتخاب پزشک
-                        </option>
-
-                        <option
-                          v-for="doc in doctorsForService(row, service)"
-                          :key="doc.id"
-                          :value="doc.name"
-                        >
-                          {{ doc.name }}
-                        </option>
-
-                      </select>
-
-                      <select
-                        v-model="service.consultant"
-                        class="service-select"
-                        @change="calculateRowAmount(row)"
-                      >
-
-                        <option value="">
-                          انتخاب مشاور
-                        </option>
-
-                        <option
-                          v-for="cons in consultantOptions"
-                          :key="cons"
-                          :value="cons"
-                        >
-                          {{ cons }}
-                        </option>
-
-                      </select>
-
-                      <input
-                        v-model="service.cc"
-                        type="text"
-                        placeholder="تعداد / سی‌سی"
-                        class="cc-input"
-                        @input="sanitizeServiceQuantity(service, row)"
-                      />
-
-                      <span class="service-price-chip">{{ service.name ? `قیمت: ${formatDisplayMoney(serviceLinePrice(service))} تومان` : 'قیمت خدمت' }}</span>
-                  <div class="service-discount-wrap" :class="{ surcharge: service.adjustment_mode === 'surcharge' }">
-                    <input v-model="service.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(service, row)">
-                    <span>{{ service.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(service, row)">↻</button>
-                  </div>
-                  <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
-                  <select v-else :value="service.discount_source || 'shared'" class="discount-source-select" :class="{ 'is-discount-source-disabled': !hasDiscountAmount(service) }" :disabled="!hasDiscountAmount(service)" :title="discountSourceHint(service)" @change="service.discount_source = $event.target.value; calculateRowAmount(row)">
-                    <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                  </select>
-
-                      <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" data-keep-enabled @click.stop="toggleServiceAddons(service)">
-                        جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b aria-hidden="true">{{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b>
-                      </button>
-
-                        </div>
-
-                      </div>
-
-                      <div v-if="expandedAddonServices.has(service)" class="service-addons-panel">
-                        <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>{{ service.addons.length }} مورد انتخاب شده</small></div>
-                        <div class="service-addon-head" aria-hidden="true"><span>نام جانبی</span><span>تعداد</span><span>مبلغ</span><span>تخفیف / مازاد</span><span></span></div>
-                        <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
-                          <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, row)" @remove="onAddonChanged(service, addon, row)" />
-                          <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="sanitizeServiceQuantity(addon, row)">
-                          <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
-                          <div class="addon-adjustment-cell">
-                            <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
-                              <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, row)">
-                              <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, row)">↻</button>
-                            </div>
-                            <select v-if="addon.adjustment_mode !== 'surcharge'" v-bind:value="addon.discount_source || 'shared'" class="discount-source-select addon-discount-source" :class="{ 'is-discount-source-disabled': !hasDiscountAmount(addon) }" :disabled="!hasDiscountAmount(addon)" :title="discountSourceHint(addon)" @change="addon.discount_source = $event.target.value; calculateRowAmount(row)">
-                              <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                            </select>
-                          </div>
-                          <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, row)">×</button>
-                        </div>
-                        <button type="button" class="add-another-addon-btn" @click.stop="addServiceAddon(service)">+ افزودن جانبی دیگر</button>
-                      </div>
-
-                    </div>
-                    <div v-if="service.name" class="service-finalize-bar" :class="{ finalized: service.finalized }">
-                      <template v-if="service.finalized">
-                        <span class="service-finalized-badge">✓ ثبت نهایی شده</span>
-                        <small>{{ finalizedServiceCaption(service) }}</small>
-                        <button v-if="canEditFinalizedServices" type="button" class="service-unlock-btn" @click.stop="unlockService(row, service)">ویرایش</button>
-                      </template>
-                      <template v-else>
-                        <small>بعد از تکمیل اطلاعات این خدمت، آن را ثبت نهایی کنید.</small>
-                        <button type="button" class="service-finalize-btn" :disabled="!canFinalizeService(service)" :title="canFinalizeService(service) ? 'قفل اطلاعات این خدمت' : 'تعداد / سی‌سی خدمت را وارد کنید'" @click.stop="finalizeService(row, service)">ثبت نهایی</button>
-                      </template>
-                    </div>
-
-                    </div>
-
-                  </div>
-
-                  <div class="service-popup-footer">
-                    <button
-                      type="button"
-                      class="add-service-line-btn service-popup-add-btn"
-                      data-keep-enabled
-                      @click.stop="addService(row)"
-                    >+ افزودن خدمت</button>
-                  </div>
-
-                </div>
-
               </td>
 
               <td
@@ -2268,6 +1942,344 @@
       </section>
     </div>
 
+
+    <Teleport to="body">
+      <div
+        v-if="activeServicePopupRow"
+        class="service-popup-overlay"
+        @click.self="closeServicePopup"
+      >
+                <div
+                  ref="servicePopupPanel"
+                  class="service-popup"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="ثبت خدمات نوبت"
+                  @click.stop
+                  @wheel="onServicePopupWheel"
+                >
+
+                  <div class="service-popup-header">
+
+                    <div class="service-popup-title">
+                      خدمات {{ activeServicePopupRow.lastname || 'بیمار' }}
+                    </div>
+
+                    <div class="service-popup-primary-actions">
+                      <button
+                        type="button"
+                        class="service-popup-close-btn"
+                        title="بستن ثبت خدمات"
+                        aria-label="بستن ثبت خدمات"
+                        data-keep-enabled @click.stop="closeServicePopup"
+                      >×</button>
+                    </div>
+
+                  </div>
+
+                  <div class="referral-section patient-services-referral-actions">
+
+                    <div class="referral-field referrer-type-field">
+                      <span class="referral-field-caption">معرف</span>
+                      <select :value="activeServicePopupRow.referrerType || ''" class="service-select referrer-type-select" @change="setReferrerType(activeServicePopupRow, $event.target.value)">
+                        <option value="">بدون معرف</option>
+                        <option value="customer">مشتری</option>
+                        <option value="doctor">پزشک</option>
+                        <option value="staff">پرسنل</option>
+                      </select>
+                    </div>
+
+                    <div v-if="activeServicePopupRow.referrerType === 'customer'" class="referral-field referrer-customer-field">
+                      <span class="referral-field-caption">مشتری معرف</span>
+                      <div class="referrer-search">
+                        <div v-if="(activeServicePopupRow.referrerId || activeServicePopupRow.referrerPhone) && referrerSearch.rowId !== activeServicePopupRow._rowId" class="referrer-chip">
+                          <span>
+                            <b>{{ activeServicePopupRow.referrerName || referrerInfo(activeServicePopupRow).name || 'مشتری معرف' }}</b>
+                            <small v-if="activeServicePopupRow.referrerPhone">{{ displayPatientPhone(activeServicePopupRow.referrerPhone) }}</small>
+                          </span>
+                          <button type="button" title="تغییر معرف" @click.stop="clearReferrer(activeServicePopupRow)">×</button>
+                        </div>
+                        <input
+                          v-else
+                          :value="referrerSearch.rowId === activeServicePopupRow._rowId ? referrerSearch.query : ''"
+                          type="text"
+                          autocomplete="off"
+                          placeholder="نام، موبایل، شماره پرونده یا کد ملی"
+                          class="service-select referrer-search-input"
+                          @input="searchReferrer(activeServicePopupRow, $event.target.value)"
+                          @focus="referrerSearch.rowId = activeServicePopupRow._rowId"
+                        />
+                        <div v-if="referrerSearch.rowId === activeServicePopupRow._rowId && referrerSearch.query.length >= 2" class="referrer-results" @click.stop>
+                          <div v-if="referrerSearch.loading" class="referrer-results-state">در حال جست‌وجو…</div>
+                          <button
+                            v-for="patient in referrerSearch.results"
+                            :key="patient.id"
+                            type="button"
+                            class="referrer-result"
+                            @click.stop="selectReferrerPatient(activeServicePopupRow, patient)"
+                          >
+                            <b>{{ `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'بدون نام' }}</b>
+                            <small>{{ [patient.file_number && `پرونده ${patient.file_number}`, patient.phone && displayPatientPhone(patient.phone), patient.national_id && `کد ملی ${patient.national_id}`].filter(Boolean).join(' · ') }}</small>
+                          </button>
+                          <div v-if="!referrerSearch.loading && !referrerSearch.results.length" class="referrer-results-state">مشتری‌ای با این مشخصات پیدا نشد.</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div v-if="activeServicePopupRow.referrerType === 'customer'" class="referral-field">
+                      <span class="referral-field-caption">موجودی کیف پول معرف</span>
+                      <div
+                        class="referrer-wallet-info"
+                        :class="`is-${referrerInfo(activeServicePopupRow).state}`"
+                        :title="referrerInfoTitle(activeServicePopupRow)"
+                        aria-live="polite"
+                      >
+                        <template v-if="referrerInfo(activeServicePopupRow).state === 'found'">
+                          <b>{{ formatDisplayMoney(referrerInfo(activeServicePopupRow).balance) }} تومان</b>
+                          <span>{{ referrerInfo(activeServicePopupRow).name || 'معرف' }}</span>
+                        </template>
+                        <span v-else>{{ activeServicePopupRow.referrerId ? 'پاداش پس از انجام و تسویهٔ کامل به کیف پول او واریز می‌شود' : referrerStatusText(activeServicePopupRow) }}</span>
+                      </div>
+                    </div>
+
+                    <div v-if="activeServicePopupRow.referrerType === 'doctor' || activeServicePopupRow.referrerType === 'staff'" class="referral-field referrer-resource-field">
+                      <span class="referral-field-caption">{{ activeServicePopupRow.referrerType === 'doctor' ? 'پزشک معرف' : 'پرسنل معرف' }}</span>
+                      <select :value="referrerSelectValue(activeServicePopupRow)" class="service-select" @change="onReferrerResourceChange(activeServicePopupRow, $event)">
+                        <option value="">{{ activeServicePopupRow.referrerType === 'doctor' ? 'انتخاب پزشک' : 'انتخاب پرسنل' }}</option>
+                        <option v-for="person in referrerResourceOptions(activeServicePopupRow.referrerType)" :key="person.id" :value="String(person.id)">{{ person.name }}</option>
+                      </select>
+                      <small class="referrer-resource-hint">{{ referrerResourceHint(activeServicePopupRow) }}</small>
+                    </div>
+
+                  </div>
+
+                  <div class="service-popup-meta">
+
+                    <div
+                      class="service-item"
+                      :class="{ 'service-item-layer-active': activeServiceTagPicker === service, 'service-item-finalized': service.finalized }"
+                      v-for="(service, sIndex) in activeServicePopupRow.services"
+                      :key="sIndex"
+                    >
+                    <div class="service-item-toolbar">
+                      <strong>خدمت {{ (sIndex + 1).toLocaleString('fa-IR') }}</strong>
+                      <button
+                        v-if="activeServicePopupRow.services.length > 1 && !service.finalized"
+                        type="button"
+                        class="remove-service-btn"
+                        title="حذف خدمت"
+                        aria-label="حذف خدمت"
+                        @click.stop="removeService(activeServicePopupRow, sIndex)"
+                      >×</button>
+                    </div>
+                    <div class="service-lock-scope" v-lock-controls="Boolean(service.finalized)">
+
+                      <div class="service-main-row">
+                        <div class="service-choice-row">
+                          <span class="service-row-caption">مسیر خدمت</span>
+
+                          <div class="service-path-selectors">
+                            <Multiselect
+                              :model-value="service.rootSectionId"
+                              :options="serviceRootSectionOptions(activeServicePopupRow)"
+                              :custom-label="serviceSectionLabel"
+                              :multiple="false"
+                              :searchable="true"
+                              :close-on-select="true"
+                              :clear-on-select="false"
+                              :allow-empty="true"
+                              placeholder="انتخاب بخش"
+                              select-label=""
+                              selected-label="انتخاب شد"
+                              deselect-label="حذف"
+                              class="service-multiselect service-section-multiselect service-root-multiselect"
+                              @open="onServiceMultiselectOpen"
+                              @update:model-value="setServiceRootSection(service, activeServicePopupRow, $event)"
+                            />
+
+                            <Multiselect
+                              v-for="level in serviceSectionLevels(service)"
+                              :key="`${level.parentId}-${level.depth}`"
+                              :model-value="level.value"
+                              :options="level.options"
+                              :custom-label="serviceSectionLabel"
+                              :multiple="false"
+                              :searchable="true"
+                              :close-on-select="true"
+                              :clear-on-select="false"
+                              :allow-empty="true"
+                              :placeholder="serviceSectionLevelPlaceholder(level)"
+                              select-label=""
+                              selected-label="انتخاب شد"
+                              deselect-label="حذف"
+                              class="service-multiselect service-section-multiselect service-subsection-multiselect"
+                              @open="onServiceMultiselectOpen"
+                              @update:model-value="setServiceSectionLevel(service, activeServicePopupRow, level, $event)"
+                            />
+
+                            <Multiselect
+                              v-model="service.name"
+                              :options="serviceOptionsFor(service, activeServicePopupRow)"
+                              :multiple="false"
+                              :searchable="true"
+                              :internal-search="true"
+                              :close-on-select="true"
+                              :clear-on-select="false"
+                              :allow-empty="true"
+                              :disabled="!serviceCanChooseItem(service)"
+                              :placeholder="serviceCanChooseItem(service) ? 'جستجو و انتخاب خدمت' : 'مسیر زیر‌بخش را کامل کنید'"
+                              select-label=""
+                              selected-label="انتخاب شده"
+                              deselect-label="حذف"
+                              class="service-multiselect service-name-multiselect"
+                              @open="onServiceMultiselectOpen"
+                              @select="onServiceNameChanged(service, activeServicePopupRow)"
+                              @remove="onServiceNameChanged(service, activeServicePopupRow)"
+                            />
+                          </div>
+
+                          <div v-if="service.name" class="service-tag-picker" @click.stop>
+                            <button type="button" class="service-tag-trigger" @click="activeServiceTagPicker = activeServiceTagPicker === service ? null : service">
+                              <span>نواحی</span>
+                              <b v-if="service.tags?.length">{{ service.tags.length }} مورد</b>
+                              <em v-else>انتخاب ناحیه</em>
+                              <i>⌄</i>
+                            </button>
+                            <div v-if="activeServiceTagPicker === service" class="service-tag-menu">
+                              <label v-for="tag in serviceTagsForSelection(service, activeServicePopupRow)" :key="tag">
+                                <input type="checkbox" :checked="(service.tags || []).includes(tag)" @change="toggleServiceTag(service, tag, activeServicePopupRow)">
+                                <span>{{ tag }}</span>
+                              </label>
+                              <span v-if="!serviceTagsForSelection(service, activeServicePopupRow).length" class="service-tag-menu-empty">
+                                ناحیه‌ای برای این خدمت در انبار ثبت نشده است.
+                              </span>
+                            </div>
+                            <div v-if="service.tags?.length" class="service-tag-chips">
+                              <button v-for="tag in service.tags" :key="tag" type="button" @click="removeServiceTag(service, tag, activeServicePopupRow)">{{ tag }} <b>×</b></button>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="service-details-row">
+                          <span class="service-row-caption">جزئیات همین خدمت</span>
+
+                      <select
+                        v-model="service.doctor"
+                        class="service-select"
+                        :disabled="!service.sectionId"
+                        @change="calculateRowAmount(activeServicePopupRow)"
+                      >
+
+                        <option value="">
+                          انتخاب پزشک
+                        </option>
+
+                        <option
+                          v-for="doc in doctorsForService(activeServicePopupRow, service)"
+                          :key="doc.id"
+                          :value="doc.name"
+                        >
+                          {{ doc.name }}
+                        </option>
+
+                      </select>
+
+                      <select
+                        v-model="service.consultant"
+                        class="service-select"
+                        @change="calculateRowAmount(activeServicePopupRow)"
+                      >
+
+                        <option value="">
+                          انتخاب مشاور
+                        </option>
+
+                        <option
+                          v-for="cons in consultantOptions"
+                          :key="cons"
+                          :value="cons"
+                        >
+                          {{ cons }}
+                        </option>
+
+                      </select>
+
+                      <input
+                        v-model="service.cc"
+                        type="text"
+                        placeholder="تعداد / سی‌سی"
+                        class="cc-input"
+                        @input="sanitizeServiceQuantity(service, activeServicePopupRow)"
+                      />
+
+                      <span class="service-price-chip">{{ service.name ? `قیمت: ${formatDisplayMoney(serviceLinePrice(service))} تومان` : 'قیمت خدمت' }}</span>
+                  <div class="service-discount-wrap" :class="{ surcharge: service.adjustment_mode === 'surcharge' }">
+                    <input v-model="service.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(service, activeServicePopupRow)">
+                    <span>{{ service.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(service, activeServicePopupRow)">↻</button>
+                  </div>
+                  <label v-if="service.adjustment_mode === 'surcharge'" class="surcharge-commission-toggle"><input v-model="service.surcharge_for_doctor_commission" type="checkbox"> پورسانت پزشک</label>
+                  <select v-else :value="service.discount_source || 'shared'" class="discount-source-select" :class="{ 'is-discount-source-disabled': !hasDiscountAmount(service) }" :disabled="!hasDiscountAmount(service)" :title="discountSourceHint(service)" @change="service.discount_source = $event.target.value; calculateRowAmount(activeServicePopupRow)">
+                    <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                  </select>
+
+                      <button type="button" class="service-addon-toggle" :class="{ active: service.addons?.length }" :disabled="!service.name" :aria-expanded="expandedAddonServices.has(service)" :aria-label="expandedAddonServices.has(service) ? 'بستن جانبی‌ها' : 'نمایش جانبی‌ها'" data-keep-enabled @click.stop="toggleServiceAddons(service)">
+                        جانبی <span v-if="service.addons?.length">{{ service.addons.length }}</span><b aria-hidden="true">{{ expandedAddonServices.has(service) ? '⌃' : '⌄' }}</b>
+                      </button>
+
+                        </div>
+
+                      </div>
+
+                      <div v-if="expandedAddonServices.has(service)" class="service-addons-panel">
+                        <div class="service-addons-title"><span>جانبی‌های {{ service.name }}</span><small>{{ service.addons.length }} مورد انتخاب شده</small></div>
+                        <div class="service-addon-head" aria-hidden="true"><span>نام جانبی</span><span>تعداد</span><span>مبلغ</span><span>تخفیف / مازاد</span><span></span></div>
+                        <div v-for="(addon, addonIndex) in service.addons" :key="addon._key || addonIndex" class="service-addon-row">
+                          <Multiselect v-model="addon.name" :options="serviceAddonOptions(service, addon)" :multiple="false" :searchable="true" :close-on-select="true" :allow-empty="true" placeholder="انتخاب جانبی از انبار" select-label="" selected-label="انتخاب شد" deselect-label="حذف" class="service-multiselect service-addon-multiselect" @select="onAddonChanged(service, addon, activeServicePopupRow)" @remove="onAddonChanged(service, addon, activeServicePopupRow)" />
+                          <input v-model="addon.cc" type="text" inputmode="numeric" placeholder="تعداد/سی‌سی" class="cc-input addon-cc-input" @input="sanitizeServiceQuantity(addon, activeServicePopupRow)">
+                          <span class="service-price-chip addon-price-chip">{{ formatDisplayMoney(serviceLinePrice(addon)) }} تومان</span>
+                          <div class="addon-adjustment-cell">
+                            <div class="service-discount-wrap addon-discount-wrap" :class="{ surcharge: addon.adjustment_mode === 'surcharge' }">
+                              <input v-model="addon.discount" type="text" inputmode="numeric" placeholder="مبلغ" class="service-discount-input" @input="handleServiceDiscountInput(addon, activeServicePopupRow)">
+                              <span>{{ addon.adjustment_mode === 'surcharge' ? 'مازاد' : 'تخفیف' }}</span><button type="button" title="تغییر حالت" aria-label="تغییر حالت تخفیف یا مازاد" @click.stop="toggleServiceAdjustment(addon, activeServicePopupRow)">↻</button>
+                            </div>
+                            <select v-if="addon.adjustment_mode !== 'surcharge'" v-bind:value="addon.discount_source || 'shared'" class="discount-source-select addon-discount-source" :class="{ 'is-discount-source-disabled': !hasDiscountAmount(addon) }" :disabled="!hasDiscountAmount(addon)" :title="discountSourceHint(addon)" @change="addon.discount_source = $event.target.value; calculateRowAmount(activeServicePopupRow)">
+                              <option v-for="option in discountSourceOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                            </select>
+                          </div>
+                          <button type="button" class="remove-addon-btn" title="حذف جانبی" @click.stop="removeServiceAddon(service, addonIndex, activeServicePopupRow)">×</button>
+                        </div>
+                        <button type="button" class="add-another-addon-btn" @click.stop="addServiceAddon(service)">+ افزودن جانبی دیگر</button>
+                      </div>
+
+                    </div>
+                    <div v-if="service.name" class="service-finalize-bar" :class="{ finalized: service.finalized }">
+                      <template v-if="service.finalized">
+                        <span class="service-finalized-badge">✓ ثبت نهایی شده</span>
+                        <small>{{ finalizedServiceCaption(service) }}</small>
+                        <button v-if="canEditFinalizedServices" type="button" class="service-unlock-btn" @click.stop="unlockService(activeServicePopupRow, service)">ویرایش</button>
+                      </template>
+                      <template v-else>
+                        <small>بعد از تکمیل اطلاعات این خدمت، آن را ثبت نهایی کنید.</small>
+                        <button type="button" class="service-finalize-btn" :disabled="!canFinalizeService(service)" :title="canFinalizeService(service) ? 'قفل اطلاعات این خدمت' : 'تعداد / سی‌سی خدمت را وارد کنید'" @click.stop="finalizeService(activeServicePopupRow, service)">ثبت نهایی</button>
+                      </template>
+                    </div>
+
+                    </div>
+
+                  </div>
+
+                  <div class="service-popup-footer">
+                    <button
+                      type="button"
+                      class="add-service-line-btn service-popup-add-btn"
+                      data-keep-enabled
+                      @click.stop="addService(activeServicePopupRow)"
+                    >+ افزودن خدمت</button>
+                  </div>
+
+                </div>
+      </div>
+    </Teleport>
+
     <!-- نوار ماه‌ها در پایین صفحه -->
     <Teleport to="body">
       <div v-if="dailyReportModalOpen" class="daily-report-overlay" @click.self="closeDailyReport">
@@ -3272,6 +3284,16 @@ export default {
     canSeeDoctorNoteAlert() {
       return !this.roles.some(role => /پزشک|doctor/i.test(String(role)));
     },
+
+    activeServicePopupRow() {
+      const id = this.activeServicePopup;
+      if (id == null) return null;
+      for (const day of this.days || []) {
+        const row = (day.rows || []).find(item => item?._rowId === id);
+        if (row) return row;
+      }
+      return null;
+    },
     availableScheduleYears() {
       return [...new Set((this.months || []).map(month => String(month).slice(0, 4)).filter(year => /^1[34]\d{2}$/.test(year)))]
         .sort((a, b) => Number(b) - Number(a));
@@ -3657,6 +3679,7 @@ export default {
     window.addEventListener('scroll', this.scheduleDayRowsWindowUpdate, { passive: true });
     window.addEventListener('resize', this.scheduleDayRowsWindowUpdate, { passive: true });
     document.addEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
+    document.addEventListener('keydown', this.handleServicePopupKeydown, true);
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges = subscribeAppointmentChanges(this.handleRealtimeAppointmentChange);
     this.unsubscribeAppointmentNoteChanges = subscribeAppointmentNoteChanges(this.handleRealtimeAppointmentNoteChange);
@@ -3710,6 +3733,7 @@ export default {
   },
 
   beforeUnmount() {
+    this.unlockServicePopupScroll();
     this.stopServicePopupFit();
     window.removeEventListener('scroll', this.scheduleDayRowsWindowUpdate);
     window.removeEventListener('resize', this.scheduleDayRowsWindowUpdate);
@@ -3717,6 +3741,7 @@ export default {
     clearTimeout(this._dayRowsWindowTimer);
     this._dayRowsWindowFrame = null;
     document.removeEventListener('pointerdown', this.handleAppointmentOutsideClick, true);
+    document.removeEventListener('keydown', this.handleServicePopupKeydown, true);
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
     this.unsubscribeAppointmentChanges?.();
     this.unsubscribeAppointmentNoteChanges?.();
@@ -9756,32 +9781,17 @@ this.calculateFinalAmount(row)
         .map(item => item.row);
     },
 
-    // پنل خدمات جدول داخل viewport می‌ماند؛ فقط فهرست خدمت‌ها اسکرول می‌خورد
-    // (هدر بستن و فوتر «افزودن خدمت» چسبان می‌مانند) و اسکرول به جدول/صفحه زنجیره نمی‌شود.
+    // مودال خدمات full-page است؛ فقط فهرست خدمت‌ها اسکرول می‌شود و دراپ‌داون‌ها داخل همان بدنه می‌مانند.
     fitServicePopup(revealLast = false) {
-      const popup = document.querySelector('.service-popup');
-      const cell = popup?.parentElement;
-      if (!popup || !cell) return;
-      const topGap = 72;
-      // فضای ماه‌ها + فوتر چسبان «افزودن خدمت» تا دکمه زیر نوار ماه نرود.
-      const bottomGap = 112;
-      const viewport = window.innerHeight || document.documentElement.clientHeight || 0;
-      const available = Math.max(240, viewport - topGap - bottomGap);
-      popup.style.maxHeight = `${Math.round(available)}px`;
-      const height = popup.offsetHeight;
-      const cellTop = cell.getBoundingClientRect().top;
-      let offset = 0;
-      if (cellTop + height > viewport - bottomGap) offset = viewport - bottomGap - height - cellTop;
-      if (cellTop + offset < topGap) offset = topGap - cellTop;
-      popup.style.top = `${Math.round(offset)}px`;
       if (revealLast !== true) return;
-      const list = popup.querySelector('.service-popup-meta');
-      const lines = popup.querySelectorAll('.service-item');
-      const target = lines[lines.length - 1];
+      const popup = this.$refs.servicePopupPanel;
+      const list = popup?.querySelector?.('.service-popup-meta');
+      const lines = popup?.querySelectorAll?.('.service-item');
+      const target = lines?.[lines.length - 1];
       if (!list || !target) return;
       const listRect = list.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
-      const nextTop = list.scrollTop + (targetRect.bottom - listRect.bottom) + 12;
+      const nextTop = list.scrollTop + (targetRect.bottom - listRect.bottom) + 16;
       if (targetRect.bottom > listRect.bottom - 4) {
         list.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
       }
@@ -9796,6 +9806,8 @@ this.calculateFinalAmount(row)
         return;
       }
       const overList = list === event.target || list.contains(event.target);
+      // اجازه بده اسکرول داخل خود دراپ‌داون Multiselect کار کند.
+      if (event.target?.closest?.('.multiselect__content-wrapper')) return;
       if (!overList) {
         event.preventDefault();
         return;
@@ -9808,6 +9820,46 @@ this.calculateFinalAmount(row)
       const atTop = list.scrollTop <= 0 && event.deltaY < 0;
       const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1 && event.deltaY > 0;
       if (atTop || atBottom) event.preventDefault();
+    },
+
+    onServiceMultiselectOpen() {
+      this.activeServiceTagPicker = null;
+      this.$nextTick(() => {
+        const popup = this.$refs.servicePopupPanel;
+        const list = popup?.querySelector?.('.service-popup-meta');
+        const active = list?.querySelector?.('.multiselect--active');
+        if (!list || !active) return;
+        const dropdownRoom = 220;
+        const listRect = list.getBoundingClientRect();
+        const activeRect = active.getBoundingClientRect();
+        const spaceBelow = listRect.bottom - activeRect.bottom;
+        if (spaceBelow < dropdownRoom) {
+          list.scrollTop += (dropdownRoom - spaceBelow) + 12;
+        }
+        // اگر هنوز جا نیست، Multiselect خودش preferredOpenDirection=above می‌گیرد.
+        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
+    },
+
+    handleServicePopupKeydown(event) {
+      if (event.key !== 'Escape' || this.activeServicePopup == null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.closeServicePopup();
+    },
+
+    lockServicePopupScroll() {
+      if (this._servicePopupScrollLocked) return;
+      this._servicePopupScrollLocked = true;
+      this._servicePopupBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    },
+
+    unlockServicePopupScroll() {
+      if (!this._servicePopupScrollLocked) return;
+      document.body.style.overflow = this._servicePopupBodyOverflow || '';
+      this._servicePopupScrollLocked = false;
+      this._servicePopupBodyOverflow = '';
     },
 
     stopServicePopupFit() {
@@ -9830,7 +9882,7 @@ this.calculateFinalAmount(row)
         ,_lastSavedCc: 0
         ,addons: []
       });
-      // بعد از رسم خط جدید، اگر پایین صفحه پنهان مانده باشد صفحه تا آن اسکرول می‌خورد.
+      // خط جدید را داخل بدنهٔ مودال در دید نگه دار.
       if (this.activeServicePopup != null && row?._rowId === this.activeServicePopup) {
         this.$nextTick(() => this.fitServicePopup(true));
       }
@@ -10172,6 +10224,11 @@ this.calculateFinalAmount(row)
       // کلیک روی سایر کنترل‌های پنجرهٔ خدمات نیز باید فهرست تگ را ببندد.
       if (this.activeServiceTagPicker && !target.closest('.service-tag-picker')) {
         this.activeServiceTagPicker = null;
+      }
+
+      // مودال خدمات روی body است؛ کلیک داخل آن یا روی دکمهٔ خدمات نباید ببنددش.
+      if (this.activeServicePopup != null && target.closest('.service-popup-overlay, .service-popup, .service-mini-btn')) {
+        return;
       }
 
       const isInsideOpenControl = target.closest([
@@ -12163,6 +12220,7 @@ smsColor(val) {
     closeServicePopup() {
       this.activeServicePopup = null;
       this.activeServiceTagPicker = null;
+      this.unlockServicePopupScroll();
     },
 
     applyReferralScore(row) {
@@ -12432,16 +12490,11 @@ smsColor(val) {
 
     activeServicePopup(id) {
       this.stopServicePopupFit();
-      if (id == null) return;
-      this.$nextTick(() => {
-        const popup = document.querySelector('.service-popup');
-        if (!popup) return;
-        this.fitServicePopup();
-        // با اضافه یا حذف شدن خدمت و جانبی، پنل دوباره داخل صفحه جا داده می‌شود.
-        this._servicePopupObserver = new MutationObserver(() => this.fitServicePopup());
-        this._servicePopupObserver.observe(popup, { childList: true, subtree: true });
-        window.addEventListener('resize', this.fitServicePopup);
-      });
+      if (id == null) {
+        this.unlockServicePopupScroll();
+        return;
+      }
+      this.lockServicePopupScroll();
     },
 
     tableFilterSignature() {
@@ -15067,42 +15120,42 @@ td.row-action-col {
 
 .service-mini-icon{font-size:13px;line-height:1}.add-service-line-btn:disabled{opacity:.42;cursor:not-allowed;transform:none!important}.service-prerequisite{display:flex;align-items:flex-start;gap:11px;margin:8px 0 12px;padding:12px 14px;border:1px solid #bfdbfe;border-radius:12px;background:linear-gradient(135deg,#eff6ff,#f8fbff);text-align:right;direction:rtl}.service-prerequisite>span{width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;background:#2563eb;color:#fff;font-size:13px;font-weight:1000;box-shadow:0 5px 12px rgba(37,99,235,.2)}.service-prerequisite div{display:grid;gap:4px}.service-prerequisite strong{color:#1e3a8a;font-size:12px}.service-prerequisite p{margin:0;color:#475569;font-size:11px;line-height:1.8}.service-main-row select:disabled{background:#f1f5f9!important;color:#94a3b8!important;cursor:not-allowed}.service-multiselect.multiselect--disabled{opacity:.58;background:#f8fafc}
 
+.service-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(5px);
+  direction: rtl;
+}
+
 .service-popup {
-  position: absolute;
-  left: 5%;
-  top: 0;
-  margin-right: 10px;
-  width: min(940px, 92vw);
-  max-height: min(78vh, calc(100dvh - 120px));
+  position: relative;
+  left: auto;
+  top: auto;
+  margin: 0;
+  width: min(960px, 96vw);
+  max-height: min(92dvh, calc(100dvh - 32px));
   display: flex;
   flex-direction: column;
   gap: 0;
   background: #fff;
   border: 1px solid #dcdcdc;
-  border-radius: 10px;
-  box-shadow: 0 8px 18px rgba(0,0,0,0.15);
+  border-radius: 14px;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.38);
   padding: 10px;
-  z-index: 99999;
+  z-index: 1;
   overflow: hidden;
   overscroll-behavior: contain;
 }
 
-/* وقتی دراپ‌داون باز است، برش نخورد. */
-.service-popup:has(.multiselect--active),
-.service-popup:has(.service-tag-menu),
-.service-popup:has(.referrer-results) {
-  overflow: visible;
-}
-
-/* فضای خالی زیر پنل تا پایین آن از زیر نوار ماه‌ها بیرون بیاید. */
-.service-popup::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 1px;
-  height: 110px;
-  pointer-events: none;
+/* دراپ‌داون‌ها فقط داخل بدنهٔ مودال باز می‌شوند؛ از فوتر بیرون نزنند. */
+.service-popup .multiselect__content-wrapper {
+  z-index: 30;
+  max-height: min(220px, 36vh) !important;
 }
 
 .service-popup-header{
@@ -16236,10 +16289,12 @@ tr.data-row td {
 .service-popup-meta::-webkit-scrollbar-track { background: #eef2f7; border-radius: 999px; }
 .service-popup-meta::-webkit-scrollbar-thumb { background: #93c5fd; border: 2px solid #eef2f7; border-radius: 999px; }
 
-/* دراپ‌داون‌های داخل فهرست بریده نشوند. */
-.service-popup-meta:has(.multiselect--active),
-.service-popup-meta:has(.service-tag-menu) {
-  overflow: visible;
+/* منوی نواحی و نتایج معرف داخل بدنه بمانند (نه بیرون از فوتر). */
+.service-popup-meta .service-tag-menu,
+.service-popup-meta .referrer-results {
+  z-index: 40;
+  max-height: min(220px, 36vh);
+  overflow: auto;
 }
 
 .service-popup > .referral-section {
@@ -16883,13 +16938,15 @@ td.st-arrived select {
 .referral-section.patient-services-referral-actions{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))!important;align-items:start}
 
 @media (max-width: 700px) {
+  .service-popup-overlay {
+    padding: 8px;
+  }
   .service-popup {
-    left: 8px;
-    right: 8px;
     width: auto;
     max-width: calc(100vw - 16px);
-    max-height: min(82dvh, calc(100dvh - 96px));
-    margin-right: 0;
+    max-height: min(96dvh, calc(100dvh - 16px));
+    margin: 0;
+    border-radius: 12px;
   }
   .service-popup-header {
     flex-wrap: wrap;
@@ -18131,6 +18188,10 @@ html #app.dark .appointment-timeline .timeline-card:has(.patient-avatar.level-pr
 
 <style>
 /* Dark fix: service popup (table+timeline) + month bar + muted badges */
+html body.dark .service-popup-overlay,
+html #app.dark .service-popup-overlay {
+  background: rgba(2, 6, 23, 0.72) !important;
+}
 html body.dark .service-popup,
 html #app.dark .service-popup,
 html body.dark .timeline-service-panel,
