@@ -16299,6 +16299,8 @@ tr.data-row td {
 
 .service-popup > .referral-section {
   flex: 0 0 auto;
+  margin-top: 4px;
+  padding-top: 8px;
 }
 
 .service-popup-field {
