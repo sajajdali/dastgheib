@@ -15587,6 +15587,52 @@ td.row-action-col {
 .service-section-multiselect .multiselect__select{right:auto;left:1px;width:30px;height:32px}
 .service-section-multiselect .multiselect__content-wrapper{font-family:inherit;font-size:11px;text-align:right;direction:rtl}
 .service-section-multiselect .multiselect__option{min-height:34px;padding:8px 10px;text-align:right;white-space:normal}
+/* Path row (esp. last/name Multiselect): keep selected label single-line inside the box. */
+.service-path-selectors .service-multiselect{
+  min-width:0 !important;
+  max-width:100%;
+}
+.service-path-selectors .service-multiselect .multiselect__tags{
+  height:34px !important;
+  min-height:34px !important;
+  max-height:34px !important;
+  display:flex !important;
+  align-items:center !important;
+  overflow:hidden !important;
+  /* left pad clears caret + path-clear; right pad for RTL label edge */
+  padding:0 10px 0 56px !important;
+  box-sizing:border-box;
+}
+.service-path-selectors .service-multiselect .multiselect__tags-wrap,
+.service-path-selectors .service-multiselect .multiselect__strong{
+  flex:1 1 auto;
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+}
+.service-path-selectors .service-multiselect .multiselect__single,
+.service-path-selectors .service-multiselect .multiselect__placeholder,
+.service-path-selectors .service-multiselect .multiselect__input{
+  display:block !important;
+  flex:1 1 auto;
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  height:20px !important;
+  min-height:20px !important;
+  max-height:20px !important;
+  margin:0 !important;
+  padding:0 !important;
+  overflow:hidden !important;
+  line-height:20px !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+  word-break:normal !important;
+  overflow-wrap:normal !important;
+}
+.service-path-selectors .service-multiselect .multiselect__select{
+  height:32px;
+}
 
 td.st-given select,
 td.st-given {
