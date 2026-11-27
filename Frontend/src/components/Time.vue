@@ -18330,6 +18330,14 @@ html #app.dark .service-popup-footer {
   border-top-color: #2c3038 !important;
   box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.35) !important;
 }
+html body.dark .service-popup-meta .service-item-toolbar,
+html #app.dark .service-popup-meta .service-item-toolbar {
+  background: #1a1c22 !important;
+}
+html body.dark .service-popup-meta .service-item.service-item-finalized .service-item-toolbar,
+html #app.dark .service-popup-meta .service-item.service-item-finalized .service-item-toolbar {
+  background: #052e1a !important;
+}
 html body.dark .service-main-row,
 html body.dark .service-prerequisite,
 html body.dark .timeline-service-details,
