@@ -2088,13 +2088,14 @@
                               :close-on-select="true"
                               :clear-on-select="false"
                               :allow-empty="true"
-                              open-direction="above"
+                              open-direction="below"
                               placeholder="انتخاب بخش"
                               select-label=""
                               selected-label=""
                               deselect-label=""
                               class="service-multiselect service-section-multiselect service-root-multiselect"
                               @open="onServiceMultiselectOpen"
+                              @close="onServiceMultiselectClose"
                               @update:model-value="setServiceRootSection(service, activeServicePopupRow, $event)"
                             >
                               <template #clear>
@@ -2120,13 +2121,14 @@
                               :close-on-select="true"
                               :clear-on-select="false"
                               :allow-empty="true"
-                              open-direction="above"
+                              open-direction="below"
                               :placeholder="serviceSectionLevelPlaceholder(level)"
                               select-label=""
                               selected-label=""
                               deselect-label=""
                               class="service-multiselect service-section-multiselect service-subsection-multiselect"
                               @open="onServiceMultiselectOpen"
+                              @close="onServiceMultiselectClose"
                               @update:model-value="setServiceSectionLevel(service, activeServicePopupRow, level, $event)"
                             >
                               <template #clear>
@@ -2150,7 +2152,7 @@
                               :close-on-select="true"
                               :clear-on-select="false"
                               :allow-empty="true"
-                              open-direction="above"
+                              open-direction="below"
                               :disabled="!serviceCanChooseItem(service)"
                               :placeholder="serviceCanChooseItem(service) ? 'جستجو و انتخاب خدمت' : 'مسیر زیر‌بخش را کامل کنید'"
                               select-label=""
@@ -2158,6 +2160,7 @@
                               deselect-label=""
                               class="service-multiselect service-name-multiselect"
                               @open="onServiceMultiselectOpen"
+                              @close="onServiceMultiselectClose"
                               @select="onServiceNameChanged(service, activeServicePopupRow)"
                               @remove="onServiceNameChanged(service, activeServicePopupRow)"
                             >
@@ -9858,39 +9861,100 @@ this.calculateFinalAmount(row)
       if (atTop || atBottom) event.preventDefault();
     },
 
+    clearServicePathDropdownPin() {
+      const panel = this.$refs.servicePopupPanel;
+      panel?.querySelectorAll?.('.service-path-selectors .multiselect__content-wrapper').forEach((el) => {
+        el.classList.remove('service-path-dropdown-fixed');
+        el.style.position = '';
+        el.style.top = '';
+        el.style.bottom = '';
+        el.style.left = '';
+        el.style.right = '';
+        el.style.width = '';
+        el.style.maxHeight = '';
+        el.style.zIndex = '';
+      });
+      panel?.querySelectorAll?.('.service-path-selectors .multiselect--above').forEach((el) => {
+        el.classList.remove('multiselect--above');
+      });
+      if (this._servicePathDropdownScrollEl) {
+        this._servicePathDropdownScrollEl.removeEventListener('scroll', this.repositionServicePathDropdown);
+        this._servicePathDropdownScrollEl = null;
+      }
+      window.removeEventListener('resize', this.repositionServicePathDropdown);
+      this._servicePathDropdownEl = null;
+      this._servicePathDropdownAnchor = null;
+    },
+
+    repositionServicePathDropdown() {
+      const dropdown = this._servicePathDropdownEl;
+      const active = this._servicePathDropdownAnchor;
+      if (!dropdown || !active || !active.isConnected || !dropdown.isConnected) {
+        this.clearServicePathDropdownPin();
+        return;
+      }
+      if (!active.classList.contains('multiselect--active')) {
+        this.clearServicePathDropdownPin();
+        return;
+      }
+
+      const anchor = active.querySelector('.multiselect__tags') || active;
+      const rect = anchor.getBoundingClientRect();
+      const gap = 4;
+      const maxH = Math.min(240, Math.floor(window.innerHeight * 0.38));
+      const spaceBelow = window.innerHeight - rect.bottom - 10;
+      const spaceAbove = rect.top - 10;
+      const preferAbove = spaceBelow < Math.min(160, maxH) && spaceAbove > spaceBelow;
+      const available = Math.max(120, preferAbove ? spaceAbove - gap : spaceBelow - gap);
+      const height = Math.min(maxH, available);
+
+      dropdown.classList.add('service-path-dropdown-fixed');
+      dropdown.style.position = 'fixed';
+      dropdown.style.left = `${Math.round(rect.left)}px`;
+      dropdown.style.width = `${Math.round(rect.width)}px`;
+      dropdown.style.right = 'auto';
+      dropdown.style.zIndex = '2147483647';
+      dropdown.style.maxHeight = `${height}px`;
+
+      if (preferAbove) {
+        active.classList.add('multiselect--above');
+        dropdown.style.top = 'auto';
+        dropdown.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
+      } else {
+        active.classList.remove('multiselect--above');
+        dropdown.style.bottom = 'auto';
+        dropdown.style.top = `${Math.round(rect.bottom + gap)}px`;
+      }
+    },
+
     onServiceMultiselectOpen() {
       this.activeServiceTagPicker = null;
+      this.clearServicePathDropdownPin();
       this.$nextTick(() => {
-        const popup = this.$refs.servicePopupPanel;
-        const list = popup?.querySelector?.('.service-popup-meta');
-        const active = list?.querySelector?.('.multiselect--active');
-        if (!list || !active) return;
-        const item = active.closest('.service-item');
-        const toolbar = item?.querySelector?.('.service-item-toolbar');
-        const opensAbove = active.classList.contains('multiselect--above');
-        const dropdownRoom = 180;
-        const listRect = list.getBoundingClientRect();
-        const activeRect = active.getBoundingClientRect();
-        // مسیر خدمت عمداً به بالا باز می‌شود تا روی «جزئیات» ننشیند؛ فضای بالا را در اسکرول بدنه تأمین کن.
-        if (opensAbove) {
-          const spaceAbove = activeRect.top - listRect.top;
-          if (spaceAbove < dropdownRoom) {
-            list.scrollTop -= (dropdownRoom - spaceAbove) + 12;
+        requestAnimationFrame(() => {
+          const panel = this.$refs.servicePopupPanel;
+          const list = panel?.querySelector?.('.service-popup-meta');
+          const active = list?.querySelector?.('.service-path-selectors .multiselect--active')
+            || panel?.querySelector?.('.service-path-selectors .multiselect--active');
+          if (!active) return;
+          const dropdown = active.querySelector('.multiselect__content-wrapper');
+          if (!dropdown) return;
+
+          this._servicePathDropdownEl = dropdown;
+          this._servicePathDropdownAnchor = active;
+          this.repositionServicePathDropdown();
+
+          if (list) {
+            this._servicePathDropdownScrollEl = list;
+            list.addEventListener('scroll', this.repositionServicePathDropdown, { passive: true });
           }
-        } else {
-          const spaceBelow = listRect.bottom - activeRect.bottom;
-          if (spaceBelow < dropdownRoom) {
-            list.scrollTop += (dropdownRoom - spaceBelow) + 12;
-          }
-        }
-        if (toolbar) {
-          const toolbarTop = toolbar.getBoundingClientRect().top;
-          const listTop = list.getBoundingClientRect().top;
-          if (toolbarTop < listTop + 2) {
-            list.scrollTop -= (listTop + 2 - toolbarTop);
-          }
-        }
+          window.addEventListener('resize', this.repositionServicePathDropdown, { passive: true });
+        });
       });
+    },
+
+    onServiceMultiselectClose() {
+      this.$nextTick(() => this.clearServicePathDropdownPin());
     },
 
     handleServicePopupKeydown(event) {
@@ -10166,7 +10230,7 @@ this.calculateFinalAmount(row)
     },
 
     closeAllPopupsAndFilters() {
-
+      this.clearServicePathDropdownPin();
       this.activeServicePopup = null;
       this.activeServiceTagPicker = null;
       this.activeRowActionMenu = null;
@@ -12270,6 +12334,7 @@ smsColor(val) {
     },
 
     closeServicePopup() {
+      this.clearServicePathDropdownPin();
       this.activeServicePopup = null;
       this.activeServiceTagPicker = null;
       this.unlockServicePopupScroll();
@@ -15204,18 +15269,44 @@ td.row-action-col {
   overscroll-behavior: contain;
 }
 
-/* دراپ‌داون‌ها فقط داخل بدنهٔ مودال باز می‌شوند؛ از فوتر بیرون نزنند. */
-.service-popup .multiselect__content-wrapper {
-  z-index: 30;
-  max-height: min(180px, 32vh) !important;
+/* Path options overlay the card (never in-flow). JS pins to position:fixed while open. */
+.service-popup .service-path-selectors .multiselect__content-wrapper {
+  position: absolute !important;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  bottom: auto;
+  z-index: 1200;
+  margin: 0;
+  max-height: min(220px, 36vh) !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.22);
+  pointer-events: auto;
 }
-
-/* مسیر خدمت به بالا باز می‌شود تا روی ردیف جزئیات ننشیند. */
-.service-popup .service-path-selectors .multiselect--above .multiselect__content-wrapper {
-  top: auto;
-  bottom: 100%;
-  margin-top: 0;
-  margin-bottom: 4px;
+.service-popup .service-path-selectors .multiselect__content-wrapper.service-path-dropdown-fixed {
+  position: fixed !important;
+  right: auto !important;
+  margin: 0 !important;
+  /* top/left/width/max-height set inline by pin helper */
+}
+.service-popup .service-path-selectors .multiselect__option {
+  min-height: 38px;
+  padding: 9px 12px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+  white-space: normal;
+  cursor: pointer;
+}
+.service-popup .service-path-selectors .multiselect__option--highlight,
+.service-popup .service-path-selectors .multiselect__option--selected.multiselect__option--highlight {
+  background: #dcfce7 !important;
+  color: #166534 !important;
 }
 
 /* «حذف» قرمز روی گزینهٔ انتخاب‌شدهٔ vue-multiselect را نشان نده؛ پاک‌کردن با × جداست. */
@@ -17023,7 +17114,10 @@ td.st-arrived select {
 }
 /* Dynamic service path: section → every nested subsection → service → tags. */
 .service-choice-row{grid-template-columns:minmax(0,1fr)!important}
-.service-path-selectors{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));align-items:start;gap:10px;min-width:0}
+.service-path-selectors{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));align-items:start;gap:10px;min-width:0;overflow:visible}
+.service-path-selectors:has(.multiselect--active){position:relative;z-index:40}
+.service-choice-row:has(.multiselect--active),
+.service-main-row:has(.multiselect--active){overflow:visible}
 .service-choice-row .service-path-selectors .service-root-multiselect,
 .service-choice-row .service-path-selectors .service-subsection-multiselect,
 .service-choice-row .service-path-selectors .service-name-multiselect{grid-column:auto!important;grid-row:auto!important;min-width:0!important}
