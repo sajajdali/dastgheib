@@ -2089,6 +2089,7 @@
                               :clear-on-select="false"
                               :allow-empty="true"
                               open-direction="below"
+                              :max-height="180"
                               placeholder="انتخاب بخش"
                               select-label=""
                               selected-label=""
@@ -2122,6 +2123,7 @@
                               :clear-on-select="false"
                               :allow-empty="true"
                               open-direction="below"
+                              :max-height="180"
                               :placeholder="serviceSectionLevelPlaceholder(level)"
                               select-label=""
                               selected-label=""
@@ -2153,6 +2155,7 @@
                               :clear-on-select="false"
                               :allow-empty="true"
                               open-direction="below"
+                              :max-height="180"
                               :disabled="!serviceCanChooseItem(service)"
                               :placeholder="serviceCanChooseItem(service) ? 'جستجو و انتخاب خدمت' : 'مسیر زیر‌بخش را کامل کنید'"
                               select-label=""
@@ -9862,6 +9865,8 @@ this.calculateFinalAmount(row)
     },
 
     clearServicePathDropdownPin() {
+      clearTimeout(this._servicePathDropdownRepinTimer);
+      this._servicePathDropdownRepinTimer = null;
       const panel = this.$refs.servicePopupPanel;
       panel?.querySelectorAll?.('.service-path-selectors .multiselect__content-wrapper').forEach((el) => {
         el.classList.remove('service-path-dropdown-fixed');
@@ -9872,6 +9877,7 @@ this.calculateFinalAmount(row)
         el.style.right = '';
         el.style.width = '';
         el.style.maxHeight = '';
+        el.style.removeProperty('max-height');
         el.style.zIndex = '';
       });
       panel?.querySelectorAll?.('.service-path-selectors .multiselect--above').forEach((el) => {
@@ -9884,6 +9890,26 @@ this.calculateFinalAmount(row)
       window.removeEventListener('resize', this.repositionServicePathDropdown);
       this._servicePathDropdownEl = null;
       this._servicePathDropdownAnchor = null;
+    },
+
+    getServicePathDropdownBounds() {
+      const panel = this.$refs.servicePopupPanel;
+      if (!panel) {
+        return {
+          top: 8,
+          bottom: window.innerHeight - 8,
+        };
+      }
+      const panelRect = panel.getBoundingClientRect();
+      const header = panel.querySelector('.service-popup-header');
+      const footer = panel.querySelector('.service-popup-footer');
+      const headerBottom = header ? header.getBoundingClientRect().bottom : panelRect.top;
+      const footerTop = footer ? footer.getBoundingClientRect().top : panelRect.bottom;
+      // Keep the list inside the modal body: below sticky header, above sticky footer.
+      return {
+        top: Math.max(panelRect.top + 4, headerBottom + 4),
+        bottom: Math.min(panelRect.bottom - 4, footerTop - 4),
+      };
     },
 
     repositionServicePathDropdown() {
@@ -9901,12 +9927,15 @@ this.calculateFinalAmount(row)
       const anchor = active.querySelector('.multiselect__tags') || active;
       const rect = anchor.getBoundingClientRect();
       const gap = 4;
-      const maxH = Math.min(240, Math.floor(window.innerHeight * 0.38));
-      const spaceBelow = window.innerHeight - rect.bottom - 10;
-      const spaceAbove = rect.top - 10;
-      const preferAbove = spaceBelow < Math.min(160, maxH) && spaceAbove > spaceBelow;
-      const available = Math.max(120, preferAbove ? spaceAbove - gap : spaceBelow - gap);
-      const height = Math.min(maxH, available);
+      const bounds = this.getServicePathDropdownBounds();
+      const spaceBelow = Math.max(0, bounds.bottom - rect.bottom - gap);
+      const spaceAbove = Math.max(0, rect.top - bounds.top - gap);
+      const idealMax = 180;
+      // Prefer below; flip above when the footer pocket below is too tight.
+      const useAbove = spaceBelow < Math.min(140, idealMax) && spaceAbove > spaceBelow;
+      const room = useAbove ? spaceAbove : spaceBelow;
+      // Cap to modal pocket only — never force a min height that spills past footer.
+      const clampedHeight = Math.max(0, Math.min(idealMax, room));
 
       dropdown.classList.add('service-path-dropdown-fixed');
       dropdown.style.position = 'fixed';
@@ -9914,16 +9943,18 @@ this.calculateFinalAmount(row)
       dropdown.style.width = `${Math.round(rect.width)}px`;
       dropdown.style.right = 'auto';
       dropdown.style.zIndex = '2147483647';
-      dropdown.style.maxHeight = `${height}px`;
+      dropdown.style.setProperty('max-height', `${Math.round(clampedHeight)}px`, 'important');
 
-      if (preferAbove) {
+      if (useAbove) {
         active.classList.add('multiselect--above');
-        dropdown.style.top = 'auto';
-        dropdown.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
+        const top = Math.max(bounds.top, rect.top - gap - clampedHeight);
+        dropdown.style.bottom = 'auto';
+        dropdown.style.top = `${Math.round(top)}px`;
       } else {
         active.classList.remove('multiselect--above');
+        const top = Math.min(rect.bottom + gap, bounds.bottom - clampedHeight);
         dropdown.style.bottom = 'auto';
-        dropdown.style.top = `${Math.round(rect.bottom + gap)}px`;
+        dropdown.style.top = `${Math.round(Math.max(bounds.top, top))}px`;
       }
     },
 
@@ -9943,6 +9974,10 @@ this.calculateFinalAmount(row)
           this._servicePathDropdownEl = dropdown;
           this._servicePathDropdownAnchor = active;
           this.repositionServicePathDropdown();
+          // vue-multiselect reapplies maxHeight after open — clamp again next frames.
+          requestAnimationFrame(() => this.repositionServicePathDropdown());
+          clearTimeout(this._servicePathDropdownRepinTimer);
+          this._servicePathDropdownRepinTimer = setTimeout(() => this.repositionServicePathDropdown(), 40);
 
           if (list) {
             this._servicePathDropdownScrollEl = list;
@@ -15278,7 +15313,7 @@ td.row-action-col {
   bottom: auto;
   z-index: 1200;
   margin: 0;
-  max-height: min(220px, 36vh) !important;
+  max-height: 180px; /* JS pin overrides with modal-clamped height; avoid !important */
   overflow-x: hidden;
   overflow-y: auto;
   border: 1px solid #bfdbfe;
@@ -15291,7 +15326,7 @@ td.row-action-col {
   position: fixed !important;
   right: auto !important;
   margin: 0 !important;
-  /* top/left/width/max-height set inline by pin helper */
+  /* top/left/width/max-height set inline by pin helper against modal header/footer */
 }
 .service-popup .service-path-selectors .multiselect__option {
   min-height: 38px;
