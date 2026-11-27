@@ -931,12 +931,6 @@
                     <div class="service-popup-primary-actions">
                       <button
                         type="button"
-                        class="add-service-line-btn service-popup-add-btn"
-                        data-keep-enabled
-                        @click.stop="addService(row)"
-                      >+ افزودن خدمت</button>
-                      <button
-                        type="button"
                         class="service-popup-close-btn"
                         title="بستن ثبت خدمات"
                         aria-label="بستن ثبت خدمات"
@@ -1234,6 +1228,15 @@
 
                     </div>
 
+                  </div>
+
+                  <div class="service-popup-footer">
+                    <button
+                      type="button"
+                      class="add-service-line-btn service-popup-add-btn"
+                      data-keep-enabled
+                      @click.stop="addService(row)"
+                    >+ افزودن خدمت</button>
                   </div>
 
                 </div>
@@ -9754,13 +9757,14 @@ this.calculateFinalAmount(row)
     },
 
     // پنل خدمات جدول داخل viewport می‌ماند؛ فقط فهرست خدمت‌ها اسکرول می‌خورد
-    // (هدر و دکمه‌های اصلی چسبان می‌مانند) و اسکرول به جدول/صفحه زنجیره نمی‌شود.
+    // (هدر بستن و فوتر «افزودن خدمت» چسبان می‌مانند) و اسکرول به جدول/صفحه زنجیره نمی‌شود.
     fitServicePopup(revealLast = false) {
       const popup = document.querySelector('.service-popup');
       const cell = popup?.parentElement;
       if (!popup || !cell) return;
       const topGap = 72;
-      const bottomGap = 96;
+      // فضای ماه‌ها + فوتر چسبان «افزودن خدمت» تا دکمه زیر نوار ماه نرود.
+      const bottomGap = 112;
       const viewport = window.innerHeight || document.documentElement.clientHeight || 0;
       const available = Math.max(240, viewport - topGap - bottomGap);
       popup.style.maxHeight = `${Math.round(available)}px`;
@@ -15130,10 +15134,26 @@ td.row-action-col {
   flex:0 0 auto;
 }
 
+.service-popup-footer{
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display:flex;
+  align-items:center;
+  justify-content:stretch;
+  flex: 0 0 auto;
+  margin: 8px -10px -10px;
+  padding: 10px;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 -6px 14px rgba(15, 23, 42, 0.06);
+}
+
 .service-popup-add-btn{
-  width:auto!important;
+  width:100%!important;
   min-width:0;
-  height:32px;
+  height:36px;
   padding:0 12px!important;
   white-space:nowrap;
 }
@@ -16200,7 +16220,7 @@ tr.data-row td {
     flex: 1 1 auto;
     min-height: 0;
     margin: 0;
-    padding: 2px 2px 8px;
+    padding: 2px 2px 14px;
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
@@ -16874,12 +16894,12 @@ td.st-arrived select {
   .service-popup-header {
     flex-wrap: wrap;
   }
-  .service-popup-primary-actions {
-    width: 100%;
-    justify-content: stretch;
+  .service-popup-footer {
+    margin-top: 6px;
+    padding: 8px 10px 10px;
   }
   .service-popup-add-btn {
-    flex: 1 1 auto;
+    height: 40px;
   }
 }
 .referrer-search{position:relative}
@@ -18149,6 +18169,12 @@ html #app.dark .service-popup-close-btn:hover {
   background: #3a2426 !important;
   border-color: #6b3a3a !important;
   color: #f5a8a0 !important;
+}
+html body.dark .service-popup-footer,
+html #app.dark .service-popup-footer {
+  background: #1a1c22 !important;
+  border-top-color: #2c3038 !important;
+  box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.35) !important;
 }
 html body.dark .service-main-row,
 html body.dark .service-prerequisite,
